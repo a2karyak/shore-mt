@@ -1,0 +1,29 @@
+/* --------------------------------------------------------------- */
+/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
+/* -- University of Wisconsin-Madison, subject to the terms     -- */
+/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
+/* -- Reserved.                                                 -- */
+/* --------------------------------------------------------------- */
+
+/*
+ * $Header: /p/shore/shore_cvs/src/lil/Imakefile,v 1.11 1995/06/19 17:28:05 schuh Exp $
+ */
+
+SUBDIR = oc
+
+ALLTARGETS = 
+
+install::libshore.a
+install_copy(lib, libshore.a)  /* done with "cp -p" so ranlib not needed*/
+build_joint_library(libshore.a, ,$(SDL_LIB) $(OC_LIB) $(VAS_APP_LIB) $(COMMON_LIB) $(FC_LIB) $(RPC_LIB))
+
+# extra libs needed to build vas server lib 
+SERVER_LIBS =	\
+	$(VAS_DIR)/server/libserver.a  $(VAS_DIR)/common/libcommon.a \
+	$(SM_LIB) $(TCL_LIB) $(KRBLIB) \
+	$(VERIFY_LIB)  $(STHREAD_LIB)
+install::libserver.a
+
+install_copy(lib, libserver.a)  /* done with "cp -p" so ranlib not needed*/
+build_joint_library(libserver.a, $(VAS_DIR)/server/main.o, $(SERVER_LIBS))
+

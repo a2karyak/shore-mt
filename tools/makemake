@@ -1,0 +1,78 @@
+#! /bin/csh -f
+
+set program=$0
+
+if ($#argv != 1 && $#argv != 2) then
+    echo usage: $program top_dir \(where config/ is located \) "[shore.defdir]"
+    exit 1
+endif
+
+set top_dir = $argv[1]
+# make sure topdir is a relative pathname -- it does not begin with / 
+echo $top_dir | grep "^/"
+if ($status == 0) then
+    echo usage: $program top_dir \(where config/ is located \) 
+    echo   make sure top_dir is a relative pathname
+    exit 1
+endif
+
+if (! -d $top_dir) then
+    echo Error: $top_dir is not a directory
+    exit 1
+endif
+
+if ($#argv == 2) then
+	set config = $argv[2]/shore.def
+	set configincl = -I$argv[2] 
+else
+	set config = $top_dir/config/shore.def
+	set configincl 
+endif
+
+
+if (! -e $config) then
+    echo "Error: no " $config " file."
+    echo "       copy $config.example to $config"
+    echo "       and edit $config as needed."
+    exit 1
+endif
+
+echo "Configuring Makefiles with the definitions in $config":
+grep "#define" $config | sort -u
+grep "#undef" $config | sort -u
+
+
+# do this recursively
+# removed -type f so that this works for shadow directories
+foreach f (`find . -name "Imakefile" -print`)
+    #loop to calculate $top in relative termms
+    set d = $f:h
+    set tmp = $d
+    set tmp2 = $tmp:h:t
+    set top = $top_dir
+    while ($tmp != "." && $tmp:t != ".." )
+	set tmp = $tmp:h
+	set top = $top/..
+	#echo top:tmp $top $tmp $tmp:t $tmp:h:t
+    end
+
+    echo running imake on: $d/Imakefile
+    if (-w $d/Makefile) then
+	echo ERROR: $d/Makefile is writable indicating it has been updated.
+	echo "       Please be sure to only edit Imakefile."
+	exit 1
+    endif
+    if (-e $d/makefile) then
+	echo WARNING: $d/makefile exists and will override Imakefile.
+    endif
+
+    /bin/rm -f $d/Makefile
+#   echo top for $d is $top
+
+	set all_options  = ( $configincl -I$d -I$d/.. -I$top_dir/config -DTop=$top \
+		             -f$f -s$d/Makefile )
+
+#	echo imake $all_options	
+	imake $all_options
+    chmod -w $d/Makefile
+end

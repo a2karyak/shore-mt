@@ -1,0 +1,16 @@
+#!/bin/csh -f
+#
+
+if ($#argv < 1)  then
+	echo "usage: " $0 " [tiny|little|small|medium|large]"
+	exit 
+endif
+foreach i (t1 t1ww t2a t2b t2c t3a t3b t3c t4 t5do t5undo\
+	t6 t7 t8 t9 \
+	q1 q1ww 2 q3 q4 q5 q6 q7 q8 \
+	i d r1 r2 wu m1 m2 m3 m4 m5 m6 \
+	)
+	echo "******************************************************** " $i
+	echo oo7client bench oo7.config.$1 1 $i one
+	oo7client bench oo7.config.$1 1 $i one
+end

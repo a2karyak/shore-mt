@@ -1,0 +1,156 @@
+/* --------------------------------------------------------------- */
+/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
+/* -- University of Wisconsin-Madison, subject to the terms     -- */
+/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
+/* -- Reserved.                                                 -- */
+/* --------------------------------------------------------------- */
+
+/*
+ * Imakefile for sdl tools
+ *
+ * $Header: /p/shore/shore_cvs/src/sdl/Imakefile,v 1.42 1996/07/02 14:22:52 schuh Exp $
+ */
+
+SUBDIR = include
+
+/*
+ * Source files
+ */
+GENERATED_C =	sdl-gram.tab.C sdl_lex.C  
+OQL_GENERATED_C =oql_gram.tab.C oql_lex.C
+GENERATED_H =	sdl-gram.tab.h
+GENERATED =	$(GENERATED_C) $(GENERATED_H)
+DISPOSABLE = $(GENERATED)
+SRC.parser = main_sdl.C
+PARSER_SRCS =	$(GENERATED_C) $(SRC.parser)
+OQL_PARSER_SRCS =	$(OQL_GENERATED_C) $(SRC.parser)
+
+SDLLIB_SRCS =  mtcxx.C tresolve.C meta_init.C metatypes.sdl.C sdl_support.C dummy.C sdl_string.C sdl_set.C lookup.C PoolScan.C DirScan.C sdl_index.C sdl_UnixFile.C get_type_oid.C app_class.C node.C str-tab.C
+
+OQLLIB_SRCS	=	nmain.C oql_gram.tab.C  ndummy.C noql.C  \
+tree.C aqua_tran.C aqua_check.C demo.o utility.C oql_context.C 	\
+odl.C oql_lex.C auto_string.C symbol.C oql_types.C  \
+typedb.C  scope.C load.C aqua_to_shore.C eval.C shore_tran.C
+
+CXX_SRCS =	main_cxx.C
+LINK_SRCS = main_link.C
+MAIN_SRCS = main.C
+OQLS_SRCS = main_oql.C
+
+SRC.cvs = $(SRC.parser) $(SDLLIB_SRCS) $(CXX_SRCS) $(OQLLIB_SRCS)
+ALL_SRCS =	$(PARSER_SRCS) $(SDLLIB_SRCS) $(CXX_SRCS) $(LINK_SRCS) $(MAIN_SRCS) $(OQLLIB_SRCS)
+
+/*
+ * Include files
+ */
+HFILES =	metatype_ext.h metatypes.sdl.h node.h sdl-gram.tab.h \
+		type_globals.h Any.h Pool.h PoolScan.h ShoreApp.h \
+		sdl-gram.tab.h  sdl_ext.h sdl_lookup.h sdl_set.h \
+		sdl_string.h sdl_templates.h sdl_index.h
+
+/*
+ * Object files
+ */
+SDLLIB_OBJS =	$(SDLLIB_SRCS:.C=.o)
+OQLLIB_OBJS =   $(OQLLIB_SRCS:.C=.o)
+PARSER_OBJS =	$(PARSER_SRCS:.C=.o) 
+OQL_PARSER_OBJS =	$(OQL_PARSER_SRCS:.C=.o) 
+CXX_OBJS =	$(CXX_SRCS:.C=.o)
+LINK_OBJS =	$(LINK_SRCS:.C=.o)
+MAIN_OBJS =	$(MAIN_SRCS:.C=.o)
+OQLS_OBJS	= $(OQLS_SRCS:.C=.o)
+
+COMPILE_NOSYMBOL.c = $(CPLUSPLUS) $(CPLUSFLAGS) $(CPPFLAGS) -c
+
+/* 
+ *Include files
+ */
+OQLB = -I.
+#OQL_INCL = -Ioql  -Iodl
+OQL_INCL = -Ioql -I$(OQLB)/oql_types $(OQLB)/utils $(OQLB)/odl $(OQLB)/tsi  
+OQL_INCL += $(OQLB)/query $(OQLB)/opt $(OQLB)/pincl $(OQLB)/oql_mincs 
+OQL_INCL += $(OQLB)/oql_parser $(OQLB)/apg $(OQLB)/pplan
+#OQL_INCL = -Ioql -I$(OQLB)/types $(OQLB)/utils $(OQLB)/odl $(OQLB)/tsi $(OQLB)/../common/adt/include $(OQLB)/../common/include $(OQLB)/../server/include $(OQLB)/query
+INCLUDE +=	$(SDL_INCL) $(OC_INCL)  $(VAS_INCL) $(COMMON_INCL) $(FC_INCL) $(SM_INCL) $(STHREAD_INCL) 
+OQL_OBJS	=	oql_parser/Bmain.o
+
+/*
+ * Libraries
+ */
+/* FLEXLIB set in config/Project.tmpl */
+LIB = libsdl.a
+OQL_LIB = liboql.a
+
+# SDL_LIB is defined in templates
+OTHERLIBS = $(OC_LIB) $(VAS_APP_LIB) $(COMMON_LIB) $(FC_LIB) $(RPC_LIB) $(FLEXLIB) $(SM_LIB) $(STHREAD_LIB)
+
+/*
+ * What to make when we just type "make"
+ */
+EXEC =		sdl
+
+/*
+ * Other stuff to be removed by "make clean"
+ */
+DISPOSABLE +=		core *.pure *_pure_* *.pure_*
+
+/*
+ * Targets
+ */
+ALLTARGETS = $(LIB) sdl 
+# $(OQL_LIB) oql
+
+
+# the following should be generalized
+
+automatic:: $(GENERATED)
+
+# special hack to see that "make depend" descends
+# into include/ FIRST!!!
+depend::
+	@for i in `echo $(SUBDIR)`; do \
+	cd $$i; $(MAKE) depend; done;
+
+sdl-gram.tab.C:	sdl-gram.y
+	$(BISON) -d sdl-gram.y
+	cat sdl-gram.tab.c | sed '/^#line/s=sdl-gram.tab.c=sdl-gram.tab.C=' > sdl-gram.tab.C
+	rm sdl-gram.tab.c
+
+oql_gram.tab.C:	oql_gram.y
+	$(BISON) -d oql_gram.y
+	cat oql_gram.tab.c | sed '/^#line/s=sdl-gram.tab.c=sdl-gram.tab.C=' > oql_gram.tab.C
+	rm oql_gram.tab.c
+
+sdl_lex.C:	sdl-lex.l
+	$(FLEX) sdl-lex.l
+	cat lex.yy.c | sed '/^#line/s=lex.yy.c=sdl_lex.C=' > sdl_lex.C
+	rm lex.yy.c
+oql_lex.C:	oql_gram.l
+	$(FLEX) -+ oql_gram.l
+	cat lex.yy.cc | sed '/^#line/s=lex.yy.cc=oql_lex.C=' > oql_lex.C
+	rm lex.yy.cc
+
+sdl-gram.tab.h: sdl-gram.tab.C
+oql_gram.tab.h: oql_gram.tab.C
+
+install_copy(bin, sdl)
+install_copy(include, metatypes.sdl.h metatypes.sdl )
+install clean_install::
+	(cd include; $(MAKE) $@)
+
+c_plus_program(sdl, $(PARSER_OBJS) $(MAIN_OBJS), $(LIB) $(OTHERLIBS))
+c_plus_program(oql, $(OQLS_OBJS)  , $(OQL_LIB) $(LIB) $(FLEXLIB) $(OTHERLIBS))
+
+PURE_OPT = \
+-inuse-at-exit=no -windows=no -copy-fd-output-to-logfile=1,2 -logfile=purify.out -view-file=shore.pv -chain-length=10
+PURE_OPTIONS = $(PURE_OPT)
+
+purify_c_plus_program(sdl, $(PARSER_OBJS) $(MAIN_OBJS), $(LIB) $(OTHERLIBS),$(PURE_OPTIONS))
+
+build_library($(LIB), $(SDLLIB_OBJS))
+
+build_library($(OQL_LIB), $(OQLLIB_OBJS))
+
+clean_files($(DISPOSABLE))
+
+depend_target($(ALL_SRCS))

@@ -1,0 +1,228 @@
+# --------------------------------------------------------------- #
+# -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- #
+# -- University of Wisconsin-Madison, subject to the terms     -- #
+# -- and conditions given in the file COPYRIGHT.  All Rights   -- #
+# -- Reserved.                                                 -- #
+# --------------------------------------------------------------- #
+
+#
+#  Test non-unique btree
+#
+proc scan_up_partial {ndx lb ub nrec} {
+    echo "scan up partial:"
+    set scan [sm create_scan $ndx >= $lb <= $ub]
+
+    set lb [string trimleft $lb 0]
+    set ub [string trimleft $ub 0]
+
+    for {set i 1} {$i <= $nrec} {incr i} {
+	set r [sm scan_next $scan]
+	if {[string compare $r eof] == 0} then { break }
+	set key [string trimleft [lindex $r 0] 0]
+	set el [string trimleft [lindex $r 1] 0]
+	verbose "scanned ($key, $el)"
+#	assert {expr $key == $el}
+#	assert {expr $key == $lb + $i - 1}
+    }
+    assert {expr $i > $nrec}
+    assert {expr [string compare [sm scan_next $scan] eof] == 0}
+    sm destroy_scan $scan
+    echo "---- successful"
+}
+
+proc scan_up {ndx nrec}  {
+    #
+    # verify ascending
+    #
+    echo "scan up: expect " $nrec " records"
+    set scan [sm create_scan $ndx >= neg_inf <= pos_inf]
+    for {set i 1} {$i <= $nrec} {incr i}  {
+        set r [sm scan_next $scan]
+	if {[string compare $r eof] == 0} then { 
+		echo found $i records
+		break 
+	}
+        set key [string trimleft [lindex $r 0] 0]
+	set el [string trimleft [lindex $r 1] 0]
+        echo scanned $key.$el
+#        assert {expr $key == $el}
+#        assert {expr $i == $key}
+    }
+    assert {expr $i > $nrec}
+    assert {expr [string compare [sm scan_next $scan] eof] == 0}
+    sm destroy_scan $scan
+    echo "---- successful"
+}
+
+proc probe {ndx nrec} {
+    global short_form
+    echo "probe:"
+    for {set i 1} {$i <= $nrec} {incr i} {
+        set el [sm find_assoc $ndx [format $short_form $i]]
+       assert {expr $i == $el}
+        verbose probed $i
+    }
+    echo "---- successful"
+}
+
+#
+# start up
+#
+source $script_dir/vol.init
+
+set nrec 25
+
+#
+# create index 
+#
+echo Create index
+sm begin_xct
+set ndx [sm create_index $volid btree]
+echo created index $ndx
+sm commit_xct
+
+#
+# load, abort
+#
+echo load, abort
+sm begin_xct
+for {set i 1} {$i <= $nrec} {incr i} {
+    set key [format $short_form $i]
+    for {set j 1} {$j <= $nrec} {incr j}  {
+	verbose inserting $i.$j
+	sm create_assoc $ndx $key [format $short_form $j]
+    }
+}
+#sm print_index $ndx
+sm abort_xct
+
+sm begin_xct
+scan_up $ndx 0
+sm commit_xct
+
+#
+# load, restart
+#
+echo load, restart
+sm begin_xct
+set tx [sm xct]
+set tid [sm xct_to_tid $tx]
+echo  $tid
+for {set i 1} {$i <= $nrec} {incr i} {
+    set key [format $short_form $i]
+    for {set j 1} {$j <= $nrec} {incr j}  {
+	echo inserting $i.$j
+	sm create_assoc $ndx $key [format $short_form $j]
+    }
+}
+
+echo restart $tid after load
+restart
+
+
+sm begin_xct
+scan_up $ndx 0
+sm commit_xct
+
+#
+# load, commit restart
+#
+echo load, commit, restart
+sm begin_xct
+for {set i 1} {$i <= $nrec} {incr i} {
+    set key [format $short_form $i]
+    for {set j 1} {$j <= $nrec} {incr j}  {
+	echo inserting $i.$j
+	verbose inserting $i.$j
+	sm create_assoc $ndx $key [format $short_form $j]
+    }
+}
+sm commit_xct
+
+echo restart
+restart
+
+sm begin_xct
+scan_up $ndx [expr {$nrec * $nrec}]
+#probe $ndx $[expr {$nrec * $nrec}]
+scan_up_partial $ndx [format $short_form 2] \
+		[format $short_form [expr {$nrec - 1}]] \
+		[expr {$nrec * $nrec - 2 * $nrec}]
+sm commit_xct
+
+#
+# empty, abort
+#
+echo empty, abort
+sm begin_xct
+for {set i 1} {$i <= $nrec} {incr i} {
+    set key [format $short_form $i]
+    for {set j 1} {$j <= $nrec} {incr j}  {
+	echo deleting $i.$j
+	sm destroy_assoc $ndx $key [format $short_form $j]
+    }
+}
+scan_up $ndx 0
+sm abort_xct
+
+sm begin_xct
+scan_up $ndx [expr {$nrec * $nrec}]
+sm commit_xct
+
+
+#
+# empty, restart
+#
+
+echo empty, restart
+sm begin_xct
+set tx [sm xct]
+set tid [sm xct_to_tid $tx]
+echo  $tid
+
+
+for {set i 1} {$i <= $nrec} {incr i} {
+    set key [format $short_form $i]
+    for {set j 1} {$j <= $nrec} {incr j}  {
+	echo deleting $i.$j
+	verbose deleting $i.$j
+	sm destroy_assoc $ndx $key [format $short_form $j]
+    }
+}
+
+echo restarting $tid after destroying all keys
+restart
+
+sm begin_xct
+scan_up $ndx [expr {$nrec * $nrec}]
+sm commit_xct
+
+#
+# empty, commit, restart
+#
+echo empty, commit, restart
+sm begin_xct
+for {set i 1} {$i <= $nrec} {incr i} {
+    set key [format $short_form $i]
+    for {set j 1} {$j <= $nrec} {incr j}  {
+	verbose deleting $i.$j
+	sm destroy_assoc $ndx $key [format $short_form $j]
+    }
+}
+sm commit_xct
+restart
+
+sm begin_xct
+scan_up $ndx 0
+sm commit_xct
+
+echo destroy, commit
+sm begin_xct
+sm destroy_index $ndx
+sm commit_xct
+
+unset ndx
+unset nrec
+unset i j
+unset key
+unset tid tx

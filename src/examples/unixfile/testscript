@@ -1,0 +1,24 @@
+#!/bin/csh -f
+uf junk
+remove junk
+<<<<<<< testscript
+ufstat -r 
+remove junk
+ufstat -l 
+remove junk
+||||||| 1.3
+ufstat junk -r
+remove junk
+ufstat junk -l
+remove junk
+=======
+ufstat -r
+ufstat -l
+>>>>>>> /tmp/T4a04979
+
+chm chm1 0755 0
+chm chm2 0755 0644
+remove chm2
+cho cho 1966 2363
+cho cho 1966 1966 
+remove cho

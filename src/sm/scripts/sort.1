@@ -1,0 +1,52 @@
+# --------------------------------------------------------------- #
+# -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- #
+# -- University of Wisconsin-Madison, subject to the terms     -- #
+# -- and conditions given in the file COPYRIGHT.  All Rights   -- #
+# -- Reserved.                                                 -- #
+# --------------------------------------------------------------- #
+
+#
+#	Test sort on integers
+#
+source $script_dir/vol.init
+
+set nrec 40
+
+#create and load a file with integers in reverse order
+sm begin_xct
+set f1 [sm create_file $volid]
+echo f1 = $f1
+for {set i 0} {$i < $nrec} {incr i} {
+    for {set j 0} {$j <= $i } {incr j} {
+        sm create_sort_rec $f1 [expr { $nrec - $i }] 4 [expr { $nrec - $i }] int
+    }
+}
+#echo scans on f1...
+#echo [sm scan_sorted_recs $f1 int]
+sm commit_xct
+
+#sort and display
+sm begin_xct
+echo sort ...
+set f2 [sm sort_file $f1 $volid 3 int 4 distinct keep]
+echo f2 = $f2
+
+echo scans on f2 ...
+echo [sm scan_sorted_recs $f2 int]
+
+sm commit_xct
+
+#sort and display
+sm begin_xct
+echo sort ...
+set f3 [sm sort_file $f1 $volid 3 int 4 distinct destruct]
+echo f3 = $f3
+
+echo scans on f3 ...
+echo [sm scan_sorted_recs $f3 int]
+
+#sm destroy_file $f1
+#sm destroy_file $f2
+sm commit_xct
+
+unset f1 f3 i nrec f2 j

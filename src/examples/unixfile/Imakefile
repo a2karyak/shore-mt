@@ -1,0 +1,33 @@
+/* --------------------------------------------------------------- */
+/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
+/* -- University of Wisconsin-Madison, subject to the terms     -- */
+/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
+/* -- Reserved.                                                 -- */
+/* --------------------------------------------------------------- */
+
+/*
+ * Imakefile for example SDL program
+ *
+ * $Header: /p/shore/shore_cvs/src/examples/unixfile/Imakefile,v 1.8 1995/07/17 15:58:05 nhall Exp $
+ *
+ * This Imakefile follows the conventions in ../README.makefiles
+ */
+
+SUBDIR = 
+
+INSTALL_STUFF = $(SRCS) $(SDLFILES) Makefile.template README
+SRC.cvs = $(INSTALL_STUFF) Imakefile
+
+
+OPTIONS += INSTALL_DIR=$(INSTALL_DIR)
+LIBS        = $(INSTALL_DIR)/lib/libshore.a
+
+install_copy(examples/unixfile, $(INSTALL_STUFF))
+
+purify_c_plus_program(uf, uf.o, $(LIBS), $(PURE_OPTS))
+purify_c_plus_program(ufstat, ufstat.o, $(LIBS), $(PURE_OPTS))
+purify_c_plus_program(remove, remove.o, $(LIBS), $(PURE_OPTS))
+purify_c_plus_program(chm, chm.o, $(LIBS), $(PURE_OPTS))
+purify_c_plus_program(cho, cho.o, $(LIBS), $(PURE_OPTS))
+purify_c_plus_program(dir, dir.o, $(LIBS), $(PURE_OPTS))
+purify_c_plus_program(error, error.o, $(LIBS), $(PURE_OPTS))

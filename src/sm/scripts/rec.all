@@ -1,0 +1,26 @@
+# --------------------------------------------------------------- #
+# -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- #
+# -- University of Wisconsin-Madison, subject to the terms     -- #
+# -- and conditions given in the file COPYRIGHT.  All Rights   -- #
+# -- Reserved.                                                 -- #
+# --------------------------------------------------------------- #
+
+#
+#  This script runs VERIFY scripts (ones that use the gdbm
+#  verification scheme -- now obsolete).  Can only be run with
+#  a system built with -DUSE_VERIFY (in shore.def) .
+#
+
+source $script_dir/vol.init
+
+set RESTART 1
+
+set scripts [ list append.st truncate.st update.st ]
+
+foreach x $scripts {
+    echo "================================================================="
+    echo "================================================================="
+    echo "RUNNING:  $x"
+    source $script_dir/$x
+}
+echo "rec.all STATUS: ok"

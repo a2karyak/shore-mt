@@ -1,0 +1,68 @@
+# --------------------------------------------------------------- #
+# -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- #
+# -- University of Wisconsin-Madison, subject to the terms     -- #
+# -- and conditions given in the file COPYRIGHT.  All Rights   -- #
+# -- Reserved.                                                 -- #
+# --------------------------------------------------------------- #
+
+# $Header: /p/shore/shore_cvs/src/examples/vas/hello/Makefile.template,v 1.12 1996/07/30 19:40:24 kupsch Exp $
+
+#
+# Makefile for vas/grid program
+#
+
+# See "NOTE" below re: running on Solaris.
+
+# Modify the following line to indicated where gcc is installed
+GCC =       gcc
+
+# Modify the following line as appropriate to point to the place where
+# Shore is installed
+INSTALL_DIR = /p/shore/installed/NEW/debug
+
+INCLUDE     = -I$(INSTALL_DIR)/include
+LIBCOMMON   = $(INSTALL_DIR)/lib/libshorecommon.a
+LIBSM       = $(INSTALL_DIR)/lib/libsm.a
+
+LDFLAGS     = -lg++ -lm -lstdc++
+
+# NOTE: if running on a Solaris machine, add this:
+LDFLAGS       += -lnsl
+
+SRCS =	hello.C
+EXEC = hello
+
+OBJS =	$(SRCS:.C=.o)
+
+CXX =		$(GCC) -x c++
+CC  = 		$(GCC)
+LD =		$(GCC)
+
+#
+# C/C++ Flags.
+#
+# Note: if you are linking with a debugging version of the Storage
+# 	manager libraries, be sure to define DEBUG with -DDEBUG
+#
+CCFLAGS =	-g -O $(INCLUDE) -Wall
+CXXFLAGS =	$(CCFLAGS) -fno-implicit-templates
+
+all:	ShoreConfig.h $(EXEC)
+
+ShoreConfig.h:
+	cp $(INSTALL_DIR)/include/ShoreConfig.h .
+
+.SUFFIXES: .C .o
+
+.C.o:
+	$(CXX) $(CXXFLAGS) -c $<
+
+.c.o:
+	$(CC) $(CCFLAGS) -c $<
+
+hello: $(OBJS) $(LIBSM) $(LIBCOMMON)
+	$(LD) -o $@ $(OBJS) $(LIBSM) $(LIBCOMMON) $(LDFLAGS)
+
+clean:
+	$(RM) $(EXEC) $(OBJS) a.out core tags 
+

@@ -1,0 +1,17 @@
+#!/usr/sup/tcl/bin/tclsh
+
+# --------------------------------------------------------------- #
+# -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- #
+# -- University of Wisconsin-Madison, subject to the terms     -- #
+# -- and conditions given in the file COPYRIGHT.  All Rights   -- #
+# -- Reserved.                                                 -- #
+# --------------------------------------------------------------- #
+
+for {set x 0} {$x < 39} {incr x} {
+    for {set y 0} {$y < 14} {incr y} {
+	puts "add $x,$y $x $y"
+	puts commit
+    }
+}
+
+puts commit

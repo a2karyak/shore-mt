@@ -1,0 +1,24 @@
+#!/bin/csh -f 
+if ($#argv != 4) then
+   echo usage: $0 TEST  VAL FLAGS script
+   exit 1
+endif
+
+if ($1 == "") then
+    unsetenv CRASHTEST
+else 
+    setenv CRASHTEST $1
+endif
+setenv CRASHTESTVAL $2
+setenv DEBUG_FLAGS "$3"
+
+set script=$4
+
+# echo CRASHTEST=$CRASHTEST CRASHTESTVAL=$CRASHTESTVAL DEBUG_FLAGS=$DEBUG_FLAGS 
+# echo $CRASHTEST $CRASHTESTVAL $DEBUG_FLAGS > ssh.out
+
+./ssh -lf ../scripts/$script 1 >>& ssh.out 
+
+set  s=$status
+echo exiting $s
+exit $s

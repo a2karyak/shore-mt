@@ -1,0 +1,230 @@
+/* --------------------------------------------------------------- */
+/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
+/* -- University of Wisconsin-Madison, subject to the terms     -- */
+/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
+/* -- Reserved.                                                 -- */
+/* --------------------------------------------------------------- */
+
+/*
+ *      $RCSfile: Imakefile,v $
+ *      $Revision: 1.84 $
+ *      $Date: 1996/07/18 21:38:57 $
+ *      $Author: nhall $
+ */
+SBUGS = 
+
+COMMON = $(VAS_DIR)/common
+SYMLINKS = $(COMMON)/msg_svc.C $(COMMON)/vas.tcllib \
+	../../sthread/diskrw
+
+HFILES=\
+	Anonymous.h Directory.h \
+	Object.h Pool.h Registered.h\
+	Symlink.h Xref.h \
+	client.h cltab.h efs.h funcproto.h\
+	mount_m.h \
+	smcalls.h svas_layer.h svas_server.h\
+	svas_service.h rpc_service.h  tcp_rpc_service.h udp_rpc_service.h\
+	tclshell_service.h \
+	tcp_clients.h udp_clients.h vaserr.h  hdrinfo.h sysp.h \
+	svas_nfs.h 
+
+SRC.server = main.C 
+SRC.sizes = sizes.C 
+
+SRC.generated = msg_svc.C  nfs_xdr.c nfs_svc.c
+SRC.Objects = \
+	Anonymous.C Directory.C \
+	Object.C Pool.C Registered.C\
+	Symlink.C Xref.C 
+
+SRC.objects = \
+	anonymous.C directory.C index.C \
+	object.C pool.C registered.C\
+	symlink.C unixfile.C xref.C
+
+# SRC.rest = $(SRC.objects) $(SRC.Objects)\
+# SRC.rest = allobj.C allObj.C \
+# 
+# combining the sources into one  actually takes longer
+# than combining into 2
+
+SRC.rest = \
+	sysp.C \
+	client.C cltab.C efs.C svas_nfs.C\
+	mknod.C mount_m.C mountd.C \
+	nfs_ops.C replybuf.C signals.C stdin.C  stubs.C \
+	tcp_rpc_service.C rpc_service.C udp_rpc_service.C \
+	svas_layer.C svc_run.C\
+	tcp_clients.C udp_clients.C\
+	trans.C xact.C vas.C \
+	cmsg.C  vmsg.C \
+	$(SRC.objects) $(SRC.Objects)
+
+/*	
+ * vas_stubs.c is generated every time the .x files are processed.
+ * Each of the stubs is copied once to a new source file when
+ * the function is filled in.
+ * vas_stubs.o is not meant to be used.
+ */
+SRC.libserver = $(SRC.rest) $(SRC.generated)
+SRC.depend = $(SRC.server) $(SRC.sizes) $(SRC.libserver)
+
+#for tags, set $(SRCS), $(SRC)
+SRC = $(SRC.server) $(SRC.libserver)
+SRCS = $(SRC.server) $(SRC.libserver)
+
+SRC.cvs =\
+	$(SRC.rest) $(HFILES) nfs.x  sysp.dat efs.dat
+HDR = 
+OBJ.server.tmp = $(SRC.server:.C=.o)
+OBJ.server = $(OBJ.server.tmp:.c=.o) 
+
+OBJ.sizes.tmp = $(SRC.sizes:.C=.o)
+OBJ.sizes = $(OBJ.sizes.tmp:.c=.o) 
+
+OBJ.libserver.tmp = $(SRC.libserver:.C=.o)
+OBJ.libserver = $(OBJ.libserver.tmp:.c=.o) 
+
+MALLOC =
+
+OBJ.depend.tmp=$(SRC.depend:.C=.o)
+OBJ.depend=$(OBJ.depend.tmp:.c=.o)
+
+STAT_FILES_S = \
+	SyspCache_struct.i SyspCache_op.i SyspCache_msg.i 
+STAT_DEF_FILES_S = \
+	SyspCache_def.i
+STAT_FILES_E = \
+	efs_stats_struct.i efs_stats_op.i efs_stats_msg.i 
+STAT_DEF_FILES_E = \
+	efs_stats_def.i
+
+STAT_FILES = $(STAT_FILES_S) $(STAT_FILES_E)
+STAT_DEF_FILES = $(STAT_DEF_FILES_S) $(STAT_DEF_FILES_E)
+
+EXEC = shore 
+GENERATED.rpcgen = nfs.h nfs_svc.c nfs_xdr.c msg_svc.C
+GENERATED.msginfo = nfs_stats.i nfs_names.i mount_stats.i mount_names.i \
+	vmsg_names.i vmsg_stats.i
+AUTOMATIC = $(GENERATED.rpcgen) $(STAT_FILES) $(STAT_DEF_FILES) $(GENERATED.msginfo)
+DISPOSABLE = $(AUTOMATIC)\
+	core made junk a.out $(EXEC) $(OBJ.depend)\
+	*.pure *_pure_* *.pure_* *.quant
+
+SMINCL = $(COMMON_INCLUDE) $(STHREAD_INCL) 
+SMLIB  = \
+	$(SM_DIR)/libsm.a  \
+	$(OCOMM_LIB) \
+	$(STHREAD_DIR)/libst.a  \
+	$(COMMON_DIR)/libcommon.a $(FC_DIR)/libfc.a 
+
+#ifndef USE_VERIFY
+GDBM_INCL =
+GDBM_LIB =
+#endif
+
+INCLUDE += $(SMINCL) $(OCOMM_INCL) $(TCL_INCL) $(KRBINCL) $(VERIFY_INCL) $(GDBM_INCL)
+
+LIB.server =  \
+	libserver.a \
+	$(RPC_LIB) $(COMMON)/libcommon.a $(SMLIB) $(TCL_LIB) $(KRBLIB) \
+	$(VERIFY_LIB) $(GDBM_LIB) 
+
+LDFLAGS =  -lm 
+
+AUXFLAGS= $(VASAUXFLAGS)\
+ 	-DSERVER_ONLY $(KRBFLAGS) $(SBUGS) \
+# 	-fno-inline -fno-default-inline 
+# 	-Wimplicit -Wswitch -Wcomment -Wchar-subscripts \
+# 	-Wuninitialized -Wparentheses -Wpointer-arith \
+# 	-Wcast-align 
+# 
+
+automatic:: $(AUTOMATIC)
+
+statistics(sysp.dat,,$(STAT_FILES_S) $(STAT_DEF_FILES_S))
+statistics(efs.dat,,$(STAT_FILES_E) $(STAT_DEF_FILES_E))
+
+install_copy(include, $(STAT_DEF_FILES))
+install_copy(lib, shore.rc options vas.tcllib);
+install_copy(bin, shore);
+
+$(OBJ): $(AUTOMATIC)
+
+ALLTARGETS = $(GENERATED.rpcgen) $(GENERATED.msginfo) shore
+
+MSGSTATSPL = ../common/msgstats.pl
+
+vmsg_stats.i vmsg_names.i: ../common/msg.h $(MSGSTATSPL)
+	$(PERL) -s $(MSGSTATSPL) -r -s ../common/msg.h | sort -n > vmsg_names.i
+	$(PERL) -s $(MSGSTATSPL) -r -v ../common/msg.h | sort -n > vmsg_stats.i
+
+mount_names.i mount_stats.i : nfs.h  $(MSGSTATSPL)
+	$(PERL) -s $(MSGSTATSPL) -m -v nfs.h | sort -n > mount_stats.i
+	$(PERL) -s $(MSGSTATSPL) -m -s nfs.h | sort -n > mount_names.i
+
+nfs_names.i nfs_stats.i : nfs.h $(MSGSTATSPL)
+	$(PERL) -s $(MSGSTATSPL) -n -v nfs.h | sort -n > nfs_stats.i
+	$(PERL) -s $(MSGSTATSPL) -n -s nfs.h | sort -n > nfs_names.i
+
+
+##  Make the LIBRARY FOR SHORE SERVERS
+build_library(libserver.a, $(OBJ.libserver))
+
+#
+
+## this funny stuff about explicitly including ../common/reserved_oids.o
+## is necessary for use with CC, so that the constructors get done
+## (there's a bug somewhere)
+##
+##  rules following the macro are rules for that program
+c_plus_program(shore, ../common/reserved_oids.o $(OBJ.server), $(LIB.server))
+#	-chgrp shore shore
+# 	chmod ug+s shore
+
+PURE_OPT += -best-effort -chain-length=10
+
+purify_c_plus_program(shore, ../common/reserved_oids.o $(OBJ.server), $(LIB.server), $(PURE_OPT))
+
+QUANT_OPT= $(PURE_OPT)
+quantify_c_plus_program(shore, ../common/reserved_oids.o $(OBJ.server), $(LIB.server), $(QUANT_OPT))
+
+PURECOV_OPT += -best-effort  $(PURE_OPT)
+purecov_c_plus_program(shore, ../common/reserved_oids.o $(OBJ.server), $(LIB.server), $(PURECOV_OPT))
+
+pureboth_c_plus_program(shore, ../common/reserved_oids.o $(OBJ.server), $(LIB.server), $(PURECOV_OPT))
+
+c_plus_program(sizes, $(OBJ.sizes) template.o, $(LIB.server))
+
+depend::  nfs.h nfs_svc.c nfs_xdr.c symlinks mount_stats.i nfs_stats.i
+
+	
+vas.o:		msg_svc.C 
+
+msg_svc.C:
+	(cd $(VAS_DIR)/common; $(MAKE) $@)
+
+nfs.h: nfs.x
+	$(RPCGEN) -h -o $@ nfs.x
+nfs_svc.c: nfs.x sed.script.svc
+	$(RPCGEN) -m -o $@ nfs.x
+#	patch nfs_svc.c nfs_svc.patch
+	sed -f sed.script.svc nfs_svc.c > nfs_svc.c.tmp
+	mv -f nfs_svc.c.tmp nfs_svc.c
+
+nfs_xdr.c: nfs.x
+	$(RPCGEN) -c -o $@ nfs.x
+
+nfs_xdr.o:  nfs_xdr.c
+	$(COMPILE.c) $<
+nfs_svc.o:  nfs_svc.c
+	$(COMPILE.c) $<
+
+#ifdef COMMENT
+	$(PROTOIZE_IFNEEDED) $< 
+#endif
+
+clean_files($(DISPOSABLE))
+
+depend_target($(SRC.depend))

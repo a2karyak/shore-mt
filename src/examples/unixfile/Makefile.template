@@ -1,0 +1,63 @@
+# --------------------------------------------------------------- #
+# -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- #
+# -- University of Wisconsin-Madison, subject to the terms     -- #
+# -- and conditions given in the file COPYRIGHT.  All Rights   -- #
+# -- Reserved.                                                 -- #
+# --------------------------------------------------------------- #
+
+# $Header: /p/shore/shore_cvs/src/examples/unixfile/Makefile.template,v 1.23 1996/08/06 13:21:35 kupsch Exp $
+
+#
+# Makefile for uf
+#
+
+# See "NOTE" below re: running on Solaris.
+
+# Modify the following line to indicated where gcc is installed
+GCC         = gcc
+
+# Modify the following line as appropriate to point to the place where
+# Shore is installed
+INSTALL_DIR = /p/shore/installed/NEW/debug
+
+INCLUDE     = -I$(INSTALL_DIR)/include
+LIBS        = $(INSTALL_DIR)/lib/libshore.a
+
+SRCS =	uf.C dir.C chm.C cho.C ufstat.C remove.C error.C
+OBJS =	$(SRCS:.C=.o)
+EXECS =          uf dir chm cho ufstat remove error
+
+CXX =		$(GCC) -x c++
+LD =		$(GCC)
+LDFLAGS =	-lstdc++
+
+# NOTE: if running on a Solaris machine, add this:
+LDFLAGS       += -lnsl
+
+CXXFLAGS =	-g $(INCLUDE) 
+
+
+.SUFFIXES: .C .o
+
+.C.o:
+	$(CXX) $(CXXFLAGS) -c -fno-inline $<
+
+all:	$(EXECS)
+
+$(EXECS):
+	$(LD) -o $@ $@.o $(LIBS) $(LDFLAGS)
+	
+tags:
+	ctags -wt $(SRCS) $(INSTALL_DIR)/include/*.h
+
+clean:
+	$(RM) $(EXECS) $(OBJS) a.out core tags 
+
+# dependencies
+uf: uf.o
+dir: dir.o
+chm: chm.o
+cho: cho.o
+ufstat: ufstat.o
+remove: remove.o
+error: error.o

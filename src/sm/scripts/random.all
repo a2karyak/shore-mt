@@ -1,0 +1,44 @@
+# --------------------------------------------------------------- #
+# -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- #
+# -- University of Wisconsin-Madison, subject to the terms     -- #
+# -- and conditions given in the file COPYRIGHT.  All Rights   -- #
+# -- Reserved.                                                 -- #
+# --------------------------------------------------------------- #
+
+#
+# This scripts is meant to be run with the shell script "runssh"
+# or by itself.  Its purpose is to run the scripts in the following
+# list in (pseudo-)random order, INDEFINITELY.
+#
+#
+
+
+set scripts [list \
+    vol.1 vol.2 lock.1 lock.hier lock.hier_sm lock.upgrade \
+    lockrec_pin lockrec_sm lockfile_sm \
+    deadlock.1 deadlock.2 deadlock.3 deadlock.4 quark.1 \
+    btree.1 btree.2 btree.3 btree.4 btree.5 \
+    btree.10 btree.9 btree.8 btree.7 btree.6 \
+    rtree.1 rtree.2 rtree.3 sort.1 sort.2 sort.3 sort.4 \
+    pin.1 pin.2 pin.3 \
+    file.1 file.2 file.3 file.4 file.5 file.6 file.7 file.8  \
+    lgrec.1 lgrec.2 lgrec.3  ]
+
+echo $scripts
+source $script_dir/vol.init
+
+set garbage [open garbage_variables w]
+
+cleanup $garbage
+
+while { 1 } {
+    set i [random [llength $scripts]]
+    set script [lindex $scripts [expr $i] ]
+    echo
+    echo RUNNING: $script 
+    source $script_dir/$script
+    pstats
+
+    puts $garbage [concat CLEANUP AFTER  $script  : ]
+    cleanup $garbage
+}

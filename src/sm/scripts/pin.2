@@ -1,0 +1,85 @@
+# --------------------------------------------------------------- #
+# -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- #
+# -- University of Wisconsin-Madison, subject to the terms     -- #
+# -- and conditions given in the file COPYRIGHT.  All Rights   -- #
+# -- Reserved.                                                 -- #
+# --------------------------------------------------------------- #
+
+#
+# This script tests latching and locking with pin_i's.
+# I specifically tests for a latch/lock deadlock case
+# that used to deadlock the sm
+#
+source $script_dir/vol.init
+
+sm begin_xct
+
+echo creating file
+set f1 [sm create_file $volid ]
+
+# change body width
+set id_body_width %0100d
+
+echo [format $id_body_width 1]
+
+echo creating r1 and r2
+set r1 [ sm create_rec $f1 "" 11 [format $id_body_width 1] ]
+set r2 [ sm create_rec $f1 "" 11 [format $id_body_width 2] ]
+echo $r1 $r2
+
+sm commit_xct
+
+proc rem1 { dummy } {
+	global r1 r2
+	echo in rem1
+	sm begin_xct
+	set pin1 [sm pin_create]
+	sm pin_pin $pin1 $r1 0
+	set pin2 [sm pin_create]
+	sm pin_pin $pin2 $r2 0
+	echo pinned $r1 and $r2
+	sync
+
+	echo rem1 updating $r1
+	sm pin_update_rec $pin1 1 "Z"	
+	echo rem1 update complete
+	sync
+
+	sm pin_destroy $pin1
+	sm pin_destroy $pin2
+	echo rem1 abort
+	sm abort_xct
+}
+
+proc rem2 { dummy } {
+	global r1 r2
+	echo in rem2
+	sm begin_xct
+	set pin2 [sm pin_create]
+	sm pin_pin $pin2 $r2 0
+	echo pinned $r2
+	sync
+
+	echo rem2 updating $r2
+	sm pin_update_rec $pin2 2 "Z"	
+	echo rem2 update complete
+	sync
+
+	sm pin_destroy $pin2
+	echo rem2 abort
+	sm abort_xct
+}
+
+echo forking 1
+set t1 [ fork_thread rem1 "dummy"]
+echo forking 2
+set t2 [ fork_thread rem2 "dummy"]
+
+echo about to call sync_thread
+sync_thread $t1
+sync_thread $t2
+sync_thread $t1
+sync_thread $t2
+join_thread $t1 $t2
+
+unset t1 t2 r1 r2 f1 

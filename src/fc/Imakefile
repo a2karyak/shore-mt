@@ -1,0 +1,114 @@
+/* --------------------------------------------------------------- */
+/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
+/* -- University of Wisconsin-Madison, subject to the terms     -- */
+/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
+/* -- Reserved.                                                 -- */
+/* --------------------------------------------------------------- */
+
+/*
+ *  $Id: Imakefile,v 1.53 1996/07/19 16:04:31 nhall Exp $
+ */
+
+#if defined(IS_SPARC_SOLARIS2) || defined(IS_I386_SOLARIS2)
+STATS=solaris_stats.C
+#else
+STATS=unix_stats.C
+#endif
+
+HDR = \
+	w_base.h w_error.h w_list.h w_rc.h w_sptr.h\
+	w_fastnew.h \
+	w_boolean.h w_statistics.h w_autodel.h \
+	w_workaround.h \
+	w_ref.h w_shmem.h \
+ 	stime.h w_timer.h \
+	w_cirqueue.h w_ref_counted.h \
+	w_bitmap.h w_bitmap_space.h \
+	w_minmax.h w_hash.h\
+    	w.h \
+	purify.h unix_error.h copyright.h
+
+SRC.c = w_base.c w_listm.c w_error.c w_shmem.c \
+	w_fastnew.c \
+	stime.c w_timer.c \
+	w_bitmap.c purify_stubs.c w_statistics.c \
+	common_tmpl.c
+
+
+#ifdef CHEAP_RC
+SRC.c += w_cheaprc.c
+#else
+SRC.c += w_rc.c
+#endif
+
+SRC.C = $(STATS)
+SRC = $(SRC.c) $(SRC.C)
+
+CMNT for tags:
+SRCS = $(SRC) 
+HFILES = $(HDR)
+SRC.cvs = $(SRC) $(HDR)
+
+OBJ= $(SRC.c:.c=.o) $(SRC.C:.C=.o)
+
+ERROR_FILES = fc_error.h fc_error.i fc_einfo.i
+
+ALLTARGETS = $(OBJ) libfc.a
+
+automatic:: $(ERROR_FILES) ShoreConfig.h
+
+ShoreConfig.h:
+        echo "#ifndef " $(ARCH) > ShoreConfig.h
+        echo "#define " $(ARCH) >> ShoreConfig.h
+        echo "#endif " >> ShoreConfig.h
+        echo "#ifndef " $(OPSYS) >> ShoreConfig.h
+        echo "#define " $(OPSYS) >> ShoreConfig.h
+        echo "#endif " >> ShoreConfig.h
+
+install_copy(include, $(HDR) fc_error.h ShoreConfig.h)
+/* for templates */
+install_copy(include, w_list.c w_hash.c w_cheaprc.h w_cheaprc.c)
+
+/* always compile purify stubs */
+#ifdef COMMENT
+purify_stubs.o:
+	ar x PURIFY_LIB purify_stubs.o
+#else
+#if defined(IS_SPARC_SOLARIS2) || defined(IS_I386_SOLARIS2)
+purify_stubs.o: purify_stubs.c
+	$(CC) $(INCLUDE) -D$(ARCH) -D$(OPSYS) -DPURIFY -O -c purify_stubs.c
+#else
+purify_stubs.o: purify_stubs.c
+	cc $(INCLUDE) -D$(ARCH) -D$(OPSYS) -DPURIFY -O -c purify_stubs.c
+#endif
+#endif
+
+build_library(libfc.a, $(OBJ))
+
+clean_files($(LIB))
+
+error_codes(fc_error.dat,-e,$(ERROR_FILES))
+
+CMNT depend-target MUST BE LAST
+CMNT of rules for *this directory*
+
+depend_target($(SRC))
+
+/**********  Handle Subdirectories ***********/
+
+#ifdef GNU_MAKE
+
+HOLDSPACE =
+COMMANDS_MINUS_ALL := $(SUBDIRCOMMANDS:$(HOLDSPACE) all= )
+do_subdirs($(COMMANDS_MINUS_ALL), tests)
+
+CMNT nullify the default call to do-subdirs macro:
+SUBDIRCOMMANDS=
+SUBDIR = 
+
+#else
+
+SUBDIR =  tests
+all := SUBDIR = 
+
+#endif /* GNU_MAKE */

@@ -1,0 +1,126 @@
+#
+# this is the guts of bt.insert.[1234]
+# it assumes that the calling script has defined keylist
+# 
+
+# set maxnum 2022
+set maxnum 4044
+
+# 1 key/value per page:
+set elemlength 4044
+
+
+
+#
+# create index and load it up 
+#
+# make it start out a 1-page index and expand to a regular 
+# index.
+#
+#
+sm begin_xct
+set ndx [sm create_index $volid $unique regular b*1000 small]
+echo created index $ndx
+sm commit_xct
+
+
+# 
+# insert values in list
+#
+set nrec [llength $keylist]
+
+echo $nrec records: $keylist
+
+proc random_restart { a } {
+    set j [random 3]
+    for { set i 0 } { $i <= $j } { incr i } {
+	_restart $a
+    }
+}
+proc runtest { term } {
+    global unique
+    global keylist
+    global ndx
+    global nrec
+
+    echo runtest $term
+	
+    set key 1
+    set value 1
+    sm begin_xct
+    for {set i 0} {$i < $nrec} {incr i} {
+	echo inserting $i
+	set key [lindex $keylist $i] 
+	set value [mkval $i $key]
+
+	echo sm create_assoc $ndx $key <elem $key length>
+	sm create_assoc $ndx $key $value
+
+	# echo sm find_assoc $ndx $key
+	# set res [sm find_assoc $ndx $key]
+	# assert {[expr [string compare $value $res] == 0]}
+	# echo FOUND
+    }
+    switch $term {
+       abort { 
+	    echo sm abort_xct 
+	    sm abort_xct 
+	}
+       commit { 
+	    echo sm commit_xct 
+	    sm commit_xct 
+	}
+       restart { 
+	    echo random_restart
+	    random_restart false
+	}
+    }
+}
+
+runtest abort
+
+# sm begin_xct
+# test_scan $ndx 0
+# sm commit_xct
+
+runtest restart
+
+# sm begin_xct
+# test_scan $ndx 0
+# sm commit_xct
+
+sm gather_stats reset
+runtest commit
+pstats 
+
+#
+# scan the index and check for the expected values
+# in the expected order
+#
+sm begin_xct
+set sorted [lsort $keylist]
+set len [llength $keylist]
+set res [test_scan $ndx $len]
+
+for {set i 0} {$i < $len} {incr i} {
+   set resi [lindex $res $i]
+   set sorti [lindex $sorted $i]
+
+   # use string comparison rather than expr so that
+   # it works with entries that are not integers
+   if { [string compare $resi [lindex $sorted $i]] != 0 } {
+      echo index $i: test_scan returns $resi expected $sorti
+   }
+}
+
+unset res resi sorti sorted len i
+sm commit_xct
+
+sm begin_xct
+echo sm destroy_index $ndx
+sm destroy_index $ndx
+echo destroyed index
+sm commit_xct
+
+unset maxnum elemlength ndx nrec 
+

@@ -1,0 +1,9 @@
+#if defined(IS_SPARC_SOLARIS2) || defined(IS_I386_SOLARIS2)
+CC = $(GCC) -x c -traditional
+#else
+CC = cc
+#endif
+INCLUDE =
+CCFLAGS = 
+CMNT GLOBAL_LDFLAGS=
+PROFILE=

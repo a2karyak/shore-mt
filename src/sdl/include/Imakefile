@@ -1,0 +1,16 @@
+/* --------------------------------------------------------------- */
+/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
+/* -- University of Wisconsin-Madison, subject to the terms     -- */
+/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
+/* -- Reserved.                                                 -- */
+/* --------------------------------------------------------------- */
+
+/*
+ *  $Id: Imakefile,v 1.12 1996/07/19 16:07:30 nhall Exp $
+ */
+
+HFILES = Any.h Pool.h ShoreApp.h sdl_lookup.h sdl_string.h \
+	 PoolScan.h DirScan.h sdl_set.h sdl_templates.h \
+	 sdl_index.h sdl_UnixFile.h 
+
+install_copy(include, $(HFILES))

@@ -1,0 +1,73 @@
+/* --------------------------------------------------------------- */
+/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
+/* -- University of Wisconsin-Madison, subject to the terms     -- */
+/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
+/* -- Reserved.                                                 -- */
+/* --------------------------------------------------------------- */
+
+/*
+ * $Header: /p/shore/shore_cvs/src/Imakefile,v 1.36 1996/07/17 22:43:08 nhall Exp $
+ */
+
+COMM_SYSTEM=
+#ifdef USE_OCOMM
+COMM_SYSTEM= object_comm
+#endif
+
+/* Allow wholesale selection of the build directories from shore.def */
+#ifndef SRC_SUBDIRS
+SUBDIR_CODE = fc sthread common $(COMM_SYSTEM) sm rpc4.0 vas lil util sdl
+#else
+SUBDIR_CODE = SRC_SUBDIRS
+#endif
+SUBDIR_APP = examples oo7 rooms
+
+#ifdef GNU_MAKE
+
+HOLDSPACE =
+COMMANDS_MINUS_1 := $(SUBDIRCOMMANDS:$(HOLDSPACE) all= )
+COMMANDS_MINUS_2 := $(COMMANDS_MINUS_1:$(HOLDSPACE) install= )
+COMMANDS_MINUS_3 := $(COMMANDS_MINUS_2:$(HOLDSPACE) depend= )
+COMMANDS_MINUS_4 := $(COMMANDS_MINUS_3:$(HOLDSPACE) tags= )
+COMMANDS_MINUS_ALL := $(COMMANDS_MINUS_4:$(HOLDSPACE) clean_install= )
+do_subdirs($(COMMANDS_MINUS_ALL), $(SUBDIR_CODE) $(SUBDIR_APP))
+do_subdirs(depend install clean_install all tags, $(SUBDIR_CODE))
+SUBDIRCOMMANDS=
+SUBDIR = 
+
+#else
+
+COMMANDS_MINUS_1 = $(SUBDIRCOMMANDS:$(HOLDSPACE) all= )
+COMMANDS_MINUS_2 = $(COMMANDS_MINUS_ALL_1:$(HOLDSPACE) install= )
+COMMANDS_MINUS_3 = $(COMMANDS_MINUS_ALL_2:$(HOLDSPACE) depend= )
+COMMANDS_MINUS_4 = $(COMMANDS_MINUS_ALL_3:$(HOLDSPACE) tags= )
+COMMANDS_MINUS_ALL = $(COMMANDS_MINUS_ALL_4:$(HOLDSPACE) clean_install= )
+
+COMMANDS_MINUS_ALL = \
+	tags clean clean_symlinks symlinks add 
+
+do_subdirs($(COMMANDS_MINUS_ALL), $(SUBDIR_CODE) $(SUBDIR_APP))
+
+all := SUBDIR = $(SUBDIR_CODE)
+tags := SUBDIR = $(SUBDIR_CODE)
+clean_install := SUBDIR = $(SUBDIR_CODE)
+install := SUBDIR = $(SUBDIR_CODE)
+depend := SUBDIR = $(SUBDIR_CODE)
+
+do_subdirs(depend install clean_install all tags, $(SUBDIR_CODE))
+
+#endif /* GNU_MAKE */
+
+ALLTARGETS = $(SRC) all_local
+
+#ifdef USE_GCC
+all_local:
+	$(GCC) -v
+#else
+all_local:
+#endif
+
+install_copy(., COPYRIGHT)
+
+depend_target($(SRC))
+

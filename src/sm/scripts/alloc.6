@@ -1,0 +1,130 @@
+# --------------------------------------------------------------- #
+# -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- #
+# -- University of Wisconsin-Madison, subject to the terms     -- #
+# -- and conditions given in the file COPYRIGHT.  All Rights   -- #
+# -- Reserved.                                                 -- #
+# --------------------------------------------------------------- #
+
+#
+#  Like alloc.2 but instead of scanning to destroy recs,
+#  it remembers the rids and destroys the recs w/o a scan.
+#
+#
+#	Test allocation & deallocation of pages
+#   the statistics-gathering checks assertions on the files 
+#   and in current form, fails
+#
+
+source $script_dir/vol.init
+
+set form %08090d
+
+
+proc t1 {} {
+    global volid  f0 r0 form nrecs
+    sm begin_xct
+    echo t1 is xact [sm xct]
+
+echo sync t1-1
+    sync
+
+
+    echo t1 creating $nrecs more recs ...
+    set scan [sm scan_file_create $fid t_cc_append]
+    sm multi_file_append $scan h$i 1000 [format $form $i] $nrecs
+    echo t1 created $nrecs recs file $f0
+
+echo sync t1-2
+    sync
+
+    scanit $f0 t1
+    sm commit_xct
+
+echo t1 committed -- syncing
+echo dstatsnoaudit in t1, before sync
+dstatsnoaudit $volid
+
+    echo sync t1-3
+    sync
+
+    sm begin_xct
+    echo t1 2nd xct re-scanning
+    scanit $f0 t1
+    sm commit_xct
+echo dstats-2 in t1
+dstats $volid
+echo finished t1
+}
+proc scanit { f } {
+    set scan [sm scan_file_create $f t_cc_record]
+    set pin [sm scan_file_next $scan 0]
+    set i 0
+    while {$pin != "NULL"} {
+	echo $pin
+	set pin [sm scan_file_next $scan 0]
+	set i [expr {$i+1} ]
+    }
+    sm scan_file_destroy $scan
+    echo scan found $i records
+}
+proc t2 {} {
+    global volid  f0 rid
+    sm begin_xct
+    echo t2 xact [sm xct]
+    echo t2 destroying all records ...
+    for { set i 1} { $i <= 10} { incr i} {
+	echo t2 sm destroy_rec $rid($i) ...
+	sm destroy_rec $rid($i)
+	echo t2 destroyed $rid($i)
+    }
+    echo t2 destroyed $i recs file $f0
+    echo t2 dstatsnoaudit t2 xxx
+    dstatsnoaudit $volid
+sync
+    echo t2 dstatsnoaudit t2 yyy
+    dstatsnoaudit $volid
+    echo t2 dstatsnoaudit t2 zzz
+    dstatsnoaudit $volid
+sync
+    echo t2 aborting...
+    sm abort_xct
+    echo t2 dstatsnoaudit t2 qqq
+    dstatsnoaudit $volid
+}
+
+
+sm begin_xct
+set f0 [sm create_file $volid]]
+echo created file $f0
+for { set i 1} { $i <= 10} { incr i} {
+    set j [sm create_rec $f0 h$i 1000 [format $form $i] ]
+    set rid($i) $j
+    echo created rec $rid($i)
+}
+echo created 10 recs file $f0
+sm commit_xct
+
+dstats $volid
+
+set y1 [fork_thread t1 {}]
+set y2 [fork_thread t2 {}]
+
+
+echo sync_thread $y1 $y2
+sync_thread $y1 $y2
+
+echo sync_thread $y1 $y2
+sync_thread $y1 $y2
+echo join_thread $y1 $y2
+join_thread $y1 $y2
+
+echo after join
+dstats $volid
+
+sm begin_xct
+scanit $f0
+sm commit_xct
+
+dstats $volid
+
+pstats

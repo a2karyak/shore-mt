@@ -1,0 +1,89 @@
+# --------------------------------------------------------------- #
+# -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- #
+# -- University of Wisconsin-Madison, subject to the terms     -- #
+# -- and conditions given in the file COPYRIGHT.  All Rights   -- #
+# -- Reserved.                                                 -- #
+# --------------------------------------------------------------- #
+
+#  Testing the following multi-thread-per-tx scenarios
+#
+#  scenario 2 
+#  thread 1-m: EX lock o1
+#  thread 2-m: EX lock o2
+#  thread 1-s: SH lock o2 blocks on cond variable
+#  thread 2-s: SH lock o1 detects deadlock
+# 
+
+set_config_info
+
+# source $script_dir/vol.init
+
+if {$multi_threaded_xct == 0 } {
+	echo "Not configured for multi-threaded xcts"
+} else {
+
+set o1			"k(s(10.0).100.200)"
+set o2			"k(s(10.0).100.340)"
+
+proc tm {x o1 o2} {
+    sm attach_xct $x
+sync
+	echo tx $x locking EX $o1
+	sm lock $o1 EX LONG
+	echo tx $x acquired EX $o1, syncing
+	sm detach_xct $x
+	echo ts -- detached
+}
+proc ts {x o1 o2} {
+    sm attach_xct $x
+sync
+	echo tx $x acquired SH $o2, syncing
+	echo tx $x locking SH $o2
+	sm lock $o2 SH LONG
+	sm detach_xct $x
+	echo ts -- detached
+}
+
+##########  main  ##########
+
+	# start t1
+	sm begin_xct
+	set t1 [sm xct]
+	echo xct $t1
+	sm detach_xct $t1
+    set y1 [fork_thread tm {$t1 $o1 $o2}]
+    set y3 [fork_thread ts {$t1 $o1 $o2}]
+
+	# start t2
+	sm begin_xct
+	set t2 [sm xct]
+	echo xct $t2
+	sm detach_xct $t2
+    set y2 [fork_thread tm {$t2 $o2 $o1}]
+    set y4 [fork_thread ts {$t2 $o2 $o1}]
+
+    echo sync_thread $y1 $y2 $y3 $y4
+    sync_thread $y1 $y2 $y3 $y4
+
+    echo join_thread $y1 $y2 $y3 $y4
+    join_thread $y1 $y2 $y3 $y4
+
+	echo WARNING sm state_xct is fragile
+	set s [sm state_xct $t1]
+	if {$s == 1} {
+		sm attach_xct $t1
+		sm commit_xct
+	}
+	echo WARNING sm state_xct is fragile
+	set s [sm state_xct $t1]
+	if {$s == 1} {
+		sm attach_xct $t2
+		sm commit_xct
+	}
+	 
+echo "SUCCESS"
+unset t1 t2 
+unset y1 y2 y3 y4
+unset s o1 o2
+
+}

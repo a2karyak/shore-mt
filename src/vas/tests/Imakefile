@@ -1,0 +1,79 @@
+/* --------------------------------------------------------------- */
+/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
+/* -- University of Wisconsin-Madison, subject to the terms     -- */
+/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
+/* -- Reserved.                                                 -- */
+/* --------------------------------------------------------------- */
+/*
+ *      $RCSfile: Imakefile,v $
+ *      $Revision: 1.27 $
+ *      $Date: 1995/10/03 16:26:33 $
+ *      $Author: nhall $
+ */
+
+VAS=$(TOP)/src/vas
+
+AUXFLAGS = $(VASAUXFLAGS)
+
+SYMLINKS=../common/vas.tcllib
+
+HFILES=
+SRC.clnt.main = client.C 
+SRC.sizes.main = sizes.C 
+SRC.rest = 
+SRC.clnt = $(SRC.clnt.main) $(SRC.rest)
+SRC.sizes = $(SRC.sizes.main) 
+SRC.depend = $(SRC.clnt.main) $(SRC.sizes.main) $(SRC.rest) 
+SRC.cvs = $(SRC.depend) $(HFILES)
+
+OBJ.clnt.tmp = $(SRC.clnt:.C=.o)
+OBJ.clnt = $(OBJ.clnt.tmp:.c=.o) 
+OBJ.sizes.tmp = $(SRC.sizes:.C=.o)
+OBJ.sizes = $(OBJ.sizes.tmp:.c=.o) 
+
+EXEC = cli purtest
+ALLTARGETS=
+
+DISPOSABLE = core made junk a.out  *.o *_pure_*.[ao] *.pure *.pure_*
+
+#ifndef USE_VERIFY
+GDBM_INCL =
+GDBM_LIB =
+#endif
+
+INCLUDE += $(COMMON_INCLUDE) $(TCL_INCL) $(VERIFY_INCL) $(GDBM_INCL)	
+
+
+LIBS.clnt =\
+	$(VAS_APP_LIB) $(RPC_LIB) $(TCL_LIB) $(VERIFY_LIB) $(GDBM_LIB) $(KRBLIB) 
+
+VAS_APP_LIB = $(VAS_DIR)/client/libvas.a 
+LIB = $(VAS_APP_LIB) $(RPC_LIB) $(TCL_LIB) $(VERIFY_LIB) $(GDBM_LIB) $(KRBLIB) 
+
+LDFLAGS = -lm 
+
+PURE_OPT += -windows=no -logfile=purify.out -best-effort
+
+
+c_plus_program(cli.installed, $(OBJ.clnt), $(INSTALL_DIR)/lib/libshore.a $(TCL_LIB))
+c_plus_program(cli, $(OBJ.clnt), $(LIB))
+c_plus_program(purtest, purtest.o, $(LIB))
+
+purify_c_plus_program(cli, $(OBJ.clnt), $(LIB), $(PURE_OPT))
+purify_c_plus_program(purtest, purtest.o, $(LIB), $(PURE_OPT))
+
+purecov_c_plus_program(cli, $(OBJ.clnt), $(LIB), $(PURECOV_OPT))
+pureboth_c_plus_program(cli, $(OBJ.clnt), $(LIB), $(PURECOV_OPT))
+
+c_plus_program(sizes, $(OBJ.sizes), $(LIB))
+
+depend_target($(SRC.depend))
+
+	
+client.o:	client.C 
+
+#ifdef COMMENT
+	$(PROTOIZE_IFNEEDED) $< 
+#endif
+
+clean_files($(DISPOSABLE))

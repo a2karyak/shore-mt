@@ -1,0 +1,5 @@
+# $Header: /p/shore/shore_cvs/src/examples/stree/sonnets/Makefile.template,v 1.1 1994/11/02 14:48:28 zwilling Exp $
+# empty
+
+clean all tags:
+	@echo Nothing more to do for $@ in `pwd`

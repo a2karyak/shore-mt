@@ -1,0 +1,31 @@
+#!/bin/csh -f
+
+set program=$0
+
+if ($#argv >= 1) then
+    echo usage: $program
+    exit 1
+endif
+
+# do this recursively
+
+echo "Phase 1: touch .depend for each directory..."
+foreach f (`find . -name "Makefile" -type f -print`)
+    \rm -f $f:h/.depend
+    #echo touch $f:h/.depend
+    touch $f:h/.depend
+end
+
+echo "Phase 2: running make depend for each directory..."
+if (-e Makefile) then
+    make depend
+else
+    #run make depend on any top level subdirs if possible
+    foreach d (`ls`)
+	if (-d $d) then
+	    if (-e $d/Makefile) then
+		(cd $d; make depend)
+	    endif
+	endif
+    end
+endif

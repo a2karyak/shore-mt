@@ -1,0 +1,73 @@
+/* --------------------------------------------------------------- */
+/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
+/* -- University of Wisconsin-Madison, subject to the terms     -- */
+/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
+/* -- Reserved.                                                 -- */
+/* --------------------------------------------------------------- */
+
+/*
+ * $Id: Imakefile,v 1.8 1995/11/17 22:16:40 bolo Exp $
+ */
+EXEC = testserial stats errcodes errlogtest vectors
+
+SRC.c =
+
+SRC.C = testserial.C  stats.C test_stat.C  errcodes.C errlogtest.C vectors.C
+
+SRC = $(SRC.c) $(SRC.C)
+OBJ= $(SRC.c:.c=.o) $(SRC.C:.C=.o) 
+
+STAT_FILES_T =\
+	test_stat_def.i test_stat_msg.i test_stat_op.i test_stat_struct.i 
+
+CMNT Allow separate sets for different stats
+STAT_FILES = $(STAT_FILES_T) 
+
+AUTOMATIC= $(STAT_FILES)
+
+INCLUDE += -I.. $(FC_INCL) $(STHREAD_INCL)
+LIBS = $(COMMON_LIB) $(FC_LIB)
+
+ALLTARGETS = setup_ptrep 
+
+CMNT for tags:
+SRCS = $(SRC)
+HFILES = $(HDR)
+SRC.cvs = $(SRC) $(HDR)
+
+depend:: $(STAT_FILES)
+
+statistics(test_stat.dat,,$(STAT_FILES_T))
+
+#ifdef USE_CC
+setup_ptrep:
+	-@mkdir $(PTREPOSITORY)
+	-@cp nmap001 $(PTREPOSITORY)/nmap001
+#else
+setup_ptrep:
+#endif
+
+PURE_OPT += -best-effort
+QUANT_OPT=
+PURECOV_OPT = 
+
+c_plus_program(t, t.o, $(LIBS)) 
+
+c_plus_program(testserial, testserial.o, $(LIBS)) 
+pureboth_c_plus_program(testserial, testserial.o, $(LIBS), $(PURE_OPT)) 
+
+c_plus_program(stats, stats.o test_stat.o, $(LIBS))
+purify_c_plus_program(stats, stats.o test_stats.o, $(LIBS), $(PURE_OPT)) 
+quantify_c_plus_program(stats, stats.o, $(LIBS), $(QUANT_OPT)) 
+purecov_c_plus_program(stats, stats.o test_stat.o, $(LIBS), $(PURECOV_OPT))
+pureboth_c_plus_program(stats, stats.o test_stat.o, $(LIBS), $(PURE_OPT)) 
+
+purify_c_plus_program(errcodes, errcodes.o, $(LIBS), $(PURE_OPT)) 
+c_plus_program(errcodes, errcodes.o, $(LIBS))
+
+purify_c_plus_program(vectors, vectors.o, $(LIBS), $(PURE_OPT)) 
+c_plus_program(vectors, vectors.o, $(LIBS))
+
+
+CMNT depend is last!
+depend_target($(SRC))

@@ -1,0 +1,92 @@
+# Usage: w4 CC [options] [files]
+
+# TAN: modified to ignore .h from /usr
+
+#
+# This is an alternative first 3 lines that will make the
+# script into a program (has problems on linux).
+#
+# #!/bin/sh -- # A comment mentioning perl to prevent looping.
+# eval 'exec perl -S $0 ${1+"$@"}'
+#    if 0;
+#
+
+# Configuration parameters.
+
+
+# $CPP = "gcc -x c++ -E";
+# $CPP = "CC -E";
+# $CPP = "cc -P";
+# $CPP = "/lib/cpp";
+
+# Process switches.
+$CPP = shift;
+
+while ($ARGV[0] =~ /^-/) {
+    $_ = shift;
+    if (/^-D(.*)/) {
+	$defines .= " -D" . ($1 ? $1 : shift);
+    }
+    elsif (/^-U(.*)/) {
+	$defines .= " -U" . ($1 ? $1 : shift);
+	}
+    elsif (/^-O(.*)/) {
+#		ignore this
+    }
+    elsif (/^-I(.*)/) {
+	$includes .= " -I" . ($1 ? $1 : shift);
+    }
+    elsif (/^-d(.*)/) {
+	$dir = ($1 ? $1 : shift);
+    }
+    elsif (/^-f(.*)/) {
+#		ignore this
+    }
+    elsif (/^-z(.*)/) {
+#		ignore this
+    }
+    elsif (/^-W(.*)/) {
+#		ignore this
+    }
+    else {
+	die "Unrecognized switch: $_\n";
+    }
+}
+
+# Do each file on command line.
+
+$pwd = `pwd`;
+chop $pwd;
+($ppwd = $pwd) =~ s#\[^\]*$##;
+
+foreach $file (@ARGV) {
+    next if !($file=~/\.[Cc]*$/);
+    open(CPP,"$CPP $defines $includes $file|")
+	|| die "Can't run cpp: $!\n";
+
+    # Scan output for line directives.
+
+    %seen = ();
+    while (<CPP>) {
+	next unless /^#/;
+	next unless ($filename) = /^# \d.*"(.*)"/;
+	($tmp = $filename) =~ s#^.*/([^/]*)$#$1#;
+	next if ($tmp eq $file);
+	$seen{$filename}++;
+    }
+    close CPP;
+
+    # Figure out the corresponding object file name.
+
+    ($ofile = $file) =~ s/\.[Cc]*$/.o/;
+    $ofile =~ s#.*/##;
+    $ofile = "$dir/$ofile" if $dir;
+
+    # Print out the dependencies.
+
+    foreach (sort keys(%seen)) {
+	$_ =~ s/^$pwd/\./;
+	$_ =~ s/^$ppwd/\.\./;
+	print "$ofile: $_\n" if (! /^\/usr/)
+    }
+}

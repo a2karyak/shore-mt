@@ -1,0 +1,110 @@
+/* --------------------------------------------------------------- */
+/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
+/* -- University of Wisconsin-Madison, subject to the terms     -- */
+/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
+/* -- Reserved.                                                 -- */
+/* --------------------------------------------------------------- */
+
+/*
+ *  $Id: Imakefile,v 1.72 1996/01/26 20:27:23 nhall Exp $
+ */
+
+CFILES = bf.c bf_core.c btree.c cache.c callback.c chkpt.c comm.c \
+	 device.c dir.c \
+	 file.c io.c keyed.c lgrec.c lid.c lock.c lock_core.c lock_remote.c \
+	 log.c unix_log.c log_base.c srv_log.c raw_log.c \
+	 logrec.c logstub.c \
+	 page.c pin.c remote.c remote_client.c \
+	 restart.c rtree.c scan.c \
+	 sm.c sm_s.c smstats.c sm_du_stats.c smfile.c smindex.c \
+	 smthread.c \
+	 sort.c vol.c \
+	 xct.c zkeyed.c
+
+HFILES = bf_s.h bf.h bf_core.h btree.h btree_p.h cache.h callback.h chkpt.h \
+	comm.h device.h dir.h \
+        io.h keyed.h lid.h lock.h lock_x.h lock_core.h lock_remote.h \
+	log.h logrec.h page.h \
+        restart.h scan.h sm.h smthread.h sm_int.h sysdefs.h \
+        file.h pin.h \
+        rtree.h smstats.h sdesc.h zkeyed.h sm_du_stats.h\
+	remote.h remote_client.h remote_s.h\
+	remote_msg.h sort.h srvid_t.h \
+	vol.h xct.h
+
+#ifdef USE_RDTREE
+CFILES += rdtree.c setarray.c
+HFILES += rdtree.h setarray.h
+#endif
+
+SCRIPTS = remote_msg.pl  logdef.pl
+DATFILES = remote_msg.dat e_error.dat logdef.dat sm_stats_info.dat
+STAT_FILES = sm_stats_info_t_struct.i sm_stats_info_t_op.i\
+	 sm_stats_info_t_msg.i 
+STAT_DEF_FILES = sm_stats_info_t_def.i
+
+SRC.cvs = $(CFILES) $(HFILES) $(SCRIPTS) $(DATFILES)
+SRCS = $(CFILES) $(HFILES) 
+
+SUBDIR_LOCAL = ssh
+SUBDIR = $(SUBDIR_LOCAL)
+
+SRC = $(CFILES) $(HFILES)
+OBJ = $(CFILES:.c=.o)
+
+INCLUDE += $(SM_INCL) $(FC_INCL) $(COMMON_INCL) $(STHREAD_INCL) $(OCOMM_INCL) $(TCL_INCL)
+
+LOGRECFILES = logdef.i logtype.i redo.i undo.i logstr.i
+ERROR_FILES = e_error.h e_error.i e_einfo.i
+
+MSGFILES = remote_msg_enum.i
+
+AUTOMATIC= $(LOGRECFILES) $(ERROR_FILES) $(MSGFILES) $(STAT_FILES) $(STAT_DEF_FILES)
+
+ALLTARGETS = libsm.a 
+
+$(OBJ): $(AUTOMATIC)
+
+statistics(sm_stats_info.dat,,$(STAT_FILES) $(STAT_DEF_FILES))
+error_codes(e_error.dat,-e,$(ERROR_FILES))
+
+$(LOGRECFILES) : logdef.dat logdef.pl
+	$(PERL) logdef.pl
+
+$(MSGFILES) : remote_msg.dat remote_msg.pl
+	$(PERL) remote_msg.pl
+
+build_library(libsm.a, $(OBJ))
+
+clean_files($(OBJ) $(AUTOMATIC) logfunc.i logstub.i)
+
+install_copy(include, e_error.h $(STAT_DEF_FILES))
+install_copy(include, sm_s.h sm_base.h smthread.h file_s.h sm.h pin.h \
+		      scan.h sort.h sm_du_stats.h smstats.h lock_s.h \
+		      sort_s.h setarray.h page_s.h)
+install_copy(include, sm_stats_info_t_struct.i)
+
+install_copy(lib, libsm.a)
+
+automatic:: $(AUTOMATIC)
+
+depend_target($(CFILES))
+
+/**********  Handle Subdirectories ***********/
+
+#ifdef GNU_MAKE
+
+HOLDSPACE =
+COMMANDS_MINUS_ALL := $(SUBDIRCOMMANDS:$(HOLDSPACE) all= )
+do_subdirs($(COMMANDS_MINUS_ALL), $(SUBDIR_LOCAL))
+
+CMNT nullify the default call to do-subdirs macro:
+SUBDIRCOMMANDS=
+SUBDIR = 
+
+#else
+
+all := SUBDIR = 
+
+#endif /* GNU_MAKE */
+

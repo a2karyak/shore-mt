@@ -1,0 +1,94 @@
+# --------------------------------------------------------------- #
+# -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- #
+# -- University of Wisconsin-Madison, subject to the terms     -- #
+# -- and conditions given in the file COPYRIGHT.  All Rights   -- #
+# -- Reserved.                                                 -- #
+# --------------------------------------------------------------- #
+
+#
+#	Test append_rec, update_rec and truncate_rec
+#
+
+source $script_dir/vol.init
+set_config_info
+
+set num_op 600 
+set id_width %08d
+
+set s [format data 1]
+echo $s
+
+sm begin_xct
+set f1 [sm create_file $volid]
+echo f1 = $f1
+
+set r1 [sm create_rec $f1 hdr12345 11 .]
+echo r1 = $r1
+set read_result [sm read_rec $r1 0 0]
+echo read of $r1: $read_result
+
+sm commit_xct
+
+sm begin_xct
+    echo testing lock requests
+    # request medium duration since long can't be released before EOT
+    sm lock $r1 EX MEDIUM
+    set held [sm query_lock $r1] 
+    echo held = $held
+    assert {expr [string compare $held "EX"]==0}
+
+    # make sure chain_xct retains lock
+    sm chain_xct
+    set held [sm query_lock $r1] 
+    echo held = $held
+    assert {expr [string compare $held "EX"]==0}
+
+    sm unlock $r1
+    set held [sm query_lock $r1] 
+    echo held = $held
+    assert {expr [string compare $held "NL"]==0}
+sm commit_xct
+
+###############################################
+#   append bytes
+#
+sm begin_xct
+
+set abort_check 2
+while {$abort_check >= 1} {
+    sm abort_xct
+    sm begin_xct
+
+    echo appending $num_op data
+    for {set i 1} {$i <= $num_op} {incr i} {
+	set app [expr $i%10]
+	set app [expr {$app==0 ? "." : $app}]
+	sm append_rec $r1 $app
+    }
+    echo read of $r1: [sm read_rec $r1 0 0]
+
+    echo updating $num_op data
+    for {set i 1} {$i <= $num_op} {incr i} {
+	set data [expr {($i+1) % 10}]
+	set data [expr {$data==0 ? "." : $data}]
+	sm update_rec $r1 $i $data
+    }
+    echo read of $r1: [sm read_rec $r1 0 0]
+
+    echo truncating $num_op data
+    for {set i 1} {$i <= $num_op} {incr i} {
+	sm truncate_rec $r1 1
+    }
+    echo read of $r1: $read_result
+
+    set abort_check [expr {$abort_check - 1}]
+}
+sm commit_xct
+
+dstats $f1
+dstats $volid
+
+
+unset r1 read_result
+unset held app data id_width num_op f1 i s abort_check
+

@@ -1,0 +1,51 @@
+/* --------------------------------------------------------------- */
+/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
+/* -- University of Wisconsin-Madison, subject to the terms     -- */
+/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
+/* -- Reserved.                                                 -- */
+/* --------------------------------------------------------------- */
+
+/*
+ * Imakefile for example VAS program
+ *
+ * $Header: /p/shore/shore_cvs/src/examples/vas/grid/Imakefile,v 1.10 1996/07/19 16:20:03 nhall Exp $
+ */
+
+SERVER_SRCS =	grid.C rpc_thread.C server.C command_server.C server_stubs.C
+CLIENT_SRCS =	client.C command_client.C
+COMMON_SRCS =	options.C command.C grid_basics.C
+ALL_SRCS = $(SERVER_SRCS) $(CLIENT_SRCS) $(COMMON_SRCS)
+HDRS = grid.h grid_basics.h \
+       command.h command_server.h command_client.h rpc_thread.h
+
+EXEC = server client
+
+SERVER_OBJS =	$(SERVER_SRCS:.C=.o)
+CLIENT_OBJS =	$(CLIENT_SRCS:.C=.o)
+COMMON_OBJS =	$(COMMON_SRCS:.C=.o)
+
+INCLUDE     += $(COMMON_INCL) $(FC_INCL) $(STHREAD_INCL) $(SM_INCL) $(RPC_INCL)
+
+LIBCOMMON   = $(COMMON_LIB) $(STHREAD_LIB) $(RPC_LIB) $(FC_LIB)
+
+
+msg.h msg_clnt.c msg_svc.c msg_xdr.c: msg.x
+	cp $(FC_DIR)/ShoreConfig.h .
+	$(RPCGEN) msg.x
+	$(RPCGEN) -m -o msg_svc.c msg.x 
+
+
+c_plus_program(server, $(SERVER_OBJS) $(COMMON_OBJS) msg_xdr.o msg_svc.o, $(SM_LIB) $(LIBCOMMON))
+purify_c_plus_program(server, $(SERVER_OBJS) $(COMMON_OBJS) msg_xdr.o msg_svc.o, $(SM_LIB) $(LIBCOMMON), $(PURE_OPT))
+
+c_plus_program(client, $(CLIENT_OBJS) $(COMMON_OBJS) msg_clnt.o msg_xdr.o, $(LIBCOMMON))
+purify_c_plus_program(client, $(CLIENT_OBJS) $(COMMON_OBJS) msg_clnt.o msg_xdr.o, $(LIBCOMMON), $(PURE_OPT))
+
+clean::
+	$(RM) $(EXECS) $(SERVER_OBJS) $(CLIENT_OBJS) $(COMMON_OBJS) \
+		msg_svc.o msg_clnt.o msg_xdr.o a.out core tags 
+
+depend_target($(ALL_SRCS))
+
+install_copy(examples/vas/grid, $(ALL_SRCS) $(HDRS) msg.x)
+install_copy(examples/vas/grid, Makefile.template README exampleconfig)

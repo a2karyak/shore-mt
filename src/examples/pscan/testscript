@@ -1,0 +1,4 @@
+#!/bin/csh -f
+build 75 
+pscan
+destroy

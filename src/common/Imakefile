@@ -1,0 +1,119 @@
+/* --------------------------------------------------------------- */
+/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
+/* -- University of Wisconsin-Madison, subject to the terms     -- */
+/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
+/* -- Reserved.                                                 -- */
+/* --------------------------------------------------------------- */
+
+/*
+ * $Id: Imakefile,v 1.107 1995/11/24 22:49:44 bolo Exp $
+ */
+
+SRC.c =\
+	basics.c bitmap.c devid_t.c lid_t.c latch.c \
+	nbox.c regex.c serial_t.c tid_t.c vec_t.c vid_t.c vec_mkchunk.c
+
+SRC.C = debug.C errlog.C option.C fast_new.C regex.posix.C
+SRC = $(SRC.c) $(SRC.C)
+OBJ= $(SRC.c:.c=.o) $(SRC.C:.C=.o) 
+
+ERROR_FILES = opt_error_def.h opt_error.i opt_einfo.i
+AUTOMATIC= $(ERROR_FILES) 
+
+HDR = basics.h serial_t.h bitmap.h stack_t.h \
+	vid_t.h lid_t.h tid_t.h vec_t.h zvec_t.h pqueue.h pqueue.c \
+	rsrc.h rsrc.c hash_lru.h hash_lru.c getopt.h\
+	debug.h serial_t_data.h cat.h nbox.h \
+	umemcmp.h errlog.h auto_release.h latch.h errlog_s.h \
+	option.h fast_new.h regex.h regex.posix.h devid_t.h
+
+/*
+SYMLINKS = ../sm/smthread.h ../sm/sm.h ../sm/sm_s.h \
+	   ../sm/sm_base.h ../sm/scan.h ../sm/e_error.h\
+	   ../sm/pin.h ../sm/file_s.h ../sm/lock_s.h \
+	   ../sm/smstats.h ../sm/page_s.h ../sm/sm_du_stats.h
+*/
+INCLUDE += $(FC_INCL) $(STHREAD_INCL)
+
+ALLTARGETS = setup_ptrep libcommon.a sm_app.h 
+
+CMNT for tags:
+SRCS = $(SRC)
+HFILES = $(HDR)
+SRC.cvs = $(SRC) $(HDR)
+
+depend:: $(ERROR_FILES) 
+error_codes(opt_error.dat,-d,$(ERROR_FILES))
+#ifdef USE_CC
+setup_ptrep:
+	-@mkdir $(PTREPOSITORY)
+	-@cp nmap001 $(PTREPOSITORY)/nmap001
+#else
+setup_ptrep:
+#endif
+
+depend::	sm_app.h
+
+regex.o: regex.c
+	$(GCC) -x c  -DSTDC_HEADERS -c regex.c
+
+build_library(libcommon.a, $(OBJ))
+
+PURE_OPT += -best-effort
+QUANT_OPT=
+PURECOV_OPT = 
+
+$(SYMLINKS): automatic
+
+#if 0  /* there has to be a better way */
+	rm -f tid_t.h
+#ifdef IS_RS6000_AIX41
+	ln -s aix_tid_t.h tid_t.h
+#else
+	ln -s real_tid_t.h tid_t.h
+#endif /* tid_t kludge */
+#endif
+
+automatic:: $(AUTOMATIC)
+	(cd $(SM_DIR); $(MAKE) $@)
+
+CMNT
+CMNT The following instructions are used to make sm_app.h.  sm_app.h
+CMNT is generated from the files listed in SM_APP_H_SRC.
+CMNT
+DISPOSABLE = sm_app.h
+SM_APP_H_INCL = w.h basics.h option.h vec_t.h tid_t.h lid_t.h sm_s.h sm_base.h file_s.h page_s.h nbox.h
+SM_APP_H_SRC =  ../sm/bf.h ../sm/app_support.h
+sm_app.h: $(SM_APP_H_SRC) ../sm/e_error.h
+	@echo making $@ 
+	-@/bin/rm -f $@
+	@echo "#ifndef SM_APP_H" > $@
+	@echo "#define SM_APP_H" >> $@
+	@echo "/* THIS IS A GENERATED FILE -- DO NOT EDIT */" >> $@
+	@echo "#include <stddef.h>" >> $@
+	@for i in $(SM_APP_H_INCL) ; \
+		do echo "#include \"$$i\"" >> $@; done;
+	@awk '/BEGIN VISIBLE TO APP/,/END VISIBLE TO APP/' $(SM_APP_H_SRC) >> $@
+	@echo "#endif /* SM_APP_H */" >> $@
+
+INSTALLED_HFILES = \
+	shore_version.h sm_app.h basics.h vec_t.h zvec_t.h lid_t.h \
+	serial_t.h unix_error.h dual_assert.h \
+	serial_t_data.h tid_t.h copyright.h option.h opt_error_def.h devid_t.h \
+	debug.h errlog.h cat.h
+
+install_copy(include, $(INSTALLED_HFILES))
+/* for vas writers */
+install_copy(include, sm_vas.h vid_t.h nbox.h)
+install_copy(include, ../../config/shore.def)
+
+build_joint_library(libshorecommon.a, , $(COMMON_LIB) $(STHREAD_LIB) $(FC_LIB))
+install:: libshorecommon.a
+install_copy(lib, libshorecommon.a)
+
+../sm/e_error.h:
+	(cd ../sm; $(MAKE) $(OPTIONS) e_error.h)
+
+CMNT depend is last!
+
+depend_target($(SRC))

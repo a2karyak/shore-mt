@@ -1,0 +1,13 @@
+DirName                 /oo7/tiny
+PoolName                pool
+NummAssmPerAssm         3
+NumCompPerAssm          3
+NumCompPerModule        10
+NumAssmLevels           3
+TotalModules            2
+NumAtomicPerComp        5
+NumConnPerAtomic        3
+DocumentSize            200
+ManualSize              1000
+CacheSize               1500
+MultiSleepTime          0

@@ -1,0 +1,27 @@
+/* --------------------------------------------------------------- */
+/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
+/* -- University of Wisconsin-Madison, subject to the terms     -- */
+/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
+/* -- Reserved.                                                 -- */
+/* --------------------------------------------------------------- */
+
+
+
+.SUFFIXES: .C .sdl .h .o
+
+.C.o:
+	$(MAKE) $(OPTIONS) -f Makefile.template $@
+
+.sdl.h:
+	$(MAKE) $(OPTIONS) -f Makefile.template $@
+
+clean all::
+	@echo $(MAKE) $(OPTIONS) -f Makefile.template $@
+	$(MAKE) $(OPTIONS) -f Makefile.template $@
+
+dummy $(EXECS) $(OBJS):
+	$(MAKE) $(OPTIONS) -f Makefile.template $@
+
+depend::
+	@echo "Dependencies in examples require a running server."
+

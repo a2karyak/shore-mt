@@ -1,0 +1,37 @@
+# --------------------------------------------------------------- #
+# -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- #
+# -- University of Wisconsin-Madison, subject to the terms     -- #
+# -- and conditions given in the file COPYRIGHT.  All Rights   -- #
+# -- Reserved.                                                 -- #
+# --------------------------------------------------------------- #
+
+source $script_dir/vol.init
+
+set scripts [list \
+		alloc.all \
+		btree.all  \
+		pin.all \
+		rtree.all \
+		free.all \
+		multi.all \
+		trans.all \
+		lock.all quark.all\
+		sort.all \
+		lid.all  \
+		thread_fork_example \
+		vol.all \
+		lgrec.all \
+		file.all  \
+		]
+
+cleanup stderr
+
+foreach script $scripts {
+    echo
+    echo RUNNING: $script 
+    source $script_dir/$script
+    puts stderr [concat CLEANUP AFTER  $script  : ]
+    cleanup stderr
+}
+
+pstats

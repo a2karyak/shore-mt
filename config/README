@@ -1,0 +1,27 @@
+# --------------------------------------------------------------- #
+# -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- #
+# -- University of Wisconsin-Madison, subject to the terms     -- #
+# -- and conditions given in the file COPYRIGHT.  All Rights   -- #
+# -- Reserved.                                                 -- #
+# --------------------------------------------------------------- #
+
+This file contain support for configuring a SHORE source workspace.
+
+After checking out a workspace perform the following steps in
+the shore (top level) directory:
+
+tools/makemake .	// to generate the makefiles
+tools/depend		// to make .depend files
+
+Makefile files should never be updated.  Instead, edit the
+corresponding Imakefile.  To generate the new Makefile, run
+	make make
+if the Makefile already exists.
+If it does not already exist run:
+	DOT/tools/makemake DOT
+where DOT is the path to the top level directory.
+
+If you make .depend files you can generate new ones with 
+	make depend
+Otherwise, use (as decribed above)
+	DOT/tools/makemake DOT

@@ -1,0 +1,233 @@
+/* --------------------------------------------------------------- */
+/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
+/* -- University of Wisconsin-Madison, subject to the terms     -- */
+/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
+/* -- Reserved.                                                 -- */
+/* --------------------------------------------------------------- */
+
+/********************************************************************
+ Example shore.def
+
+ $Header: /p/shore/shore_cvs/config/shore.def.example,v 1.16 1996/07/26 20:53:24 nhall Exp $
+
+ This is an example of a shore.def file for the Shore sources and
+ Imakefile's.  It is meant to be included (indirectly) in all sources
+ and Imakefiles.
+
+ The purpose of the shore.def file is to allow easy setting of
+ configuration options that are often changed for a particular
+ workspace.  Since shore.def is not checked in (only this example is)
+ editting it is fairly safe.  The shore.def file is added to include/
+ during "make install".
+
+ To use this file, copy it to shore.def and edit per comments
+ below.
+
+********************************************************************/
+
+/************************************************/
+/*******  Mostly Imakefile related **************/
+/************************************************/
+
+/*
+ * Define this if you want make to use something else to execute commands.
+ */
+#undef MAKE_SHELL
+
+/*
+ * Define one of these to force the use of a specific compiler
+ * in the Imakefiles.
+ */
+#undef FORCE_GCC
+#undef FORCE_CC
+
+/*
+ * Force use of GNU Make by defining this, otherwise /bin/make is used
+ */
+#define GNU_MAKE
+
+/*
+ * Define this if you want to specify a specific gcc to use,
+ * otherwise just "gcc" will be used:
+ */
+#undef GCC_PATH
+
+/*
+ * HP CC cannot handle ptrepository being on an NFS-mounted
+ * or AFS  filesystem.
+ * If your shore sources are on such a FS, define PTREP
+ * to be the pathname for a local ptrepository
+ */
+#undef PTREP
+
+/*
+ * Define this to use a different RM (rm) program in make:
+ */
+#undef RMM 
+
+/*
+ * Define this when using Solaris since our solaris imake isn't
+ * configured properly
+ */
+#define FORCE_SOLARIS
+
+/*
+ * Define this if you are using aix-4.*, to differentiate aix 4
+ * and aix 3 features
+ */
+#undef FORCE_AIX4
+
+/*
+ * Define this if you are using an SP/2 and want to build parallel
+ * programs on it.
+ */
+#undef FORCE_SP2
+
+
+/**************************************************/
+/*******  Mostly Source Code related **************/
+/**************************************************/
+
+/*
+ * These compilation options are more fully described in
+ * the "Compilation Options" section of Project.tmpl.
+ */
+/* turn ON/OF generation of auditing, assert checking code */
+#define DEBUGCODE ON
+/* turn ON/OF generation of debugging symbols (ie. -g) */
+#define DEBUGGERSYMBOLS ON
+/* turn ON/OF optimization */
+#define OPTIMIZE OFF
+
+/* 
+ * Directory to install bin, lib, include, and documents 
+ */
+#undef INSTALL_PATH 
+
+/*
+ * The CHEAP_RC functionality is now seperate from compiling
+ * for debugging.  If you want the "cheap" RCs, which lack
+ * push/popping, define it below.
+ *
+ * Without the #ifndef surrounding the #define, the CPP
+ * will output CHEAP_RC redefined messages.
+ */
+#ifndef CHEAP_RC
+#undef CHEAP_RC
+#endif
+
+/*
+ * The LOCAL_LOG flag causes the log manager to be built
+ * so that it performs I/O locally (in the server process)
+ * rather than delegating I/O to a diskrw process.
+ * This is useful for debugging and also for servers that
+ * are intended to support at most one client or thread
+ * that's doing logging at any one time.
+ */
+#undef LOCAL_LOG
+
+/*
+ * This defines the SM page size in bytes
+ */
+/* for sources */
+#define SM_PAGESIZE 8192
+
+/*
+ * If you want 64 bit serial numbers (logical IDs)
+ * rather that 32 bit, define this:
+ */
+/* for sources */
+#undef BITS64
+
+/*
+ * If parsets are being used, set define these:
+ */
+/* for Imakefiles */
+#undef FORCE_PARSETS
+#undef USE_PVM3
+/* for sources */
+#undef SLAVEPROGRAM
+#undef PARSETS
+
+/*
+ * To use hatehints and ship pages back to the primary server
+ * define this:
+ */
+/* both sources and Imakefiles */
+#undef USE_HATESEND
+
+/*
+ * For a multi-user version of OO7 define this:
+ */
+#undef FORCE_MULTIUSER
+
+/*
+ * Define this so that SVAS testing uses the verify library
+ */
+/* both sources and Imakefiles */
+#undef USE_VERIFY
+
+
+/*
+ * Define this if you want to include Joe Hellerstein's 
+ * experimental "russian doll" trees.  These are similar to
+ * R*trees except that they are used for indexing set-valued
+ * attributes.
+ */
+#undef USE_RDTREE
+
+/*
+ * Define these if you are using a server-to-server configuration
+ */
+/* both sources and Imakefiles */
+#undef MULTI_SERVER
+
+/*
+ * Say whether threads are preemptive or not.  This is a hack to
+ * reduce the size of lock manager objects by changing the locking
+ * hierarchy to take advantage of the non-preemptive threads.
+ */
+#undef NOT_PREEMPTIVE
+
+/*
+ * OCOMM package aside, if you want to use PVM, define this
+ */
+#undef USE_PVM3
+
+/*
+ * The new object-oriented communications system
+ */
+#undef USE_OCOMM
+#undef OCOMM_USE_TCP
+#undef OCOMM_USE_PVM
+#undef OCOMM_USE_UDP
+#undef OCOMM_USE_MYRINET
+#undef OCOMM_USE_MPI
+
+/*
+ * Define whether object-level concurrency control can be an option.
+ * The actual level of locking is determined by the cc_alg variable defined
+ * in sm_base.h.
+ */
+/* for sources */
+#define OBJECT_CC
+
+/*
+ * Define whether hierarchical callbacks are allowed
+ */
+/* for sources */
+#undef HIER_CB
+
+/*
+ * turn on/off use of PURIFY, QUANTIFY, etc
+ */
+#undef USE_PURIFY
+#undef USE_QUANTIFY
+#undef USE_PURECOV
+
+/*
+ *  Should be PIPE_NOTIFY - alternative is to use
+ *  signals for diskrw -- server communication (worse performance)
+ */
+#define PIPE_NOTIFY
+

@@ -1,0 +1,78 @@
+/* --------------------------------------------------------------- */
+/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
+/* -- University of Wisconsin-Madison, subject to the terms     -- */
+/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
+/* -- Reserved.                                                 -- */
+/* --------------------------------------------------------------- */
+
+/*
+ * Imakefile for Object Cache Layer
+ */
+
+/* $Header: /p/shore/shore_cvs/src/lil/oc/Imakefile,v 1.34 1995/06/15 22:18:51 schuh Exp $ */
+
+SRC =		LOIDTable.C \
+		MemMgr.C \
+		OCRef.C \
+		ObjCache.C \
+		Shore.C \
+		Type.C \
+		VolumeTable.C \
+		get_my_svas.C
+
+
+OBJ =		$(SRC:.C=.o)
+
+HDR.oc =	LOIDTable.h MemMgr.h OCInternal.h    \
+		OCRef.h  OCTypes.h    \
+		OTEntry.h     ObjCache.h Shore.h  \
+		ShoreStats.h Type.h  VolumeTable.h
+
+HDR.gen =	SH_error_def.h SH_error.h
+
+HDR = 		$(HDR.oc) $(HDR.gen)
+
+STAT_FILES_T =\
+	OCstats_def.i OCstats_msg.i OCstats_op.i OCstats_struct.i 
+STAT_FILES = $(STAT_FILES_T) 
+
+# for tags:
+SRCS = $(SRC)
+HFILES = $(HDR)
+SRC.cvs = $(SRCS) $(HDR.oc) OCstats.dat
+
+INSTALL =	SH_error.h \
+		OCRef.h \
+		OCTypes.h \
+		OTEntry.h \
+		Shore.h \
+		Type.h \
+		$(STAT_FILES) ShoreStats.h CacheBHdr.h
+
+INCLUDE +=	$(FC_INCL) $(VAS_INCL) $(COMMON_INCL) $(SDL_INCL) $(SM_INCL) $(STHREAD_INCL)
+
+#ifdef FORCE_GCC
+AUXFLAGS =	-D__STRICT_ANSI__ -DOC_PROFILE -finline-functions
+#else
+AUXFLAGS =	-D__STRICT_ANSI__ -DOC_PROFILE
+#endif
+
+ERROR_FILES =	SH_error.h SH_error.i SH_einfo.i
+
+AUTOMATIC= $(ERROR_FILES)  $(STAT_FILES)
+
+ALLTARGETS = liboc.a
+
+automatic::	$(AUTOMATIC)
+
+$(OBJ):		$(AUTOMATIC)
+
+statistics(OCstats.dat,,$(STAT_FILES_T))
+
+build_library(liboc.a, $(OBJ))
+
+install_copy(include, $(INSTALL))
+
+error_codes(SH_error.dat,-e,$(ERROR_FILES))
+
+depend_target($(SRC))

@@ -1,0 +1,21 @@
+/* --------------------------------------------------------------- */
+/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
+/* -- University of Wisconsin-Madison, subject to the terms     -- */
+/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
+/* -- Reserved.                                                 -- */
+/* --------------------------------------------------------------- */
+
+CMNT
+CMNT You can override anything in Project.tmpl
+CMNT by creating a "local.tmpl" in the directory
+CMNT in which you run "make" or in that directory's 
+CMNT parent.
+CMNT
+
+COMPILE_NOSYMBOL.c = $(COMPILE_NOSYMBOL.C)
+COMPILE.c = $(COMPILE.C) 
+
+#ifdef USE_GCC
+LOCAL_CFLAGS = -Wall
+#endif
+

@@ -1,0 +1,136 @@
+# --------------------------------------------------------------- #
+# -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- #
+# -- University of Wisconsin-Madison, subject to the terms     -- #
+# -- and conditions given in the file COPYRIGHT.  All Rights   -- #
+# -- Reserved.                                                 -- #
+# --------------------------------------------------------------- #
+
+#
+#  Like alloc.2 but instead of scanning to destroy recs,
+#  it remembers the rids and destroys the recs w/o a scan.
+#
+#
+#	Test allocation & deallocation of pages
+#   the statistics-gathering checks assertions on the files 
+#   and in current form, fails
+#
+
+source $script_dir/vol.init
+
+set form %08090d
+
+
+proc t1 {} {
+    global volid  f0 r0 form
+echo t1 dstats-1 
+dstats $volid
+echo t1 finished dstats-1 
+    sm begin_xct
+    echo t1 xact [sm xct]
+sync
+    echo t1 creating 10 more recs ...
+    for { set i 1} { $i <= 10} { incr i} {
+	echo creating t1 rec ...
+	set j [sm create_rec $f0 h$i 1000 [format $form $i] ]
+	echo t1 created rec $j
+	dstatsnoaudit $volid 
+    }
+    echo t1 created 10 recs file $f0
+    echo t1 dstatsnoaudit t1 xxx
+    catch {dstatsnoaudit $volid} err
+   # might get deadlock if we continue 
+    if [error_is $err E_DEADLOCK] {
+       echo Error: $err
+    }
+sync
+    echo t1 dstatsnoaudit t1 yyy
+    dstatsnoaudit $volid
+
+    echo t1 committing ...
+    sm commit_xct
+    echo t1 dstatsno t1 zzz
+    dstats $volid
+    echo t1 finished dstats zzz t1
+}
+proc scanit { f } {
+    set scan [sm scan_file_create $f t_cc_record]
+    set pin [sm scan_file_next $scan 0]
+    set i 0
+    while {$pin != "NULL"} {
+	echo $pin
+	set pin [sm scan_file_next $scan 0]
+	set i [expr {$i+1} ]
+    }
+    # (could get a deadlock)
+    catch { sm scan_file_destroy $scan } error
+    echo $error
+    echo scan found $i records
+}
+proc t2 {} {
+    global volid  f0 rid
+    sm begin_xct
+    echo t2 xact [sm xct]
+    echo t2 destroying all records (explicity, not by a scan) ...
+    for { set i 1} { $i <= 10} { incr i} {
+	echo t2 sm destroy_rec $rid($i) ...
+	catch { sm destroy_rec $rid($i) } error
+	echo error = $error
+	echo t2 destroyed $rid($i)
+    }
+    set i [expr {$i -1}]
+    echo t2 destroyed $i recs file $f0
+    echo t2 dstatsnoaudit t2 xxx
+    set err 0
+    catch {dstatsnoaudit $volid} $err
+   # might get deadlock if we continue 
+    if [error_is $err E_DEADLOCK] {
+       echo Error: $err
+    }
+sync
+    echo t2 dstatsnoaudit t2 yyy
+    dstatsnoaudit $volid
+    echo t2 dstatsnoaudit t2 zzz
+    dstatsnoaudit $volid
+sync
+    echo t2 aborting...
+    sm abort_xct
+    echo t2 dstatsnoaudit t2 qqq
+    dstatsnoaudit $volid
+}
+
+
+sm begin_xct
+set f0 [sm create_file $volid]]
+echo created file $f0
+for { set i 1} { $i <= 10} { incr i} {
+    set j [sm create_rec $f0 h$i 1000 [format $form $i] ]
+    set rid($i) $j
+    echo created rec $rid($i)
+}
+echo created 10 recs file $f0
+sm commit_xct
+
+dstats $volid
+
+set y1 [fork_thread t1 {}]
+set y2 [fork_thread t2 {}]
+
+
+echo sync_thread $y1 $y2
+sync_thread $y1 $y2
+
+echo sync_thread $y1 $y2
+sync_thread $y1 $y2
+echo join_thread $y1 $y2
+join_thread $y1 $y2
+
+echo after join
+dstats $volid
+
+sm begin_xct
+scanit $f0
+sm commit_xct
+
+dstats $volid
+
+pstats

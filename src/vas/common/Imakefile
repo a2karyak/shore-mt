@@ -1,0 +1,214 @@
+/* --------------------------------------------------------------- */
+/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
+/* -- University of Wisconsin-Madison, subject to the terms     -- */
+/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
+/* -- Reserved.                                                 -- */
+/* --------------------------------------------------------------- */
+
+/*
+ *      $RCSfile: Imakefile,v $
+ *      $Revision: 1.61 $
+ *      $Date: 1996/01/26 22:02:34 $
+ *      $Author: nhall $
+ */
+AUXFLAGS = $(VASAUXFLAGS)
+
+/*	
+ * vas_stubs.c is generated every time the .x files are processed.
+ * Each of the stubs is copied once to a new source file when
+ * the function is filled in.
+ * vas_stubs.o is not meant to be used.
+ */
+STAT_FILES_U = \
+	rusage_flat_struct.i rusage_flat_op.i rusage_flat_msg.i 
+STAT_DEF_FILES_U = \
+	rusage_flat_def.i
+
+STAT_FILES = $(STAT_FILES_U) 
+STAT_DEF_FILES = $(STAT_DEF_FILES_U)
+
+GENERATED.msg =\
+	msg.h msg_xdr.c \
+	msg_svc.C vas_stubs.c msg_clnt.c msg.defs.h 
+
+GENERATED.shell=	shell.commands \
+	shell.aliases shell.h\
+	shell.help shell.help_txt \
+	shell.keywords shell.usage shell.generated.h
+
+GENERATED = \
+	$(GENERATED.msg) $(GENERATED.shell)\
+	$(STAT_FILES) $(STAT_DEF_FILES)\
+	cmsg_stats.i cmsg_names.i
+
+RM 	= /bin/rm 
+
+SYMLINKS= 
+
+XFILES= \
+	 common.x reply.x vmsg.x cmsg.x msg.x
+
+# SM_INCL is needed for error codes
+INCLUDE += $(COMMON_INCLUDE) $(SM_INCL) $(TCL_INCL) $(VERIFY_INCL) $(GDBM_INCL)
+
+HFILES =\
+	grp.hack.h inet_stuff.h uname.h\
+	krbplusplus.h string_t.h vas_internal.h\
+	sysprops.h msg_stats.h xdrmem.h interp.h \
+	server_stubs.h  vasshell.h shell.misc.h  errors.h rusage.h
+
+SRC.makehere.C =\
+	process_options.C\
+	commands.C commands2.C commands3.C commandsg.C commandst.C\
+	errors.C getwd.C \
+	interp.C msg_stats.C reserved_oids.C  \
+	vasshell.C shell.generated.C shell.C string_t.C stringhash.C svas_base.C \
+	uname.C cmsg_names.C inet_stuff.C rusage.C sysprops_util.C sdl_fct.C
+
+SRC.unix.C =\
+  	unixfs.C
+
+SRC.unix.c =\
+  	_unixfs.c
+
+#if IS_SPARC_SOLARIS2
+OBJ.extracted = byteorder.o
+#else
+OBJ.extracted = 
+#endif
+
+SRC.makehere.c = xdrmem.c msg_xdr.c
+OBJ = $(SRC.makehere.c:.c=.o) $(SRC.makehere.C:.C=.o)  $(OBJ.extracted)
+OBJ.unix = $(SRC.unix.c:.c=.o) $(SRC.unix.C:.C=.o) 
+
+SRC.tags = $(SRC.makehere.c) $(SRC.makehere.C)
+# for tags
+SRCS = $(SRC.tags)
+
+SRC.sedscripts = \
+	sed.script.msg sed.script.svc sed.script.clnt\
+	sed.script.svc sed.script.xdr 
+
+SRC.cvs =\
+	$(SRC.tags) $(HFILES)\
+	$(SRC.sedscripts) $(SHELL.commands)\
+	vas.tcllib rusage.dat
+
+DISPOSABLE = core made junk a.out\
+	$(GENERATED) vas_stubs.c *_pure_*.[ao] *.pure *.pure_* *.a $(OBJ)
+
+
+AUTOMATIC= $(GENERATED) $(STAT_FILES) $(STAT_DEF_FILES)
+
+ALLTARGETS = $(OBJ) libcommon.a 
+
+automatic:: $(AUTOMATIC)
+$(OBJ): $(AUTOMATIC)
+
+statistics(rusage.dat,,$(STAT_FILES_U) $(STAT_DEF_FILES_U))
+	
+build_library(libcommon.a, $(OBJ))
+build_library(libunix.a, $(OBJ.unix))
+
+$(XFILES): ../include/vas_types.h
+
+msg_xdr.o: 	msg_xdr.c
+	$(COMPILE.c) -DMSG_XDR $< 
+
+depend:: $(RPCGEN) $(GENERATED) 
+
+/**************** RPCGEN *****************************************/
+$(RPCGEN):
+	cd $(RPC_DIR); $(MAKE)
+
+/**************** SHELL *****************************************/
+SHELL.commands = commands.dat commands.generic.dat commands.sdl.dat
+
+$(GENERATED.shell): $(SHELL.commands) $(TOP)/tools/shell.pl
+	cat $(SHELL.commands) | $(PERL) $(TOP)/tools/shell.pl
+
+/**************** MSG *****************************************/
+
+RPCFLAGS = -D__STDC__ -E -P -DRPCGEN $(CFLAGS) -Dvolatile="" -Dsigned=""
+MSGX = /tmp/msg.x$$$$
+
+msg.h::	 $(RPCGEN) msg.x ../include/vas_types.h
+	$(CPP) $(RPCFLAGS) -DRPC_HDR msg.x > $(MSGX);\
+		$(RPCGEN) -h -o msg.h $(MSGX);\
+		$(RM) -f $(MSGX)
+	chmod u+w sed.script.msg
+	touch sed.script.msg
+
+msg_xdr.c::	 $(RPCGEN) msg.x
+	$(CPP) -DRPC_XDR $(RPCFLAGS) msg.x > $(MSGX);\
+		$(RPCGEN) -c -o msg_xdr.c $(MSGX);\
+		$(RM) -f $(MSGX)
+	chmod u+w sed.script.xdr
+	touch sed.script.xdr
+
+CMNT
+CMNT combine rules for generating msg_svc.c and
+CMNT running the sed script because in this case,
+CMNT we're changing the name of the file from .c to .C
+CMNT and if we leave msg_svc.c around, the automagician
+CMNT in this system causes the .c rather than the .C
+CMNT to be used to make the .o file.
+CMNT
+msg_svc.C:: $(RPCGEN) msg.x sed.script.svc 
+	$(CPP) -DRPC_SVC $(RPCFLAGS) msg.x > $(MSGX);\
+		$(RPCGEN) -m -o msg_svc.c $(MSGX);\
+		$(RM) -f $(MSGX)
+	sed -f sed.script.svc msg_svc.c > msg_svc.C;
+	rm msg_svc.c
+
+
+msg_clnt.c::	 $(RPCGEN) msg.x
+	$(CPP) -DRPC_CLNT $(RPCFLAGS) msg.x > $(MSGX);\
+		$(RPCGEN) -l -o msg_clnt.c $(MSGX);\
+		$(RM) -f $(MSGX)
+	chmod u+w sed.script.clnt
+	touch sed.script.clnt
+
+
+msg.h::	sed.script.msg
+	sed -f sed.script.msg msg.h > msg.h.new; mv msg.h.new msg.h
+
+msg_xdr.c:: sed.script.xdr msg.h
+	sed -f sed.script.xdr msg_xdr.c > msg_xdr.c.new; \
+		mv msg_xdr.c.new msg_xdr.c
+
+vas_stubs.c:: sed.script.stubs msg_clnt.c msg.h
+	sed -f sed.script.stubs msg_clnt.c > vas_stubs.c
+
+msg_clnt.c:: sed.script.clnt msg.h
+	sed -f sed.script.clnt msg_clnt.c > msg_clnt.c.new;\
+		mv msg_clnt.c.new msg_clnt.c 
+
+msg.defs.h:: msg.h
+	grep "^#define" msg.h > msg.defs.h
+
+cmsg_stats.i: msg.h msgstats.pl
+	$(PERL) -s msgstats.pl -c -v msg.h | sort -n > cmsg_stats.i
+
+cmsg_names.i: msg.h msgstats.pl
+	$(PERL) -s msgstats.pl -c -s msg.h | sort -n > cmsg_names.i
+
+cmsg_names.o: cmsg_stats.i
+
+#if IS_SPARC_SOLARIS2
+byteorder.o:
+	$(AR) x /lib/libsocket.a byteorder.o
+#endif
+
+#ifdef COMMENT
+	$(PROTOIZE_IFNEEDED) $< 
+#endif
+
+install_copy(include, $(STAT_DEF_FILES) sdl_fct.h )
+
+clean_files($(DISPOSABLE))
+
+depend_target($(SRC.makehere.c) $(SRC.makehere.C) $(GENERATED))
+
+c_plus_program(string_test, string_test.o, libcommon.a ../../common/libcommon.a ../../fc/libfc.a) 
+purify_c_plus_program(string_test, string_test.o, libcommon.a ../../common/libcommon.a ../../fc/libfc.a, $(PURE_OPT)) 

@@ -1,0 +1,139 @@
+/* --------------------------------------------------------------- */
+/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
+/* -- University of Wisconsin-Madison, subject to the terms     -- */
+/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
+/* -- Reserved.                                                 -- */
+/* --------------------------------------------------------------- */
+
+/*
+ *  $Id: Imakefile,v 1.49 1996/07/15 22:28:07 bolo Exp $
+ */
+
+INCLUDE += $(FC_INCL) $(SM_INCL) $(TCL_INCL) $(COMMON_INCL)
+CFLAGS += -fvolatile
+
+HDR =\
+	diskrw.h spin.h stcore.h sthread.h tsl.h shmc_stats.h sthread_stats.h\
+	pattern.h strace.h
+
+ERROR_FILES = st_error.h st_error.i st_einfo.i
+STAT_FILES =  shmc_stats_msg.i shmc_stats_op.i shmc_stats_struct.i \
+    sthread_stats_msg.i sthread_stats_op.i sthread_stats_struct.i
+STAT_DEF_FILES = shmc_stats_def.i sthread_stats_def.i
+
+TSL_SRC=
+#ifdef IS_MIPS_ULTRIX42
+TSL_SRC= ultrix_tsl.c
+#endif
+#if defined(IS_RS6000_AIX41)
+TSL_SRC= aix_tsl.c
+#endif
+#if defined(IS_RS6000_AIX32)
+TSL_SRC= fake_tsl.c
+#endif
+
+SRC = diskrw.c stcore.c sthread.c sthread_core.c strace.c readstats.c \
+	$(TSL_SRC)
+	
+SRC.asm = tsl.S 
+
+OBJ.disk = diskrw.o tsl.o 
+OBJ.stats = readstats.o 
+OBJ.lib = stcore.o sthread.o tsl.o sthread_core.o strace.o
+
+OBJ = $(OBJ.stats) $(OBJ.disk) $(OBJ.lib)
+
+EXEC = diskrw readstats
+LIB = $(FC_LIB)
+
+ALLTARGETS = $(OBJ) libst.a
+SRC.cvs = $(SRC) $(HDR) $(SRC.asm)
+SRCS = $(SRC) $(HDR)
+
+install_copy(bin, diskrw)
+install_copy(include, $(STAT_DEF_FILES))
+/* for vas writers */
+install_copy(include, sthread.h stcore.h st_error.h strace.h)
+
+automatic:: $(ERROR_FILES) $(STAT_FILES)
+
+statistics(sthread_stats.dat,,$(STAT_FILES) $(STAT_DEF_FILES))
+
+c_plus_program(diskrw, $(OBJ.disk), $(LIB))
+c_plus_program(readstats, $(OBJ.stats), $(LIB))
+
+purify_c_plus_program(diskrw, $(OBJ.disk), $(LIB), $(PURE_OPT))
+purify_c_plus_program(readstats, $(OBJ.stats), $(LIB), $(PURE_OPT))
+
+build_library(libst.a, $(OBJ.lib))
+
+error_codes(st_error.dat,-e,$(ERROR_FILES))
+
+
+stcore.o: stcore.c stcore.h
+	$(GCC) -D$(ARCH) -D$(OPSYS) $(DEBUGFLAGS) $(GCCDEBUGSYMBOLS) -c stcore.c
+
+#if defined(IS_SPARC_SOLARIS2)
+AS=	/usr/ccs/bin/as
+#endif
+#if defined(IS_SPARC_SOLARIS2) || defined(IS_I386_SOLARIS2)
+CPP= $(GCC) -E $(CFLAGS) 
+#else
+CPP= /lib/cpp
+#endif
+#ifdef IS_MIPS_ULTRIX42
+tsl.o: tsl.h ultrix_tsl.c
+	$(GCC) $(CFLAGS) $(DEBUGFLAGS) $(DEBUGSYMBOLS) -c ultrix_tsl.c -o $@
+#define	TSL_GO
+#endif
+#ifdef IS_MIPS_IRIX
+tsl.o: tsl.h tsl.S
+	$(CPP) -D$(ARCH) -D$(OPSYS) tsl.S | grep -v '^#' > .tsl.s
+	$(AS) -mips2 -o $@ .tsl.s
+#define	TSL_GO
+#endif
+#ifdef IS_I386_SOLARIS2
+tsl.o: tsl.h tsl.S
+	$(CPP) -DSYSV -D$(ARCH) -D$(OPSYS) tsl.S | grep -v '^#' > .tsl.s
+	$(AS) -o $@ .tsl.s
+#define TSL_GO
+#endif
+#if defined(IS_RS6000_AIX32)
+tsl.o: tsl.h fake_tsl.c
+	$(GCC) $(CFLAGS) $(DEBUGFLAGS) $(DEBUGSYMBOLS) -c fake_tsl.c -o $@
+#define	TSL_GO
+#endif
+#if defined(IS_RS6000_AIX41)
+tsl.o: tsl.h aix_tsl.c
+	$(GCC) $(CFLAGS) $(DEBUGFLAGS) $(DEBUGSYMBOLS) -c aix_tsl.c -o $@
+#define	TSL_GO
+#endif
+#ifndef TSL_GO
+tsl.o: tsl.h tsl.S
+	$(CPP) tsl.S | grep -v '^#' > .tsl.s
+	$(AS) -o $@ .tsl.s
+#else
+#undef TSL_GO
+#endif
+
+depend_target($(SRC) $(SRC.asm))
+
+/**********  Handle Subdirectories ***********/
+
+#ifdef GNU_MAKE
+
+HOLDSPACE =
+COMMANDS_MINUS_ALL := $(SUBDIRCOMMANDS:$(HOLDSPACE) all= )
+do_subdirs($(COMMANDS_MINUS_ALL), tests)
+
+CMNT nullify the default call to do-subdirs macro:
+SUBDIRCOMMANDS=
+SUBDIR = 
+
+#else
+
+SUBDIR =  tests
+all := SUBDIR = 
+
+#endif /* GNU_MAKE */
+

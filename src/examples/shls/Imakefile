@@ -1,0 +1,18 @@
+/* --------------------------------------------------------------- */
+/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
+/* -- University of Wisconsin-Madison, subject to the terms     -- */
+/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
+/* -- Reserved.                                                 -- */
+/* --------------------------------------------------------------- */
+
+/*
+ * Imakefile for example SDL program
+ *
+ * $Header: /p/shore/shore_cvs/src/examples/shls/Imakefile,v 1.10 1995/04/24 19:29:48 zwilling Exp $
+ */
+INSTALL_STUFF =  $(SRCS) Makefile.template shls.rc README $(SDLFILES)
+SRC.cvs =  $(INSTALL_STUFF)
+
+OPTIONS += INSTALL_DIR=$(INSTALL_DIR)
+
+install_copy(examples/shls, $(INSTALL_STUFF))

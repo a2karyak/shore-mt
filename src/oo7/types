@@ -1,0 +1,18 @@
+#
+#	This file contains all the persistent OO7 type names
+#	and their serial numbers.  These serials are hand-assigned
+#	and are only valid until real type objects are working
+#
+
+CompositePart		100001
+Connection		100011
+Document		100021
+Assoc			100031
+Module			100041
+Assembly		100051
+ComplexAssembly		100061
+AtomicPart		100071
+Manual			100081
+BaseAssembly		100091
+StringBtIndex		200001
+IntBtIndex		200011

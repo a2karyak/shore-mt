@@ -1,0 +1,84 @@
+# --------------------------------------------------------------- #
+# -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- #
+# -- University of Wisconsin-Madison, subject to the terms     -- #
+# -- and conditions given in the file COPYRIGHT.  All Rights   -- #
+# -- Reserved.                                                 -- #
+# --------------------------------------------------------------- #
+
+# $Header: /p/shore/shore_cvs/src/examples/pscan/Makefile.template,v 1.24 1996/07/30 19:40:10 kupsch Exp $
+
+#
+# Makefile for pscan
+#
+
+# See "NOTE" below re: running on Solaris.
+
+# Modify the following line to indicated where gcc is installed
+GCC     =   gcc
+
+# Modify the following line as appropriate to point to the place where
+# Shore is installed
+INSTALL_DIR = /p/shore/installed/NEW/debug
+
+INCLUDE 	=	-I$(INSTALL_DIR)/include
+LIBS 	=	$(INSTALL_DIR)/lib/libshore.a
+SDL 	=   $(INSTALL_DIR)/bin/sdl
+
+
+SRCS = partimpl.C part.C build.C pscan.C destroy.C
+
+SDLFILES 	=part.sdl
+HFILES.sdl 	=$(SDLFILES:.sdl=.h)
+
+MODULE_NAME =	PScan
+
+COMMON_OBJS =	partimpl.o part.o
+BUILD_OBJS =	build.o $(COMMON_OBJS)
+PSCAN_OBJS =	pscan.o  $(COMMON_OBJS)
+DESTROY_OBJS =	destroy.o $(COMMON_OBJS)
+
+ALL_OBJS =	$(SRCS:.C=.o)
+
+
+CXX =	$(GCC) -x c++
+LD =	$(GCC)
+
+LDFLAGS       = -lg++ -lstdc++
+
+# NOTE: if running on a Solaris machine, add this:
+LDFLAGS       += -lnsl 
+
+CXXFLAGS =	-g $(INCLUDE) 
+
+EXECS =          build pscan destroy
+
+.SUFFIXES: .C .o .sdl .h
+
+.C.o:
+	$(CXX) $(CXXFLAGS) -c -O $<
+
+all:	$(EXECS)
+
+$(EXECS):	$(LIBS) 
+$(ALL_OBJS): $(HFILES.sdl) 
+
+.sdl.h: 
+	$(RM) $*.h
+	$(SDL) -f -s $? -B -L -o $*.h
+
+
+build:	$(BUILD_OBJS)
+	$(LD) -o build $(BUILD_OBJS) $(LIBS) $(LDFLAGS) 
+
+pscan:	$(PSCAN_OBJS)
+	$(LD) -o pscan $(PSCAN_OBJS) $(LIBS) $(LDFLAGS)
+
+destroy:	$(DESTROY_OBJS)
+	$(LD) -o destroy $(DESTROY_OBJS) $(LIBS) $(LDFLAGS)
+
+tags: $(SRCS) $(HFILES.sdl)
+	ctags -wt $(SRCS) $(HFILES.sdl) $(INSTALL_DIR)/include/*.h
+
+clean:
+	$(RM) a.out tags core $(ALL_OBJS) $(EXECS)  part.h
+

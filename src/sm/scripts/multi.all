@@ -1,0 +1,17 @@
+# --------------------------------------------------------------- #
+# -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- #
+# -- University of Wisconsin-Madison, subject to the terms     -- #
+# -- and conditions given in the file COPYRIGHT.  All Rights   -- #
+# -- Reserved.                                                 -- #
+# --------------------------------------------------------------- #
+
+set scripts [ list	multi.1 multi.2 ]
+
+echo $scripts
+
+foreach x $scripts {
+    echo "================================================================="
+    echo "================================================================="
+    echo "RUNNING:  $x"
+    source $script_dir/$x
+}

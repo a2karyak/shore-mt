@@ -1,0 +1,24 @@
+# --------------------------------------------------------------- #
+# -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- #
+# -- University of Wisconsin-Madison, subject to the terms     -- #
+# -- and conditions given in the file COPYRIGHT.  All Rights   -- #
+# -- Reserved.                                                 -- #
+# --------------------------------------------------------------- #
+
+set scripts [ list	\
+    deadlock.1 deadlock.2 deadlock.3 deadlock.4 \
+    lock.1 \
+    lock.hier lock.hier_sm \
+    lock.upgrade \
+    lockrec_pin lockrec_sm lockfile_sm \
+    ]
+
+echo $scripts
+
+foreach scr $scripts {
+    echo "================================================================="
+    echo "================================================================="
+    echo "RUNNING:  $scr"
+    source $script_dir/$scr
+}
+unset scr

@@ -1,0 +1,490 @@
+/* --------------------------------------------------------------- */
+/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
+/* -- University of Wisconsin-Madison, subject to the terms     -- */
+/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
+/* -- Reserved.                                                 -- */
+/* --------------------------------------------------------------- */
+
+/*
+ *  $Header: /p/shore/shore_cvs/config/Imake.rules,v 1.80 1996/07/15 22:50:10 bolo Exp $
+ */
+/*
+ SRC for sources
+ OBJ for objects
+ DISPOSABLE for non precious files
+ LDLIBS for libraries
+*/
+
+NEWSUFFIXES += .C
+NEWSUFFIXES += .htag .itag .Ctag .ctag                           
+
+/*
+ * When compiling .c files, do not compile with -g any file
+ * named in the file NO_G_FILES
+ */
+.c.o:
+	@ if (test -r NO_G_FILES) then (                  \
+	    if ($(GREP) "(^| | )[       ]*"$< NO_G_FILES >/dev/null) then \
+	    ( echo $(COMPILE_NOSYMBOL.c) $< ;               \
+	      $(COMPILE_NOSYMBOL.c) $< )                    \
+	    else                                                \
+	    ( echo $(COMPILE.c) $< ;                        \
+	      $(COMPILE.c) $< )                             \
+	    fi                                                  \
+	)                                                       \
+	else                                                    \
+	    ( echo $(COMPILE.c) $< ;                            \
+	    $(COMPILE.c) $< )                               \
+	fi
+
+
+.C.o:
+	@ if (test -r NO_G_FILES) then (                  \
+	    if ($(GREP) "(^| | )[       ]*"$< NO_G_FILES >/dev/null) then \
+	    ( echo $(COMPILE_NOSYMBOL.C) $< ;               \
+	      $(COMPILE_NOSYMBOL.C) $< )                    \
+	    else                                                \
+	    ( echo $(COMPILE.C) $< ;                        \
+	      $(COMPILE.C) $< )                             \
+	    fi                                                  \
+	)                                                       \
+	else                                                    \
+	    ( echo $(COMPILE.C) $< ;                            \
+	    $(COMPILE.C) $< )                               \
+	fi
+
+.cc.o:
+	@ if (test -r NO_G_FILES) then (                  \
+	    if ($(GREP) "(^| | )[       ]*"$< NO_G_FILES >/dev/null) then \
+	    ( echo $(COMPILE_NOSYMBOL.cc) $< ;               \
+	      $(COMPILE_NOSYMBOL.cc) $< )                    \
+	    else                                                \
+	    ( echo $(COMPILE.cc) $< ;                        \
+	      $(COMPILE.cc) $< )                             \
+	    fi                                                  \
+	)                                                       \
+	else                                                    \
+	    ( echo $(COMPILE.cc) $< ;                            \
+	    $(COMPILE.cc) $< )                               \
+	fi
+
+#if IS_SNAKE_HPUX8
+#define extra_ld_flags $(CPLUSFLAGS)
+#else
+#define extra_ld_flags
+#endif
+
+#ifdef USE_CC
+#if IS_SNAKE_HPUX8
+#define pxdb_message echo "NB: Ignore error messages from pxdb."
+#endif
+#endif
+
+#ifndef pxdb_message
+#define pxdb_message 
+#endif
+
+/*
+** Build a C++ program from .o files and libraries.
+*/
+#ifndef c_program
+#define c_program(program, objlist, libs)		@@\
+clean::							@@\
+	-@$(RM) -f program objlist                      @@\
+	                                                @@\
+program: objlist libs 								@@\
+	$(MAKE) program.link							@@\
+program.link:										@@\
+	$(LD) -o program objlist libs extra_ld_flags $(LDFLAGS) $(LOCAL_LDFLAGS) $(CLIB) $(GLOBAL_LDFLAGS)				@@\
+	pxdb_message
+#endif /* c_program */
+
+/*
+** Build a C++ program from .o files and libraries.
+*/
+#ifndef c_plus_program
+#define c_plus_program(program, objlist, libs)		@@\
+clean::							@@\
+	-@$(RM) -f program objlist                      @@\
+	                                                @@\
+program: objlist libs 								@@\
+	$(MAKE) program.link							@@\
+program.link:										@@\
+	$(LD) -o program objlist libs extra_ld_flags $(LDFLAGS) $(LOCAL_LDFLAGS) $(CPLUSLIB) $(GLOBAL_LDFLAGS)				@@\
+	pxdb_message
+#endif /* c_plus_program */
+
+#if defined(IS_SP2) && !defined(poe_c_plus_program)
+/*
+** Build a C++ program from .o files and libraries.
+** The resulting executable is link with the IBM POE (Parallel Operating
+** Environment) runtime.
+*/
+#define poe_c_plus_program(program, objlist, libs)		@@\
+clean::							@@\
+	-@$(RM) -f program objlist                      @@\
+	                                                @@\
+program: objlist libs 								@@\
+	$(MAKE) program.link							@@\
+program.link:										@@\
+	$(LD) -mpoe -o program objlist libs extra_ld_flags $(LDFLAGS) $(LOCAL_LDFLAGS) $(CPLUSLIB) $(GLOBAL_LDFLAGS)				@@\
+	pxdb_message
+#else
+#define	poe_c_plus_program(program, objlist, libs)
+#endif /* SP2 */
+
+/*
+***************************************************************
+** Build a Purify-ied C++ program from .o files and libraries.
+*/
+#if IS_SNAKE_HPUX8
+GLOBAL_PURE_OPT =
+#define PURIFY_LIB $(PURIFY_DIR)/purify_stubs.a
+PURIFY_SUPPORTED = -DPURIFY
+#else 
+#if IS_SPARC_SUNOS41
+PURIFY_SUPPORTED = -DPURIFY
+#define PURIFY_LIB $(PURIFY_DIR)/purify_stubs.a
+GLOBAL_PURE_OPT = -g++ -collector=$(PURIFY_COLLECTOR)
+#else
+#if IS_I860_OSF1AD
+PURIFY_SUPPORTED = 
+/* don't define PURIFY_LIB */
+GLOBAL_PURE_OPT = -collector=unknown
+#else
+#if IS_MIPS_ULTRIX42
+#define PURIFY_LIB $(PURIFY_DIR)/purify_stubs.a
+PURIFY_SUPPORTED = -DPURIFY
+GLOBAL_PURE_OPT = -g++ -collector=$(PURIFY_DIR)/collect2
+#else
+GLOBAL_PURE_OPT = -g++=yes -collector=$(PURIFY_COLLECTOR)
+/* don't define PURIFY_LIB */
+#endif /*IS_MIPS_ULTRIX42*/
+#endif /*IS_I860_OSF1AD*/
+#endif /*IS_SPARC_SUNOS41*/
+#endif /*IS_SNAKE_HPUX8*/
+#ifndef purify_c_plus_program
+#define purify_c_plus_program(program, objlist, libs, pure_options) @@\
+clean::								@@\
+	-@$(RM) -f program.pure objlist real-ld .pure *_pure_*.o lib*pure*.a  @@\
+program.pure: objlist libs 										@@\
+	$(MAKE) program.pure.link									@@\
+program.pure.link:                                              @@\
+	$(PURIFY_DIR)/purify $(GLOBAL_PURE_OPT) pure_options $(LD) -o program.pure objlist libs extra_ld_flags $(LDFLAGS) $(LOCAL_LDFLAGS) $(CPLUSLIB) $(GLOBAL_LDFLAGS)
+#endif /* purify_c_plus_program */
+
+/*
+** end Purify
+***************************************************************
+*/
+
+/*
+***************************************************************
+** Build a Quantified C++ program from .o files and libraries.
+*/
+#if IS_SNAKE_HPUX8
+GLOBAL_QUANT_OPT =
+/*#define QUANTIFY_LIB */
+QUANTIFY_SUPPORTED = 
+#else 
+#if IS_SPARC_SUNOS41
+QUANTIFY_SUPPORTED = -DQUANTIFY
+#define QUANTIFY_LIB $(QUANT_DIR)/quantify_stubs.a
+GLOBAL_QUANT_OPT = -g++ -collector=$(QUANTIFY_COLLECTOR)
+#else 
+#if IS_I860_OSF1AD
+QUANTIFY_SUPPORTED = 
+/* don't define QUANTIFY_LIB */
+GLOBAL_QUANT_OPT = -collector=unknown
+#else
+#if IS_MIPS_ULTRIX42
+#define QUANTIFY_LIB /usr/sup/quantify/quantify_stubs.a
+QUANTIFY_SUPPORTED = -DQUANTIFY
+GLOBAL_QUANT_OPT = -g++ -collector=$(PURIFY_DIR)/collect2
+#else
+QUANTIFY_SUPPORTED = -DQUANTIFY
+GLOBAL_QUANT_OPT = -g++=yes -collector=$(QUANTIFY_COLLECTOR)
+/* don't define QUANTIFY_LIB */
+#endif /*IS_MIPS_ULTRIX42*/
+#endif /*IS_I860_OSF1AD*/
+#endif /*IS_SPARC_SUNOS41*/
+#endif /*IS_SNAKE_HPUX8*/
+#ifndef quantify_c_plus_program
+#define quantify_c_plus_program(program, objlist, libs, quant_options) @@\
+clean::								@@\
+	-@$(RM) -f program.quant objlist real-ld .quant *_pure_q*.o  lib*_pure_q*.a  @@\
+program.quant: objlist libs 						@@\
+	$(MAKE) program.quant.link						@@\
+program.quant.link:                                 @@\
+	$(QUANT_DIR)/quantify $(GLOBAL_QUANT_OPT) quant_options $(LD) -o program.quant objlist libs extra_ld_flags $(LDFLAGS) $(LOCAL_LDFLAGS) $(CPLUSLIB) $(GLOBAL_LDFLAGS)
+#endif /* quantify_c_plus_program */
+/*
+** end Quantify
+***************************************************************
+*/
+
+/*
+***************************************************************
+** Build a Pure-coverage-ed C++ program from .o files and libraries.
+*/
+#if IS_SNAKE_HPUX8
+GLOBAL_PURECOV_OPT =
+#define PURECOV_LIB $(PURECOV_DIR)/purecov_stubs.a
+PURECOV_SUPPORTED = -DPURECOV
+#else 
+#if IS_SPARC_SUNOS41
+PURECOV_SUPPORTED = -DPURECOV
+#define PURECOV_LIB $(PURECOV_DIR)/purify_stubs.a
+GLOBAL_PURECOV_OPT = -g++ -collector=$(PURECOV_COLLECTOR)
+#else 
+#if IS_I860_OSF1AD
+PURECOV_SUPPORTED = 
+/* don't define PURECOV_LIB */
+GLOBAL_PURE_OPT = -collector=unknown
+#else
+#if IS_MIPS_ULTRIX42
+#define PURECOV_LIB $(PURECOV_DIR)/purify_stubs.a
+PURECOV_SUPPORTED = -DPURECOV
+GLOBAL_PURECOV_OPT = -g++ -collector=$(PURECOV_COLLECTOR)
+#else 
+GLOBAL_PURECOV_OPT = -linker=gcc
+/* don't define PURECOV_LIB */
+#endif /*IS_MIPS_ULTRIX42*/
+#endif /*IS_I860_OSF1AD*/
+#endif /*IS_SPARC_SUNOS41*/
+#endif /*IS_SNAKE_HPUX8*/
+
+#ifndef purecov_c_plus_program
+#define purecov_c_plus_program(program, objlist, libs, pure_options) @@\
+clean::								@@\
+	-@$(RM) -f program.purecov objlist real-ld .pure *_pure_*.o lib*pure*.a  @@\
+program.purecov: objlist libs 							@@\
+	$(MAKE) program.purecov.link						@@\
+program.purecov.link: 							 		@@\
+	$(PURECOV_DIR)/purecov $(GLOBAL_PURECOV_OPT) pure_options $(LD) -o program.purecov objlist libs extra_ld_flags $(LDFLAGS) $(LOCAL_LDFLAGS) $(CPLUSLIB) $(GLOBAL_LDFLAGS)
+#endif /* purecov_c_plus_program */
+
+#ifndef pureboth_c_plus_program
+#define pureboth_c_plus_program(program, objlist, libs, pure_options) @@\
+clean::								@@\
+	-@$(RM) -f program.purecov objlist real-ld .pure *_pure_*.o lib*pure*.a  @@\
+program.pureboth: objlist libs 							@@\
+	$(MAKE) program.pureboth.link						@@\
+program.pureboth.link: @@\
+	$(PURIFY_DIR)/purify $(GLOBAL_PURE_OPT) pure_options \
+	$(PURECOV_DIR)/purecov $(GLOBAL_PURECOV_OPT) \
+	$(LD) -o program.pureboth objlist libs extra_ld_flags $(LDFLAGS) $(LOCAL_LDFLAGS) $(CPLUSLIB) $(GLOBAL_LDFLAGS)
+#endif /* pureboth_c_plus_program */
+/*
+** end Purecov
+***************************************************************
+*/
+
+/*
+ * How to make a library
+ * remove it and use quick append (fastest way)
+ */
+#ifndef build_library
+#define build_library(lib, objlist)         @@\
+clean::                                     @@\
+	-@$(RM) -f lib objlist li*pure*.a  li*pure_q*.a    @@\
+lib: objlist 								@@\
+	$(MAKE) lib.archive						@@\
+lib.archive:  								@@\
+	-$(RM) -f lib                           @@\
+	$(AR) qv  lib  objlist              	@@\
+	$(RANLIB_IFNEEDED) lib 
+
+/* append objlist to lib */
+#define append_library(lib, objlist)         @@\
+clean::                                      @@\
+	-@$(RM) -f objlist lib  li*pure_q*.a li*pure*.a     @@\
+lib:: objlist                                @@\
+	$(AR) rv lib  $?                   		 @@\
+	$(RANLIB_IFNEEDED) lib        
+
+/* build lib from objlist and otherlib's objects */
+#define build_joint_library(lib, objlist, otherlibs)   @@\
+clean::                                      @@\
+	-@$(RM) -f lib objlist li*pure_q*.a li*pure*.a     @@\
+lib:: objlist otherlibs          			@@\
+	$(MAKE) lib.archive						@@\
+lib.archive: 								 @@\
+	@echo "(re)build joint library " lib     @@\
+	-@$(RM) -f lib                           @@\
+	@echo "from objects " objlist            @@\
+	$(AR) qv lib objlist              		 @@\
+	@echo "add libraries " otherlibs         @@\
+	$(TOP)/tools/combinelibs $(AR) lib otherlibs  
+#endif /* build_library */
+
+
+/*
+** Build Makefile dependencies for an object tree.
+*/
+#ifndef depend_target
+#define depend_target(src_list)             @@\
+depend:: 	automatic                       @@\
+						@@\
+depend:: ALWAYS                             @@\
+	-@$(RM) -f .depend                      @@\
+	@$(MKDEPEND) $(MKDEPFLAGS) $(CFLAGS) src_list > .depend
+#endif /* depend_target */
+
+/*
+ * These files can be removed with "make clean"
+ */
+#ifndef clean_files
+#define clean_files(files)                    @@\
+clean::                                       @@\
+	-@$(RM) -f files
+#endif 
+
+
+/* NB- WHEN REMOVING SYMBOLIC LINKS, USE basename to prevent */
+/* removal of the target of the link!!                       */
+
+#ifndef symbolic_links
+#define clean_symbolic_links(lnks)  /* dummy */
+
+/* _clean_symbolic_links is automatic with symbolic_links */
+#define _clean_symbolic_links(lnks)             @@\
+clean:: clean_symlinks     						@@\
+clean_symlinks::         						@@\
+	-@for i in `echo lnks`;\					@@\
+		do \									@@\
+		if (test -h `basename $$i`) then \		@@\
+			$(RM) -f `basename $$i`; \			@@\
+		fi;\									@@\
+		done; 
+
+#    if IS_SNAKE_HPUX8
+#    define symbolic_links(lnks)             @@\
+_clean_symbolic_links(lnks)					 @@\
+                                             @@\
+symlinks:: 									 @@\
+	-@for i in `echo lnks`; do \			 @@\
+		if (test ! -h `basename $$i`) then \ @@\
+			echo $$i;\      				 @@\
+			ln -fs $$i .;\					 @@\
+		fi;\			 					 @@\
+	done;
+#    else
+#    define symbolic_links(lnks)             @@\
+_clean_symbolic_links(lnks)					 @@\
+                                             @@\
+symlinks:: 									 @@\
+	-@for i in `echo lnks`; do \			 @@\
+		if (test ! -h `basename $$i`) then \ @@\
+			echo $$i;\      				 @@\
+			ln -s $$i;\						 @@\
+		fi;\			 					 @@\
+	done;
+#    endif
+#endif
+
+/*
+** Build Makefile dependencies for an object tree.
+*/
+#ifndef error_codes
+#define error_codes(datfile,flags,errfiles)             @@\
+depend:: errfiles	@@\
+clean:: @@\
+	-@$(RM) -f errfiles	@@\
+errfiles: datfile $(ERRORPL)	@@\
+	$(PERL) -s $(ERRORPL) flags datfile
+#endif /* error_codes */
+
+#ifndef statistics
+#define statistics(datfile,flags,statfiles)             @@\
+depend:: statfiles	@@\
+clean:: @@\
+	-@$(RM) -f statfiles	@@\
+statfiles: datfile $(STATPL)	@@\
+	$(PERL) -s $(STATPL) flags datfile
+#endif /* statistics */
+
+
+/*
+** Copy files to installation location
+** Notice that install:: does not depend on anything.  This
+** is done on purpose so that install can be done without a recompile
+*/
+#ifndef install_copy
+#define install_copy(dir, toinstall)  	         	@@\
+install:: 						@@\
+	-@mkdir -p $(INSTALL_DIR)/dir			@@\
+	-for i in toinstall; do ($(RM) -f $(INSTALL_DIR)/dir/`basename $$i`); done @@\
+	-cp -p toinstall $(INSTALL_DIR)/dir		@@\
+clean_install::						@@\
+	for i in toinstall; do ($(RM) -f $(INSTALL_DIR)/dir/`basename $$i`); done
+
+#endif /*install_copy*/
+
+/*
+** Move files to installation location
+** Notice that install:: does not depend on anything.  This
+** is done on purpose so that install can be done without a recompile
+*/
+#ifndef install_move
+#define install_move(dir, toinstall)  	         	@@\
+install:: 						@@\
+	-@mkdir -p $(INSTALL_DIR)/dir			@@\
+	-mv toinstall $(INSTALL_DIR)/dir		@@\
+clean_install::						@@\
+	for i in toinstall; do ($(RM) -f $(INSTALL_DIR)/dir/`basename $$i`); done;
+
+#endif /*install_move*/
+
+#if IS_I386_SOLARIS2 || IS_SPARC_SOLARIS2 || IS_SNAKE_HPUX8 || IS_RS6000_AIX32 || IS_RS6000_AIX41
+#define	ECHO_NO_NL	echo \\c
+#endif
+#ifndef ECHO_NO_NL
+#define ECHO_NO_NL	echo -n
+#endif
+
+#ifndef do_subdirs
+#define do_subdirs(commands, subdirs)				@@\
+commands::											@@\
+	@for i in `echo subdirs`; do \					@@\
+		echo "subdir " $$i;\						@@\
+		if(test -d $$i) then \						@@\
+			echo "cwd=" `pwd`;\						@@\
+			echo "Making " $@ " in " $$i;\			@@\
+			if(cd $$i;\								@@\
+				$(MAKE) -S $(OPTIONS) $@; \ 		@@\
+				res=$$?;	\						@@\
+				echo "status=" $$res; \				@@\
+				 exit $$res) then	\				@@\
+				ECHO_NO_NL;\						@@\
+				else exit 1; fi;\ 					@@\
+		fi;\ 										@@\
+	done
+
+#endif /* do_subdirs */
+
+#ifndef do_tags
+#define do_tags(srcs)								@@\
+.i..itag:											@@\
+	$(CTAGS)        $(PWD)/$<  -a					@@\
+.C.Ctag:											@@\
+	$(CTAGS)        $(PWD)/$<  -a					@@\
+.h.htag:											@@\
+	$(CTAGS)        $(PWD)/$<  -a					@@\
+.c.ctag:											@@\
+	$(CTAGS)        $(PWD)/$<  -a					@@\
+clean_tags clean::									@@\
+	-$(RM) -f tags									@@\
+tags::	clean_tags									@@\
+	-$(RM) -f tags									@@\
+	touch $(TOP)/tags.unsorted  tags				@@\
+	for i in `echo srcs`; do \						@@\
+		if(test -f $$i) then \						@@\
+			$(MAKE) $(OPTIONS) `basename $$i`tag; fi; done			@@\
+	cat tags >>$(TOP)/tags.unsorted					@@\
+	sort -u $(TOP)/tags.unsorted > $(TOP)/tags		@@\
+	/bin/rm ./tags									@@\
+	ln -s $(TOP)/tags tags
+
+#endif /* do_tags */
+

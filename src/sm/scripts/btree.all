@@ -1,0 +1,50 @@
+# --------------------------------------------------------------- #
+# -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- #
+# -- University of Wisconsin-Madison, subject to the terms     -- #
+# -- and conditions given in the file COPYRIGHT.  All Rights   -- #
+# -- Reserved.                                                 -- #
+# --------------------------------------------------------------- #
+
+source $script_dir/vol.init
+
+# add these after volume mounting is logged:
+# set scripts { btree.convert.1 btree.err.1 btree.err.2 btree.err.3 }
+
+set scripts { btree.convert.1 btree_split.1 }
+
+foreach i {1 2 3 4 5 6 7 8 9 10 30} {
+    # set scripts [concat $scripts btree.$i]
+    lappend scripts btree.$i
+}
+
+#
+# bt.insert.0 is called by bt.insert.[1-4]
+#
+foreach j { insert } {
+    foreach i {1 2 3 4} {
+	# set scripts [concat $scripts bt.$j.$i]
+	lappend scripts bt.$j.$i
+    }
+}
+
+#
+# bt.insert.5 is sort of a special case -- it makes
+# a very large btree
+
+lappend scripts bt.insert.5
+
+
+foreach j { remove } {
+    foreach i {1 2 3 4 } {
+	# set scripts [concat $scripts bt.$j.$i]
+	lappend scripts bt.$j.$i
+    }
+}
+
+echo scripts = $scripts
+
+foreach script $scripts {
+    echo
+    echo RUNNING: $script 
+    source $script_dir/$script
+}

@@ -1,0 +1,3 @@
+#!/bin/sh
+set -x
+./smount -v -o soft,intr,port=2999,mport=2997,timeo=60,rsize=8192,wsize=8192 bounty:/ /var/home/efs

@@ -1,0 +1,51 @@
+/* --------------------------------------------------------------- */
+/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
+/* -- University of Wisconsin-Madison, subject to the terms     -- */
+/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
+/* -- Reserved.                                                 -- */
+/* --------------------------------------------------------------- */
+
+/*
+ *  $Id: Imakefile,v 1.22 1996/07/15 22:50:59 bolo Exp $
+ */
+
+SRC = thread1.c thread2.c thread3.c thread4.c
+OBJ = $(SRC:.c=.o)
+EXEC = thread1 thread2 thread3 thread4 ioperf
+
+INCLUDE += $(STHREAD_INCL) $(FC_INCL)  $(COMMON_INCL)
+LIB = $(STHREAD_LIB)  $(FC_LIB) $(COMMON_LIB)
+SYMLINKS = ../../sthread/diskrw
+
+$(STHREAD_LIB): ALWAYS
+	(cd $(STHREAD_DIR); $(MAKE) $(OPTIONS))
+
+c_plus_program(thread1, thread1.o, $(LIB))
+c_plus_program(thread2, thread2.o, $(LIB))
+c_plus_program(thread3, thread3.o, $(LIB))
+c_plus_program(thread4, thread4.o, $(LIB))
+c_plus_program(ioperf, ioperf.o, $(LIB))
+
+PURE_OPTIONS = $(PURE_OPT)
+
+PURE_EXEC= thread1.pure thread2.pure thread3.pure thread4.pure
+pure_exec: $(PURE_EXEC)
+
+purify_c_plus_program(thread1, thread1.o, $(LIB), $(PURE_OPTIONS))
+purify_c_plus_program(thread2, thread2.o, $(LIB), $(PURE_OPTIONS))
+purify_c_plus_program(thread3, thread3.o, $(LIB), $(PURE_OPTIONS))
+purify_c_plus_program(thread4, thread4.o, $(LIB), $(PURE_OPTIONS))
+
+#ifdef IS_SP2
+POE_EXEC= thread1.poe thread2.poe thread3.poe thread4.poe ioperf.poe
+poe_exec: $(poe_EXEC)
+
+poe_c_plus_program(thread1.poe, thread1.o, $(LIB))
+poe_c_plus_program(thread2.poe, thread2.o, $(LIB))
+poe_c_plus_program(thread3.poe, thread3.o, $(LIB))
+poe_c_plus_program(thread4.poe, thread4.o, $(LIB))
+poe_c_plus_program(ioperf.poe, ioperf.o, $(LIB))
+#endif /* SP2 */
+
+depend_target($(SRC))
+

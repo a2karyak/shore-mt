@@ -1,0 +1,55 @@
+/* --------------------------------------------------------------- */
+/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
+/* -- University of Wisconsin-Madison, subject to the terms     -- */
+/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
+/* -- Reserved.                                                 -- */
+/* --------------------------------------------------------------- */
+
+/*
+ * Imakefile for sdl_example SDL program
+ *
+ * $Header: /p/shore/shore_cvs/src/sdl/tests/Imakefile,v 1.4 1995/09/07 18:04:58 nhall Exp $
+ *
+ * This Imakefile follows the conventions in ../README.makefiles
+ */
+
+
+INSTALL_STUFF = $(SRCS) $(SDLFILES) Makefile.template README 
+SRC.cvs = $(INSTALL_STUFF) Imakefile
+OPTIONS += INSTALL_DIR=$(INSTALL_DIR)
+
+expected:
+	for i in  `echo $(SDLFILES)`; do\
+		a=`basename $$i .sdl`;\
+		touch $$a.expected; \
+	done
+
+runtests:
+	@for i in  `echo $(SDLFILES)`; do\
+		a=`basename $$i .sdl`;\
+		$(RM) -f $$a.h $$a.o $$a.log $$a.diffs;\
+		echo $(MAKE) -f Makefile.template -S $(OPTIONS) $$a.h $$a.o;\
+		echo $(MAKE) -f Makefile.template -S $(OPTIONS) $$a.h $$a.o > $$a.log;\
+		$(MAKE) -f Makefile.template -S $(OPTIONS) $$a.h $$a.o >> $$a.log;\
+		diff -w $$a.log $$a.expected > /dev/null; \
+		if ($$? > 0)  then \
+			echo "ERROR IN $$a -- see $$a.log, $$a.expected";\
+		fi\
+	done
+	@for i in  `echo $(EXECS)`; do\
+		a=`basename $$i .sdl`;\
+		$(RM) -f $$a;\
+		echo $(MAKE) -f Makefile.template -S $(OPTIONS) $$a.h $$a.o $$a;\
+		echo $(MAKE) -f Makefile.template -S $(OPTIONS) $$a.h $$a.o $$a >> $$a.log;\
+		$(MAKE) -f Makefile.template -S $(OPTIONS) $$a.h $$a.o $$a >> $$a.log;\
+		diff -w $$a.log $$a.expected > /dev/null; \
+		if ($$? > 0)  then \
+			echo "ERROR IN $$a -- see $$a.log, $$a.expected";\
+		fi\
+	done
+
+clean::
+	rm *.log *.h *.o
+	$(MAKE) -f Makefile.template clean
+
+install_copy(examples/sdl_example, $(INSTALL_STUFF))

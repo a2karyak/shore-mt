@@ -1,0 +1,49 @@
+/* --------------------------------------------------------------- */
+/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
+/* -- University of Wisconsin-Madison, subject to the terms     -- */
+/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
+/* -- Reserved.                                                 -- */
+/* --------------------------------------------------------------- */
+
+/*
+ * $Header: /p/shore/shore_cvs/src/util/mount/generic/Imakefile,v 1.4 1995/09/11 22:40:43 zwilling Exp $
+ */
+
+SYMLINKS=
+
+default: all
+
+install_copy(bin, smount sumount)
+install::
+	-chmod +x $(INSTALL_DIR)/bin/smount
+	-$(RM) -f $(INSTALL_DIR)/bin/mnt
+	cp ./mnt.install $(INSTALL_DIR)/bin/mnt
+	chmod +x $(INSTALL_DIR)/bin/mnt
+
+CFLAGS = -Wall -Wtraditional -Wshadow -Wpointer-arith -Wstrict-prototypes
+INCLUDES = -I.
+CC = gcc
+LIB = @LIB@
+
+all:: check_configure smount sumount
+
+SRC.depend = smount.c sumount.c mount_tab.c
+HFILES = config.h globals.h
+
+OBJ.umount = sumount.o mount_tab.o
+OBJ.mount = smount.o mount_tab.o
+
+c_program(sumount, $(OBJ.umount), $(LIB))
+c_program(smount, $(OBJ.mount), $(LIB))
+
+automatic:: check_configure 
+
+check_configure:  Makefile configure
+	@echo "Re-configure. Expect an error such as:"
+	@echo "    make: *** No rule to make target \`@LIB@'.  Stop."
+	@echo "If you get this error, re-run make."
+	./configure
+	touch check_configure
+
+depend_target($(SRC.depend))
+	$(MAKE) check_configure

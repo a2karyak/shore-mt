@@ -1,0 +1,66 @@
+# --------------------------------------------------------------- #
+# -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- #
+# -- University of Wisconsin-Madison, subject to the terms     -- #
+# -- and conditions given in the file COPYRIGHT.  All Rights   -- #
+# -- Reserved.                                                 -- #
+# --------------------------------------------------------------- #
+
+#
+#	Test sort_stream_i on integers
+#
+source $script_dir/vol.init
+
+set nrec 40
+
+#create and load a integer stream in reverse order for sort
+
+sm begin_xct
+sm begin_sort_stream $volid 2 int 4 10 distinct up
+
+for {set i 0} {$i < $nrec} {incr i} {
+    for {set j 0} {$j <= $i } {incr j} {
+        sm sort_stream_put int [expr { $nrec - $i }] [expr { $nrec - $i }]
+    }
+}
+
+#display
+echo sort up ...
+for {set i 0} {$i < $nrec} {incr i} {
+    for {set j 0} {$j < $i } {incr j} {
+        set r [sm sort_stream_get next]
+        if {$r == "eof"} then { break }
+        set key [string trimleft [lindex $r 0] 0]
+        set el [lindex $r 1]
+        echo ($key) $el
+    }
+}
+sm sort_stream_end
+
+sm commit_xct
+
+#create and load a stream in ascending order for sort in reverse order
+sm begin_xct
+sm begin_sort_stream $volid 2 int 4 10 distinct down
+
+for {set i 0} {$i < $nrec} {incr i} {
+    for {set j 0} {$j < $i } {incr j} {
+        sm sort_stream_put int $i $i
+    }
+}
+
+#display
+echo sort down ...
+for {set i 0} {$i < $nrec} {incr i} {
+    for {set j 0} {$j < $i } {incr j} {
+        set r [sm sort_stream_get next]
+        if {$r == "eof"} then { break }
+        set key [string trimleft [lindex $r 0] 0]
+        set el [lindex $r 1]
+        echo ($key) $el
+    }
+}
+sm sort_stream_end
+
+sm commit_xct
+
+unset key j r el i nrec

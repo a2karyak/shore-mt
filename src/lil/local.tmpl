@@ -1,0 +1,26 @@
+/* --------------------------------------------------------------- */
+/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
+/* -- University of Wisconsin-Madison, subject to the terms     -- */
+/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
+/* -- Reserved.                                                 -- */
+/* --------------------------------------------------------------- */
+
+CMNT
+CMNT	local.tmpl
+CMNT
+
+
+#if defined(FORCE_GCC)
+CMNT	Force use of gcc
+#	define CCE_FLAGS	-I/usr/gnu/lib/g++-include
+#endif
+#if defined(FORCE_CC)
+CMNT	Force use of CC
+#	define CCE_FLAGS
+#endif
+
+%..c: %.C
+	ccf $(CPLUSFLAGS) $(CPPFLAGS) $<
+
+%..C: %.C
+	cce $(CPLUSFLAGS) $(CPPFLAGS) $(CCE_FLAGS) $<

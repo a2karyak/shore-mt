@@ -1,0 +1,63 @@
+/* --------------------------------------------------------------- */
+/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
+/* -- University of Wisconsin-Madison, subject to the terms     -- */
+/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
+/* -- Reserved.                                                 -- */
+/* --------------------------------------------------------------- */
+
+LDFLAGS =  
+
+
+/*    KERBEROS */
+
+KRBFLAGS = -UUSE_KRB
+KRBINCL = 
+KRBLIB =
+
+/* SM */
+
+COMMON_INCLUDE = $(VAS_INCL) $(COMMON_INCL) $(FC_INCL) $(RPC_INCL) $(SM_INCL)
+
+LOCAL_LDFLAGS = $(TRANSPORT_LIB) 
+#if IS_SPARC_SOLARIS2
+LOCAL_LDFLAGS += -lintl
+#endif
+
+VASAUXFLAGS =
+
+
+/*
+VASAUXFLAGS = \
+	-W -Wimplicit -Wswitch -Wcomment \
+	-Wchar-subscripts -Wparentheses \
+	-Wpointer-arith -Wconversion \
+	-Wnested-externs -Wenum-clash -Woverloaded-virtual
+*/
+
+/*
+	put back after sm is cleaned up:
+	-Wreturn-type 
+
+	// complains about int vs long -- FIX
+	-Wformat 
+
+	fc/list, etc cause warnings with this
+	-Wcast-align 
+
+	every func returning rc_t causes this warning:
+	-Waggregate-return
+
+	not supported unless -O is on:
+	-Wuninitialized 
+
+	lots of shadowing globals with this:
+	-Wshadow 
+
+	all sorts of problems in fc/ with this:
+	-Wcast-qual 
+
+	the rpc include files (traditional C) don't pass muster
+	with this:
+	-Wstrict-prototypes -Wmissing-prototypes -Wmissing-declarations 
+*/
+

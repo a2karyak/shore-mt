@@ -1,0 +1,56 @@
+/* --------------------------------------------------------------- */
+/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
+/* -- University of Wisconsin-Madison, subject to the terms     -- */
+/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
+/* -- Reserved.                                                 -- */
+/* --------------------------------------------------------------- */
+
+/*
+ *      $RCSfile: Imakefile,v $
+ *      $Revision: 1.28 $
+ *      $Date: 1995/10/23 22:54:53 $
+ *      $Author: nhall $
+ */
+
+SYMLINKS  = 
+HFILES =\
+	bzero.h process_options.h svas_client.h\
+	default_port.h reserved_oids.h \
+	externc.h shore_vas.h \
+	permissions.h svas_base.h vas_types.h clientstats.h
+
+STAT_FILES =\
+	clientstats_msg.i clientstats_op.i clientstats_struct.i
+
+STAT_DEF_FILES =\
+	clientstats_def.i 
+
+ERRORFILES = svas_error_def.h svas_error.i svas_einfo.i os_error.i os_einfo.i
+AUTOMATIC = $(ERRORFILES) $(STAT_FILES) $(STAT_DEF_FILES)
+
+AUXFLAGS = $(VASAUXFLAGS)
+
+SRC = app_test.C
+SRC.cvs =$(SRC) $(HFILES)
+
+OBJ= $(SRC:.C=.o)
+INCLUDE += $(COMMON_INCLUDE) $(TCL_INCL) $(VERIFY_INCL) $(GDBM_INCL)	
+
+CMNT removed app_test from default target list 
+
+automatic:: $(AUTOMATIC)
+
+install_copy(include, externc.h svas_error_def.h vas_types.h process_options.h reserved_oids.h $(STAT_DEF_FILES))
+
+error_codes(svas_error.dat,-d,$(ERRORFILES))
+statistics(svas_client.dat,,$(STAT_FILES) $(STAT_DEF_FILES))
+
+VAS = $(TOP)/src/vas
+
+LIB.clnt =\
+	$(VAS_APPLIBS)\
+	$(RPCLIB) $(TCL_LIB) $(VERIFY_LIB) $(GDBM_LIB) $(KRBLIB) 
+
+c_plus_program(app_test, $(OBJ), $(LIB.clnt))
+
+depend_target($(SRC))

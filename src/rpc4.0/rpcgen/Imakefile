@@ -1,0 +1,39 @@
+#
+# $RCSfile: Imakefile,v $
+# $Revision: 1.11 $
+# $Date: 1996/07/10 21:23:43 $
+# $Author: nhall $
+#
+#
+DESTDIR=.
+
+CPPFLAGS = -I.. 
+#if defined(IS_SPARC_SOLARIS2) || defined(IS_I386_SOLARIS)
+CPPFLAGS += -I/usr/ucbinclude
+#endif
+
+AUXFLAGS = -I.. -DUW
+LIB = ../rpc/librpclib.a
+
+SRC= rpc_main.c rpc_hout.c rpc_cout.c rpc_parse.c rpc_scan.c rpc_util.c \
+	rpc_svcout.c rpc_clntout.c
+
+HFILES= rpc_util.h rpc_parse.h rpc_scan.h
+
+SRC.cvs = $(SRC) $(HFILES)
+
+OBJ = $(SRC:.c=.o)
+
+DISPOSABLE=
+
+EXEC=rpcgen
+
+depend_target($(SRC) $(HFILES))
+c_plus_program(rpcgen, $(OBJ), $(LIB))
+
+PURE_OPT=-inuse_at_exit
+purify_c_plus_program(rpcgen, $(OBJ), $(LIB), $(PURE_OPT))
+
+clean_files($(DISPOSABLE))
+
+install_copy(bin, rpcgen)

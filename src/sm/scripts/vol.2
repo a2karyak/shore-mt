@@ -1,0 +1,158 @@
+# --------------------------------------------------------------- #
+# -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- #
+# -- University of Wisconsin-Madison, subject to the terms     -- #
+# -- and conditions given in the file COPYRIGHT.  All Rights   -- #
+# -- Reserved.                                                 -- #
+# --------------------------------------------------------------- #
+
+#
+#	Test that vid's are truely transient
+#
+
+source $script_dir/vol.init
+
+echo configuration info: [sm config_info]
+
+sm begin_xct
+
+set f1 [sm create_file $volid]
+set f2 [sm create_file $volid]
+echo f1 = $f1
+echo f2 = $f2
+
+sm commit_xct
+
+sm begin_xct
+echo dstats $volid 1
+dstats $volid
+
+echo destroy file $f1 -- should work
+sm destroy_file $f1
+
+echo dstats $volid 2
+dstats $volid
+
+echo abort xct
+echo dstats $volid 3
+dstats $volid
+sm abort_xct
+
+sm begin_xct
+echo dstats $volid 4
+dstats $volid
+sm commit_xct
+
+echo dismounting all
+sm dismount_all
+
+echo creating another volume to test that vid's are transient
+set dev2 /tmp/dev2.[pid]
+echo formatting $dev2
+sm format_dev $dev2 1000 force
+sm mount_dev $dev2
+sm create_vol $dev2 222 1000
+sm add_logical_id_index 222 100
+
+foreach i $ssh_device_list {
+    echo remounting [lindex $i 0]
+    if {$Use_logical_id} {
+	sm mount_dev [lindex $i 0]
+    } else {
+	sm mount_dev [lindex $i 0] [lindex $i 2]
+    }
+} 
+
+#verify that all mounted devices are listed
+set devlist [sm list_devices]
+echo mounted devices: $devlist
+#form list of device names only
+list devnames
+foreach i $devlist {
+    lappend devnames [lindex $i 0] 
+} 
+echo devnames list $devnames
+foreach i $ssh_device_list {
+    assert {expr [lsearch $devnames [lindex $i 0]] >= 0}
+} 
+
+sm begin_xct
+echo dstats $volid 5 
+dstats $volid
+sm commit_xct
+
+sm begin_xct
+echo destroy files $f1  -- should work
+sm destroy_file $f1
+echo abort xct
+sm abort_xct
+
+sm begin_xct
+set f222 [sm create_file 222]
+sm commit_xct
+
+echo destroy vol and make sure quota survives (by creating a vol)
+sm destroy_vol 222
+sm create_vol $dev2 333 1000
+
+#attempt to access file on just destroyed volume
+sm begin_xct
+echo destroy files $f222  -- SHOULD GET AN ERROR
+set err 0
+set errorno 0
+catch {sm destroy_file $f222} err
+echo $err
+sm commit_xct
+
+echo make sure we can't accidentally mount same volume via hard/soft link
+set dev2.hlink /tmp/dev2.[pid].hlink
+set dev2.slink /tmp/dev2.[pid].slink
+exec ln -s $dev2 $dev2.hlink
+exec ln $dev2 $dev2.slink
+echo SHOULD GET ERROR
+catch {sm mount_dev $dev2.hlink} errorno
+echo "caught error is $errorno"
+echo SHOULD GET ERROR
+catch {sm mount_dev $dev2.slink} errorno
+echo "caught error is $errorno"
+
+echo make sure we can't accidentally format a mounted volume
+echo SHOULD GET ERROR
+catch {sm format_dev $dev2.hlink 1000 force} errorno
+echo "caught error is $errorno"
+
+echo SHOULD GET ERROR
+catch {sm format_dev $dev2.slink 1000 force} errorno
+echo "caught error is $errorno"
+
+exec rm $dev2.hlink
+exec rm $dev2.slink
+
+set devlist [sm list_devices]
+echo mounted devices: $devlist
+
+echo dismounting $dev2
+sm dismount_dev $dev2
+set devlist [sm list_devices]
+echo mounted devices: $devlist
+
+echo destroy volume and dismount $dev2
+
+exec chmod -w $dev2
+echo SHOULD GET ERROR
+catch {sm mount_dev $dev2} errorno
+echo "caught error :" $errorno
+
+exec chmod u+w $dev2
+sm mount_dev $dev2
+
+sm destroy_vol 333
+sm dismount_dev $dev2
+exec rm $dev2
+
+set devlist [sm list_devices]
+echo mounted devices: $devlist
+
+unset dev2.hlink dev2.slink
+unset f1 f2
+unset devlist dev2 devnames f222 
+unset err errorno i
