@@ -1,15 +1,40 @@
-/* --------------------------------------------------------------- */
-/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
-/* -- University of Wisconsin-Madison, subject to the terms     -- */
-/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
-/* -- Reserved.                                                 -- */
-/* --------------------------------------------------------------- */
+/*<std-header orig-src='shore' incl-file-exclusion='SM_DU_STATS_H'>
 
-/*
- *  $Id: sm_du_stats.h,v 1.11 1997/04/13 16:29:46 nhall Exp $
- */
-#if !defined(SM_DU_STATS_H)&&(defined(RPCGEN)||!defined(RPC_HDR))
+ $Id: sm_du_stats.h,v 1.19 1999/06/07 19:04:35 kupsch Exp $
+
+SHORE -- Scalable Heterogeneous Object REpository
+
+Copyright (c) 1994-99 Computer Sciences Department, University of
+                      Wisconsin -- Madison
+All Rights Reserved.
+
+Permission to use, copy, modify and distribute this software and its
+documentation is hereby granted, provided that both the copyright
+notice and this permission notice appear in all copies of the
+software, derivative works or modified versions, and any portions
+thereof, and that both notices appear in supporting documentation.
+
+THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+"AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+This software was developed with support by the Advanced Research
+Project Agency, ARPA order number 018 (formerly 8230), monitored by
+the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+Further funding for this work was provided by DARPA through
+Rome Research Laboratory Contract No. F30602-97-2-0247.
+
+*/
+
+#ifndef SM_DU_STATS_H
 #define SM_DU_STATS_H
+
+#include "w_defines.h"
+
+/*  -- do not edit anything above this line --   </std-header>*/
+
+#if defined(RPCGEN) || !defined(RPC_HDR)
 
 /*
  *  Storage Manager disk utilization (du) statistics.
@@ -31,7 +56,7 @@
  *      rec = record
  */
 
-typedef u_int base_stat_t;
+typedef w_base_t::base_stat_t base_stat_t;
 
 struct file_pg_stats_t {
     base_stat_t		hdr_bs;
@@ -301,4 +326,131 @@ struct sm_du_stats_t {
 #endif
 };
 
-#endif /* SM_DU_STATS_H */
+
+class SmVolumeMetaStats
+{
+    public:
+				SmVolumeMetaStats();
+	void			Clear();
+	void			IncrementPages(int numReserved, int numAlloc);
+	SmVolumeMetaStats&	operator+=(const SmVolumeMetaStats& volumeStats);
+
+	base_stat_t		numPages;		// total num pages on volume
+	base_stat_t		numSystemPages;		// total num header pages on volume
+	base_stat_t		numReservedPages;	// total num pages in allocated exts
+	base_stat_t		numAllocPages;		// total num pages allocated to stores
+	base_stat_t		numStores;		// total max num of stores in volume
+	base_stat_t		numAllocStores;		// total num of stores allocated
+};
+
+
+class SmStoreMetaStats
+{
+    public:
+				SmStoreMetaStats();
+	void			Clear();
+	void			IncrementPages(int numReserved, int numAlloc);
+	SmStoreMetaStats&	operator+=(const SmStoreMetaStats& storeStats);
+
+	base_stat_t		numReservedPages;
+	base_stat_t		numAllocPages;
+};
+
+
+class SmFileMetaStats
+{
+    public:
+				SmFileMetaStats();
+	void			Clear();
+	SmFileMetaStats&	operator+=(const SmFileMetaStats& fileStats);
+
+	snum_t			smallSnum;
+	snum_t			largeSnum;
+	SmStoreMetaStats	small;
+	SmStoreMetaStats	large;
+};
+
+inline void SmVolumeMetaStats::Clear()
+{
+    numPages = 0;
+    numSystemPages = 0;
+    numReservedPages = 0;
+    numAllocPages = 0;
+    numStores = 0;
+    numAllocStores = 0;
+}   
+
+inline SmVolumeMetaStats::SmVolumeMetaStats()
+{
+    Clear();
+}
+
+inline void SmVolumeMetaStats::IncrementPages(int numReserved, int numAlloc)
+{
+    numReservedPages += numReserved;
+    numAllocPages += numAlloc;
+}
+
+inline SmVolumeMetaStats& SmVolumeMetaStats::operator+=(const SmVolumeMetaStats& volumeStats)
+{
+    numPages += volumeStats.numPages;
+    numSystemPages += volumeStats.numSystemPages;
+    numReservedPages += volumeStats.numReservedPages;
+    numAllocPages += volumeStats.numAllocPages;
+    numStores += volumeStats.numStores;
+    numAllocStores += volumeStats.numAllocStores;
+
+    return *this;
+}
+
+inline void SmStoreMetaStats::Clear()
+{
+    numReservedPages = 0;
+    numAllocPages = 0;
+}
+
+inline void SmStoreMetaStats::IncrementPages(int numReserved, int numAlloc)
+{
+    numReservedPages += numReserved;
+    numAllocPages += numAlloc;
+}
+
+inline SmStoreMetaStats::SmStoreMetaStats()
+{
+    Clear();
+}
+
+inline SmStoreMetaStats& SmStoreMetaStats::operator+=(const SmStoreMetaStats& storeStats)
+{
+    numReservedPages += storeStats.numReservedPages;
+    numAllocPages += storeStats.numAllocPages;
+
+    return *this;
+}
+
+inline SmFileMetaStats::SmFileMetaStats()
+{
+    smallSnum = 0;
+    largeSnum = 0;
+}
+
+inline void SmFileMetaStats::Clear()
+{
+    small.Clear();
+    large.Clear();
+}
+
+inline SmFileMetaStats& SmFileMetaStats::operator+=(const SmFileMetaStats& fileStats)
+{
+    small += fileStats.small;
+    large += fileStats.large;
+
+    return *this;
+}
+
+
+#endif /* defined(RPCGEN) || defined(RPC_HDR) */
+
+/*<std-footer incl-file-exclusion='SM_DU_STATS_H'>  -- do not edit anything below this line -- */
+
+#endif          /*</std-footer>*/

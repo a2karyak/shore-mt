@@ -1,136 +1,109 @@
-/* --------------------------------------------------------------- */
-/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
-/* -- University of Wisconsin-Madison, subject to the terms     -- */
-/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
-/* -- Reserved.                                                 -- */
-/* --------------------------------------------------------------- */
+/*<std-header orig-src='shore' incl-file-exclusion='BASICS_H'>
+
+ $Id: basics.h,v 1.66 1999/06/30 18:45:00 bolo Exp $
+
+SHORE -- Scalable Heterogeneous Object REpository
+
+Copyright (c) 1994-99 Computer Sciences Department, University of
+                      Wisconsin -- Madison
+All Rights Reserved.
+
+Permission to use, copy, modify and distribute this software and its
+documentation is hereby granted, provided that both the copyright
+notice and this permission notice appear in all copies of the
+software, derivative works or modified versions, and any portions
+thereof, and that both notices appear in supporting documentation.
+
+THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+"AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+This software was developed with support by the Advanced Research
+Project Agency, ARPA order number 018 (formerly 8230), monitored by
+the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+Further funding for this work was provided by DARPA through
+Rome Research Laboratory Contract No. F30602-97-2-0247.
+
+*/
 
 #ifndef BASICS_H
 #define BASICS_H
-/*
- *  $Header: /p/shore/shore_cvs/src/common/basics.h,v 1.51 1997/06/13 22:31:03 solomon Exp $
- */
+
+#include "w_defines.h"
+
+/*  -- do not edit anything above this line --   </std-header>*/
+
 #ifdef __GNUG__
 #pragma interface
 #endif
 
-#include <config.h>
-
-#ifndef W_WORKAROUND_H
-#include <w_workaround.h>
+#ifndef W_BASE_H
+#include <w_base.h>
 #endif
-
-/*
- * NB -- THIS FILE MUST BE LEGITIMATE INPUT TO cc and RPCGEN !!!!
- * Please do as follows:
- * a) keep all comments in traditional C style.
- * b) If you put something c++-specific make sure it's 
- * 	  got ifdefs around it
- */
 
 #ifndef RPCGEN
 #include <unix_error.h>
-#include <sys/types.h>
+#include <os_types.h>
 #include <assert.h>
 #endif
 
-#if defined(__cplusplus)&&!defined(EXTERN)
+#if defined(__cplusplus) && !defined(EXTERN)
+#ifdef _MSC_VER
+#define EXTERN 
+#else
 #define EXTERN extern "C"
+#endif
 #endif
 
 #ifndef INLINE
-#ifdef DEBUG
+#ifdef W_DEBUG
 #   define INLINE
 #else
 #   define INLINE inline
-#endif /*DEBUG*/
+#endif /*W_DEBUG*/
 #endif /*INLINE*/
 
-typedef short   int2;
-typedef long    int4;
-typedef unsigned char	uint1;
-typedef unsigned short	uint2;
-typedef unsigned long	uint4;
+typedef w_base_t::int1_t   	int1_t;
+typedef w_base_t::int2_t   	int2_t;
+typedef w_base_t::int4_t 	int4_t;
+typedef w_base_t::uint1_t 	uint1_t;
+typedef w_base_t::uint2_t 	uint2_t;
+typedef w_base_t::uint4_t 	uint4_t;
 
 /* sizes-in-bytes for all persistent data in the SM. */
-typedef uint4	smsize_t;
+typedef uint4_t	smsize_t;
+
+/* For types of store, volumes, see stid_t.h and vid_t.h */
+
+/* Type of a page# in SM (sans store,volume info) */
+typedef uint4_t	shpid_t; 
+
+/* Type of a record# on a page  in SM (sans page,store,volume info) */
+typedef int2_t slotid_t;  
+
+/* XXX duplicates w_base types. */
+const int2_t	max_int2 = 0x7fff; 		/*  (1 << 15) - 1; 	*/
+const int2_t	min_int2 = (short)0x8000; 	/* -(1 << 15);		*/
+const int4_t	max_int4 = 0x7fffffff;	 	/*  (1 << 31) - 1;  */
+const int4_t	max_int4_minus1 = max_int4 -1;
+const int4_t	min_int4 = 0x80000000; 		/* -(1 << 31);		*/
+
+const uint2_t	max_uint2 = 0xffff;
+const uint2_t	min_uint2 = 0;
+const uint4_t	max_uint4 = 0xffffffff;
+const uint4_t	min_uint4 = 0;
+
+
 
 /*
- * Sizes-in-Kbytes for for things like volumes and devices.
- * A KB is assumes to be 1024 bytes.
- * Note: a different type was used for added type checking.
+ * Safe Integer conversion (ie. casting) function
  */
-typedef unsigned int	smksize_t;
+inline int u4i(uint4_t x) {assert(x<=(unsigned)max_int4); return int(x); }
 
-#ifndef W_BOOLEAN_H
-#include <w_boolean.h>
-#endif
-
-#ifdef __cplusplus
-const int2	max_int2 = 0x7fff; 		/*  (1 << 15) - 1; 	*/
-const int2	min_int2 = 0x8000; 		/* -(1 << 15);		*/
-const int4	max_int4 = 0x7fffffff;	 	/*  (1 << 31) - 1;  */
-const int4	max_int4_minus1 = max_int4 -1;
-const int4	min_int4 = 0x80000000; 		/* -(1 << 31);		*/
-
-const uint2	max_uint2 = 0xffff;
-const uint2	min_uint2 = 0;
-const uint4	max_uint4 = 0xffffffff;
-const uint4	min_uint4 = 0;
-#else
-const max_int2 = 0x7fff; 		/*  (1 << 15) - 1; 	*/
-const min_int2 = 0x8000; 		/* -(1 << 15);		*/
-const max_int4 = 0x7fffffff;	 	/*  (1 << 31) - 1;  */
-const max_int4_minus1 = 0x7ffffffe; 	/*  (1 << 31) - 2;  */
-const min_int4 = 0x80000000; 		/* -(1 << 31);		*/
-
-const max_uint2 = 0xffff;
-const min_uint2 = 0;
-const max_uint4 = 0xffffffff;
-const min_uint4 = 0;
-#endif
-
-#ifdef __cplusplus
-/*
- * Safe Integer conversion (ie. casting) functions
- */
-inline int u4i(uint4 x)  {assert(x<=max_int4); return (int) x; }
-inline uint uToi(int x)  {assert(x>=0); return (uint) x; }
-#endif
-
-/*
- * Alignment related definitions
- */
-#define ALIGNON 0x8
-#define ALIGNON1 (ALIGNON-1)
+// inline unsigned int  uToi(int4_t x) {assert(x>=0); return (uint) x; }
 
 
-#ifdef align
-#undef align
-#endif
-
-#ifndef align
-/*
- * Alignment related definitions
- */
-/*
-// don't even THINK about making this an inline function,
-// because then we can't define any static constants
-// that use it.  We should be able to do so, in order
-// to encourage the compiler to fold constants.
-*/
-#define ALIGNON 0x8
-#define ALIGNON1 (ALIGNON-1)
-#define align(sz) ((uint4)((sz + ALIGNON1) & ~ALIGNON1))
-#endif /*align*/
-
-#ifdef __cplusplus
-/*
-inline uint4 align(smsize_t sz)
-{
-	return (sz + ((sz & ALIGNON1) ? (ALIGNON - (sz & ALIGNON1)) : 0));
-}
-*/
 
 inline bool is_aligned(smsize_t sz)
 {
@@ -141,7 +114,6 @@ inline bool is_aligned(const void* p)
 {
     return is_aligned((unsigned int) p);
 }
-#endif
 
     /* used by sm and all layers: */
 enum CompareOp {
@@ -172,7 +144,8 @@ enum lock_duration_t {
     t_short 	= 1,	/* held until end of some operation         */
     t_medium 	= 2,	/* held until explicitly released           */
     t_long 	= 3,	/* held until xct commits                   */
-    t_very_long = 4	/* held across xct boundaries               */
+    t_very_long = 4,	/* held across xct boundaries               */
+    t_num_durations = 5 /* not a duration -- used for typed comparisons */
 };
 
 enum vote_t {
@@ -190,38 +163,6 @@ enum escalation_options {
 };
 
 
-#ifdef __cplusplus
-inline bool bigendian()
-{
-    const int i = 3;
-    const char* c = (const char*) &i;
-    return ((int)c[sizeof(int)-1]) == i; 
-}
-#endif /* __cplusplus */
+/*<std-footer incl-file-exclusion='BASICS_H'>  -- do not edit anything below this line -- */
 
-/*
- * These types are auto initialized filler space for alignment
- * in structures.  The auto init helps with purify.
- */
-struct fill1 {
-	uint1 u1;
-#ifdef __cplusplus
-	fill1() : u1(0) {}
-#endif /* __cplusplus */
-};
-
-struct fill2 {
-	uint2 u2;
-#ifdef __cplusplus
-	fill2() : u2(0) {}
-#endif /* __cplusplus */
-};
-
-struct fill4 {
-	uint4 u4;
-#ifdef __cplusplus
-	fill4() : u4(0) {}
-#endif /* __cplusplus */
-};
-
-#endif /* BASICS_H */
+#endif          /*</std-footer>*/

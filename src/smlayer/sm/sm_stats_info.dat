@@ -1,15 +1,103 @@
-# --------------------------------------------------------------- #
-# -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- #
-# -- University of Wisconsin-Madison, subject to the terms     -- #
-# -- and conditions given in the file COPYRIGHT.  All Rights   -- #
-# -- Reserved.                                                 -- #
-# --------------------------------------------------------------- #
+# <std-header style='data' orig-src='shore'>
+#
+#  $Id: sm_stats_info.dat,v 1.51 1999/07/19 21:55:44 nhall Exp $
+#
+# SHORE -- Scalable Heterogeneous Object REpository
+#
+# Copyright (c) 1994-99 Computer Sciences Department, University of
+#                       Wisconsin -- Madison
+# All Rights Reserved.
+#
+# Permission to use, copy, modify and distribute this software and its
+# documentation is hereby granted, provided that both the copyright
+# notice and this permission notice appear in all copies of the
+# software, derivative works or modified versions, and any portions
+# thereof, and that both notices appear in supporting documentation.
+#
+# THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+# OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+# "AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+# FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+#
+# This software was developed with support by the Advanced Research
+# Project Agency, ARPA order number 018 (formerly 8230), monitored by
+# the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+# Further funding for this work was provided by DARPA through
+# Rome Research Laboratory Contract No. F30602-97-2-0247.
+#
+#   -- do not edit anything above this line --   </std-header>
 
+SM Storage manager = 0x00060000 sm_stats_t {
 
-SM Storage manager = 0x00060000 sm_stats_info_t {
+    // Buffer pool performance information
+    u_long bf_one_page_write 	Single page written to volume
+    u_long bf_two_page_write 	Two-page writes to volume
+    u_long bf_three_page_write 	Three-page writes to volume
+    u_long bf_four_page_write 	Four-page writes to volume
+    u_long bf_five_page_write 	Five-page writes to volume
+    u_long bf_six_page_write 	Six-page writes to volume
+    u_long bf_seven_page_write 	Seven-page writes to volume
+    u_long bf_eight_page_write 	Eight-page writes to volume
+
+    u_long bf_cleaner_sweeps    Number of sweeps of the bf_cleaner thread
+    u_long bf_cleaner_signalled Number of sweeps initiated by a kick
+    u_long bf_kick_full 	Kicks because pool is full of dirty pages
+    u_long bf_kick_replacement 	Kicks because doing page replacement
+    u_long bf_kick_threshhold 	Kicks because dirty page threshold met
+    u_long bf_sweep_page_hot 	Page swept was not flushed because it was hot 
+    u_long bf_log_flush_all    	Number of whole-log flushes by bf_cleaner
+    u_long bf_log_flush_lsn    	Number of partial log flushes by bf_cleaner
+    u_long bf_write_out    	Pages written out in background or forced
+    u_long bf_replace_out    	Pages written out to free a frame for fixing
+    u_long bf_replaced_dirty 	Victim for page replacement is dirty
+    u_long bf_replaced_clean 	Victim for page replacement is clean
+    u_long bf_await_clean 	Times awaited a clean page for fix()
+    u_long bf_prefetch_requests Requests to prefetch a page 
+    u_long bf_prefetches  	Prefetches performed
+
+    // Operations on local data volumes
+    u_long vol_reads		Data volume read requests (from disk)
+    u_long vol_writes		Data volume write requests (to disk)
+    u_long vol_blks_written	Data volume pages written (to disk)
+
+    // Log operations -- per-server only
+    u_long log_dup_sync_cnt	Times the log was flushed superfluously
+    u_long log_sync_cnt		Times the log was flushed (and was needed)
+    u_long log_fsync_cnt	Times the fsync system call was used
+    u_long log_chkpt_cnt	Checkpoints taken
+    u_long log_fetches		Log records fetched from log (read)
+    u_long log_inserts		Log records inserted into log (written)
+
+    u_long log_bytes_active	Log bytes written by active xcts
+    u_long log_records_generated Non-xct log records written
+    u_long log_bytes_generated	Non-xct bytes written to the log
+};
+
+SMT smthread = 0x00070000 smthread_stats_t {
     // Record pinning:
     u_long rec_pin_cnt		Times records were pinned in the buffer pool
     u_long rec_unpin_cnt	Times records were unpinned
+    u_long rec_repin_cvt	Converted latch-lock to lock-lock deadlock
+
+    // file manager
+    u_long fm_pagecache_hit	Found recently-used page
+    u_long fm_nolatch	 	Couldn't latch recently-used page 
+    u_long fm_page_moved	Recently-used page moved to new store
+    u_long fm_page_full	        Recently-used page was full
+    u_long fm_histogram_hit	Histogram says file search worthwhile
+    u_long fm_search_pages	Pages inspected in file search
+    u_long fm_search_failed	File search unsuccessful
+    u_long fm_search_hit	File search successful
+    u_long fm_lastpid_cached    Have last pid cached
+    u_long fm_lastpid_hit       Found slot on page lastpid 
+    u_long fm_alloc_pg		Allocated a new page
+    u_long fm_ext_touch		Updates to extent info
+    u_long fm_ext_touch_nop	No-op updates to extent info
+    u_long fm_nospace		Could not create rec
+    u_long fm_cache		Policy permitted looking in cache
+    u_long fm_compact		Policy permitted searching file
+    u_long fm_append		Policy permitted appending to file
+    u_long fm_appendonly	Policy required strict append
 
     // Btree stats:
     u_long bt_find_cnt		Btree lookups (find_assoc())
@@ -27,13 +115,43 @@ SM Storage manager = 0x00060000 sm_stats_info_t {
     u_long bt_links		Btree links followed
     u_long bt_upgrade_fail_retry	Failure to upgrade a latch forced a retry
     u_long bt_clr_smo_traverse	Cleared SMO bits on traverse
+    u_long bt_pcompress		Prefixes compressed
+    u_long bt_plmax		Maximum prefix levels encountered
+
+    // Sort 
+    u_long sort_keycmp_cnt	Key-comparison callbacks
+    u_long sort_lexindx_cnt	Lexify index key callbacks
+    u_long sort_getinfo_cnt	Create-sort-key callbacks
+    u_long sort_mof_cnt		Marshal-object callbacks
+    u_long sort_umof_cnt	Unmarshal-object callbacks
+    u_long sort_memcpy_cnt	Memcpys
+    u_long sort_memcpy_bytes	Bytes copied in memcpy
+    u_long sort_keycpy_cnt	Keycopies (part of memcpy_cnt)
+    u_long sort_mallocs		Allocations
+    u_long sort_malloc_bytes	Bytes allocated total
+    u_long sort_malloc_hiwat	Max allocated at any one time
+    u_long sort_malloc_max	Largest chunk allocated
+    u_long sort_malloc_curr	Amt presently allocated
+    u_long sort_tmpfile_cnt 	Records written to temp files
+    u_long sort_tmpfile_bytes 	Bytes written to temp files
+    u_long sort_duplicates 	Duplicate records eliminated
+    u_long sort_page_fixes 	Orig slotted pages fixed by sort for read
+    u_long sort_page_fixes_2 	Tmp file slotted pages fixed by sort for read
+    u_long sort_lg_page_fixes 	Large obj pages explicitly fixed by sort
+    u_long sort_rec_pins 	Recs explicitly pinned by sort
+    u_long sort_files_created 	Files created by sort
+    u_long sort_recs_created 	Final records created by sort
+    u_long sort_rec_bytes       Bytes in final records
+    u_long sort_runs 		Runs merged
+    u_long sort_run_size 	Pages of input recs per run
+    u_long sort_phases 		Polyphase phases
+    u_long sort_ntapes 		Number of pseudo-tapes used by sort
 
     // Logical ID lookups:
     u_long lid_lookups		Logical ID look-ups
     u_long lid_remote_lookups	Extra index lookups for remote refs
     u_long lid_inserts		Logical IDs inserted
     u_long lid_removes		Logical IDs removed
-    u_long lid_replace		Times max-logical entry replaced (on remove)
     u_long lid_cache_hits 	Hits in cache of recent lookups
 
     // Page operation counts
@@ -43,16 +161,11 @@ SM Storage manager = 0x00060000 sm_stats_info_t {
     u_long page_alloc_cnt	Pages allocated
     u_long page_dealloc_cnt	Pages deallocated
 
-#ifdef MULTI_SERVER
-    u_long page_merging_cnt	Pages merged
-#endif
     // Extent operation counts
     u_long ext_lookup_hits	Hits in extent lookups in cache 
     u_long ext_lookup_misses	Misses in extent lookups in cache 
     u_long alloc_page_in_ext	Extent searches for free pages
-    u_long ext_alloc		Extents allocated
-    u_long ext_free		Extents freed
-
+    u_long extent_lsearch	Linear search hops through file looking for space
 
     // Transaction related stats
     u_long begin_xct_cnt	Transactions started
@@ -65,19 +178,23 @@ SM Storage manager = 0x00060000 sm_stats_info_t {
     u_long compensate_in_log	Compensations written in log buffer
     u_long compensate_in_xct	Compensations written in xct log buffer
     u_long compensate_records	Compensations written as own log record 
+    u_long compensate_skipped	Compensations would be a no-op
     u_long log_switches		Times log turned off
     u_long await_1thread_log	Times blocked on 1thread mutex for xct-log
     u_long acquire_1thread_log	Times acquired 1thread mutex for xct-log
     u_long get_logbuf	        Times acquired log buf for xct
-    u_long flush_logbuf	        Times acquired log for xct_t::flush_logbuf
     u_long await_1thread_xct	Times blocked on 1thread mutex for xct
     u_long await_io_monitor	Times couldn't enter I/O monitor immediately
     u_long await_vol_monitor	Times couldn't grab volume mutex immediately
+
+    u_long s_prepared		Externally coordinated prepares
+    u_long c_replies_dropped	Replies dropped by coordinator
 
     // Lock table related stats
     u_long lock_query_cnt       High-level query for lock information
     u_long unlock_request_cnt	High-level unlock requests
     u_long lock_request_cnt 	High-level lock requests
+    u_long lock_head_t_cnt	Locks heads put in table for chains of requests
     u_long lock_acquire_cnt	Acquires to satisfy high-level requests
     u_long lk_vol_acq		Volume locks acquired
     u_long lk_store_acq		Store locks acquired
@@ -85,143 +202,31 @@ SM Storage manager = 0x00060000 sm_stats_info_t {
     u_long lk_kvl_acq		Key-value locks acquired
     u_long lk_rec_acq		Record locks acquired
     u_long lk_ext_acq		Extent locks acquired
+    u_long lk_user1_acq		User1 locks acquired
+    u_long lk_user2_acq		User2 locks acquired
+    u_long lk_user3_acq		User3 locks acquired
+    u_long lk_user4_acq		User4 locks acquired
 
     u_long lock_cache_hit_cnt   Hits on lock cache (avoid acquires)
-    u_long lock_head_query_cnt	lock_head queries
-    u_long lock_req_query_cnt	lock_request queries
-    u_long lock_head_t_cnt	Locks heads put in table for chains of requests
     u_long lock_request_t_cnt	Lock request structures chained off lock heads
     u_long lock_extraneous_req_cnt Extraneous requests (already granted)
     u_long lock_conversion_cnt  Requests requiring conversion
-    u_long lock_bucket_cnt	Total buckets used
-    u_long lock_max_bucket_len	Maximum bucket length
-    u_long lock_min_bucket_len	Minimum bucket length
-    u_long lock_mode_bucket_len	Mode bucket length
-    // NB: floats must be 8-byte aligned, so take care where you put them!
-    float  lock_mean_bucket_len	Mean bucket length
-    float  lock_var_bucket_len	Variance of  bucket length
-    float  lock_std_bucket_len	Standard deviation of bucket length
-
     u_long lock_deadlock_cnt	Deadlocks detected
 
     u_long lock_esc_to_page	Number of escalations to page level
     u_long lock_esc_to_store	Number of escalations to store level
     u_long lock_esc_to_volume	Number of escalations to volume level
 
-#ifdef MULTI_SERVER
-    // callback related (from callback.c)
-    u_long callback_op_cnt		callback events
-    u_long PINV_cb_replies_cnt		PINV cb replies
-    u_long OINV_cb_reply_cnt		OINV cb replies
-    u_long BLOCKED_cb_reply_cnt		BLOCKED cb replies
-    u_long DEADLOCK_cb_reply_cnt	DEADLOCK cb replies
-    u_long KILLED_cb_reply_cnt		KILLED cb replies
-    u_long LOCAL_DEADLOCK_cb_reply_cnt	LOCAL_DEADLOCK cb replies
-    u_long cb_conflict_cnt		cb conflict events
-    u_long false_cb_cnt			false cbs
 
-    // messages (from remote.c)
-
-    u_long connect_req_sent		connect reqs sent
-    u_long disconnect_req_sent		disconnect reqs sent
-    u_long shutdown_conn_req_sent	shutdown connect reqs sent
-    u_long mount_vol_req_sent		mount volume reqs sent
-    u_long spread_xct_req_sent		spread xct reqs sent
-    u_long prepare_xct_req_sent		prepare xct reqs sent
-    u_long commit_xct_req_sent		commit_xct reqs sent
-    u_long abort_xct_req_sent		abort_xct reqs sent
-    u_long log_req_sent			log reqs sent
-    u_long callback_req_sent		callback reqs sent
-    u_long abort_callback_req_sent	abort callback reqs sent
-    u_long pids_req_sent		pids reqs sent
-    u_long lookup_lid_req_sent		lookup lid reqs sent
-    u_long acquire_lock_req_sent	acquire lock reqs sent
-    u_long read_page_req_sent		read page reqs sent
-    u_long purged_pages_req_sent	purges pages reqs sent
-    u_long ping_xct_req_sent		ping xct reqs sent
-
-    u_long connect_req_rcv              connect reqs received
-    u_long disconnect_req_rcv           disconnect reqs received
-    u_long shutdown_conn_req_rcv        shutdown connect reqs received
-    u_long mount_vol_req_rcv            mount volume reqs received
-    u_long spread_xct_req_rcv           spread xct reqs received
-    u_long prepare_xct_req_rcv          prepare xct reqs received
-    u_long commit_xct_req_rcv           commit_xct reqs received
-    u_long abort_xct_req_rcv            abort_xct reqs received
-    u_long log_req_rcv                  log reqs received
-    u_long callback_req_rcv             callback reqs received
-    u_long abort_callback_req_rcv       abort callback reqs received
-    u_long pids_req_rcv                 pids reqs received
-    u_long lookup_lid_req_rcv           lookup lid reqs received
-    u_long acquire_lock_req_rcv         acquire lock reqs received
-    u_long read_page_req_rcv            read page reqs received
-    u_long purged_pages_req_rcv         purges pages reqs received
-    u_long ping_xct_req_rcv             ping xct reqs received
-    
-    u_long callback_reply_rcv		callback replies received
-
-    u_long lookup_lid_reply_send_err	lid lookups replies with error
-    u_long acquire_lock_reply_send_err	lock replies with error
-    u_long read_page_reply_send_err	data replies with error
-
-    float small_msg_time	avg small msg time (log and page msgs are out)
-    u_long small_msg_size	avg small msg size (log and page msgs are out)
-    u_long small_msg_cnt	number of small msgs sent
-#endif /* MULTI_SERVER */
-
-    // Operations on local data volumes
-    u_long vol_reads		Data volume read requests (from disk)
-#ifdef MULTI_SERVER
-    u_long vol_redo_reads	Disk reads due to redo-at-server
-#endif
-    u_long vol_writes		Data volume write requests (to disk)
-    u_long vol_blks_written	Data volume pages written (to disk)
-
-    // Log operations
-    // Buffer pool performance information
-    u_long bf_one_page_write 	Single page written to volume
-    u_long bf_two_page_write 	Two-page writes to volume
-    u_long bf_three_page_write 	Three-page writes to volume
-    u_long bf_four_page_write 	Four-page writes to volume
-    u_long bf_five_page_write 	Five-page writes to volume
-    u_long bf_six_page_write 	Six-page writes to volume
-    u_long bf_seven_page_write 	Seven-page writes to volume
-    u_long bf_eight_page_write 	Eight-page writes to volume
-    u_long bf_cleaner_sweeps    Number of sweeps of the bf_cleaner thread
-    u_long bf_cleaner_signalled Number of sweeps initiated by a kick
-    u_long bf_kick_full 	Kicks because pool is full of dirty pages
-    u_long bf_kick_replacement 	Kicks because doing page replacement
-    u_long bf_kick_threshhold 	Kicks because dirty page threshold met
-    u_long bf_kick_almost_full 	Kicks because page almost full -- for creations
-    u_long bf_sweep_page_hot 	Page swept was not flushed because it was hot 
-    u_long bf_log_flush_all    	Number of whole-log flushes by bf_cleaner
-    u_long bf_log_flush_lsn    	Number of partial log flushes by bf_cleaner
-    u_long bf_write_out    	Pages written out in background or forced
-    u_long bf_replace_out    	Pages written out to free a frame for fixing
-    u_long bf_replaced_dirty 	Victim for page replacement is dirty
-    u_long bf_replaced_clean 	Victim for page replacement is clean
-    u_long bf_await_clean 	Times awaited a clean page for fix()
-    u_long bf_prefetch_requests Requests to prefetch a page 
-    u_long bf_prefetches  	Prefetches performed
-
-    // Log operations
+    // Log operations -- per thread
     u_long await_log_monitor	Possible long wait for log monitor 
     u_long await_log_monitor_var Short wait for log monitor 
-    u_long log_records_generated Log records written
-    u_long log_bytes_generated	Bytes written to the log
-    u_long log_sync_nrec_max	Max # log records buffered between syncs
-    u_long log_sync_nbytes_max    Max # log bytes buffered between syncs
-    u_long log_dup_sync_cnt	Times the log was flushed superfluously
-    u_long log_sync_cnt		Times the log was flushed (and was needed)
-    u_long log_fsync_cnt	Times the fsync system call was used
-    u_long log_chkpt_cnt	Checkpoints taken
+    u_long xlog_records_generated Log records written for xct
+    u_long xlog_bytes_generated	Bytes written to the log for xct
+};
 
-    u_long idle_yield_return	Times idle thread returned from yield()
-    u_long idle_wait_return	Times idle thread returned from wait()
-    u_long fastpath		Times diskrw was bypassed
-
+SM2PC 2PCthread = 0x00080000 sm2pc_stats_t {
     // 2PC operations --subordinate
-    u_long s_prepared		Externally coordinated prepares
     u_long s_committed		Externally coordinated commits
     u_long s_aborted		Externally coordinated aborts
     u_long s_no_such		Messages for unknown gtid
@@ -240,7 +245,6 @@ SM Storage manager = 0x00060000 sm_stats_info_t {
     u_long c_resolved		Distrib tx resolved (includes recovery)
     u_long c_resolved_commit	Resolved transactions that committed
     u_long c_resolved_abort	Resolved transactions that aborted
-    u_long c_replies_dropped	Replies dropped
     u_long c_retrans		Retransmitted messages
     u_long c_acks_recd		Total acks received for commit/abort
     u_long c_votes_recd		Total votes received 
@@ -250,5 +254,4 @@ SM Storage manager = 0x00060000 sm_stats_info_t {
     u_long c_commit_sent	Total commit messages sent
     u_long c_abort_sent		Total abort messages sent
     u_long c_errors_sent	Total messages sent with error indication 
-
 };

@@ -1,17 +1,42 @@
-/* --------------------------------------------------------------- */
-/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
-/* -- University of Wisconsin-Madison, subject to the terms     -- */
-/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
-/* -- Reserved.                                                 -- */
-/* --------------------------------------------------------------- */
+/*<std-header orig-src='shore' incl-file-exclusion='BF_S_H'>
 
-/*
- *  $Id: bf_s.h,v 1.29 1997/05/27 13:09:19 kupsch Exp $
- */
+ $Id: bf_s.h,v 1.42 1999/06/07 19:03:50 kupsch Exp $
+
+SHORE -- Scalable Heterogeneous Object REpository
+
+Copyright (c) 1994-99 Computer Sciences Department, University of
+                      Wisconsin -- Madison
+All Rights Reserved.
+
+Permission to use, copy, modify and distribute this software and its
+documentation is hereby granted, provided that both the copyright
+notice and this permission notice appear in all copies of the
+software, derivative works or modified versions, and any portions
+thereof, and that both notices appear in supporting documentation.
+
+THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+"AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+This software was developed with support by the Advanced Research
+Project Agency, ARPA order number 018 (formerly 8230), monitored by
+the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+Further funding for this work was provided by DARPA through
+Rome Research Laboratory Contract No. F30602-97-2-0247.
+
+*/
+
 #ifndef BF_S_H
 #define BF_S_H
 
-struct page_s;
+#include "w_defines.h"
+
+/*  -- do not edit anything above this line --   </std-header>*/
+
+#include <sm_s.h>
+
+class page_s;
 
 class bfpid_t : public lpid_t {
 public:
@@ -54,6 +79,8 @@ public:
     NORET       bfcb_t()    {};
     NORET       ~bfcb_t()   {};
 
+    void	vtable_collect(vtable_info_t &t);
+
     inline void	clear();
 
     w_link_t    link;           // used in hash table
@@ -66,14 +93,14 @@ public:
     bool	dirty;          // true if page is dirty
     lsn_t       rec_lsn;        // recovery lsn
 
-    int4        pin_cnt;        // count of pins on the page
+    int4_t      pin_cnt;        // count of pins on the page
     latch_t     latch;          // latch on the frame
     scond_t     exit_transit;   //signaled when frame exits the in-transit state
 
-    int4        refbit;         // ref count (for strict clock algorithm)
+    int4_t      refbit;         // ref count (for strict clock algorithm)
 				// for replacement policy only
 
-    int4        hot;         	// copy of refbit for use by the cleaner algorithm
+    int4_t      hot;         	// copy of refbit for use by the cleaner algorithm
 				// without interfering with clock (replacement)
 				// algorithm.
 
@@ -86,32 +113,6 @@ private:
     bfcb_t&     operator=(const bfcb_t&);
 };
 
-
-inline ostream&
-bfcb_t::print_frame(ostream& o, bool in_htab)
-{
-    if (in_htab) {
-        o << pid << '\t'
-	  << (dirty ? "X" : " ") << '\t'
-	  << rec_lsn << '\t'
-	  << pin_cnt << '\t'
-	  << latch_t::latch_mode_str[latch.mode()] << '\t'
-	  << latch.lock_cnt() << '\t'
-	  << latch.is_hot() << '\t'
-	  << refbit << '\t'
-#ifdef DEBUG
-	  << latch.holder() 
-#else
-	  << latch.id() 
-#endif
-	  << endl;
-    } else {
-	o << pid << '\t' 
-	  << " InTransit " << (old_pid_valid ? (lpid_t)old_pid : lpid_t::null)
-	  << endl << flush;
-    }
-    return o;
-}
 
 
 inline void
@@ -128,5 +129,6 @@ bfcb_t::clear()
     w_assert3(latch.num_holders() <= 1);
 }
 
+/*<std-footer incl-file-exclusion='BF_S_H'>  -- do not edit anything below this line -- */
 
-#endif /*BF_S_H*/
+#endif          /*</std-footer>*/

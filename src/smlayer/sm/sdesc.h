@@ -1,12 +1,38 @@
-/* --------------------------------------------------------------- */
-/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
-/* -- University of Wisconsin-Madison, subject to the terms     -- */
-/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
-/* -- Reserved.                                                 -- */
-/* --------------------------------------------------------------- */
+/*<std-header orig-src='shore' incl-file-exclusion='SDESC_H'>
+
+ $Id: sdesc.h,v 1.43 1999/06/07 19:04:28 kupsch Exp $
+
+SHORE -- Scalable Heterogeneous Object REpository
+
+Copyright (c) 1994-99 Computer Sciences Department, University of
+                      Wisconsin -- Madison
+All Rights Reserved.
+
+Permission to use, copy, modify and distribute this software and its
+documentation is hereby granted, provided that both the copyright
+notice and this permission notice appear in all copies of the
+software, derivative works or modified versions, and any portions
+thereof, and that both notices appear in supporting documentation.
+
+THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+"AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+This software was developed with support by the Advanced Research
+Project Agency, ARPA order number 018 (formerly 8230), monitored by
+the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+Further funding for this work was provided by DARPA through
+Rome Research Laboratory Contract No. F30602-97-2-0247.
+
+*/
 
 #ifndef SDESC_H
 #define SDESC_H
+
+#include "w_defines.h"
+
+/*  -- do not edit anything above this line --   </std-header>*/
 
 /*
  * This file describes Store Descriptors (sdesc_t).  Store
@@ -16,7 +42,7 @@
  * Also defined is a store descriptor cache (sdesc_cache_t) that
  * is located in each transaction. 
  *
- * Member functions are defined in dir.c.
+ * Member functions are defined in dir.cpp.
  */
 
 #ifdef __GNUG__
@@ -59,10 +85,9 @@ public:
      *          following snum_t must be located after pff,eff.
      */
     snum_t	large_store;	// store for large record pages
-
-    shpid_t	root;		// root page (of index)
+    shpid_t	root;		// root page (of main index)
     serial_t	logical_id;     // zero if no logical ID
-    uint4	nkc;		// # components in key
+    uint4_t	nkc;		// # components in key
     key_type_s	kc[smlevel_0::max_keycomp];
 
     sinfo_s()	{};
@@ -70,7 +95,7 @@ public:
 	    u_char eff_, 
 	    smlevel_0::ndx_t ntype_, u_char cc_, 
 	    const shpid_t& root_,
-	    const serial_t& lid_, uint4 nkc_, const key_type_s* kc_) 
+	    const serial_t& lid_, uint4_t nkc_, const key_type_s* kc_) 
     :   store(store_), stype(stype_), ntype(ntype_),
 	cc(cc_), eff(eff_),
 	large_store(0),
@@ -85,11 +110,14 @@ public:
     }
 
     sinfo_s& operator=(const sinfo_s& other) {
-	store = other.store; stype = other.stype; ntype = other.ntype;
+	store = other.store; 
+	stype = other.stype; 
+	ntype = other.ntype;
 	// pff = other.pff; 
 	eff = other.eff; 
 	cc = other.cc;
-	root = other.root; logical_id = other.logical_id;
+	root = other.root; 
+	logical_id = other.logical_id;
 	nkc = other.nkc;
 	memcpy(kc, other.kc, sizeof(kc));
 	large_store = other.large_store;
@@ -99,23 +127,31 @@ public:
     void set_large_store(const snum_t& store) {large_store = store;}
 };
 
+class histoid_t; // forward ref; defined in histo.h
+class append_file_; // forward ref; defined in scan.h
+class sdesc_cache_t; // forward
 class sdesc_t {
+    friend class append_file_i;
+    friend class sdesc_cache_t;
+
 public:
     typedef smlevel_0::store_t store_t;
 
-    sdesc_t() : _last_pid_approx(0) {};
+    NORET sdesc_t() : _histoid(0), _last_pid(0) {};
+    NORET ~sdesc_t() { invalidate(); }
 
     void		init(const stpgid_t& stpg, const sinfo_s& s)
 			    {   _stpgid = stpg;
 				_sinfo = s; 
-				_last_pid_approx = 0;
+				_histoid = 0;
 			    }
 
     inline
     const stpgid_t	stpgid() const {return _stpgid;}
 
-    inline
-    void		invalidate() {_stpgid = lpid_t::null;}
+    const shpid_t	hog_last_pid() const;
+    void		free_last_pid() const;
+    void	        set_last_pid(shpid_t p);
 
     inline
     const lpid_t	root() const {
@@ -126,35 +162,39 @@ public:
 
     // store id for large object pages
     inline
-    const stid_t	large_stid() const {	
-			    return stid_t(_stpgid.vol(), _sinfo.large_store);
+    const stid_t	large_stid() const {
+			    return _sinfo.large_store?
+				stid_t(_stpgid.vol(), _sinfo.large_store)
+				: stid_t::null;
 			}
     inline
     const sinfo_s&	sinfo() const {return _sinfo;}
 
-    inline
-    void 		set_last_pid(const shpid_t& new_last)
-			  {	
-			    // TODO grab 1thread mutex
-				_last_pid_approx = new_last;
-			    // TODO free 1thread mutex
-			  }
-
-    inline
-    shpid_t		last_pid_approx() const {
-			    return _last_pid_approx;
+    void		add_store_utilization(histoid_t *h) {
+			    _histoid = h;
 			}
+    const histoid_t*	store_utilization() const {
+			    return _histoid;
+			}
+    void		invalidate_sdesc() { invalidate(); }
+protected:
+    sdesc_t& 		operator=(const sdesc_t& other);
+    void		invalidate(); 
 
 private:
+    NORET sdesc_t(const sdesc_t&) {}; // disabled
+
     // _sinfo is a cache of persistent info stored in directory index
     sinfo_s		_sinfo;
 
     //
     // the following fields are transient
+    // TODO : before calling or setting _last_pid,  caller
+    // should acquire 1-thread mutex; likewise for _histoid
     //
-    stpgid_t		_stpgid; // identifies stores and 1 page stores
-    // approximate last page in file
-    shpid_t		_last_pid_approx;
+    histoid_t*		_histoid;
+    shpid_t		_last_pid; // absolute, not approx
+    stpgid_t		_stpgid;   // identifies stores and 1 page stores
 };
 
 class sdesc_cache_t {
@@ -180,22 +220,25 @@ public:
     sdesc_t*	add(const stpgid_t& stpgid, const sinfo_s& sinfo);
 
 private:
-    uint4	num_buckets() const { return _numValidBuckets; }
-    uint4	num_allocated_buckets() const { return _bucketArraySize; }
-    uint4	elems_in_bucket(int i) const { return min_sdesc << i; }
-    void	AllocateBucket(int i);
-    void	AllocateBucketArray(int newSize);
-    void	DoubleBucketArray();
+    void	_serialize() const;
+    void	_endserial() const;
+    uint4_t	_num_buckets() const { return _numValidBuckets; }
+    uint4_t	_num_allocated_buckets() const { return _bucketArraySize; }
+    uint4_t	_elems_in_bucket(int i) const { return min_sdesc << i; }
+    void	_AllocateBucket(uint4_t bucket);
+    void	_AllocateBucketArray(int newSize);
+    void	_DoubleBucketArray();
 
     sdesc_t**	_sdescsBuckets;		// array of cached sdesc_t
-    uint2	_bucketArraySize;	// # entries in the malloced array
-    uint2	_numValidBuckets;	// # valid entries
-    uint2	_minFreeBucket;
-    uint2	_minFreeBucketIndex;
+    uint4_t	_bucketArraySize;	// # entries in the malloced array
+    uint4_t	_numValidBuckets;	// # valid entries
+    uint4_t	_minFreeBucket;
+    uint4_t	_minFreeBucketIndex;
 
-    uint2	_lastAccessBucket;	// last sdesc allocated
-    uint2	_lastAccessBucketIndex;	// last sdesc allocated
+    uint4_t	_lastAccessBucket;	// last sdesc allocated
+    uint4_t	_lastAccessBucketIndex;	// last sdesc allocated
 };
 
+/*<std-footer incl-file-exclusion='SDESC_H'>  -- do not edit anything below this line -- */
 
-#endif /* SDESC_H */
+#endif          /*</std-footer>*/

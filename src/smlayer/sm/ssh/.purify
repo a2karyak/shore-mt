@@ -1,9 +1,31 @@
-# --------------------------------------------------------------- #
-# -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- #
-# -- University of Wisconsin-Madison, subject to the terms     -- #
-# -- and conditions given in the file COPYRIGHT.  All Rights   -- #
-# -- Reserved.                                                 -- #
-# --------------------------------------------------------------- #
+# <std-header style='pure' orig-src='shore'>
+#
+#  $Id: .purify,v 1.42 1999/06/15 15:12:01 nhall Exp $
+#
+# SHORE -- Scalable Heterogeneous Object REpository
+#
+# Copyright (c) 1994-99 Computer Sciences Department, University of
+#                       Wisconsin -- Madison
+# All Rights Reserved.
+#
+# Permission to use, copy, modify and distribute this software and its
+# documentation is hereby granted, provided that both the copyright
+# notice and this permission notice appear in all copies of the
+# software, derivative works or modified versions, and any portions
+# thereof, and that both notices appear in supporting documentation.
+#
+# THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+# OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+# "AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+# FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+#
+# This software was developed with support by the Advanced Research
+# Project Agency, ARPA order number 018 (formerly 8230), monitored by
+# the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+# Further funding for this work was provided by DARPA through
+# Rome Research Laboratory Contract No. F30602-97-2-0247.
+#
+#   -- do not edit anything above this line --   </std-header>
 
 #
 # Normally "umc *" is suppressed by the default .purify file
@@ -23,12 +45,16 @@ suppress fmw sthread_core_switch
 suppress fmr sthread_core_switch
 suppress abr sthread_core_switch
 suppress bsr sthread_core_switch
+suppress mse sthread_core_switch
+suppress mse *;sthread_t::check_all(int)
 
 ## This thread package suppression is for versions of purify
 ## newer than 3.0a.  These versions of purify don't handle the
 ## register window changes "correctly".
+
 ignore sthread_core_switch stcore.o
 ignore _sthread_core_switch stcore.o
+ignore sthread_core_switch__FP14sthread_core_tT0 stcore.o
 
 # these are regular expr functions
 suppress umc bcopy ; re_match_2_internal
@@ -47,9 +73,11 @@ suppress umc *operator=
 #
 # Needed for Tcl
 #
+suppress umr "libtcl.a"
+suppress umc "libtcl.a"
+
 suppress umc *; strtod; ExprParseString
 suppress umc *; *; strtod; ExprParseString
-
 
 #
 # These used to be needed since some logged structures
@@ -68,7 +96,7 @@ suppress umr write; ... ; pvm_*
 suppress umr write; ... ; gdbm_store
 suppress umr  write;gdbm_open
 
-#for ssh (shell.c)
+#for ssh (shell.cpp)
 suppress umc istream::operator>>*; ... ; cvt2lockid_t(char*)
 
 # for some ssh scripts (mainly the lock tests) where multiple
@@ -99,4 +127,33 @@ suppress umc TcpTransport::_inbound(sfile_t&)
 
 suppress umc decimal_to_double; strtod
 suppress um* qst; qsort
-suppress umc _libc_sigaction; signal; Tcl_CreateInterp
+
+suppress abr regsbexec; regexec; re_exec_posix
+
+# the following is necessary because of a gcc bug:
+# -fno-inline seems to make it forget about a copy constructor,
+# and generate memcpy instead. This sucks because the copy
+# constructor might not do memcpy - in fact, in the case of
+# the opaque types, it copies only what's been initialized.
+# 
+suppress umc memcpy; restart_m::recover(lsn_t)
+suppress umc restart_m::undo_pass(); restart_m::recover(lsn_t); ss_m::ss_m()
+suppress fmm free; _IO_setb; _IO_str_init_static; _IO_str_init_readonly; strstreambuf::init_readonly(const char*,int); istrstream::istrstream(int,const char*,int)
+suppress umr w_link_t::detach()
+
+
+suppress umc readprocusage; getrusage
+suppress umr readprocusage; getrusage
+
+# These are courtesy of Tcl 8 and beyond.
+suppress miu malloc; TclAllocateFreeObjects
+suppress miu malloc; DoWrite
+suppress miu malloc; Tcl_CreateChannel
+suppress miu malloc; Balloc
+suppress miu malloc; StringCreate
+suppress miu malloc; LinkTraceProc
+suppress miu malloc; Tcl_MakeFileChannel
+suppress miu malloc; Tcl_CreateExitHandler
+suppress miu malloc; InitTypeTable
+suppress umr TclGetExceptionRangeForPc
+suppress umc TclCompileExprCmd

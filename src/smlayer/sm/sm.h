@@ -1,21 +1,45 @@
-/* --------------------------------------------------------------- */
-/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
-/* -- University of Wisconsin-Madison, subject to the terms     -- */
-/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
-/* -- Reserved.                                                 -- */
-/* --------------------------------------------------------------- */
+/*<std-header orig-src='shore' incl-file-exclusion='SM_H'>
+
+ $Id: sm.h,v 1.297 1999/07/19 21:55:43 nhall Exp $
+
+SHORE -- Scalable Heterogeneous Object REpository
+
+Copyright (c) 1994-99 Computer Sciences Department, University of
+                      Wisconsin -- Madison
+All Rights Reserved.
+
+Permission to use, copy, modify and distribute this software and its
+documentation is hereby granted, provided that both the copyright
+notice and this permission notice appear in all copies of the
+software, derivative works or modified versions, and any portions
+thereof, and that both notices appear in supporting documentation.
+
+THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+"AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+This software was developed with support by the Advanced Research
+Project Agency, ARPA order number 018 (formerly 8230), monitored by
+the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+Further funding for this work was provided by DARPA through
+Rome Research Laboratory Contract No. F30602-97-2-0247.
+
+*/
+
+#ifndef SM_H
+#define SM_H
+
+#include "w_defines.h"
+
+/*  -- do not edit anything above this line --   </std-header>*/
 
 /*
- *  $Id: sm.h,v 1.260 1997/05/27 13:09:57 kupsch Exp $
- *
  *  Stuff needed by value-added servers.  NOT meant to be included by
  *  internal SM .c files, except to the extent that they need these
  *  definitions used in the API.
  */
-#ifndef SM_H
-#define SM_H
 
-#include <e_error.h>
 #ifndef W_STATISTICS_H
 #include <w_statistics.h>
 #endif
@@ -24,12 +48,32 @@
 #pragma interface
 #endif
 
+#ifndef SM_INT_4_H
+#include <sm_int_4.h>
+#endif
+
 #ifndef SM_DU_STATS_H
-#include <sm_du_stats.h>
+#include <sm_du_stats.h> // declares sm_du_stats_t
 #endif
 
 #ifndef SM_STATS_H
 #include <smstats.h> // declares sm_stats_info_t and sm_config_info_t
+#endif
+
+#ifndef SM_S_H
+#include <sm_s.h> // declares key_type_s, rid_t, lsn_t
+#endif
+
+#ifndef LEXIFY_H
+#include <lexify.h> // declares sortorder with constants
+#endif
+
+#ifndef NBOX_H
+#include <nbox.h>   // key_info_t contains nbox_t
+#endif /* NBOX_H */
+
+#ifndef SORT_S_H
+#include <sort_s.h> // declares key_info_t
 #endif
 
 /********************************************************************/
@@ -50,34 +94,7 @@ class sm_stats_cache_t;
 class option_group_t;
 class option_t;
 class prologue_rc_t;
-
-#ifndef NBOX_H
-#include <nbox.h>
-#endif
-
 class rtree_m;
-#ifdef USE_RDTREE
-#include <setarray.h>
-class rdtree_m;
-#endif /* USE_RDTREE */
-
-#ifndef KVL_T_H
-#include <kvl_t.h>
-#endif
-
-#ifndef LOCK_S_H
-#include <lock_s.h>
-#endif
-
-#ifndef LEXIFY_H
-#include <lexify.h>
-#endif
-
-#ifndef SORT_S_H
-#include <sort_s.h>
-#endif
-
-struct key_type_s;
 
 class sm_save_point_t : public lsn_t {
 public:
@@ -117,7 +134,7 @@ public:
     rc_t			close(bool release=true);
 
     tid_t			tid()const { return _tid; }
-    operator			bool()const { return _tid != tid_t::null; }
+    operator			bool()const { return (_tid != tid_t::null); }
     friend ostream& operator<<(ostream& o, const sm_quark_t& q);
     friend istream& operator>>(istream& i, sm_quark_t& q);
 
@@ -127,25 +144,26 @@ private:
 
     // disable
     sm_quark_t(const sm_quark_t&);
-    operator=(const sm_quark_t&);
+    sm_quark_t& operator=(const sm_quark_t&);
 
 };
 
 class sm_store_info_t;
 class log_entry;
 class coordinator;
+class tape_t;
 class ss_m : public smlevel_top {
     friend class pin_i;
     friend class sort_stream_i;
     friend class prologue_rc_t;
     friend class log_entry;
     friend class coordinator;
+    friend class tape_t;
 public:
-#ifdef GNUG_BUG_4    
+
     typedef smlevel_0::ndx_t ndx_t;
     typedef smlevel_0::concurrency_t concurrency_t;
     typedef smlevel_1::xct_state_t xct_state_t;
-#endif /*GNUG_BUG_4*/
 
     typedef sm_store_property_t store_property_t;
 
@@ -212,9 +230,6 @@ public:
  	sm_logsize <KB>
                 maximum size of log in Kbytes
                 default value: 1600
-	sm_multiserver <yes/no>
-                yes indicates support for accessing remote servers
-                default value: no
 
 	sm_errlog  <string>
                 -        indicates log to stderr
@@ -256,7 +271,13 @@ public:
      * Once all required options have been set, ss_m can be called.
      */
     static rc_t setup_options(option_group_t*);
-    ss_m();
+
+    /*
+     * constructor takes an optional ptr to a function that is called
+     * when the warning threshhold for log usage is reached.  The type
+     * of this function is defined in sm_base.h
+     */
+    ss_m(LOG_WARN_CALLBACK_FUNC x=0);
     ~ss_m();
 
     // specify type of shutdown (clean or not) that will
@@ -270,12 +291,18 @@ private:
 
 public:
     static rc_t                 begin_xct(
-	long			    timeout = WAIT_SPECIFIED_BY_THREAD);
+	timeout_in_ms		    timeout = WAIT_SPECIFIED_BY_THREAD);
+    static rc_t                 begin_xct(
+	sm_stats_info_t* 	    stats,  // allocated by caller
+	timeout_in_ms		    timeout = WAIT_SPECIFIED_BY_THREAD);
     static rc_t			begin_xct(
 	tid_t&			    tid,
-	long			    timeout = WAIT_SPECIFIED_BY_THREAD);
+	timeout_in_ms		    timeout = WAIT_SPECIFIED_BY_THREAD);
 
     static rc_t 		set_coordinator(const server_handle_t &); 
+    static rc_t			prepare_xct(
+	sm_stats_info_t*& 	    stats, 
+	vote_t&			    v); 
     static rc_t			prepare_xct(vote_t &v); 
     static rc_t			enter_2pc(const gtid_t &); 
     static rc_t			force_vote_readonly(); 
@@ -293,11 +320,23 @@ public:
 
     static rc_t			commit_xct(
 	bool 			    lazy = false);
+    static rc_t			commit_xct(
+	sm_stats_info_t*& 	    stats, 
+	bool 			    lazy = false);
+
+
     static rc_t			abort_xct();
+    static rc_t			abort_xct(
+	sm_stats_info_t*& 	    stats);
 	// eventually need to support providing a reason for the abort
 	// w_base_t::uint4_t 	    reason = eUSERABORT);
+
+    static rc_t			chain_xct(
+	sm_stats_info_t*& 	    stats,	/* in w/new, out w/old */
+	bool 			    lazy = false);  
     static rc_t			chain_xct(
 	bool 			    lazy = false);  
+
     static rc_t			save_work(sm_save_point_t& sp);
     static rc_t			rollback_work(
 	const sm_save_point_t&	    sp);
@@ -309,6 +348,15 @@ public:
     static xct_state_t 		state_xct(const xct_t*);
     static concurrency_t	xct_lock_level();
     static void			set_xct_lock_level(concurrency_t l);
+
+    static rc_t			xct_collect(vtable_info_array_t&);
+    static rc_t			bp_collect(vtable_info_array_t&);
+    static rc_t			lock_collect(vtable_info_array_t&);
+    static rc_t			thread_collect(vtable_info_array_t&);
+    static rc_t			stats_collect(vtable_info_array_t&);
+    static rc_t			class_factory_collect(vtable_info_array_t&);
+    static rc_t			class_factory_collect_histogram(vtable_info_array_t&);
+    static rc_t         io_collect(vtable_info_array_t&);
 
     /*
     // For debugging
@@ -328,15 +376,20 @@ public:
     // force all pages in the given store, and invalidate if 2nd arg=true
     static rc_t			force_store_buffers(const stid_t &,bool);
 
-    static rc_t			dump_buffers();
-    static void			dump_copies();
-    static rc_t			dump_locks();
+    static rc_t			dump_buffers(ostream &o);
+    static void			dump_copies(ostream &o);
+    static rc_t			dump_locks(ostream &o);
+    static rc_t			dump_exts(ostream &o, vid_t v, extnum_t start, extnum_t end);
+    static rc_t			dump_stores(ostream &o, vid_t v, int start, int end);
 
     static rc_t			snapshot_buffers(
 	u_int& 			    ndirty, 
 	u_int& 			    nclean, 
 	u_int& 			    nfree,
 	u_int& 			    nfixed);
+    static rc_t			gather_xct_stats(
+	sm_stats_info_t& 	    stats, 
+	bool 			    reset = false);
     static rc_t			gather_stats(
 	sm_stats_info_t& 	    stats, 
 	bool 			    reset = false);
@@ -528,6 +581,36 @@ public:
 	const stid_t& 		    stid, 
 	sm_du_stats_t& 	    	    du,
 	bool			    audit = true);
+    
+    // These functions compute statistics on files and volumes
+    // using only the meta data about the them.
+    //
+    // If cc is set to t_cc_vol or t_cc_file an SH lock will be
+    // acquired before the gathering begins, others no locks will
+    // be acquired.  If no locks are acquired and batch calculate
+    // is not set, there is the possibility that get_file_meta_stats
+    // may fail with eRETRY due to simultaneus updating (should be
+    // a rare occurance).
+    //
+    // If batch_calculate is true then code works by making one pass
+    // over the meta data, but it looks at all the meta data.  this
+    // should be faster if there is not a small number of files, or
+    // files use a large portion of the volume.
+    //
+    // If batch_calculate is false then each file is updated
+    // indidually, only looking at the extent information for that
+    // particular file.
+
+    static rc_t			get_volume_meta_stats(
+	vid_t			    vid,
+	SmVolumeMetaStats&	    volume_stats,
+	concurrency_t		    cc = t_cc_none);
+    static rc_t			get_file_meta_stats(
+	vid_t			    vid,
+	uint4_t			    num_files,
+	SmFileMetaStats*	    file_stats,
+	bool			    batch_calculate = false,
+	concurrency_t		    cc = t_cc_none);
    
     // these two functions return the physical ID of a volume root index
     static rc_t			vol_root_index(
@@ -571,7 +654,8 @@ public:
 	const char* 		    key_desc,
         concurrency_t		    cc, 
 	stid_t& 		    stid, 
-	const serial_t& 	    logical_id=serial_t::null);
+	const serial_t& 	    logical_id=serial_t::null
+	);
 
     // for backward compatibility:
     static rc_t			create_index(
@@ -580,13 +664,25 @@ public:
 	store_property_t	    property,
 	const char* 		    key_desc,
 	stid_t& 		    stid, 
-	const serial_t& 	    logical_id=serial_t::null);
+	const serial_t& 	    logical_id=serial_t::null 
+	);
 
     static rc_t			destroy_index(const stid_t& iid); 
     static rc_t			bulkld_index(
 	const stid_t& 		    stid, 
+	int			    nsrcs,
+	const stid_t*		    source,
+	sm_du_stats_t&		    stats,
+	bool			    sort_duplicates = true,
+	bool			    lexify_keys = true
+	);
+    static rc_t			bulkld_index(
+	const stid_t& 		    stid, 
 	const stid_t&		    source,
-	sm_du_stats_t&		    stats);
+	sm_du_stats_t&		    stats,
+	bool			    sort_duplicates = true,
+	bool			    lexify_keys = true
+	);
     static rc_t			bulkld_index(
 	const stid_t& 		    stid, 
 	sort_stream_i&		    sorted_stream,
@@ -623,22 +719,31 @@ public:
 	ndx_t 			    ntype, 
 	store_property_t	    property,
 	stid_t& 		    stid, 
-	int2 			    dim = 2,
-	const serial_t& 	    logical_id=serial_t::null);
+	int2_t 			    dim = 2,
+	const serial_t& 	    logical_id=serial_t::null
+	);
     static rc_t			destroy_md_index(const stid_t& iid);
+    static rc_t			bulkld_md_index(
+	const stid_t& 		    stid, 
+	int			    nsrcs,
+	const stid_t* 		    source, 
+	sm_du_stats_t&		    stats,
+	int2_t 			    hff=75,
+	int2_t 			    hef=120,
+	nbox_t*			    universe=NULL);
     static rc_t			bulkld_md_index(
 	const stid_t& 		    stid, 
 	const stid_t& 		    source, 
 	sm_du_stats_t&		    stats,
-	int2 			    hff=75,
-	int2 			    hef=120,
+	int2_t 			    hff=75,
+	int2_t 			    hef=120,
 	nbox_t*			    universe=NULL);
     static rc_t			bulkld_md_index(
 	const stid_t& 		    stid, 
 	sort_stream_i&		    sorted_stream,
 	sm_du_stats_t&		    stats,
-	int2 			    hff=75,
-	int2 			    hef=120,
+	int2_t 			    hff=75,
+	int2_t 			    hef=120,
 	nbox_t*			    universe=NULL);
     static rc_t			print_md_index(stid_t stid);
     static rc_t			find_md_assoc(
@@ -655,44 +760,13 @@ public:
 	stid_t 			    stid, 
 	const nbox_t& 		    key,
 	const vec_t& 		    el);
-    static rc_t			draw_rtree(const stid_t& stid);
+    static rc_t			draw_rtree(const stid_t& stid, ostream &);
     static rc_t			rtree_stats(
 	const stid_t& 		    stid,
 	rtree_stats_t&		    stat,
-	uint2			    size = 0,
-	uint2*			    ovp = NULL,
+	uint2_t			    size = 0,
+	uint2_t*		    ovp = NULL,
 	bool			    audit = false);
-
-
-#ifdef USE_RDTREE
-    //
-    // Functions for set indexes (russion doll (RD) trees) 
-    // These are experimental and not supported.
-    //
-    static rc_t			create_set_index(
-	vid_t 			    vid, 
-	ndx_t 			    ntype, 
-	store_property_t	    property,
-	stid_t& 		    stid, 
-	int2 			    elemsz = 2,
-	const serial_t& 	    logical_id=serial_t::null);
-    static rc_t			destroy_set_index(const stid_t& iid);
-    static rc_t			print_set_index(stid_t stid);
-    static rc_t			find_set_assoc(
-	stid_t 			    stid, 
-	const rangeset_t& 	    key, 
- 	void* 			    el, 
-	smsize_t&		    elen, 
-	bool& 		    	    found);
-    static rc_t			create_set_assoc(
-	stid_t 			    stid, 
-	const rangeset_t& 	    key,
-	const vec_t& 		    el);
-    static rc_t			destroy_set_assoc(
-	stid_t 			    stid, 
-	const rangeset_t& 	    key,
-	const vec_t& 		    el);
-#endif /*USE_RDTREE*/
 
     
     //
@@ -702,7 +776,9 @@ public:
         vid_t 			    vid, 
 	stid_t& 		    fid,
 	store_property_t	    property,
-	const serial_t& 	    logical_id = serial_t::null); 
+	const serial_t& 	    logical_id = serial_t::null,
+	shpid_t			    cluster_hint = 0
+	); 
     static rc_t			destroy_file(const stid_t& fid); 
     static rc_t			create_rec(
 	const stid_t& 		    fid, 
@@ -727,6 +803,9 @@ public:
 	bool	 		    allow_forward);
     static rc_t			truncate_rec(const rid_t& rid, smsize_t amount);
 
+
+#ifdef OLDSORT_COMPATIBILITY
+    /* old sort physical version */
     static rc_t			sort_file(
 	const stid_t& 		    fid, 
 	vid_t 			    vid, 
@@ -734,9 +813,40 @@ public:
 	store_property_t	    property,
 	const key_info_t& 	    key_info, 
 	int 			    run_size,
+	bool 			    ascending = true,
+	bool 			    unique = false,
+	bool 			    destructive = false,
+	const serial_t&             logical_id=serial_t::null,
+	bool			    use_new_sort = true);
+
+    /* compatibility func for old sort physical -> new sort physical */
+    static rc_t			new_sort_file(
+	const stid_t& 		    fid, 
+	vid_t 			    vid, 
+	stid_t& 		    sfid, 
+	store_property_t	    property,
+	const key_info_t& 	    key_info, 
+	int 			    run_size,
+	bool 			    ascending = true,
 	bool 			    unique = false,
 	bool 			    destructive = false,
 	const serial_t&             logical_id=serial_t::null);
+#endif /* OLDSORT_COMPATIBILITY */
+
+    /* new sort physical version : see notes below */
+    static rc_t			sort_file(
+	const stid_t& 		    fid, 	// input file
+	const stid_t& 		    sorted_fid, // output file -- 
+	int			    nvids,	// array size for vids
+	const vid_t* 		    vid, 	// array of vids for temp
+						// files
+						// created by caller--
+						// can be same as input file
+	sort_keys_t&		    kl, // kl &
+        smsize_t		    min_rec_sz, // for estimating space use
+	int 			    run_size,   // # pages to use for a run
+	int 			    temp_space // # pages VM to use for scratch 
+				    );
 
 
     /*****************************************************************
@@ -769,7 +879,8 @@ public:
         concurrency_t		    cc, 
 	uint		    	    size_kb_hint,  // approx size in KB
 						   // use 0 if not sure
-	serial_t& 		    liid);
+	serial_t& 		    liid
+	);
 
     // for backward compatibility:
     static rc_t			create_index(
@@ -779,7 +890,8 @@ public:
 	const char* 		    key_desc,
 	uint		    	    size_kb_hint,  // approx size in KB
 						   // use 0 if not sure
-	serial_t& 		    liid);
+	serial_t& 		    liid
+	);
 
     static rc_t			destroy_index(
 	const lvid_t& 		    lvid, 
@@ -787,9 +899,22 @@ public:
     static rc_t			bulkld_index(
 	const lvid_t& 		    lvid, 
 	const serial_t& 	    liid,
+	int			    nsrcs,
+	const lvid_t* 		    s_lvid, 
+	const serial_t* 	    s_lfid,
+	sm_du_stats_t&		    stats,
+	bool			    sort_duplicates = true,
+	bool			    lexify_keys = true
+	);
+    static rc_t			bulkld_index(
+	const lvid_t& 		    lvid, 
+	const serial_t& 	    liid,
 	const lvid_t& 		    s_lvid, 
 	const serial_t& 	    s_lfid,
-	sm_du_stats_t&		    stats);
+	sm_du_stats_t&		    stats,
+	bool			    sort_duplicates = true,
+	bool			    lexify_keys = true
+	);
     static rc_t			bulkld_index(
 	const lvid_t& 		    lvid, 
 	const serial_t& 	    liid,
@@ -835,26 +960,37 @@ public:
 	ndx_t			    ntype,
 	store_property_t	    property,
 	serial_t& 		    lstid,
-	int2 			    dim=2);
+	int2_t 			    dim=2
+	);
     static rc_t			destroy_md_index(
 	const lvid_t& 		    lvid, 
 	const serial_t& 	    serial); 
     static rc_t			bulkld_md_index(
 	const lvid_t& 		    lvid, 
 	const serial_t& 	    serial,
+	int			    nsrcs,
+	const lvid_t* 		    s_lvid, 
+	const serial_t* 	    s_serial,
+	sm_du_stats_t&		    stats,
+	int2_t 			    hff=65,	       // for rtree only
+	int2_t 			    hef=120,	       // for rtree only
+	nbox_t* 		    universe=NULL);// for rtree only
+    static rc_t			bulkld_md_index(
+	const lvid_t& 		    lvid, 
+	const serial_t& 	    serial,
 	const lvid_t& 		    s_lvid, 
 	const serial_t& 	    s_serial,
 	sm_du_stats_t&		    stats,
-	int2 			    hff=65,	       // for rtree only
-	int2 			    hef=120,	       // for rtree only
+	int2_t 			    hff=65,	       // for rtree only
+	int2_t 			    hef=120,	       // for rtree only
 	nbox_t* 		    universe=NULL);// for rtree only
     static rc_t			bulkld_md_index(
 	const lvid_t& 		    lvid, 
 	const serial_t& 	    serial,
 	sort_stream_i&	    	    sorted_stream,
 	sm_du_stats_t&		    stats,
-	int2 			    hff=65,	       // for rtree only
-	int2 			    hef=120,	       // for rtree only
+	int2_t 			    hff=65,	       // for rtree only
+	int2_t 			    hef=120,	       // for rtree only
 	nbox_t* 		    universe=NULL);// for rtree only
     static rc_t			print_md_index(
 	const lvid_t& 		    lvid, 
@@ -878,59 +1014,26 @@ public:
 	bool&			    found);
     static rc_t			draw_rtree(
 	const lvid_t& 		    lvid, 
-	const serial_t& 	    serial);
+	const serial_t& 	    serial,
+	ostream			    &s);
 
     static rc_t			rtree_stats(
 	const lvid_t& 		    lvid, 
 	const serial_t& 	    serial,
 	rtree_stats_t&		    stat,
-	uint2			    size = 0,
-	uint2*			    ovp = NULL,
+	uint2_t			    size = 0,
+	uint2_t*		    ovp = NULL,
 	bool			    audit = false);
 
-#ifdef USE_RDTREE
-    //
-    // Functions for set indexes (russion doll (RD) trees) 
-    // These are experimental and not supported.
-    //
-    static rc_t			create_set_index(
-	const lvid_t& 		    lvid, 
-	ndx_t 			    ntype,
-	store_property_t	    property,
-	serial_t& 		    lstid,
-	int2 			    elemsz=2);
-    static rc_t			destroy_set_index(
-	const lvid_t& 		    lvid, 
-	const serial_t& 	    serial); 
-    static rc_t			print_set_index(
-	const lvid_t& 		    lvid, 
-	const serial_t& 	    serial);
-    static rc_t			create_set_assoc(
-	const lvid_t& 		    lvid, 
-	const serial_t& 	    serial,
- 	const rangeset_t& 	    key, 
-	const vec_t& 		    el);
-    static rc_t			destroy_set_assoc(
-	const lvid_t& 		    lvid, 
-	const serial_t& 	    serial,
-	const vec_t& 		    key, 
-	const vec_t& 		    el);
-    static rc_t			find_set_assoc(
-	const lvid_t& 		    lvid, 
-	const serial_t& 	    serial,
-	const rangeset_t& 	    key, 
-	void* 			    el, 
-	smsize_t& 		    elen,
- 	bool& 		    	    found);
-#endif /* USE_RDTREE */
- 
     //
     // Functions for files of records.
     //
     static rc_t			create_file(
 	const lvid_t& 		    lvid, 
 	serial_t& 		    lfid,
-	store_property_t	    property);
+	store_property_t	    property,
+	shpid_t			    cluster_hint = 0
+	);
     // For Markos' tests:
     // create a file with a given serial no, and starting at a
     // given extent.
@@ -1018,6 +1121,9 @@ public:
 	smsize_t 		    amount);
 
 
+#ifdef OLDSORT_COMPATIBILITY
+
+    /* old sort logical version */
     static rc_t			sort_file(
 	const lvid_t& 		    lvid, 
 	const serial_t& 	    serial,
@@ -1026,8 +1132,58 @@ public:
 	store_property_t	    property,
 	const key_info_t& 	    key_info, 
 	int 			    run_size,
+	bool 			    ascending = true,
 	bool 			    unique = false,
-	bool			    destructive = false);
+	bool			    destructive = false,
+	bool			    use_new_sort = true);
+#endif /* OLDSORT_COMPATIBILITY */
+
+    /* new sort -- logical version. See notes below. */
+    static rc_t			sort_file(
+	const lvid_t& 		    ilvid, // input file logical id
+	const serial_t& 	    iserial, // input file serial#
+	const lvid_t& 		    olvid, // output file -- 
+	const serial_t& 	    oserial, // output file serial#
+	int			    nvids,	// array size for vids
+	const lvid_t* 		    vid, 	// array of lvids for temp
+						// files
+						// created by caller--
+						// can be same as input file
+	sort_keys_t&		    kl, 
+        smsize_t		    min_rec_sz, // for estimating space use
+	int 			    run_size,   // # pages to use for a run
+	int 			    temp_space, // # pages VM to use for scratch 
+	bool 			    remap_lids = true
+				    );
+	/* NOTES:  The following combinations make sense: 
+	 *   keep_orig true
+	 *	must do deep copy 
+	 *	remap can go either way - in any case, the server must
+	 * 	allocate a new set of LIDs and map them to the old or new
+	 *	file.  If the output is for an index, this combination
+	 * 	makes sense.  The index output does NOT contain LIDs - only
+	 * 	physical IDs.
+	 *
+	 *   keep_orig false
+	 *	remap must be true
+	 *	deep copy can be true or false
+	 */
+
+#ifdef OLDSORT_COMPATIBILITY
+    /* compatibility func for old sort logical -> new sort logical */
+    static rc_t			new_sort_file(
+	const lvid_t& 	    	    ilvid, 
+	const serial_t& 	    iserial, 
+	const lvid_t&	    	    olvid, 
+	serial_t& 		    oserial, 
+	store_property_t	    property,
+	const key_info_t& 	    ki, 
+	int 		    	    run_size,
+	bool 			    ascending = true,
+	bool 		    	    unique = false,
+	bool 		    	    destructive = false
+    ); 
+#endif /* OLDSORT_COMPATIBILITY */
 
     /*****************************************************************
      * Additional functions on logical IDs
@@ -1090,20 +1246,20 @@ public:
 	const lockid_t& 	    n, 
 	lock_mode_t 		    m,
 	lock_duration_t 	    d = t_long,
-	long 			    timeout = WAIT_SPECIFIED_BY_XCT);
+	timeout_in_ms		    timeout = WAIT_SPECIFIED_BY_XCT);
     
     static rc_t			lock(
 	const lvid_t& 		    lvid, 
 	const serial_t& 	    serial,
 	lock_mode_t 		    m, 
 	lock_duration_t 	    d = t_long,
-	long 			    timeout = WAIT_SPECIFIED_BY_XCT);
+	timeout_in_ms		    timeout = WAIT_SPECIFIED_BY_XCT);
 
     static rc_t			lock(
 	const lvid_t& 		    lvid, 
 	lock_mode_t 		    m, 
 	lock_duration_t 	    d = t_long,
-	long 			    timeout = WAIT_SPECIFIED_BY_XCT);
+	timeout_in_ms		    timeout = WAIT_SPECIFIED_BY_XCT);
     
     static rc_t			unlock(const lockid_t& n);
     static rc_t			unlock(
@@ -1121,13 +1277,13 @@ public:
 	const lvid_t&		    lvid,
 	bool			    passOnToDescendants = true);
     static rc_t			get_escalation_thresholds(
-	int4&			    toPage,
-	int4&			    toStore,
-	int4&			    toVolume);
+	int4_t&			    toPage,
+	int4_t&			    toStore,
+	int4_t&			    toVolume);
     static rc_t			set_escalation_thresholds(
-	int4			    toPage,
-	int4			    toStore,
-	int4			    toVolume);
+	int4_t			    toPage,
+	int4_t			    toStore,
+	int4_t			    toVolume);
 
     static rc_t			query_lock(
 	const lockid_t& 	    n, 
@@ -1158,6 +1314,7 @@ private:
 
     static int _instance_cnt;
     static option_group_t* _options;
+    static option_t* _processor_set;
     static option_t* _reformat_log;
     static option_t* _prefetch;
     static option_t* _bfm_strategy;
@@ -1168,7 +1325,6 @@ private:
     static option_t* _logsize;
     static option_t* _logbufsize;
     static option_t* _diskrw;
-    static option_t* _multiserver;
     static option_t* _error_log;
     static option_t* _error_loglevel;
     static option_t* _script_log;
@@ -1179,6 +1335,7 @@ private:
     static option_t* _lockEscalateToVolumeThreshold;
     static option_t* _dcommit_timeout;
     static option_t* _cc_alg_option;
+    static option_t* _log_warn_percent;
 
     // root index key for finding logical ID of the root index.
     // used to implement vol_root_index(lvid_t, serial_t&)
@@ -1217,9 +1374,18 @@ private:
 	stid_t			    stid,
 	store_property_t&	    property);
 
-    static rc_t 		_begin_xct(tid_t& tid, long timeout);
-    static rc_t			_commit_xct(bool lazy);
-    static rc_t			_prepare_xct(vote_t &v);
+    static rc_t 		_begin_xct(
+	sm_stats_info_t* 	    stats,  // allocated by caller
+	tid_t& 			    tid, 
+	timeout_in_ms		    timeout);
+
+    static rc_t			_commit_xct(
+	sm_stats_info_t*& 	    stats,
+	bool 		  	    lazy);
+
+    static rc_t			_prepare_xct(
+	sm_stats_info_t*& 	    stats,
+	vote_t& 		    v);
     static rc_t 		_set_coordinator(const server_handle_t &); 
     static rc_t			_enter_2pc(const gtid_t &); 
     static rc_t			_force_vote_readonly(); 
@@ -1227,8 +1393,11 @@ private:
 					bool	mayblock,
 					tid_t	&	//out -- attached if found(?)
 					);
-    static rc_t			_chain_xct(bool lazy);
-    static rc_t			_abort_xct();
+    static rc_t			_chain_xct(
+	sm_stats_info_t*&  		stats,
+	bool 				lazy);
+    static rc_t			_abort_xct(
+	sm_stats_info_t*&  		stats);
     static rc_t			_save_work(sm_save_point_t& sp);
     static rc_t			_rollback_work(
 	const sm_save_point_t&	    sp);
@@ -1252,16 +1421,21 @@ private:
         concurrency_t		    cc,
 	bool			    use_1page_store,
 	stpgid_t& 		    stpgid,
-	const serial_t& 	    logical_id=serial_t::null);
+	const serial_t& 	    logical_id=serial_t::null
+	);
     static rc_t			_destroy_index(const stpgid_t& iid); 
     static rc_t			_get_store_info( 
 	const stpgid_t&		    stpgid, 
 	sm_store_info_t&	    info);
 
-    static rc_t			_bulkld_index(
-	const stid_t& 		    stid, 
-	const stid_t& 		    source, 
-	sm_du_stats_t&		    stats);
+    static rc_t 		_bulkld_index(
+				    const stid_t& 	stid,
+				    int			nsrcs,
+				    const stid_t*	source,
+				    sm_du_stats_t& 	stats,
+				    bool		 sort_duplicates = true,
+				    bool		 lexify_keys = true
+				    );
     static rc_t			_bulkld_index(
 	const stid_t& 		    stid, 
 	sort_stream_i&		    sorted_stream,
@@ -1301,8 +1475,9 @@ private:
 	ndx_t 			    ntype, 
 	store_property_t	    property,
 	stid_t& 		    stid, 
-	int2 			    dim=2,
-	const serial_t& logical_id=serial_t::null);
+	int2_t 			    dim=2,
+	const serial_t& 	    logical_id=serial_t::null
+	);
     static rc_t			_destroy_md_index(const stid_t& iid);
     static rc_t			_destroy_md_assoc(
 	stid_t			    stid,
@@ -1310,17 +1485,18 @@ private:
 	const vec_t&		    el);
     static rc_t			_bulkld_md_index(
 	const stid_t& 		    stid, 
-	const stid_t& 		    source, 
+	int			    nsrcs,
+	const stid_t* 		    source, 
 	sm_du_stats_t&               stats,
-	int2 			    hff,	       // for rtree only
-	int2 			    hef,	       // for rtree only
+	int2_t 			    hff,	       // for rtree only
+	int2_t 			    hef,	       // for rtree only
 	nbox_t* 		    universe);// for rtree only
     static rc_t			_bulkld_md_index(
 	const stid_t& 		    stid, 
 	sort_stream_i&		    sorted_stream,
 	sm_du_stats_t&               stats,
-	int2 			    hff,	       // for rtree only
-	int2 			    hef,	       // for rtree only
+	int2_t 			    hff,	       // for rtree only
+	int2_t 			    hef,	       // for rtree only
 	nbox_t* 		    universe);// for rtree only
     static rc_t			_print_md_index(stid_t stid);
     static rc_t			_create_md_assoc(
@@ -1333,27 +1509,6 @@ private:
 	void* 			    el, 
 	smsize_t& 		    elen, 
 	bool&			    found);
-#ifdef USE_RDTREE
-    static rc_t			_create_set_index(
-	vid_t 			    vid, 
-	ndx_t 			    ntype, 
-	store_property_t	    property,
-	stid_t& 		    stid, 
-	int2 			    elemsz=2,
-	const serial_t&		    logical_id=serial_t::null);
-    static rc_t			_destroy_set_index(const stid_t& iid);
-    static rc_t			_print_set_index(stid_t stid);
-    static rc_t			_create_set_assoc(
-	stid_t 			    stid, 
-	const rangeset_t&	    key,
-	const vec_t& 		    el);
-    static rc_t			_find_set_assoc(
-	stid_t 			    stid, 
-	const rangeset_t&	    key, 
-	void* 			    el, 
-	smsize_t&		    elen, 
-	bool& 		    	    found);
-#endif /* USE_RDTREE */
 
     //
     // The following functions deal with files of records.
@@ -1365,7 +1520,9 @@ private:
 	vid_t 			    vid, 
 	stid_t& 		    fid,
 	store_property_t	    property,
-	const serial_t&		    logical_id); 
+	const serial_t&		    logical_id,
+	shpid_t			    cluster_hint = 0
+	); 
 
     // For Markos' tests:
     // create a file with a given serial no, and starting at a given extent.
@@ -1394,7 +1551,7 @@ private:
 	const vec_t& 		    data, 
 	rid_t& 			    new_rid,
 	const serial_t& 	    serial,
-	bool			    forward_alloc = false); 
+	bool			    forward_alloc = true); 
     static rc_t			_destroy_rec(
 	const rid_t& 		    rid, 
 	const serial_t&		    verify);
@@ -1425,14 +1582,16 @@ private:
 	const vec_t& 		    data,
 	rid_t& 			    new_rid);
 
-    static rc_t			_draw_rtree(const stid_t& stid);
+    static rc_t			_draw_rtree(const stid_t& stid, ostream &);
     static rc_t			_rtree_stats(
 	const stid_t&		    stid,
 	rtree_stats_t&		    stat,
-	uint2			    size,
-	uint2*			    ovp,
+	uint2_t			    size,
+	uint2_t*		    ovp,
 	bool			    audit);
 
+#ifdef OLDSORT_COMPATIBILITY
+    /* old sort internal, physical */
     static rc_t			_sort_file(
 	const stid_t& 		    fid, 
 	vid_t 			    vid, 
@@ -1440,10 +1599,47 @@ private:
 	store_property_t	    property,
 	const key_info_t& 	    key_info, 
 	int 			    run_size,
+	bool 			    ascending,
 	bool 			    unique,
 	bool			    destructive,
 	const serial_t& 	    logical_id,
-	const lvid_t&		    logical_vid);
+	const lvid_t&		    logical_vid
+	);
+#endif /* OLDSORT_COMPATIBILITY */
+
+    /* new sort internal, physical */
+    static rc_t			_sort_file(
+	const stid_t& 		    fid, 	// input file
+	const lvid_t& 		    ilvid, // input file logical id
+	const stid_t& 		    sorted_fid, // output file -- 
+						// created by caller--
+						// can be same as input file
+	int			    nvids,	// array size for vids
+	const vid_t* 		    vid, 	// array of vids for temp
+	sort_keys_t&		    kl, 	// key location info &
+        smsize_t		    min_rec_sz, // for estimating space use
+	int 			    run_size,   // # pages to use for a run
+	int 			    temp_space, //# pages VM to use for scratch 
+	bool			    remap_lids 
+				    );
+
+#ifdef OLDSORT_COMPATIBILITY
+    /* internal compatibility old sort-> new sort */
+    static rc_t			_new_sort_file(
+		    const stid_t& 	    in_fid, 
+		    const lvid_t& 	    in_lvid, 
+		    const serial_t& 	    in_serial, 
+		    const stid_t& 	    out_fid, 
+		    const lvid_t& 	    out_lvid, 
+		    const serial_t& 	    out_serial, 
+		    const key_info_t& 	    ki, 
+		    int 		    run_size,
+		    bool 		    remap_lids,
+		    bool 		    ascending, 
+		    bool 		    unique, 
+		    bool 		    keep_orig //!destructive
+		    ); 
+#endif /* OLDSORT_COMPATIBILITY */
 
     static rc_t			_create_rec_id(
 	const lvid_t& 		    lvid, 
@@ -1481,6 +1677,16 @@ private:
 	sm_du_stats_t&		    du,
 	bool			    audit);
 
+    static rc_t			_get_volume_meta_stats(
+	vid_t			    vid,
+	SmVolumeMetaStats&	    volume_stats,
+	concurrency_t		    cc);
+    static rc_t			_get_file_meta_stats(
+	vid_t			    vid,
+	uint4_t			    num_files,
+	SmFileMetaStats*	    file_stats,
+	bool			    batch_calculate,
+	concurrency_t		    cc);
 };
 
 class sm_store_info_t {
@@ -1502,7 +1708,7 @@ public:
     snum_t	large_store;	// store for large record pages of t_file
     shpid_t	root;		// root page (of index)
     serial_t	logical_id;     // zero if no logical ID
-    uint4	nkc;		// # components in key
+    uint4_t	nkc;		// # components in key
 
     int		keydescrlen;	// size of array below
     char        *keydescr;	// variable length string:
@@ -1535,5 +1741,6 @@ ostream& operator<<(ostream& o, const sm_config_info_t& s);
 #include <sm_escalation.h>
 #endif
 
-#endif /* SM_H */
+/*<std-footer incl-file-exclusion='SM_H'>  -- do not edit anything below this line -- */
 
+#endif          /*</std-footer>*/

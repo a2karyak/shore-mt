@@ -1,13 +1,36 @@
-/* --------------------------------------------------------------- */
-/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
-/* -- University of Wisconsin-Madison, subject to the terms     -- */
-/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
-/* -- Reserved.                                                 -- */
-/* --------------------------------------------------------------- */
+/*<std-header orig-src='shore'>
 
-/*
- * $Id: pin.cc,v 1.122 1997/06/15 03:13:10 solomon Exp $
- */
+ $Id: pin.cpp,v 1.136 1999/06/07 19:04:20 kupsch Exp $
+
+SHORE -- Scalable Heterogeneous Object REpository
+
+Copyright (c) 1994-99 Computer Sciences Department, University of
+                      Wisconsin -- Madison
+All Rights Reserved.
+
+Permission to use, copy, modify and distribute this software and its
+documentation is hereby granted, provided that both the copyright
+notice and this permission notice appear in all copies of the
+software, derivative works or modified versions, and any portions
+thereof, and that both notices appear in supporting documentation.
+
+THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+"AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+This software was developed with support by the Advanced Research
+Project Agency, ARPA order number 018 (formerly 8230), monitored by
+the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+Further funding for this work was provided by DARPA through
+Rome Research Laboratory Contract No. F30602-97-2-0247.
+
+*/
+
+#include "w_defines.h"
+
+/*  -- do not edit anything above this line --   </std-header>*/
+
 #define SM_SOURCE
 #define PIN_C
 
@@ -20,19 +43,9 @@
 #include <lgrec.h>
 #include <sm.h>
 
-#ifdef CHEAP_RC
-
-/* delegate not used for DO_GOTO; have to delete the _err */
-#define RETURN_RC( _err) \
-    { 	w_rc_t rc = rc_t(_err); if(_err) delete _err; return  rc; }
-
-#else
-
 /* delegate is used in debug case */
 #define RETURN_RC( _err) \
-    { 	w_rc_t rc = rc_t(_err); return  rc; }
-
-#endif
+	do { w_rc_t rc = rc_t(_err); return  rc; } while(0)
 
 
 pin_i::~pin_i()
@@ -49,13 +62,13 @@ pin_i::~pin_i()
 inline void
 pin_i::_set_lsn()
 {
-#ifdef DEBUG
+#ifdef W_DEBUG
     // NB: in the case of multi-threaded xcts, this
     // lsn might not be *the* lsn that changed the page -- it
     // could be later
     xct()->flush_logbuf();
     _hdr_lsn = _hdr_page().lsn();
-#endif /*DEBUG*/
+#endif /*W_DEBUG*/
 }
 
 rc_t pin_i::pin(const rid_t rid, smsize_t start, lock_mode_t lmode)
@@ -95,8 +108,43 @@ void pin_i::unpin()
 	_flags = pin_empty;
 	_rec = NULL;
 
-	incr_static_unpin_count();
+	INC_TSTAT(rec_unpin_cnt);
+
     }
+}
+
+bool 
+pin_i::is_mine() const
+{
+    bool	mine = false;
+    bool	d_others = false;
+    bool	h_others = false;
+
+    if(_data_page().is_fixed()) {
+	if(_data_page().pinned_by_me()) mine = true; 
+	else 				d_others = true;
+    } 
+
+    if( _hdr_page().is_fixed())  {
+	if( _hdr_page().pinned_by_me()) {
+	    if(d_others) {
+		// Had better not have data page owned by other thread
+		// while header page owned by me
+		W_FATAL(eINTERNAL);
+	    }
+	    mine = true;
+	} else {
+	    h_others = true;
+	}
+    }
+    if(h_others && mine) {
+	// Had better not have data page owned by me
+	// and header page owned by others
+	W_FATAL(eINTERNAL);
+    }
+
+    // returns false if not fixed at all
+    return mine;
 }
 
 void pin_i::set_ref_bit(int value)
@@ -195,6 +243,7 @@ pin_i::pin_cond(const lvid_t& lvid, const serial_t& lrid, smsize_t start,
     rid.pid = pid;
     rid.slot = temp.serial_slot(lrid);
     if (rid.slot == 0) {
+	DBG(<<"pin_cond: " );
 	return RC(eBADLOGICALID);
     }
 
@@ -246,7 +295,7 @@ rc_t pin_i::update_rec(smsize_t start, const vec_t& data,
 	    _check_lsn();
 	}
 	W_DO_GOTO(err, _repin(EX, old_value));
-	w_assert3(_hdr_page().latch_mode() == LATCH_EX && _lmode == EX)
+	w_assert3(_hdr_page().latch_mode() == LATCH_EX && _lmode == EX);
 
 	//
 	// Avoid calling ss_m::_update_rec by just
@@ -377,7 +426,7 @@ rc_t pin_i::append_rec(const vec_t& data)
 
     if (rec_moved) {
 	// must restore the physical rid
-#ifdef DEBUG
+#ifdef W_DEBUG
 	{
 	    rid_t  temp_rid;  
 	    // check our work
@@ -385,7 +434,7 @@ rc_t pin_i::append_rec(const vec_t& data)
 	    W_COERCE(lid->lookup(id, temp_rid));
 	    w_assert3(temp_rid.pid == rid.pid && temp_rid.slot == rid.slot);
 	}
-#endif
+#endif /* W_DEBUG */
 
 	W_DO_GOTO(err, _pin(rid, _start,
 			    NL, /* no lock needed since already locked
@@ -457,7 +506,7 @@ rc_t pin_i::truncate_rec(smsize_t amount)
 
     if (rec_moved) {
 	// must restore the physical rid
-#ifdef DEBUG
+#ifdef W_DEBUG
 	{
 	    rid_t  temp_rid;  
 	    // check our work
@@ -465,7 +514,7 @@ rc_t pin_i::truncate_rec(smsize_t amount)
 	    W_COERCE(lid->lookup(id, temp_rid));
 	    w_assert3(temp_rid.pid == rid.pid && temp_rid.slot == rid.slot);
 	}
-#endif
+#endif /* W_DEBUG */
 	W_DO_GOTO(err, _pin(rid, _start, 
 			    NL, /* no lock needed since already
 			           locked by _append_rec*/
@@ -540,8 +589,9 @@ rc_t pin_i::_pin_data()
 
 void pin_i::_init_constructor()
 {
-    w_assert3(sizeof(_hdr_page_alias) == sizeof(file_p));
-    w_assert3(sizeof(_data_page_alias) == sizeof(lgdata_p));
+    //  just make sure _page_alias is big enough
+    w_assert3(sizeof(_hdr_page_alias) >= sizeof(file_p));
+    w_assert3(sizeof(_data_page_alias) >= sizeof(lgdata_p));
 
     _flags = pin_empty;
     _rec = NULL;
@@ -555,7 +605,8 @@ const char* pin_i::_body_large()
 {
     _check_lsn();
     if (!(_flags & pin_lg_data_pinned)) {
-	if (_pin_data()) return NULL;
+		w_rc_t rc = _pin_data();
+	if (rc) return NULL;
     }
     return (char*) _data_page().tuple_addr(0);
 }
@@ -566,9 +617,9 @@ rc_t pin_i::_pin(const rid_t rid, smsize_t start, lock_mode_t lmode, const seria
     bool pin_page = false;	// true indicates page needs pinning
 
     w_assert3(lmode == SH || lmode == EX || lmode == UD ||
-	    lmode == NL /*for scan.c*/ );
+	    lmode == NL /*for scan.cpp*/ );
 
-    DBG(<<"enter _pin");
+    DBGTHRD(<<"enter _pin");
     if (pinned()) {
 	DBG(<<"pinned");
 	if (_flags & pin_lg_data_pinned) {
@@ -588,14 +639,15 @@ rc_t pin_i::_pin(const rid_t rid, smsize_t start, lock_mode_t lmode, const seria
 	if (rid.pid != _rid.pid || lmode != NL) {
 	    _hdr_page().unfix();  
 	    pin_page = true;
-	    incr_static_unpin_count();
+	    INC_TSTAT(rec_unpin_cnt);
+
 	}
     } else {
 	DBG(<<"not pinned");
 	pin_page = true;
     }
 
-    // aquire lock only lock is requested
+    // aquire lock only if lock is requested
     if (lmode != NL) {
 	DBG(<<"acquiring lock");
 	W_DO_GOTO(err, lm->lock(rid, lmode, t_long, WAIT_SPECIFIED_BY_XCT));
@@ -608,8 +660,10 @@ rc_t pin_i::_pin(const rid_t rid, smsize_t start, lock_mode_t lmode, const seria
     w_assert3(_lmode > NL); 
 
     if (pin_page) {
+	DBGTHRD(<<"pin");
 	W_DO_GOTO(err, fi->locate_page(rid, _hdr_page(), lock_to_latch(_lmode)));
-	incr_static_pin_count();
+	INC_TSTAT(rec_pin_cnt);
+
     }
 
     W_DO_GOTO(err, _hdr_page().get_rec(rid.slot, _rec));
@@ -623,6 +677,7 @@ rc_t pin_i::_pin(const rid_t rid, smsize_t start, lock_mode_t lmode, const seria
     // verify, then make sure there is a match
     if (verify != serial_t::null && _rec->tag.serial_no != verify) {
 	unpin();
+	DBG(<<"_pin: " );
 	err = RC(eBADLOGICALID).delegate();
 	goto failure;
     }
@@ -651,7 +706,8 @@ rc_t pin_i::_pin(const rid_t rid, smsize_t start, lock_mode_t lmode, const seria
 failure:
     if (pin_page) {
 	_hdr_page().unfix();  
-	incr_static_unpin_count();
+	INC_TSTAT(rec_unpin_cnt);
+
     }
     _flags = pin_empty;
     RETURN_RC(err);
@@ -663,7 +719,7 @@ rc_t pin_i::_repin(lock_mode_t lmode, int* /*old_value*/)
 
     w_assert3(lmode == SH || lmode == UD || lmode == EX);
     // acquire lock if current one is not strong enough
-    // TODO: this should probably use the lock supremam table
+    // TODO: this should probably use the lock supremum table
 
     if (_lmode < lmode) {
 	DBG(<<"acquiring lock");
@@ -698,6 +754,7 @@ rc_t pin_i::_repin(lock_mode_t lmode, int* /*old_value*/)
 	    W_DO_GOTO(err, _hdr_page().upgrade_latch_if_not_block(would_block));
 	    if (would_block) {
 		unpin();
+		// NB: CONVERT latch-lock to lock-lock
 		// Acquire the page lock so we convert this possible 
 		// latch-lock deadlock to lock-lock deadlock.
 		// Only wait on the page lock if we can't get it. We
@@ -706,10 +763,12 @@ rc_t pin_i::_repin(lock_mode_t lmode, int* /*old_value*/)
 		rc_t rc = lm->lock(_rid.pid, lmode, t_instant, WAIT_IMMEDIATE);
 		if (rc.err_num() == eMAYBLOCK || rc.err_num() == eLOCKTIMEOUT) {
 		    // get it long-term
+		    INC_TSTAT(rec_repin_cvt);
 		    W_DO_GOTO(err, 
 			lm->lock(_rid.pid, lmode, t_long, WAIT_SPECIFIED_BY_XCT));
 		}
 		// we are willing to wait on the page latch
+		/* NB:  race condition here for preemptive threads */
 
 	    } else {
 		w_assert3(_hdr_page().latch_mode() == lock_to_latch(_lmode));
@@ -718,14 +777,15 @@ rc_t pin_i::_repin(lock_mode_t lmode, int* /*old_value*/)
     }
 
     if (pinned()) {
-#ifdef DEBUG
+#ifdef W_DEBUG
 	// make sure record is where it's supposed to be
 	record_t* tmp;
 	W_DO_GOTO(err, _hdr_page().get_rec(_rid.slot, tmp) );
 	w_assert3(tmp == _rec);
-#endif
+#endif /* W_DEBUG */
     } else {
 	// find the page we need and latch it
+	DBGTHRD(<<"repin");
 	W_DO_GOTO(err, fi->locate_page(_rid, _hdr_page(), lock_to_latch(_lmode)));
 	W_DO_GOTO(err, _hdr_page().get_rec(_rid.slot, _rec) );
 	w_assert3(_rec);
@@ -748,7 +808,7 @@ rc_t pin_i::_repin(lock_mode_t lmode, int* /*old_value*/)
 		       _rec->body_size()-_start);
 	    _flags |= pin_separate_data;
 	}
-	incr_static_pin_count();
+	INC_TSTAT(rec_pin_cnt);
     }
 
 /* success: */
@@ -805,9 +865,10 @@ const char* pin_i::body_cond()
     return (char*) body_tmp;
 }
 
-#ifdef DEBUG
+#ifdef W_DEBUG
 void pin_i::_set_lsn_for_scan()
 {
     _hdr_lsn = _hdr_page().lsn();
 }
-#endif /*DEBUG*/
+#endif /*W_DEBUG*/
+

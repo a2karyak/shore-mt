@@ -1,18 +1,41 @@
-/* --------------------------------------------------------------- */
-/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
-/* -- University of Wisconsin-Madison, subject to the terms     -- */
-/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
-/* -- Reserved.                                                 -- */
-/* --------------------------------------------------------------- */
+/*<std-header orig-src='shore' incl-file-exclusion='HASH_LRU_H'>
 
-/*
- *  $Id: hash_lru.h,v 1.23 1997/06/16 21:35:47 solomon Exp $
- */
+ $Id: hash_lru.h,v 1.35 1999/06/07 19:02:24 kupsch Exp $
+
+SHORE -- Scalable Heterogeneous Object REpository
+
+Copyright (c) 1994-99 Computer Sciences Department, University of
+                      Wisconsin -- Madison
+All Rights Reserved.
+
+Permission to use, copy, modify and distribute this software and its
+documentation is hereby granted, provided that both the copyright
+notice and this permission notice appear in all copies of the
+software, derivative works or modified versions, and any portions
+thereof, and that both notices appear in supporting documentation.
+
+THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+"AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+This software was developed with support by the Advanced Research
+Project Agency, ARPA order number 018 (formerly 8230), monitored by
+the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+Further funding for this work was provided by DARPA through
+Rome Research Laboratory Contract No. F30602-97-2-0247.
+
+*/
+
 #ifndef HASH_LRU_H
 #define HASH_LRU_H
 
-#ifndef W_H
-#include <w.h>
+#include "w_defines.h"
+
+/*  -- do not edit anything above this line --   </std-header>*/
+
+#ifndef W_BASE_H
+#include <w_base.h>
 #endif
 #ifndef STHREAD_H
 #include <sthread.h>
@@ -40,7 +63,7 @@ Possible Uses:
 Requirements:
     Class T can be of any type
     an == operator must be defined to compare K
-    a uint4 hash(const K&) function must be defined
+    a uint4_t hash(const K&) function must be defined
 
 Implementation issues:
     A table entry, hash_lru_entry_t, contains the key, K, and the
@@ -77,7 +100,7 @@ template <class TYPE, class KEY>
 class hash_lru_t : public w_base_t {
     friend class hash_lru_i<TYPE, KEY>;
 public:
-    hash_lru_t(int n, char *descriptor=0);
+    hash_lru_t(int n, const char *descriptor=0);
     ~hash_lru_t();
 
     // grab entry and keep mutex on table if found
@@ -93,9 +116,10 @@ public:
     void remove(const TYPE*& t);
 
     // acquire the table mutex
-    void acquire_mutex(long timeout = WAIT_FOREVER) {_mutex.acquire(timeout);}
+    void acquire_mutex(sthread_t::timeout_in_ms timeout = WAIT_FOREVER) {_mutex.acquire(timeout);}
     // release mutex obtained by grab, find, remove or acquire_mutex
     void release_mutex() {_mutex.release();}
+    bool is_mine() const {return _mutex.is_mine();}
    
     void dump();
     int size() {return _total;}  // size of the hash table
@@ -114,7 +138,7 @@ private:
 
     // disabled
     hash_lru_t(const hash_lru_t&);
-    operator=(const hash_lru_t&);
+    hash_lru_t &operator=(const hash_lru_t&);
 };
 
 template <class TYPE, class KEY>
@@ -136,12 +160,15 @@ private:
 
     // disabled
     hash_lru_i(const hash_lru_i&);
-    operator=(const hash_lru_i&);
+    hash_lru_i& operator=(const hash_lru_i&);
 };
 
-#ifdef __GNUC__
+#if defined(__GNUC__) || defined(_MSC_VER)
 #if defined(IMPLEMENTATION_HASH_LRU_H) || !defined(EXTERNAL_TEMPLATES)
-#include "hash_lru.cc"
+#include "hash_lru.cpp"
 #endif
 #endif
-#endif /*HASH_LRU_H*/
+
+/*<std-footer incl-file-exclusion='HASH_LRU_H'>  -- do not edit anything below this line -- */
+
+#endif          /*</std-footer>*/

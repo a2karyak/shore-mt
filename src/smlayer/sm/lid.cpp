@@ -1,13 +1,36 @@
-/* --------------------------------------------------------------- */
-/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
-/* -- University of Wisconsin-Madison, subject to the terms     -- */
-/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
-/* -- Reserved.                                                 -- */
-/* --------------------------------------------------------------- */
+/*<std-header orig-src='shore'>
 
-/*
- *  $Id: lid.cc,v 1.134 1997/06/15 03:13:05 solomon Exp $
- */
+ $Id: lid.cpp,v 1.147 1999/06/07 19:04:08 kupsch Exp $
+
+SHORE -- Scalable Heterogeneous Object REpository
+
+Copyright (c) 1994-99 Computer Sciences Department, University of
+                      Wisconsin -- Madison
+All Rights Reserved.
+
+Permission to use, copy, modify and distribute this software and its
+documentation is hereby granted, provided that both the copyright
+notice and this permission notice appear in all copies of the
+software, derivative works or modified versions, and any portions
+thereof, and that both notices appear in supporting documentation.
+
+THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+"AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+This software was developed with support by the Advanced Research
+Project Agency, ARPA order number 018 (formerly 8230), monitored by
+the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+Further funding for this work was provided by DARPA through
+Rome Research Laboratory Contract No. F30602-97-2-0247.
+
+*/
+
+#include "w_defines.h"
+
+/*  -- do not edit anything above this line --   </std-header>*/
+
 #define SM_SOURCE
 #define LID_C
 
@@ -20,17 +43,6 @@
 #include <btcursor.h>
 #include "auto_release.h"
 
-/*
- * SGI machines differentiate between SysV and BSD
- * get time of day sys calls. Make sure it uses the
- * BSD sys calls by defining _BSD_TIME. Check /usr/include/sys/time.h
- */
-
-#if defined(Irix)
-#define _BSD_TIME
-#endif
-
-#include <sys/time.h>
 #ifdef SOLARIS2
 #include <sys/utsname.h>
 #include <netdb.h>	/* XXX really should be included for all */
@@ -38,13 +50,9 @@
 #include <hostname.h>
 #endif
 
-#if defined(__GNUG__) && !defined(SOLARIS2) && !defined(Irix) && !defined(AIX41) 
-extern "C" {
-    int gettimeofday(timeval*, struct timezone*);
-} 
-#endif
 
-#ifdef __GNUC__
+
+#ifdef EXPLICIT_TEMPLATE
 template class hash_lru_i<lid_m::lid_cache_entry_t, lid_t>;
 template class hash_lru_t<lid_m::lid_cache_entry_t, lid_t>;
 template class hash_lru_entry_t<lid_m::lid_cache_entry_t, lid_t>;
@@ -60,27 +68,27 @@ template class w_list_i<hash_lru_entry_t<lid_m::lid_cache_entry_t, lid_t> >;
 template class w_hash_t<hash_lru_entry_t<lid_m::lid_cache_entry_t, lid_t>, lid_t>;
 #endif
 
-char* lid_m::local_index_key = "SSM_RESERVED_local_logical_id_index"; 
-char* lid_m::remote_index_key = "SSM_RESERVED_remote_logical_id_index"; 
+const char* lid_m::local_index_key = "SSM_RESERVED_local_logical_id_index"; 
+const char* lid_m::remote_index_key = "SSM_RESERVED_remote_logical_id_index"; 
 
 /*
  * Build some key-type descriptors to describe
  * the keys for these two lid indexes: 
  * 	(local serial #) -> (phys id / remote lid / ...)
  * 	(remote lrid)	 -> (local serial)
- * The key_type_s understands uint4 but has nothing
+ * The key_type_s understands uint4_t but has nothing
  * for larger ints (e.g., 8) so in the case of 64-bit
- * serial #s we describe the key as two uint4s.
+ * serial #s we describe the key as two uint4_t.
  * 
  * For the reverse map, the key type is 
- * 	uint4,uint4 (volume id) + 1 or 2 uint4s for the serial#
+ * 	uint4_t,uint4_t (volume id) + 1 or 2 uint4_t for the serial#
  */
 #ifdef BITS64
-    static const uint4 lid_key_type_len = 2;
-    static const uint4 remote_lid_key_type_len = 4;
+    static const uint4_t lid_key_type_len = 2;
+    static const uint4_t remote_lid_key_type_len = 4;
 #else
-    static const uint4 lid_key_type_len = 1;
-    static const uint4 remote_lid_key_type_len = 3;
+    static const uint4_t lid_key_type_len = 1;
+    static const uint4_t remote_lid_key_type_len = 3;
 #endif /* BITS64 */
 static key_type_s lid_key_type[lid_key_type_len];
 static key_type_s remote_lid_key_type[remote_lid_key_type_len];
@@ -159,7 +167,7 @@ lid_m::lid_m(int max_vols, int max_lid_cache) :
     /*
      * initialize the key type descriptors for the lid and reverse lid indices. 
      */
-    uint4 tmp_type_len;
+    uint4_t tmp_type_len;
 
     tmp_type_len = lid_key_type_len;
     W_COERCE(key_type_s::parse_key_type(serial_t::key_descr, tmp_type_len, lid_key_type));
@@ -349,10 +357,12 @@ lid_m::lookup(lid_t& lid, rid_t& rid)
 
     W_DO(_lookup(lid, false, key_entry, vid, found, cache_hit));
     if (!found || (key_entry.type() == t_max) ) {
+	DBG(<<"lookup: " );
 	return RC(eBADLOGICALID);
     }
  
     if (key_entry.type() != t_rid) {
+	DBG(<<"lookup: " );
 	return RC(eBADLOGICALIDTYPE);
     }
 
@@ -393,10 +403,12 @@ lid_m::lookup(lid_t& lid, stid_t& stid)
 
     W_DO(_lookup(lid, false, key_entry, stid.vol, found, cache_hit));
     if (!found || (key_entry.type() == t_max) ) {
+	DBG(<<"lookup: " );
 	return RC(eBADLOGICALID);
     }
     
     if (key_entry.type() != t_store) {
+	DBG(<<"lookup: " );
 	return RC(eBADLOGICALIDTYPE);
     }
 
@@ -414,6 +426,7 @@ lid_m::lookup(lid_t& lid, stpgid_t& stpgid)
 
     W_DO(_lookup(lid, false, key_entry, vid, found, cache_hit));
     if (!found || (key_entry.type() == t_max) ) {
+	DBG(<<"lookup: " );
 	return RC(eBADLOGICALID);
     }
    
@@ -427,6 +440,7 @@ lid_m::lookup(lid_t& lid, stpgid_t& stpgid)
 	w_assert3(!stpgid.is_stid());
 	break;
     default:
+	DBG(<<"lookup: " );
 	return RC(eBADLOGICALIDTYPE);
     }
     return RCOK;
@@ -440,6 +454,7 @@ lid_m::lookup(lid_t& lid, lid_entry_t& key_entry, vid_t& vid)
 
     W_DO(_lookup(lid, false, key_entry, vid, found, cache_hit));
     if (!found) {
+	DBG(<<"lookup: " );
         return RC(eBADLOGICALID);
     }
     return RCOK;
@@ -469,6 +484,7 @@ lid_m::lookup_srv(lid_t& lid, lid_entry_t& entry)
 		    (void*)&entry, len, found) );
     w_assert3(len = sizeof(entry));
     if (!found) {
+	DBG(<<"lookup_srv: " );
 	return RC(eBADLOGICALID);
     }
     return RCOK;
@@ -512,6 +528,7 @@ lid_m::lookup_local(lid_t& lid)
 
     if (lid.serial.is_remote()) {
 	W_DO(_lookup(lid, true, dummy_entry, vid, found, cache_hit));
+	DBG(<<"lookup_local: " );
 	if (!found) return RC(eBADLOGICALID);
     }
     w_assert3(lid.serial.is_local());
@@ -533,14 +550,14 @@ lid_m::_lookup(lid_t& lid, bool snap_only, lid_entry_t& entry,
     lpid_t      remote_index;
     smsize_t   	len = sizeof(entry);
 
-    smlevel_0::stats.lid_lookups++;
+    INC_TSTAT(lid_lookups);
 
     lid_cache_entry_t* hit = NULL;
     // First try the cache
     if (_id_cache_enable) hit = _id_cache->find(lid);
     if (hit) {
 	DBG(<<"hit: lid=" << lid);
-	smlevel_0::stats.lid_cache_hits++;
+	INC_TSTAT(lid_cache_hits);
 	entry = *hit;
 	vid = hit->vid();
 	_id_cache->release_mutex();
@@ -581,7 +598,7 @@ lid_m::_lookup(lid_t& lid, bool snap_only, lid_entry_t& entry,
 			    true, t_cc_none, key_serial, 
 			    (void*)&entry, len, found) );
 	}
-	smlevel_0::stats.lid_remote_lookups++;
+	INC_TSTAT(lid_remote_lookups);
     }
 
     if (cache_hit) {
@@ -628,14 +645,17 @@ lid_m::remove(const lvid_t& lvid, const serial_t& id)
     W_DO(bt->lookup(vol_info.lid_index, lid_key_type_len, lid_key_type,
 		    true, t_cc_none, key_serial,
 		    (void*)&entry, len, found) );
-    if (!found) return RC(eBADLOGICALID);
+    if (!found) {
+	DBG(<<"remove: " );
+	return RC(eBADLOGICALID);
+    }
 
     vec_t	key_entry(&entry, entry.save_size());
     DBG( << "lid remove " << id );
     W_DO(bt->remove(vol_info.lid_index, lid_key_type_len, lid_key_type, 
 		    true, t_cc_none,
 		    key_serial, key_entry) );
-    smlevel_0::stats.lid_removes++;
+    INC_TSTAT(lid_removes);
 
     /*
      * If this ID is to a remote reference, the remove it
@@ -755,10 +775,8 @@ lid_m::generate_new_volid(lvid_t& lvid)
      * we protect this function with a mutex to guarantee we
      * don't generate duplicates.
      */
-    static smutex_t mutex("lidmgnrt");
+    static smutex_t lidmgnrt_mutex("lidmgnrt");
     static long last_time = 0;
-    W_COERCE(mutex.acquire());
-    auto_release_t<smutex_t> dummy(mutex);
 
     const int max_name = 100;
     char name[max_name+1];
@@ -771,19 +789,32 @@ lid_m::generate_new_volid(lvid_t& lvid)
     if (gethostname(name, max_name)) return RC(eOS);
 #endif
 
-    struct hostent* hostinfo = NULL;
-    if ((hostinfo = gethostbyname(name)) == NULL) W_FATAL(eINTERNAL);
+    struct hostent* hostinfo = gethostbyname(name);
+
+#ifdef notyet
+    if (!hostinfo)
+	W_FATAL(eDNS);
+#else
+    if (!hostinfo)
+	W_FATAL(eINTERNAL);
+#endif
     memcpy(&lvid.high, hostinfo->h_addr, sizeof(lvid.high));
     DBG( << "lvid " << lvid );
 
-    struct timeval curr_time;
-    struct timezone curr_time_zone;
-    if (gettimeofday(&curr_time, &curr_time_zone) != 0) return RC(eOS);
-    if (curr_time.tv_sec > last_time) {
-	last_time = curr_time.tv_sec;
-    } else {
-	last_time++;
-    }
+    /* XXXX generating ids fast enough can create a id time sequence
+       that grows way faster than real time!  This could be a problem!
+       Better time resolution than seconds does exist, might be worth
+       using it.  */
+    stime_t curr_time = stime_t::now();
+
+    W_COERCE(lidmgnrt_mutex.acquire());
+    auto_release_t<smutex_t> dummy(lidmgnrt_mutex);
+
+    if (curr_time.secs() > last_time)
+	    last_time = curr_time.secs();
+    else
+	    last_time++;
+
     lvid.low = last_time;
 
     return RCOK;
@@ -845,7 +876,10 @@ lid_m::_associate(
 	W_DO(bt->lookup(lid_index, lid_key_type_len, lid_key_type, 
 			true, t_cc_none, key_serial,
 			(void*)&old_entry, len, found) );
-	if (!found) return RC(eBADLOGICALID);
+	if (!found)  {
+	    DBG(<<"_associate: " );
+	    return RC(eBADLOGICALID);
+	}
 	vec_t       old_key_entry(&old_entry, old_entry.save_size());
 
 	cache_remove(lid);
@@ -856,7 +890,7 @@ lid_m::_associate(
     DBG( << "lid insert " << id );
     W_DO(bt->insert(lid_index, lid_key_type_len, lid_key_type, true, 
 		    t_cc_none, key_serial, key_entry, 90));
-    smlevel_0::stats.lid_inserts++;
+    INC_TSTAT(lid_inserts);
 
     /* 
      * If this is a remote ID then add it to the remote index.

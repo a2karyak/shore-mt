@@ -1,23 +1,64 @@
-/* --------------------------------------------------------------- */
-/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
-/* -- University of Wisconsin-Madison, subject to the terms     -- */
-/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
-/* -- Reserved.                                                 -- */
-/* --------------------------------------------------------------- */
+/*<std-header orig-src='shore'>
 
-/*
- *  $Id: shell.cc,v 1.234 1997/06/15 10:30:20 solomon Exp $
- */
+ $Id: shell.cpp,v 1.306 1999/08/16 19:44:51 nhall Exp $
+
+SHORE -- Scalable Heterogeneous Object REpository
+
+Copyright (c) 1994-99 Computer Sciences Department, University of
+                      Wisconsin -- Madison
+All Rights Reserved.
+
+Permission to use, copy, modify and distribute this software and its
+documentation is hereby granted, provided that both the copyright
+notice and this permission notice appear in all copies of the
+software, derivative works or modified versions, and any portions
+thereof, and that both notices appear in supporting documentation.
+
+THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+"AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+This software was developed with support by the Advanced Research
+Project Agency, ARPA order number 018 (formerly 8230), monitored by
+the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+Further funding for this work was provided by DARPA through
+Rome Research Laboratory Contract No. F30602-97-2-0247.
+
+*/
+
+#include "w_defines.h"
+
+/*  -- do not edit anything above this line --   </std-header>*/
 
 #define SHELL_C
 
+
 #include "shell.h"
+
+#include <stdio.h>
+
+
+#ifdef __GNUG__
+#define	IOS_FAIL(stream)	stream.setstate(ios::failbit)
+#elif defined(_MSC_VER)
+#define	IOS_FAIL(stream)	stream.setf(ios::failbit)
+#else
+#define	IOS_FAIL(stream)	stream.setstate(ios_base::failbit)
+#endif
+
+
+#ifdef W_DEBUG
+// Set to true if you want every occurence of rc_t error
+// to get output to stderr
+bool dumprc = false; // see shell.h
+#endif /* W_DEBUG */
 
 #ifdef USE_COORD
 CentralizedGlobalDeadlockServer *globalDeadlockServer = 0;
 sm_coordinator* co = 0;
 #endif
-char*
+const char*
 cvt_store_t(ss_m::store_t n)
 {
     switch(n) {
@@ -34,7 +75,7 @@ cvt_store_t(ss_m::store_t n)
     }
     return "unknown";
 }
-char*
+const char*
 cvt_ndx_t(ss_m::ndx_t n)
 {
     switch(n) {
@@ -53,7 +94,7 @@ cvt_ndx_t(ss_m::ndx_t n)
     }
     return "unknown";
 }
-char*
+const char*
 cvt_concurrency_t( ss_m::concurrency_t cc)
 {
     switch(cc) {
@@ -80,6 +121,32 @@ cvt_concurrency_t( ss_m::concurrency_t cc)
     }
     return "unknown";
 }
+const char *check_compress_flag(const char *kd)
+{
+    if(!force_compress) {
+	return kd;
+    }
+    static char _result[100];
+    switch(kd[0]) {
+	case 'b':
+		_result[0] = 'B';
+		break;
+	case 'i':
+		_result[0] = 'I';
+		break;
+	case 'u':
+		_result[0] = 'U';
+		break;
+	case 'f':
+		_result[0] = 'F';
+		break;
+	default:
+		_result[0] = kd[0];
+		break;
+    }
+    memcpy(&_result[1], &kd[1], strlen(kd));
+    return _result;
+}
 
 vid_t 
 make_vid_from_lvid(const char* lv)
@@ -87,12 +154,14 @@ make_vid_from_lvid(const char* lv)
     // see if the lvid string represents a long lvid)
     if (!strchr(lv, '.')) {
 	vid_t vid;
-	GNUG_BUG_12(istrstream(lv, strlen(lv)) ) >> vid;
+	istrstream anon(VCPP_BUG_1 lv, strlen(lv));
+	anon >> vid;
+
 	return vid;
     }
     lvid_t lvid;
-    GNUG_BUG_12(istrstream(lv, strlen(lv)) ) >> lvid;
-    return vid_t(lvid.low);
+    istrstream anon(VCPP_BUG_1 lv, strlen(lv)); anon >> lvid;
+    return vid_t((uint2_t)lvid.low);
 }
 
 bool 
@@ -110,38 +179,24 @@ tcl_scan_boolean(char *rep, bool &result)
     return false;
 }
 
-ss_m::ndx_t 
-cvt2ndx_t(char* s)
-{
-    static struct nda_t {
-	char* 			name;
-	ss_m::ndx_t 	type;
-    } nda[] = {
-	{ "btree",	ss_m::t_btree },
-	{ "uni_btree", 	ss_m::t_uni_btree },
-	{ "rtree",	ss_m::t_rtree },
-	{ "rdtree",	ss_m::t_rdtree },
-	{ 0,		ss_m::t_bad_ndx_t }
-    };
+ss_m::ndx_t cvt2ndx_t(char* s); //forward ref
 
-    for (nda_t* p = nda; p->name; p++)  {
-	if (streq(s, p->name))  return p->type;
-    }
-    return sm->t_bad_ndx_t;
-}
-
-lockid_t 
-cvt2lockid_t(char* str)
+void
+cvt2lockid_t(char* str, lockid_t &n)
 {
     stid_t stid;
     lpid_t pid;
     rid_t rid;
     kvl_t kvl;
     vid_t vid;
+    extid_t extid;
+    lockid_t::user1_t u1;
+    lockid_t::user2_t u2;
+    lockid_t::user3_t u3;
+    lockid_t::user4_t u4;
     int len = strlen(str);
 
     istrstream ss(str, len);
-    lockid_t n;
 
     /* This switch conversion is used, because the previous,
        "try everything" was causing problems with I/O streams.
@@ -150,6 +205,13 @@ cvt2lockid_t(char* str)
     switch (str[0]) {
     case 's':
 	    ss >> stid;
+	    break;
+    case 'x':
+	    str[0] = 's'; // GAK
+	    ss >> stid;
+	    extid.vol = stid.vol;
+	    extid.ext = (snum_t) stid.store;
+	    str[0] = 'x'; // GAK
 	    break;
     case 'r':
 	    ss >> rid;
@@ -160,6 +222,29 @@ cvt2lockid_t(char* str)
     case 'k':
 	    ss >> kvl;
 	    break;
+    case 'u':
+	    if (len < 2)  {
+	    	IOS_FAIL(ss);
+		break;
+	    }
+	    switch (str[1])  {
+		case '1':
+		    ss >> u1;
+		    break;
+		case '2':
+		    ss >> u2;
+		    break;
+		case '3':
+		    ss >> u3;
+		    break;
+		case '4':
+		    ss >> u4;
+		    break;
+		default:
+		    IOS_FAIL(ss);
+		    break;
+	    }
+	    break;
     default:
 	    /* volume id's are just XXX.YYY.  They should be changed  */
 	    ss >> vid;
@@ -169,7 +254,7 @@ cvt2lockid_t(char* str)
     if (!ss) {
 	    cerr << "cvt2lockid_t: bad lockid -- " << str << endl;
 	    abort();
-	    return n;
+	    return; 
     }
 
     switch (str[0]) {
@@ -182,23 +267,42 @@ cvt2lockid_t(char* str)
     case 'p':
 	    n = lockid_t(pid);
 	    break;
+    case 'x':
+	    n = lockid_t(extid);
+	    break;
     case 'k':
 	    n = lockid_t(kvl);
+	    break;
+    case 'u':
+	    switch (str[1])  {
+		case '1':
+		    n = lockid_t(u1);
+		    break;
+		case '2':
+		    n = lockid_t(u2);
+		    break;
+		case '3':
+		    n = lockid_t(u3);
+		    break;
+		case '4':
+		    n = lockid_t(u4);
+		    break;
+	    }
 	    break;
     default:
 	    n = lockid_t(vid);
 	    break;
     }
 
-    return n;
+    return;
 }
 
 bool 
 use_logical_id(Tcl_Interp* ip)
 {
-    extern char* Logical_id_flag_tcl; // from ssh.c
+    extern const char* Logical_id_flag_tcl; // from ssh.cpp
 
-    char* value = Tcl_GetVar(ip, Logical_id_flag_tcl, TCL_GLOBAL_ONLY); 
+    char* value = Tcl_GetVar(ip, TCL_CVBUG Logical_id_flag_tcl, TCL_GLOBAL_ONLY); 
     w_assert1(value != NULL);
     char result = value[0];
     bool ret = false;
@@ -211,7 +315,7 @@ use_logical_id(Tcl_Interp* ip)
 	ret = false;
 	break;
     default:
-	W_FATAL(ss_m::eINTERNAL);
+	W_FATAL(fcINTERNAL);
     }
     return ret;
 }
@@ -221,17 +325,15 @@ parse_vec(const char *c, int len)
 {
     DBG(<<"parse_vec("<<c<<")");
     static vec_t junk;
-    int 	i;
+    smsize_t 	i;
 
     junk.reset();
     if(::strncmp(c, "zvec", 4)==0) {
 	c+=4;
-	i = atoi(c);
-	if(i>=0) {
-	    junk.set(zvec_t(i));
-	    DBG(<<"returns zvec_t("<<i<<")");
+	i = objectsize(c);
+	junk.set(zvec_t(i));
+	DBG(<<"returns zvec_t("<<i<<")");
 	    return junk;
-	}
     }
     DBG(<<"returns normal vec_t()");
     junk.put(c, len);
@@ -260,7 +362,11 @@ static int
 t_begin_xct(Tcl_Interp* ip, int ac, char*[])
 {
     if (check(ip, "", ac, 1)) return TCL_ERROR;
-    DO( sm->begin_xct() );
+
+    /* Instrument all our xcts */
+    sm_stats_info_t *s = new sm_stats_info_t;
+    memset(s, '\0', sizeof(sm_stats_info_t));
+    DO( sm->begin_xct(s) );
     return TCL_OK;
 }
 
@@ -270,7 +376,16 @@ t_commit_xct(Tcl_Interp* ip, int ac, char* av[])
     if (check(ip, "[lazy]", ac, 1, 2)) return TCL_ERROR;
     bool lazy = false;
     if (ac == 2) lazy = (strcmp(av[1], "lazy") == 0);
-    DO( sm->commit_xct(lazy) );
+    sm_stats_info_t *s=0;
+    DO( sm->commit_xct(s, lazy) );
+    /*
+     * print stats
+     */
+    if(linked.instrument_flag && s) {
+	tclout.seekp(ios::beg);
+	tclout << *s << ends;
+    }
+    delete s;
     return TCL_OK;
 }
 
@@ -280,7 +395,21 @@ t_chain_xct(Tcl_Interp* ip, int ac, char* av[])
     if (check(ip, "[lazy]", ac, 1, 2))  return TCL_ERROR;
     bool lazy = false;
     if (ac == 2) lazy = (strcmp(av[1], "lazy") == 0);
-    DO( sm->chain_xct(lazy) );
+    /*
+     * For chain, we have to hand in a new struct,
+     * and we get back the old one.
+     */
+    sm_stats_info_t *s = new sm_stats_info_t;
+    memset(s, '\0', sizeof(sm_stats_info_t));
+    DO( sm->chain_xct(s, lazy) );
+    /*
+     * print stats
+     */
+    if(linked.instrument_flag && s) {
+	tclout.seekp(ios::beg);
+	tclout << *s << ends;
+    }
+    delete s;
     return TCL_OK;
 }
 
@@ -352,10 +481,20 @@ static int
 t_prepare_xct(Tcl_Interp* ip, int ac, char* /*av*/[])
 {
     if (check(ip, "", ac, 1)) return TCL_ERROR;
+    sm_stats_info_t *s=0;
     vote_t	v;
-    DO( sm->prepare_xct(v));
+    DO( sm->prepare_xct(s, v));
+    /*
+     * print stats
+     */
+    if(linked.instrument_flag && s) {
+	tclout.seekp(ios::beg);
+	tclout << *s << ends;
+    }
+    delete s;
+
     tclout.seekp(ios::beg);
-    tclout << v << ends;
+    tclout << int(v) << ends;
     Tcl_AppendResult(ip, tclout.str(), 0);
     return TCL_OK;
 }
@@ -364,7 +503,16 @@ int
 t_abort_xct(Tcl_Interp* ip, int ac, char* /*av*/[])
 {
     if (check(ip, "", ac, 1)) return TCL_ERROR;
-    DO( sm->abort_xct());
+    sm_stats_info_t *s=0;
+    DO( sm->abort_xct(s));
+    /*
+     * print stats
+     */
+    if(linked.instrument_flag && s) {
+	tclout.seekp(ios::beg);
+	tclout << *s << ends;
+    }
+    delete s;
     return TCL_OK;
 }
 
@@ -385,7 +533,7 @@ t_rollback_work(Tcl_Interp* ip, int ac, char* av[])
 {
     if (check(ip, "savepoint", ac, 2))  return TCL_ERROR;
     sm_save_point_t sp;
-    GNUG_BUG_12(istrstream(av[1], strlen(av[1]))) >> sp;
+    istrstream anon(VCPP_BUG_1  av[1], strlen(av[1])); anon >> sp;
     DO( sm->rollback_work(sp));
 
     return TCL_OK;
@@ -421,7 +569,7 @@ t_xct(Tcl_Interp* ip, int ac, char* /*av*/[])
     if (check(ip, "", ac, 1))  return TCL_ERROR;
 
     tclout.seekp(ios::beg);
-    tclout << xct() <<  ends;
+    tclout << unsigned(xct()) <<  ends;
     Tcl_AppendResult(ip, tclout.str(), 0);
     return TCL_OK;
 }
@@ -458,7 +606,6 @@ t_state_xct(Tcl_Interp* ip, int ac, char* av[])
 	ss_m::xct_state_t t = sm->state_xct(x);
 
     tclout.seekp(ios::beg);
-#if defined(__GNUC__) && __GNUC_MINOR__ < 7
     switch(t) {
 	case ss_m::xct_stale:
 		tclout << "xct_stale" << ends;
@@ -485,9 +632,6 @@ t_state_xct(Tcl_Interp* ip, int ac, char* av[])
 		tclout << "xct_ended" << ends;
 		break;
     };
-#else
-    tclout << t << ends;
-#endif
     Tcl_AppendResult(ip, tclout.str(), 0);
     return TCL_OK;
 }
@@ -499,7 +643,7 @@ t_tid_to_xct(Tcl_Interp* ip, int ac, char* av[])
 	return TCL_ERROR;
 
 	tid_t t;
-	GNUG_BUG_12(istrstream(av[1], strlen(av[1])) ) >> t;
+	istrstream anon(VCPP_BUG_1  av[1], strlen(av[1])); anon >> t;
     
     xct_t* x = sm->tid_to_xct(t);
     tclout.seekp(ios::beg);
@@ -552,7 +696,7 @@ t_force_vol_hdr_buffers(Tcl_Interp* ip, int ac, char* av[])
     if (av) {}
 
     lvid_t lvid;
-    GNUG_BUG_12(istrstream(av[1], strlen(av[1])) ) >> lvid;
+    istrstream anon(VCPP_BUG_1 av[1], strlen(av[1])); anon >> lvid;
     DO( sm->force_vol_hdr_buffers(lvid) );
     return TCL_OK;
 }
@@ -580,7 +724,59 @@ t_snapshot_buffers(Tcl_Interp* ip, int ac, char* av[])
     return TCL_OK;
 }
 
-    
+static int
+t_mem_stats(Tcl_Interp* ip, int ac, char* av[])
+{
+    if (check(ip, "[reset]", ac, 1,2))
+	return TCL_ERROR;
+
+    bool reset = false;
+    if (ac == 2) {
+	if (strcmp(av[1], "reset") == 0) {
+	    reset = true;
+	}
+    }
+
+    tclout.seekp(ios::beg);
+    {
+	size_t amt=0, num=0, hiwat;
+	w_shore_alloc_stats(amt, num, hiwat);
+	tclout << amt << " bytes allocated in main heap in " 
+		<< num
+		<< " calls, high water mark= " << hiwat
+		<< ends;
+    }
+    Tcl_AppendResult(ip, tclout.str(), 0);
+    return TCL_OK;
+}
+
+static int
+t_gather_xct_stats(Tcl_Interp* ip, int ac, char* av[])
+{
+    if (check(ip, "[reset]", ac, 1,2))
+	return TCL_ERROR;
+
+    bool reset = false;
+    if (ac == 2) {
+	if (strcmp(av[1], "reset") == 0) {
+	    reset = true;
+	}
+    }
+    {
+	sm_stats_info_t* stats = new sm_stats_info_t;
+	w_auto_delete_t<sm_stats_info_t> 	autodel(stats);
+
+	sm_stats_info_t& internal = *stats; 
+	// internal gets initalized by gather_xct_stats
+	DO( sm->gather_xct_stats(internal, reset));
+
+	tclout.seekp(ios::beg);
+	tclout << internal << ends;
+    }
+    Tcl_AppendResult(ip, tclout.str(), 0);
+    return TCL_OK;
+}
+
 static int
 t_gather_stats(Tcl_Interp* ip, int ac, char* av[])
 {
@@ -594,15 +790,22 @@ t_gather_stats(Tcl_Interp* ip, int ac, char* av[])
 	}
     }
 
-    sm_stats_info_t stats;
+    {
+	sm_stats_info_t* stats = new sm_stats_info_t;
+	w_auto_delete_t<sm_stats_info_t> 	autodel(stats);
 
-    DO( sm->gather_stats(stats, reset));
+	sm_stats_info_t& internal = *stats; 
+	// internal gets initalized by gather_stats
+	DO( sm->gather_stats(*stats, reset));
 
-    tclout.seekp(ios::beg);
-    tclout << stats << ends;
+	tclout.seekp(ios::beg);
+	tclout << internal << ends;
+    }
     Tcl_AppendResult(ip, tclout.str(), 0);
     return TCL_OK;
 }
+
+sm_config_info_t global_sm_config_info;
 
 static int
 t_config_info(Tcl_Interp* ip, int ac, char*[])
@@ -610,12 +813,11 @@ t_config_info(Tcl_Interp* ip, int ac, char*[])
     if (check(ip, "", ac, 1))
 	return TCL_ERROR;
 
-    sm_config_info_t info;
 
-    DO( sm->config_info(info));
+    DO( sm->config_info(global_sm_config_info));
 
     tclout.seekp(ios::beg);
-    tclout << info << ends;
+    tclout << global_sm_config_info << ends;
     Tcl_AppendResult(ip, tclout.str(), 0);
     return TCL_OK;
 }
@@ -626,7 +828,7 @@ t_set_disk_delay(Tcl_Interp* ip, int ac, char* av[])
     if (check(ip, "milli_sec", ac, 2))
 	return TCL_ERROR;
 
-    uint4 msec = atoi(av[1]);
+    uint4_t msec = atoi(av[1]);
     DO( sm->set_disk_delay(msec));
 
     return TCL_OK;
@@ -664,7 +866,7 @@ t_vol_root_index(Tcl_Interp* ip, int ac, char* av[])
     if (use_logical_id(ip)) {
 	lstid_t	 iid;
 
-	GNUG_BUG_12(istrstream(av[1], strlen(av[1])) ) >> iid.lvid;
+	istrstream anon(VCPP_BUG_1 av[1], strlen(av[1])); anon >> iid.lvid;
 	DO( sm->vol_root_index(iid.lvid, iid.serial));
 	tclout.seekp(ios::beg);
 	tclout << iid << ends;
@@ -673,7 +875,7 @@ t_vol_root_index(Tcl_Interp* ip, int ac, char* av[])
 	vid_t   vid;
 	stid_t iid;
 
-	GNUG_BUG_12(istrstream(av[1], strlen(av[1])) ) >> vid;
+	istrstream anon(VCPP_BUG_1 av[1], strlen(av[1])); anon >> vid;
 	DO( sm->vol_root_index(vid, iid));
 	tclout.seekp(ios::beg);
 	tclout << iid << ends;
@@ -684,10 +886,121 @@ t_vol_root_index(Tcl_Interp* ip, int ac, char* av[])
 }
 
 static int
+t_get_volume_meta_stats(Tcl_Interp* ip, int ac, char* av[])
+{
+    if (check(ip, "vid [t_cc_none|t_cc_volume]", ac, 2, 3))  {
+	return TCL_ERROR;
+    }
+
+    if (use_logical_id(ip))  {
+	Tcl_AppendResult(ip, "logical id not supported", 0);
+	return TCL_ERROR;
+    }
+
+    vid_t vid;
+    istrstream anon(av[1], strlen(av[1])); anon >> vid;
+
+    ss_m::concurrency_t cc = ss_m::t_cc_none;
+    if (ac > 2)  {
+	cc = cvt2concurrency_t(av[2]);
+    }
+
+    SmVolumeMetaStats volumeStats;
+    DO( sm->get_volume_meta_stats(vid, volumeStats, cc) );
+
+    tclout.seekp(ios::beg);
+    tclout 
+	<< "pages " << volumeStats.numPages << " "
+	<< "sys_pages " << volumeStats.numSystemPages << " "
+	<< "resv_pages " << volumeStats.numReservedPages << " "
+	<< "alloc_pages " << volumeStats.numAllocPages << " "
+	<< "stores " << volumeStats.numStores << " "
+	<< "alloc_stores " << volumeStats.numAllocStores << ends;
+    Tcl_AppendResult(ip, tclout.str(), 0);
+
+    return TCL_OK;
+}
+
+
+#ifdef EXPLICIT_TEMPLATE
+template class w_auto_delete_t<SmFileMetaStats>;
+template class w_auto_delete_t<sm_stats_info_t>;
+#endif
+
+static int
+t_get_file_meta_stats(Tcl_Interp* ip, int ac, char* av[])
+{
+    const char errString[] = "vid storeNumList [batch|dont_batch] [t_cc_none|t_cc_file]";
+
+    if (check(ip, errString, ac, 3, 4, 5))  {
+	return TCL_ERROR;
+    }
+
+    if (use_logical_id(ip))  {
+	Tcl_AppendResult(ip, "logical id not supported", 0);
+	return TCL_ERROR;
+    }
+
+    vid_t vid;
+    istrstream anon(av[1], strlen(av[1])); anon >> vid;
+
+    int numFiles;
+    char** listElements;
+    if (Tcl_SplitList(ip, av[2], &numFiles, &listElements) != TCL_OK)  {
+	return TCL_ERROR;
+    }
+
+    SmFileMetaStats* fileStats = new SmFileMetaStats[numFiles];
+    w_auto_delete_t<SmFileMetaStats> deleteOnExit(fileStats);
+
+    for (int i = 0; i < numFiles; ++i)  {
+	int snum;
+	if (Tcl_GetInt(ip, listElements[i], &snum) != TCL_OK)  {
+	    free(listElements);
+	    return TCL_ERROR;
+	}
+	fileStats[i].smallSnum = (snum_t)snum;
+    }
+    free(listElements);
+
+    bool batch = false;
+    if (ac > 3)  {
+	if (!strcmp(av[3], "batch"))  {
+	    batch = true;
+	}  else if (!strcmp(av[3], "dont_batch"))  {
+	    Tcl_AppendResult(ip, errString, 0);
+	    return TCL_ERROR;
+	}
+    }
+
+    ss_m::concurrency_t cc = ss_m::t_cc_none;
+    if (ac > 4)  {
+	cc = cvt2concurrency_t(av[4]);
+    }
+
+    DO( sm->get_file_meta_stats(vid, numFiles, fileStats, batch, cc) );
+
+    for (int j = 0; j < numFiles; ++j)  {
+	tclout.seekp(ios::beg);
+	tclout << fileStats[j].smallSnum << " "
+			<< fileStats[j].largeSnum << " {"
+			<< fileStats[j].small.numReservedPages << " "
+			<< fileStats[j].small.numAllocPages << "} {"
+			<< fileStats[j].large.numReservedPages << " "
+			<< fileStats[j].large.numAllocPages << "}"
+			<< ends;
+
+	Tcl_AppendElement(ip, TCL_CVBUG tclout.str());
+    }
+
+    return TCL_OK;
+}
+
+static int
 t_dump_buffers(Tcl_Interp* ip, int ac, char*[])
 {
     if (check(ip, "", ac, 1)) return TCL_ERROR;
-    DO(sm->dump_buffers());
+    DO(sm->dump_buffers(cout));
     return TCL_OK;
 }
 
@@ -695,9 +1008,9 @@ static int
 t_get_volume_quota(Tcl_Interp* ip, int ac, char* av[])
 {
     if (check(ip, "vid", ac, 2))  return TCL_ERROR;
-    smksize_t capacity, used;
+    smlevel_0::smksize_t capacity, used;
     lvid_t lvid;
-    GNUG_BUG_12(istrstream(av[1], strlen(av[1])) ) >> lvid;
+    istrstream anon(VCPP_BUG_1 av[1], strlen(av[1])); anon >> lvid;
     DO( sm->get_volume_quota(lvid, capacity, used) );
 
     tclout.seekp(ios::beg);
@@ -710,7 +1023,7 @@ static int
 t_get_device_quota(Tcl_Interp* ip, int ac, char* av[])
 {
     if (check(ip, "device", ac, 2))  return TCL_ERROR;
-    smksize_t capacity, used;
+    smlevel_0::smksize_t capacity, used;
     DO( sm->get_device_quota(av[1], capacity, used) );
     tclout.seekp(ios::beg);
     tclout << capacity << " " << used << ends;
@@ -725,7 +1038,7 @@ t_format_dev(Tcl_Interp* ip, int ac, char* av[])
 	return TCL_ERROR;
     bool force = false;
     if (av[3] && streq(av[3], "force")) force = true;
-    DO( sm->format_dev(av[1], atoi(av[2]),force));
+    DO( sm->format_dev(av[1], objectsize(av[2]),force));
     return TCL_OK;
 }
 
@@ -798,7 +1111,7 @@ t_list_devices(Tcl_Interp* ip, int ac, char* av[])
     for (u_int i = 0; i < count; i++) {
 	tclout.seekp(ios::beg);
 	tclout << dev_list[i] << " " << devid_list[i] << ends;
-	Tcl_AppendElement(ip, tclout.str());
+	Tcl_AppendElement(ip, TCL_CVBUG tclout.str());
     }
     if (count > 0) {
 	delete [] dev_list;
@@ -820,7 +1133,7 @@ t_list_volumes(Tcl_Interp* ip, int ac, char* av[])
     for (u_int i = 0; i < count; i++) {
 	tclout.seekp(ios::beg);
 	tclout << lvid_list[i] << ends;
-	Tcl_AppendElement(ip, tclout.str());
+	Tcl_AppendElement(ip, TCL_CVBUG tclout.str());
     }
     if (count > 0) delete [] lvid_list;
     return TCL_OK;
@@ -851,8 +1164,9 @@ t_create_vol(Tcl_Interp* ip, int ac, char* av[])
 	return TCL_ERROR;
 
     lvid_t lvid;
-    GNUG_BUG_12(istrstream(av[2], strlen(av[2])) ) >> lvid;
-    uint4 quota = atoi(av[3]);
+    istrstream anon(VCPP_BUG_1 av[2], strlen(av[2])); anon >> lvid;
+    smsize_t quota = objectsize(av[3]);
+
     bool skip_raw_init = false;
     if (av[4] && streq(av[4], "skip_raw_init")) skip_raw_init = true;
 
@@ -871,7 +1185,7 @@ t_destroy_vol(Tcl_Interp* ip, int ac, char* av[])
 	return TCL_ERROR;
 
     lvid_t lvid;
-    GNUG_BUG_12(istrstream(av[1], strlen(av[1])) ) >> lvid;
+    istrstream anon(VCPP_BUG_1 av[1], strlen(av[1])); anon >> lvid;
     DO( sm->destroy_vol(lvid));
     return TCL_OK;
 }
@@ -882,8 +1196,8 @@ t_add_logical_id_index(Tcl_Interp* ip, int ac, char* av[])
     if (check(ip, "lvid reserved", ac, 3)) return TCL_ERROR;
    
     lvid_t lvid;
-    GNUG_BUG_12(istrstream(av[1], strlen(av[1])) ) >> lvid;
-    uint4 reserved = atoi(av[2]);
+    istrstream anon(VCPP_BUG_1 av[1], strlen(av[1])); anon >> lvid;
+    uint4_t reserved = atoi(av[2]);
 
     DO(sm->add_logical_id_index(lvid, reserved, reserved));
     return TCL_OK;
@@ -895,7 +1209,7 @@ t_has_logical_id_index(Tcl_Interp* ip, int ac, char* av[])
     if (check(ip, "lvid", ac, 2)) return TCL_ERROR;
    
     lvid_t lvid;
-    GNUG_BUG_12(istrstream(av[1], strlen(av[1])) ) >> lvid;
+    istrstream anon(VCPP_BUG_1 av[1], strlen(av[1])); anon >> lvid;
     
     bool has_index;
     DO(sm->has_logical_id_index(lvid, has_index));
@@ -993,6 +1307,24 @@ t_preemption_simulated(Tcl_Interp* ip, int ac, char* [])
 #endif /* USE_SSMTEST */
 }
 
+#ifndef PURIFY
+#define av /*av not used*/
+#endif
+static int
+t_purify_print_string(Tcl_Interp* ip, int ac, char* av[])
+#undef av
+{
+    if (check(ip, "string", ac, 2))  {
+	return TCL_ERROR;
+    }
+
+#ifdef PURIFY
+    purify_printf("%s\n", av[1]);
+#endif
+
+    return TCL_OK;
+}
+
 #ifndef USE_SSMTEST
 #define av
 #endif
@@ -1028,10 +1360,11 @@ t_simulate_preemption(Tcl_Interp* ip, int ac, char* av[])
 
 }
 static int
-t_set_debug(Tcl_Interp* ip, int ac, char* av[])
+t_set_debug(Tcl_Interp* ip, int ac, char** W_IFTRACE(av))
 {
     if (check(ip, "[flag_string]", ac, 1, 2)) return TCL_ERROR;
   
+#ifdef W_TRACE
     //
     // If "" is used, debug prints are turned off
     // Always returns the previous setting
@@ -1040,6 +1373,7 @@ t_set_debug(Tcl_Interp* ip, int ac, char* av[])
     if(ac>1) {
 	 _debug.setflags(av[1]);
     }
+#endif
     return TCL_OK;
 }
 
@@ -1049,15 +1383,15 @@ t_set_store_property(Tcl_Interp* ip, int ac, char* av[])
     if (check(ip, "fid property", ac, 3))  
 	return TCL_ERROR;
 
-    ss_m::sm_store_property_t property = cvt2store_property(av[2]);
+    ss_m::store_property_t property = cvt2store_property(av[2]);
 
     if (use_logical_id(ip))  {
 	lstid_t fid;
-	GNUG_BUG_12(istrstream(av[1], strlen(av[1])) ) >> fid;
+	istrstream anon(VCPP_BUG_1 av[1], strlen(av[1])); anon >> fid;
 	DO( sm->set_store_property(fid.lvid, fid.serial, property) );
     } else {
 	stid_t fid;
-	GNUG_BUG_12(istrstream(av[1], strlen(av[1])) ) >> fid;
+	istrstream anon(VCPP_BUG_1 av[1], strlen(av[1])); anon >> fid;
 	DO( sm->set_store_property(fid, property) );
     }
 
@@ -1070,15 +1404,15 @@ t_get_store_property(Tcl_Interp* ip, int ac, char* av[])
     if (check(ip, "fid", ac, 2))  
 	return TCL_ERROR;
 
-    ss_m::sm_store_property_t property;
+    ss_m::store_property_t property;
 
     if (use_logical_id(ip))  {
 	lstid_t fid;
-	GNUG_BUG_12(istrstream(av[1], strlen(av[1])) ) >> fid;
+	istrstream anon(VCPP_BUG_1 av[1], strlen(av[1])); anon >> fid;
 	DO( sm->get_store_property(fid.lvid, fid.serial, property) );
     } else {
 	stid_t fid;
-	GNUG_BUG_12(istrstream(av[1], strlen(av[1])) ) >> fid;
+	istrstream anon(VCPP_BUG_1 av[1], strlen(av[1])); anon >> fid;
 	DO( sm->get_store_property(fid, property) );
     }
 
@@ -1124,7 +1458,7 @@ t_create_index(Tcl_Interp* ip, int ac, char* av[])
     const char *keydescr="b*1000";
 
     bool small = false;
-    ss_m::sm_store_property_t property = ss_m::t_regular;
+    ss_m::store_property_t property = ss_m::t_regular;
     if (ac > 3) {
 	property = cvt2store_property(av[3]);
     }
@@ -1153,7 +1487,7 @@ t_create_index(Tcl_Interp* ip, int ac, char* av[])
 		small = true;
 		if (! use_logical_id(ip)) {
 		   cerr 
-		   << "ssh shell.c: not using logical ids; 6th argument ignored"
+		   << "ssh shell.cpp: not using logical ids; 6th argument ignored"
 		<< endl;
 		}
 	    }
@@ -1167,24 +1501,29 @@ t_create_index(Tcl_Interp* ip, int ac, char* av[])
 	}
 	small = true;
 	if (! use_logical_id(ip)) {
-	   cerr << "ssh shell.c: not using logical ids; 6th argument ignored"
+	   cerr << "ssh shell.cpp: not using logical ids; 6th argument ignored"
 		<< endl;
 	}
     }
+    const char *kd = check_compress_flag(keydescr);
+    ss_m::ndx_t ndx = cvt2ndx_t(av[2]);
 
     if (use_logical_id(ip)) {
 	lstid_t lstid;
-	GNUG_BUG_12(istrstream(av[1], strlen(av[1])) ) >> lstid.lvid;
-	DO( sm->create_index(lstid.lvid, cvt2ndx_t(av[2]),
-			     property, keydescr, cc,
+	istrstream anon(VCPP_BUG_1 av[1], strlen(av[1])); 
+	anon >> lstid.lvid;
+	DO( sm->create_index(lstid.lvid, ndx,
+			     property, kd, cc,
 			     small?1:10, 
 			     lstid.serial) );
 	tclout.seekp(ios::beg);
 	tclout << lstid << ends;
     } else {
 	stid_t stid;
-	DO( sm->create_index(atoi(av[1]),
-			     cvt2ndx_t(av[2]), property, keydescr, cc,
+        vid_t  volid = vid_t(atoi(av[1]));
+	DO( sm->create_index(
+			volid,
+			     ndx, property, kd, cc,
 			     stid));
 	tclout.seekp(ios::beg);
 	tclout << stid << ends;
@@ -1195,6 +1534,24 @@ t_create_index(Tcl_Interp* ip, int ac, char* av[])
 }
 
 static int
+t_destroy_md_index(Tcl_Interp* ip, int ac, char* av[])
+{
+    if (check(ip, "fid", ac, 2))
+        return TCL_ERROR;
+    
+    if (use_logical_id(ip)) {
+	lstid_t fid;
+	istrstream anon(VCPP_BUG_1 av[1], strlen(av[1])); anon >> fid;
+	DO( sm->destroy_md_index(fid.lvid, fid.serial) );
+    } else {
+	stid_t fid;
+	istrstream anon(VCPP_BUG_1 av[1], strlen(av[1])); anon >> fid;
+	DO( sm->destroy_md_index(fid) );
+    }
+
+    return TCL_OK;
+}
+static int
 t_destroy_index(Tcl_Interp* ip, int ac, char* av[])
 {
     if (check(ip, "fid", ac, 2))
@@ -1202,11 +1559,11 @@ t_destroy_index(Tcl_Interp* ip, int ac, char* av[])
     
     if (use_logical_id(ip)) {
 	lstid_t fid;
-	GNUG_BUG_12(istrstream(av[1], strlen(av[1])) ) >> fid;
+	istrstream anon(VCPP_BUG_1 av[1], strlen(av[1])); anon >> fid;
 	DO( sm->destroy_index(fid.lvid, fid.serial) );
     } else {
 	stid_t fid;
-	GNUG_BUG_12(istrstream(av[1], strlen(av[1])) ) >> fid;
+	istrstream anon(VCPP_BUG_1 av[1], strlen(av[1])); anon >> fid;
 	DO( sm->destroy_index(fid) );
     }
 
@@ -1220,7 +1577,8 @@ t_destroy_index(Tcl_Interp* ip, int ac, char* av[])
 static rc_t 
 prepare_for_blkld(sort_stream_i& s_stream, 
 	Tcl_Interp* ip, char* fid,
-	char* type, char* universe=NULL
+	const char* type, 
+	const char* universe=NULL
 )
 {
     key_info_t info;
@@ -1261,6 +1619,13 @@ prepare_for_blkld(sort_stream_i& s_stream,
     	info.len = sizeof(uint4_t);
 	break;
 
+    case test_i8:
+	// NB: Tcl doesn't know about 64-bit arithmetic
+        // info.type = key_info_t::t_int;
+        info.type = sortorder::kt_i8;
+    	info.len = sizeof(w_base_t::int8_t);
+	break;
+
     case test_u1:
 	// new
         info.type = sortorder::kt_u1;
@@ -1277,6 +1642,13 @@ prepare_for_blkld(sort_stream_i& s_stream,
         // new
         info.type = sortorder::kt_u4;
     	info.len = sizeof(uint4_t);
+	break;
+
+    case test_u8:
+	// NB: Tcl doesn't handle 64-bit arithmetic
+        // new
+        info.type = sortorder::kt_u8;
+    	info.len = sizeof(w_base_t::uint8_t);
 	break;
 
     case test_f4:
@@ -1297,7 +1669,7 @@ prepare_for_blkld(sort_stream_i& s_stream,
 	    info.type = sortorder::kt_spatial;
 	    if (universe==NULL) {
 		if (check(ip, "stid src type [universe]", 1, 0))
-		    return RC(ss_m::eASSERT);
+		    return RC(fcINTERNAL);
 	    }
 	    nbox_t univ(universe);
 	    info.universe = univ;
@@ -1306,7 +1678,7 @@ prepare_for_blkld(sort_stream_i& s_stream,
 	break;
 
     default:
-	W_FATAL(ss_m::eNOTIMPLEMENTED);
+	W_FATAL(fcNOTIMPLEMENTED);
 	break;
     }
     
@@ -1316,29 +1688,18 @@ prepare_for_blkld(sort_stream_i& s_stream,
 
     if (use_logical_id(ip)) {
 	lstid_t l_stid;
-	GNUG_BUG_12(istrstream(fid, strlen(fid)) ) >> l_stid;
+	istrstream anon(VCPP_BUG_1 fid, strlen(fid)); anon >> l_stid;
 	vid_t tmp_vid;
 	W_DO( sm->lvid_to_vid(l_stid.lvid, tmp_vid));
         sp.vol = tmp_vid;
 	f_scan = new scan_file_i(l_stid.lvid, l_stid.serial, ss_m::t_cc_file);
     } else {
 	stid_t stid;
-	GNUG_BUG_12(istrstream(fid, strlen(fid)) ) >> stid;
+	istrstream anon(VCPP_BUG_1 fid, strlen(fid)); anon >> stid;
         sp.vol = stid.vol;
 	f_scan = new scan_file_i(stid, ss_m::t_cc_file);
     }
 
-#define HANDLE_FSCAN_FAILURE(f_scan) \
-    if(f_scan==0 || f_scan->error_code()) { \
-       w_rc_t err; \
-       if(f_scan) {  \
-	    err = f_scan->error_code(); \
-	    delete f_scan; f_scan =0;  \
-	    return err; \
-	} else { \
-	    return RC(fcOUTOFMEMORY); \
-	} \
-    }
     HANDLE_FSCAN_FAILURE(f_scan);
 
     /*
@@ -1352,6 +1713,23 @@ prepare_for_blkld(sort_stream_i& s_stream,
 	if (!eof && pin->pinned()) {
 	    vec_t key(pin->hdr(), pin->hdr_size()),
 		  el(pin->body(), pin->body_size());
+		
+if(t == test_spatial) {
+	nbox_t k;
+	k.bytes2box((char *)pin->hdr(), pin->hdr_size());
+
+	DBG(<<"hdr size is " << pin->hdr_size());
+	int dim = pin->hdr_size() / (2 * sizeof(int));
+	const char *cp = pin->hdr();
+	int tmp;
+	for(int j=0; j<dim; j++) {
+	    memcpy(&tmp, cp, sizeof(int));
+	    cp += sizeof(int);
+	    DBG(<<"int[" << j << "]= " << tmp);
+	}
+	DBG(<<"key is " << k);
+	DBG(<<"body is " << (const char *)(pin->body()));
+}
 	    W_DO(s_stream.put(key, el));
 	}
     }
@@ -1364,45 +1742,111 @@ prepare_for_blkld(sort_stream_i& s_stream,
 static int
 t_blkld_ndx(Tcl_Interp* ip, int ac, char* av[])
 {
-    //              1    2    3     4
-    if (check(ip, "stid src [type [universe]]", ac, 3, 4, 5))
+    // arguments: 0         1    2     3
+    // arguments: blkld_ndx stid nsrcs srcs [src*] [type [universe]]
+    int first_src = 3;
+    int stid_arg = 1;
+    if (ac < 4) {
+        Tcl_AppendResult(ip, "wrong # args; should be \"", 
+			"stid nsrcs src [src*] [type [universe]]"
+		         "\"", 0);
 	return TCL_ERROR;
+    }
+    /* set up array of srcs */
+    int nsrcs = atoi(av[2]);
+    if(nsrcs < 1 || nsrcs > 10) {
+        Tcl_AppendResult(ip, "Expected 1 ... 10 (arbitrary) sources", 0);
+	return TCL_ERROR;
+    }
+    /* nsrcs == ac -1(blkld_ndx) 
+		 -1(stid) -1(nsrcs) possibly -2 for type and universe */
+    if(nsrcs < ac-5) {
+        Tcl_AppendResult(ip, "Too many arguments provided for "
+	   "number of sources given (2nd argument)", 0);
+	return TCL_ERROR;
+    }
+    if(nsrcs > ac-3) {
+        Tcl_AppendResult(ip, "Not enough sources arguments provided for "
+	   "number of sources given (2nd argument)", 0);
+	return TCL_ERROR;
+    }
+    int	excess_arguments = ac - 3 - nsrcs;
+    const char *typearg = 0, *universearg = 0;
+    if(excess_arguments == 2) {
+	typearg = av[ac-2];
+	universearg = av[ac-1];
+    } else if(excess_arguments == 1) {
+	typearg = av[ac-1];
+    } else if(excess_arguments != 0) {
+	w_assert1(0);
+    }
 
     sm_du_stats_t stats;
 
-    if (ac > 3) {
+    if (excess_arguments) {
 	// using sorted stream
     	sort_stream_i s_stream;
 
-    	if (ac==4) {
-            DO( prepare_for_blkld(s_stream, ip, av[2], av[3]) );
+	if(nsrcs!=1) {
+	    Tcl_AppendResult(ip, "Bulk load with sort_stream "
+	       " takes only one source file.", 0);
+	}
+    	if (excess_arguments==1) {
+            DO( prepare_for_blkld(s_stream, ip, av[first_src], typearg) );
     	} else {
-            DO( prepare_for_blkld(s_stream, ip, av[2], av[3], av[4]) );
+            DO( prepare_for_blkld(s_stream, ip, av[first_src], typearg, universearg) );
 	}
 
 	if (use_logical_id(ip)) {
 	    lstid_t l_stid;
-	    GNUG_BUG_12(istrstream(av[1], strlen(av[1])) ) >> l_stid;
+	    istrstream anon(VCPP_BUG_1 av[stid_arg], strlen(av[stid_arg])); 
+	    anon >> l_stid;
 	    DO( sm->bulkld_index(l_stid.lvid, l_stid.serial,
 				s_stream,  stats) );
 	} else {
 	    stid_t stid;
-	    GNUG_BUG_12(istrstream(av[1], strlen(av[1])) ) >> stid;
+	    istrstream anon(VCPP_BUG_1 av[stid_arg], strlen(av[stid_arg])); 
+	    anon >> stid;
 	    DO( sm->bulkld_index(stid, s_stream, stats) ); 
 	}
     } else {
-	// input file already sorted
+	// input file[s] already sorted
 	if (use_logical_id(ip)) {
-	    lstid_t l_stid, l_src;
-	    GNUG_BUG_12(istrstream(av[1], strlen(av[1])) ) >> l_stid;
-	    GNUG_BUG_12(istrstream(av[2], strlen(av[2])) ) >> l_src;
-	    DO( sm->bulkld_index(l_stid.lvid, l_stid.serial,
-				 l_src.lvid, l_src.serial, stats) );
+	    lstid_t l_stid;
+	    istrstream anon(VCPP_BUG_1 av[stid_arg], strlen(av[stid_arg])); 
+	    anon >> l_stid;
+
+	    lstid_t* l_src = new lstid_t[nsrcs];
+	    lvid_t* vids = new lvid_t[nsrcs];
+	    serial_t*	serials= new serial_t[nsrcs];
+	    for(int i=0; i<nsrcs; i++) {
+		istrstream anon2(VCPP_BUG_1 av[first_src+i], 
+			strlen(av[first_src+i])); 
+		anon2  >> l_src[i];
+		vids[i] = l_src[i].lvid;
+		serials[i] = l_src[i].serial;
+	    }
+	    w_rc_t rc = sm->bulkld_index(l_stid.lvid, l_stid.serial,
+				 nsrcs, vids, serials,
+				 stats);
+	    delete[] l_src;
+	    delete[] vids;
+	    delete[] serials;
+	    DO(rc);
+
 	} else {
-	    stid_t stid, src;
-	    GNUG_BUG_12(istrstream(av[1], strlen(av[1])) ) >> stid;
-	    GNUG_BUG_12(istrstream(av[2], strlen(av[2])) ) >> src;
-	    DO( sm->bulkld_index(stid, src, stats) ); 
+	    stid_t stid;
+	    stid_t* srcs = new stid_t[nsrcs];
+	    istrstream anon(VCPP_BUG_1 av[stid_arg], strlen(av[stid_arg])); 
+	    anon >> stid;
+	    for(int i=0; i<nsrcs; i++) {
+	       istrstream anon2(VCPP_BUG_1 av[first_src+i], 
+			strlen(av[first_src+i])); 
+	       anon2 >> srcs[i];
+	    }
+	    w_rc_t rc = sm->bulkld_index(stid, nsrcs, srcs, stats); 
+	    delete[] srcs;
+	    DO(rc);
 	}
     } 
 
@@ -1428,20 +1872,22 @@ t_blkld_md_ndx(Tcl_Interp* ip, int ac, char* av[])
 
     sort_stream_i s_stream;
 
-    char* type = "spatial";
+    const char* type = "spatial";
 
     DO( prepare_for_blkld(s_stream, ip, av[2], type, av[5]) );
 
     if (use_logical_id(ip)) {
 	lstid_t l_stid;
-	GNUG_BUG_12(istrstream(av[1], strlen(av[1])) ) >> l_stid;
+	istrstream anon(VCPP_BUG_1 av[1], strlen(av[1])); anon >> l_stid;
 	DO( sm->bulkld_md_index(l_stid.lvid, l_stid.serial,
 				  s_stream, stats,
+				  // hff,      hef,         universe
 				  atoi(av[3]), atoi(av[4]), &univ) );
     } else {
 	stid_t stid;
-	GNUG_BUG_12(istrstream(av[1], strlen(av[1])) ) >> stid;
+	istrstream anon(VCPP_BUG_1 av[1], strlen(av[1])); anon >> stid;
 	DO( sm->bulkld_md_index(stid, s_stream, stats,
+				  // hff,      hef,         universe
 				  atoi(av[3]), atoi(av[4]), &univ) );
     }
 
@@ -1462,11 +1908,11 @@ t_print_index(Tcl_Interp* ip, int ac, char* av[])
 
     if (use_logical_id(ip)) {
 	lstid_t stid;
-	GNUG_BUG_12(istrstream(av[1], strlen(av[1])) ) >> stid;
+	istrstream anon(VCPP_BUG_1 av[1], strlen(av[1])); anon >> stid;
 	DO( sm->print_index(stid.lvid, stid.serial) );
     } else {
 	stid_t stid;
-	GNUG_BUG_12(istrstream(av[1], strlen(av[1])) ) >> stid;
+	istrstream anon(VCPP_BUG_1 av[1], strlen(av[1])); anon >> stid;
 	DO( sm->print_index(stid) );
     }
 
@@ -1481,47 +1927,22 @@ t_print_md_index(Tcl_Interp* ip, int ac, char* av[])
 
     if (use_logical_id(ip)) {
 	lstid_t stid;
-	GNUG_BUG_12(istrstream(av[1], strlen(av[1])) ) >> stid;
+	istrstream anon(VCPP_BUG_1 av[1], strlen(av[1])); anon >> stid;
 	DO( sm->print_md_index(stid.lvid, stid.serial) );
     } else {
 	stid_t stid;
-	GNUG_BUG_12(istrstream(av[1], strlen(av[1])) ) >> stid;
+	istrstream anon(VCPP_BUG_1 av[1], strlen(av[1])); anon >> stid;
 	DO( sm->print_md_index(stid) );
     }
 
     return TCL_OK;
 }
 
-#ifdef USE_RDTREE
-static int
-t_print_set_index(Tcl_Interp* ip, int ac, char* av[])
-{
-    if (check(ip, "stid", ac, 2))
-      return TCL_ERROR;
- 
-    if (use_logical_id(ip)) {
- 	lstid_t stid;
- 	GNUG_BUG_12(istrstream(av[1], strlen(av[1])) ) >> stid;
- 	DO( sm->print_set_index(stid.lvid, stid.serial) );
-    } else {
- 	stid_t stid;
- 	GNUG_BUG_12(istrstream(av[1], strlen(av[1])) ) >> stid;
- 	DO( sm->print_set_index(stid) );
-    }
- 
-    return TCL_OK;
-}
-#endif /* USE_RDTREE */
-
 #include <crash.h>
 
 
-#ifndef DEBUG
-#define av /* av not used */
-#endif
 static int
-t_crash(Tcl_Interp* ip, int ac, char* av[])
-#undef av
+t_crash(Tcl_Interp* ip, int ac, char ** W_IFTRACE(av))
 {
 
     if (check(ip, "str cmd", ac, 3))
@@ -1534,6 +1955,13 @@ t_crash(Tcl_Interp* ip, int ac, char* av[])
     // no need --
     return TCL_OK;
 }
+
+/*
+ * callback function for running out of log space
+ */
+class xct_i; class xct_t;
+extern w_rc_t out_of_log_space (xct_i*, xct_t *&,
+	smlevel_0::fileoff_t, smlevel_0::fileoff_t);
 
 static int
 t_restart(Tcl_Interp* ip, int ac, char* av[])
@@ -1555,8 +1983,16 @@ t_restart(Tcl_Interp* ip, int ac, char* av[])
     sm->set_shutdown_flag(clean);
     delete sm;
 
+    /* 
+     * callback function for out-of-log-space
+     */
 
-    sm = new ss_m();
+    // Try without callback function.
+    if(log_warn_callback) {
+       sm = new ss_m(out_of_log_space);
+    } else {
+       sm = new ss_m();
+    }
     w_assert1(sm);
     
     if (start_client_support) {
@@ -1575,7 +2011,7 @@ t_coord(Tcl_Interp* ip, int ac, char* av[])
 	return TCL_ERROR;
 
     lvid_t lvid;
-    GNUG_BUG_12(istrstream(av[1], strlen(av[1])) ) >> lvid;
+    istrstream anon(VCPP_BUG_1 av[1], strlen(av[1])); anon >> lvid;
 
     co = new sm_coordinator(lvid, ip);
     w_assert1(co);
@@ -1586,25 +2022,32 @@ t_coord(Tcl_Interp* ip, int ac, char* av[])
 static int
 t_create_file(Tcl_Interp* ip, int ac, char* av[])
 {
-    if (check(ip, "vid  [\"tmp|regular|load_file|insert_file\"]",
-	      ac, 2, 3)) 
+    if (check(ip, "vid  [\"tmp|regular|load_file|insert_file\"] [cluster-page]",
+	      ac, 2, 3, 4)) 
 	return TCL_ERROR;
     
-    ss_m::sm_store_property_t property = ss_m::t_regular;
+    ss_m::store_property_t property = ss_m::t_regular;
   
+    shpid_t	cluster_page=0;
+    if (ac > 3) {
+       cluster_page = atoi(av[3]);
+    }
     if (ac > 2) {
 	property = cvt2store_property(av[2]);
     }
 
     if (use_logical_id(ip)) {
 	lfid_t lfid;
-	GNUG_BUG_12(istrstream(av[1], strlen(av[1])) ) >> lfid.lvid;
-	DO( sm->create_file(lfid.lvid, lfid.serial, property) );
+	istrstream anon(VCPP_BUG_1 av[1], strlen(av[1])) ; anon >> lfid.lvid;
+	DO( sm->create_file(lfid.lvid, lfid.serial, property, cluster_page) );
 	tclout.seekp(ios::beg);
 	tclout << lfid << ends;
     } else {
 	stid_t stid;
-	DO( sm->create_file(atoi(av[1]), stid, property) );
+        int volumeid = atoi(av[1]);
+	DO( sm->create_file(vid_t(volumeid), stid, property, serial_t::null,
+                cluster_page) );
+
 	tclout.seekp(ios::beg);
 	tclout << stid << ends;
     }
@@ -1621,11 +2064,11 @@ t_destroy_file(Tcl_Interp* ip, int ac, char* av[])
     
     if (use_logical_id(ip)) {
 	lstid_t fid;
-	GNUG_BUG_12(istrstream(av[1], strlen(av[1])) )>> fid;
+	istrstream anon(VCPP_BUG_1 av[1], strlen(av[1])); anon >> fid;
 	DO( sm->destroy_file(fid.lvid, fid.serial) );
     } else {
 	stid_t fid;
-	GNUG_BUG_12(istrstream(av[1], strlen(av[1])) ) >> fid;
+	istrstream anon(VCPP_BUG_1 av[1], strlen(av[1])); anon >> fid;
 	DO( sm->destroy_file(fid) );
     }
 
@@ -1647,6 +2090,7 @@ t_create_scan(Tcl_Interp* ip, int ac, char* av[])
 
     bool convert=false;
     int b1, b2; // used if keytype is int or unsigned
+    w_base_t::int8_t bl1, bl2; // used if keytype is 64 bits
 
     c1 = cvt2cmp_t(av[2]);
     c2 = cvt2cmp_t(av[4]);
@@ -1668,33 +2112,56 @@ t_create_scan(Tcl_Interp* ip, int ac, char* av[])
 	convert = true;
     }
 
-    if(convert && (ac > 7)) {
-       const char *keydescr = av[7];
+    if (convert && (ac > 7)) {
+	const char *keydescr = (const char *)av[7];
 
-	// KLUDGE -- restriction for now
-	// only because it's better than no check at all
-	if(keydescr[0] != 'b' 
-		&& keydescr[0] != 'i'
-		&& keydescr[0] != 'u'
-	) {
+	enum typed_btree_test t = cvt2type(keydescr);
+	if (t == test_nosuch) {
 	    Tcl_AppendResult(ip, 
-	       "create_index: 7th argument must start with b,i or u", 0);
+	       "create_scan: 7th argument must start with [bBiIuUfF]", 0);
 	    return TCL_ERROR;
 		
 	}
-	if( (keydescr[0] == 'i'
-		||
-	    keydescr[0] == 'u')
-	) {
-	    b1 = atoi(av[3]);
-	    t1.reset();
-	    t1.put(&b1, sizeof(int));
-	    DBG(<<"bound1 = " << b1);
+	switch(t) {
+	    case test_i8:
+	    case test_u8: {
+		    /* XXX this breaks with error checking strtoq,
+		       need to use strtoq, strtouq.  Or add
+		       w_base_t::ato8() that mimics atoi()
+		       semantics. */
+		    bl1 = w_base_t::strtoi8(av[3]); //bound1 
+		    t1.reset();
+		    t1.put(&bl1, sizeof(w_base_t::int8_t));
+		    // DBG(<<"bound1 = " << bl1);
 
-	    b2 = atoi(av[5]);
-	    t2.reset();
-	    t2.put(&b2, sizeof(int));
-	    DBG(<<"bound2 = " << b2);
+		    bl2 = w_base_t::strtoi8(av[5]); //bound2
+		    t2.reset();
+		    t2.put(&bl2, sizeof(w_base_t::int8_t));
+		    // DBG(<<"bound2 = " << bl2);
+		}
+		break;
+	    case test_i4:
+	    case test_u4: {
+		    b1 = atoi(av[3]); //bound1 
+		    t1.reset();
+		    t1.put(&b1, sizeof(int));
+		    DBG(<<"bound1 = " << b1);
+
+		    b2 = atoi(av[5]); // bound2
+		    t2.reset();
+		    t2.put(&b2, sizeof(int));
+		    DBG(<<"bound2 = " << b2);
+		}
+		break;
+	    case test_bv:
+	    case test_b1:
+	    case test_b23:
+		break;
+	    default:
+		Tcl_AppendResult(ip, 
+	       "ssh.create_scan unsupported for given keytype:  ",
+		   keydescr, 0);
+	    return TCL_ERROR;
 	}
     }
 
@@ -1702,20 +2169,20 @@ t_create_scan(Tcl_Interp* ip, int ac, char* av[])
     if (ac == 7) {
 	cc = cvt2concurrency_t(av[6]);
     }
-    DBG(<<"c1 = " << c1);
-    DBG(<<"c2 = " << c2);
-    DBG(<<"cc = " << cc);
+    DBG(<<"c1 = " << int(c1));
+    DBG(<<"c2 = " << int(c2));
+    DBG(<<"cc = " << int(cc));
 
     scan_index_i* s;
     if (use_logical_id(ip)) {
 	lstid_t stid;
-	GNUG_BUG_12(istrstream(av[1], strlen(av[1])) ) >> stid;
+	istrstream anon(VCPP_BUG_1 av[1], strlen(av[1])); anon >> stid;
 	s = new scan_index_i(stid.lvid, stid.serial, 
-			     c1, *bound1, c2, *bound2, cc);
+			     c1, *bound1, c2, *bound2, false, cc);
     } else {
 	stid_t stid;
-	GNUG_BUG_12(istrstream(av[1], strlen(av[1])) ) >> stid;
-	s = new scan_index_i(stid, c1, *bound1, c2, *bound2, cc);
+	istrstream anon(VCPP_BUG_1 av[1], strlen(av[1])); anon >> stid;
+	s = new scan_index_i(stid, c1, *bound1, c2, *bound2, false, cc);
     }
     if (!s) {
 	cerr << "Out of memory: file " << __FILE__ 
@@ -1746,7 +2213,7 @@ t_scan_next(Tcl_Interp* ip, int ac, char* av[])
     bool eof;
     DO( s->next(eof) );
     if (eof) {
-	Tcl_AppendElement(ip, "eof");
+	Tcl_AppendElement(ip, TCL_CVBUG "eof");
     } else {
 
 	DO( s->curr(0, klen, 0, elen) );
@@ -1761,16 +2228,19 @@ t_scan_next(Tcl_Interp* ip, int ac, char* av[])
 	// For the time being, we assume that value/elem is string
 	outbuf[klen] = outbuf[klen + 1 + elen] = '\0';
 
+	bool done = false;
 	switch(t) {
 	case test_bv:
 	    outbuf[klen] = outbuf[klen + 1 + elen] = '\0';
 	    Tcl_AppendResult(ip, outbuf, " ", outbuf + klen + 1, 0);
+	    done = true;
 	    break;
 	case test_b1:
 	    char c[2];
 	    c[0] = outbuf[0];
 	    c[1] = 0;
 	    w_assert3(klen == 1);
+	    done = true;
 	    Tcl_AppendResult(ip, c, " ", outbuf + klen + 1, 0);
 	    break;
 
@@ -1780,6 +2250,8 @@ t_scan_next(Tcl_Interp* ip, int ac, char* av[])
 	case test_u2:
 	case test_i4:
 	case test_u4:
+	case test_i8:
+	case test_u8:
 	case test_f4:
 	case test_f8:
 	    memcpy(&v._u, outbuf, klen);
@@ -1787,42 +2259,64 @@ t_scan_next(Tcl_Interp* ip, int ac, char* av[])
 	    break;
 	case test_spatial:
 	default:
-	    W_FATAL(ss_m::eNOTIMPLEMENTED);
+	    W_FATAL(fcNOTIMPLEMENTED);
 	}
+        {
+		const int bufsz=100;
+		char* tmpbuf = new char[bufsz]; // small
+		ostrstream tmp(tmpbuf, sizeof(tmpbuf));
+		memset(tmpbuf, '\0', bufsz);
 
-	switch(t) {
-	case test_bv:
-	case test_b1:
-	    break;
+		switch(t) {
+		case test_bv:
+		case test_b1:
+		    break;
 
-	case test_i1:
-	    Tcl_AppendResult(ip, ::form("%d",v._u.i1_num), " ", outbuf + klen + 1, 0);
-	    break;
-	case test_u1:
-	    Tcl_AppendResult(ip, ::form("%u",v._u.u1_num), " ", outbuf + klen + 1, 0);
-	    break;
+		/* Casts force integer instead of character output */
+		case test_i1:
+		    tmp << (int)v._u.i1_num;
+		    break;
+		case test_u1:
+		    tmp << (unsigned)v._u.u1_num;
+		    break;
 
-	case test_i2:
-	    Tcl_AppendResult(ip, ::form("%d",v._u.i2_num), " ", outbuf + klen + 1, 0);
-	    break;
-	case test_u2:
-	    Tcl_AppendResult(ip, ::form("%u",v._u.u2_num), " ", outbuf + klen + 1, 0);
-	    break;
-	case test_i4:
-	    Tcl_AppendResult(ip, ::form("%d",v._u.i4_num), " ", outbuf + klen + 1, 0);
-	    break;
-	case test_u4:
-	    Tcl_AppendResult(ip, ::form("%u",v._u.u4_num), " ", outbuf + klen + 1, 0);
-	    break;
-	case test_f4:
-	    Tcl_AppendResult(ip, ::form("%f",v._u.f4_num), " ", outbuf + klen + 1, 0);
-	    break;
-	case test_f8:
-	    Tcl_AppendResult(ip, ::form("%f",v._u.f8_num), " ", outbuf + klen + 1, 0);
-	    break;
-	case test_spatial:
-	default:
-	    W_FATAL(ss_m::eNOTIMPLEMENTED);
+		case test_i2:
+		    tmp << v._u.i2_num;
+		    break;
+		case test_u2:
+		    tmp << v._u.u2_num;
+		    break;
+
+		case test_i4:
+		    tmp << v._u.i4_num;
+		    break;
+		case test_u4:
+		    tmp << v._u.u4_num;
+		    break;
+
+		case test_i8:
+		    tmp << v._u.i8_num;
+		    break;
+		case test_u8:
+		    tmp << v._u.u8_num;
+		    break;
+
+		case test_f4:
+		    tmp << v._u.f4_num;
+		    break;
+		case test_f8:
+		    tmp << v._u.f8_num;
+		    break;
+
+		case test_spatial:
+		default:
+		    W_FATAL(fcNOTIMPLEMENTED);
+		}
+		if(!done) {
+		    tmp << ends;
+		    Tcl_AppendResult(ip, tmp.str(), " ", outbuf + klen + 1, 0);
+		}
+		delete[] tmpbuf;
 	}
     }
     
@@ -1854,16 +2348,17 @@ t_create_multi_recs(Tcl_Interp* ip, int ac, char* av[])
     tclout.seekp(ios::beg);
 
     register int i;
-    int count = atoi(av[5]);
+    int count = atoi(av[5]); //count -- can't be > signed#
 
     if (use_logical_id(ip)) {
         lstid_t  stid;
         lrid_t   rid;
 
-        GNUG_BUG_12(istrstream(av[1], strlen(av[1])) ) >> stid;
+        istrstream anon(VCPP_BUG_1 av[1], strlen(av[1])); anon >> stid;
         for (i=0; i<count; i++)
                 DO( sm->create_rec(stid.lvid, stid.serial, hdr,
-                           atoi(av[3]), data, rid.serial) );
+                           objectsize(av[3]), 
+			   data, rid.serial) );
 //      rid.lvid = stid.lvid;
 //      tclout << rid << ends;
 
@@ -1871,11 +2366,11 @@ t_create_multi_recs(Tcl_Interp* ip, int ac, char* av[])
         stid_t  stid;
         rid_t   rid;
 
-        GNUG_BUG_12(istrstream(av[1], strlen(av[1])) ) >> stid;
+        istrstream anon(VCPP_BUG_1 av[1], strlen(av[1])); anon >> stid;
 
 	stime_t start(stime_t::now());
         for (i=0; i<count; i++)
-                DO( sm->create_rec(stid, hdr, atoi(av[3]), data, rid) );
+                DO( sm->create_rec(stid, hdr, objectsize(av[3]), data, rid) );
         sinterval_t delta(stime_t::now() - start);
         cerr << "t_create_multi_recs: Write clock time = " 
 		<< delta << " seconds" << endl;
@@ -1893,7 +2388,7 @@ t_multi_file_append(Tcl_Interp* ip, int ac, char* av[])
 
     append_file_i *s = (append_file_i *)strtol(av[1], 0, 0);
 
-    int len_hint = atoi(av[3]);
+    smsize_t len_hint = objectsize(av[3]);
 
     vec_t hdr, data;
     hdr.set(parse_vec(av[2], strlen(av[2])));
@@ -1902,7 +2397,7 @@ t_multi_file_append(Tcl_Interp* ip, int ac, char* av[])
     tclout.seekp(ios::beg);
 
     register int i;
-    int count = atoi(av[5]);
+    int count = atoi(av[5]); // count - can't be > signed int
 
     if (use_logical_id(ip)) {
         lrid_t   lrid;
@@ -1934,13 +2429,14 @@ t_multi_file_update(Tcl_Interp* ip, int ac, char* av[])
     scan_file_i *s = (append_file_i *)strtol(av[1], 0, 0);
     scan_file_i &scan = *s;
 
-    int objsize = atoi(av[2]);
+    smsize_t osize = objectsize(av[2]);
 
     tclout.seekp(ios::beg);
     {
-	char d[objsize];
-	vec_t data(d, objsize);
+	char* d= new char[osize];
+	vec_t data(d, osize);
 	// random uninit data ok
+
 
 	w_rc_t rc;
 	bool eof=false;
@@ -1950,6 +2446,7 @@ t_multi_file_update(Tcl_Interp* ip, int ac, char* av[])
 	    w_assert3(pin);
 	    DO( pin->update_rec(0, data) );
 	}
+	delete[] d;
     }
 
     tclout << "success" << ends;
@@ -1973,9 +2470,9 @@ t_create_rec(Tcl_Interp* ip, int ac, char* av[])
 
 	//cout << "using logical ID interface for CREATE_REC" << endl;
 
-	GNUG_BUG_12(istrstream(av[1], strlen(av[1])) ) >> stid;
+	istrstream anon(VCPP_BUG_1 av[1], strlen(av[1])); anon >> stid;
 	DO( sm->create_rec(stid.lvid, stid.serial, hdr, 
-			   atoi(av[3]), data, lrid.serial) );
+			   objectsize(av[3]), data, lrid.serial) );
 	lrid.lvid = stid.lvid;
 
 	tclout.seekp(ios::beg);
@@ -1985,8 +2482,8 @@ t_create_rec(Tcl_Interp* ip, int ac, char* av[])
 	stid_t  stid;
 	rid_t   rid;
 	
-	GNUG_BUG_12(istrstream(av[1], strlen(av[1])) ) >> stid;
-	DO( sm->create_rec(stid, hdr, atoi(av[3]), data, rid) );
+	istrstream anon(VCPP_BUG_1 av[1], strlen(av[1])); anon >> stid;
+	DO( sm->create_rec(stid, hdr, objectsize(av[3]), data, rid) );
 	tclout.seekp(ios::beg);
 	tclout << rid << ends;
     }
@@ -2004,31 +2501,31 @@ t_destroy_rec(Tcl_Interp* ip, int ac, char* av[])
     if (use_logical_id(ip)) {
 	lrid_t   rid;
 
-	GNUG_BUG_12(istrstream(av[1], strlen(av[1])) ) >> rid;
+	istrstream anon(VCPP_BUG_1 av[1], strlen(av[1])); anon >> rid;
 	DO( sm->destroy_rec(rid.lvid, rid.serial) );
 
     } else {
 	rid_t   rid;
 
-	GNUG_BUG_12(istrstream(av[1], strlen(av[1])) ) >> rid;
+	istrstream anon(VCPP_BUG_1 av[1], strlen(av[1])); anon >> rid;
 	DO( sm->destroy_rec(rid) );
     }
 
-    Tcl_AppendElement(ip, "update success");
+    Tcl_AppendElement(ip, TCL_CVBUG "update success");
     return TCL_OK;
 }
 
 static int
-t_read_rec(Tcl_Interp* ip, int ac, char* av[])
+t_read_rec_1(Tcl_Interp* ip, int ac, char* av[], bool dump_body_too)
 {
     if (check(ip, "rid start length [num_pins]", ac, 4, 5)) 
 	return TCL_ERROR;
     
-    smsize_t   start  = atoi(av[2]);
-    smsize_t   length = atoi(av[3]);
-    int	    num_pins;
+    smsize_t   start  = objectsize(av[2]);
+    smsize_t   length = objectsize(av[3]);
+    smsize_t   num_pins;
     if (ac == 5) {
-	num_pins = atoi(av[4]);		
+	num_pins = numobjects(av[4]);		
     } else {
 	num_pins = 1;
     }
@@ -2036,9 +2533,9 @@ t_read_rec(Tcl_Interp* ip, int ac, char* av[])
 
     if (use_logical_id(ip)) {
 	lrid_t   rid;
-	GNUG_BUG_12(istrstream(av[1], strlen(av[1])) ) >> rid;
+	istrstream anon(VCPP_BUG_1 av[1], strlen(av[1])); anon >> rid;
 
-	for (int i=1; i<num_pins; i++) {
+	for (smsize_t i=1; i<num_pins; i++) {
 	    W_IGNORE(handle.pin(rid.lvid, rid.serial, start));
 	    handle.unpin();
 	}
@@ -2048,9 +2545,9 @@ t_read_rec(Tcl_Interp* ip, int ac, char* av[])
 
     } else {
 	rid_t   rid;
-	GNUG_BUG_12(istrstream(av[1], strlen(av[1])) ) >> rid;
+	istrstream anon(VCPP_BUG_1 av[1], strlen(av[1])); anon >> rid;
 
-	for (int i=1; i<num_pins; i++) {
+	for (smsize_t i=1; i<num_pins; i++) {
 	    W_IGNORE(handle.pin(rid, start));
 	    handle.unpin();
 	}
@@ -2074,17 +2571,29 @@ t_read_rec(Tcl_Interp* ip, int ac, char* av[])
 			  << handle.body_size() << " " << ends;
     Tcl_AppendResult(ip, tclout.str(), 0);
 
+    tclout.seekp(ios::beg);
     dump_pin_hdr(tclout, handle);
     tclout << " " << ends;
     Tcl_AppendResult(ip, tclout.str(), 0);
 
-
-    tclout.seekp(ios::beg);
-    dump_pin_body(tclout, handle, start, length, ip);
-    tclout << " " << ends;
-    Tcl_AppendResult(ip, tclout.str(), 0);
+    if(dump_body_too) {
+	tclout.seekp(ios::beg);
+	dump_pin_body(tclout, handle, start, length, ip);
+	tclout << " " << ends;
+	Tcl_AppendResult(ip, tclout.str(), 0);
+    }
 
     return TCL_OK;
+}
+static int
+t_read_rec(Tcl_Interp* ip, int ac, char* av[])
+{
+    return t_read_rec_1(ip, ac, av, true);
+}
+static int
+t_read_hdr(Tcl_Interp* ip, int ac, char* av[])
+{
+    return t_read_rec_1(ip, ac, av, false);
 }
 
 static int
@@ -2093,13 +2602,13 @@ t_print_rec(Tcl_Interp* ip, int ac, char* av[])
     if (check(ip, "rid start length", ac, 4)) 
 	return TCL_ERROR;
     
-    smsize_t   start  = atoi(av[2]);
-    smsize_t   length = atoi(av[3]);
+    smsize_t   start  = objectsize(av[2]);
+    smsize_t   length = objectsize(av[3]);
     pin_i   handle;
 
     if (use_logical_id(ip)) {
 	lrid_t   rid;
-	GNUG_BUG_12(istrstream(av[1], strlen(av[1])) ) >> rid;
+	istrstream anon(VCPP_BUG_1 av[1], strlen(av[1])); anon >> rid;
 
 	DO(handle.pin(rid.lvid, rid.serial, start));
 	if (linked.verbose_flag)  {
@@ -2107,7 +2616,7 @@ t_print_rec(Tcl_Interp* ip, int ac, char* av[])
 	}
     } else {
 	rid_t   rid;
-	GNUG_BUG_12(istrstream(av[1], strlen(av[1])) ) >> rid;
+	istrstream anon(VCPP_BUG_1 av[1], strlen(av[1])); anon >> rid;
 
 	DO(handle.pin(rid, start)); 
 	if (linked.verbose_flag)  {
@@ -2138,18 +2647,18 @@ t_read_rec_body(Tcl_Interp* ip, int ac, char* av[])
     if (check(ip, "rid [start [length]]", ac, 2, 3, 4)) 
 	return TCL_ERROR;
 
-    smsize_t start = (ac >= 3) ? atoi(av[2]) : 0;
-    smsize_t length = (ac >= 4) ? atoi(av[3]) : 0;
+    smsize_t start = (ac >= 3) ? objectsize(av[2]) : 0;
+    smsize_t length = (ac >= 4) ? objectsize(av[3]) : 0;
     pin_i handle;
 
     if (use_logical_id(ip)) {
         lrid_t   rid;
-        GNUG_BUG_12(istrstream(av[1], strlen(av[1])) ) >> rid;
+	istrstream anon(VCPP_BUG_1 av[1], strlen(av[1])); anon >> rid;
 
         DO(handle.pin(rid.lvid, rid.serial, start));
     } else {
         rid_t   rid;
-        GNUG_BUG_12(istrstream(av[1], strlen(av[1])) ) >> rid;
+	istrstream anon(VCPP_BUG_1 av[1], strlen(av[1])); anon >> rid;
 
         DO(handle.pin(rid, start));
     }
@@ -2194,22 +2703,22 @@ t_update_rec(Tcl_Interp* ip, int ac, char* av[])
     vec_t   data;
 
     data.set(parse_vec(av[3], strlen(av[3])));
-    start = atoi(av[2]);    
+    start = objectsize(av[2]);    
 
     if (use_logical_id(ip)) {
 	lrid_t   rid;
 
-	GNUG_BUG_12(istrstream(av[1], strlen(av[1])) ) >> rid;
+	istrstream anon(VCPP_BUG_1 av[1], strlen(av[1])); anon >> rid;
 	DO( sm->update_rec(rid.lvid, rid.serial, start, data) );
 
     } else {
 	rid_t   rid;
 
-	GNUG_BUG_12(istrstream(av[1], strlen(av[1])) ) >> rid;
+	istrstream anon(VCPP_BUG_1 av[1], strlen(av[1])); anon >> rid;
 	DO( sm->update_rec(rid, start, data) );
     }
 
-    Tcl_AppendElement(ip, "update success");
+    Tcl_AppendElement(ip, TCL_CVBUG "update success");
     return TCL_OK;
 }
 
@@ -2223,22 +2732,22 @@ t_update_rec_hdr(Tcl_Interp* ip, int ac, char* av[])
     vec_t   hdr;
 
     hdr.set(parse_vec(av[3], strlen(av[3])));
-    start = atoi(av[2]);    
+    start = objectsize(av[2]);    
 
     if (use_logical_id(ip)) {
 	lrid_t   rid;
 
-	GNUG_BUG_12(istrstream(av[1], strlen(av[1])) ) >> rid;
+	istrstream anon(VCPP_BUG_1 av[1], strlen(av[1])); anon >> rid;
 	DO( sm->update_rec_hdr(rid.lvid, rid.serial, start, hdr) );
 
     } else {
 	rid_t   rid;
 
-	GNUG_BUG_12(istrstream(av[1], strlen(av[1])) ) >> rid;
+	istrstream anon(VCPP_BUG_1 av[1], strlen(av[1])); anon >> rid;
 	DO( sm->update_rec_hdr(rid, start, hdr) );
     }
 
-    Tcl_AppendElement(ip, "update hdr success");
+    Tcl_AppendElement(ip, TCL_CVBUG "update hdr success");
     return TCL_OK;
 }
 
@@ -2253,16 +2762,16 @@ t_append_rec(Tcl_Interp* ip, int ac, char* av[])
 
     if (use_logical_id(ip)) {
 	lrid_t   rid;
-	GNUG_BUG_12(istrstream(av[1], strlen(av[1])) ) >> rid;
+	istrstream anon(VCPP_BUG_1 av[1], strlen(av[1])); anon >> rid;
 	DO( sm->append_rec(rid.lvid, rid.serial, data) );
 
     } else {
 	rid_t   rid;
-	GNUG_BUG_12(istrstream(av[1], strlen(av[1])) ) >> rid;
+	istrstream anon(VCPP_BUG_1 av[1], strlen(av[1])); anon >> rid;
 	DO( sm->append_rec(rid, data, false) );
     }
 
-    Tcl_AppendElement(ip, "append success");
+    Tcl_AppendElement(ip, TCL_CVBUG "append success");
     return TCL_OK;
 }
 
@@ -2272,19 +2781,19 @@ t_truncate_rec(Tcl_Interp* ip, int ac, char* av[])
     if (check(ip, "rid amount", ac, 3)) 
 	return TCL_ERROR;
  
-    smsize_t amount = atoi(av[2]);
+    smsize_t amount = objectsize(av[2]);
      
     if (use_logical_id(ip)) {
 	lrid_t   rid;
-	GNUG_BUG_12(istrstream(av[1], strlen(av[1])) ) >> rid;
+	istrstream anon(VCPP_BUG_1 av[1], strlen(av[1])); anon >> rid;
 	DO( sm->truncate_rec(rid.lvid, rid.serial, amount) );
     } else {
 	rid_t   rid;
-	GNUG_BUG_12(istrstream(av[1], strlen(av[1])) ) >> rid;
+	istrstream anon(VCPP_BUG_1 av[1], strlen(av[1])); anon >> rid;
 	DO( sm->truncate_rec(rid, amount) );
     }
 
-    Tcl_AppendElement(ip, "append success");
+    Tcl_AppendElement(ip, TCL_CVBUG "append success");
     return TCL_OK;
 }
 
@@ -2295,11 +2804,11 @@ dump_pin_hdr(
 ) 
 {
     int j;
+    char *outbuf = new char[handle.hdr_size()+1];
 
     // DETECT ZVECS
     // Assume the header is reasonably small
 
-    w_assert1(handle.hdr_size() < sizeof(outbuf));
     memcpy(outbuf, handle.hdr(), handle.hdr_size());
     outbuf[handle.hdr_size()] = 0;
     
@@ -2309,8 +2818,9 @@ dump_pin_hdr(
     if(j== -1) {
 	    out << " hdr=zvec" << handle.hdr_size() ;
     } else {
-	    out << " hdr=" << outbuf;
+	    out << " hdr=" << outbuf ;
     }
+    delete[] outbuf;
 }
 
 void
@@ -2324,7 +2834,7 @@ dump_pin_body(
 {
     const	int buf_len = ss_m::page_sz + 1;
 
-    char *buf = (char *) malloc(buf_len);
+    char *buf = new char[buf_len];
     if (!buf)
 	    W_FATAL(fcOUTOFMEMORY);
 	    
@@ -2351,63 +2861,67 @@ dump_pin_body(
 	int width = handle_len-offset;
 
 	// out.seekp(ios::beg);
-	out << "\nBytes:" << i << "-" << i+handle_len-offset << ": " ;
-	if(ip) {
-	    out << ends;
-	    Tcl_AppendResult(ip, out.str(), 0);
-	    out.seekp(ios::beg);
-	}
 
-	// DETECT ZVECS
-	{
-	    int j;
-
-	    /* Zero the buffer beforehand.  The sprintf will output *at
-	       most* 'width' characters, and if the printed string is
-	       shorter, the loop examines unset memory.
-
-	       XXX this seems overly complex, how about checking width
-	       for non-zero bytes instead of the run-around with
-	       sprintf?
-	     */
-
-	    w_assert1(width+1 < buf_len);
-	    memset(buf, '\0', width+1);
-	    sprintf(buf, "%.*s", width, handle.body()+offset);
-	    for (j=width-1; j>=0; j--) {
-		if(buf[j]!= '\0')  {
-		    DBG(<<"byte # " << j << 
-		    " is non-zero: " << (unsigned char) buf[j] );
-		    break;
-		}
+	if (true || linked.verbose_flag) {
+	    out << "\nBytes:" << i << "-" << i+handle_len-offset << ": " ;
+	    if(ip) {
+		out << ends;
+		Tcl_AppendResult(ip, out.str(), 0);
+		out.seekp(ios::beg);
 	    }
-	    if(j== -1) {
-		out << "zvec" << width;
-	    } else {
+
+	    // DETECT ZVECS
+	    {
+		int j;
+
+		/* Zero the buffer beforehand.  The sprintf will output *at
+		   most* 'width' characters, and if the printed string is
+		   shorter, the loop examines unset memory.
+
+		   XXX this seems overly complex, how about checking width
+		   for non-zero bytes instead of the run-around with
+		   sprintf?
+		 */
+
+		w_assert1(width+1 < buf_len);
+		memset(buf, '\0', width+1);
 		sprintf(buf, "%.*s", width, handle.body()+offset);
-		out << buf;
-		if(ip) {
-		    out << ends;
-		    Tcl_AppendResult(ip, buf, 0);
-		    out.seekp(ios::beg);
+		for (j=width-1; j>=0; j--) {
+		    if(buf[j]!= '\0')  {
+			DBG(<<"byte # " << j << 
+			" is non-zero: " << (unsigned char) buf[j] );
+			break;
+		    }
+		}
+		if(j== -1) {
+		    out << "zvec" << width;
+		} else {
+		    sprintf(buf, "%.*s", width, handle.body()+offset);
+		    out << buf;
+		    if(ip) {
+			out << ends;
+			Tcl_AppendResult(ip, buf, 0);
+			out.seekp(ios::beg);
+		    }
 		}
 	    }
 	}
+
 	i += handle_len-offset;
 	offset = 0;
 	if (i < length) {
-	    if(handle.next_bytes(eor)) {
+	    if(handle.next_bytes(eor)!=0) {
 		cerr << "error in next_bytes" << endl;
-		free(buf);
+		delete[] buf;
 		return;
 	    }
 	}
-    }
-    free(buf);
+    } /* while loop */
+    delete[] buf;
 }
 
 w_rc_t
-dump_scan( scan_file_i &scan, ostream &out) 
+dump_scan( scan_file_i &scan, ostream &out, bool hex) 
 {
     w_rc_t rc;
     bool eof=false;
@@ -2419,13 +2933,31 @@ dump_scan( scan_file_i &scan, ostream &out)
     while ( !(rc=scan.next(pin, 0, eof)) && !eof) {
 	if (linked.verbose_flag) {
 	    out << pin->rid();
+	    out << " hdr: " ;
+	    if(pin->hdr_size() > 0) {
+		if(pin->hdr_size() == sizeof(unsigned int)) {
+		    // HACK:
+		    unsigned int m;
+		    memcpy(&m, pin->hdr(), sizeof(unsigned int));
+		    out << m;
+	        } else if(hex) {
+		   for(unsigned int qq = 0; qq < pin->hdr_size(); qq++) {
+		       const char *xxx = pin->hdr() + qq;
+		       cout << int( (*xxx) ) << " ";
+		   }
+		} else {
+		    // print as char string
+		    out << pin->hdr();
+		}
+	    }
+	    out << "(size=" << pin->hdr_size() << ")" ;
 	    out << " body: " ;
 	}
 	vec_t w;
 	bool eof = false;
 
 	for(unsigned int j = 0; j < pin->body_size();) {
-	    if(pin->length() > 0) {
+	    if(pin->body_size() > 0) {
 		w.reset();
 
 		/* Lazy buffer allocation, in buf_unit chunks.
@@ -2434,11 +2966,11 @@ dump_scan( scan_file_i &scan, ostream &out)
 			/* allocate the buffer in buf_unit increments */
 			w_assert3(buf_len <= 8192);
 			if (buf)
-				free(buf);
+				delete[] buf;
 			/* need a generic alignment macro (alignto) */
 			buf_len = (pin->length() + 1 + buf_unit-1) &
 				~(buf_unit - 1);
-			buf = (char *)malloc(buf_len);
+			buf = new char [buf_len];
 			if (!buf)
 				W_FATAL(fcOUTOFMEMORY);
 		}
@@ -2447,14 +2979,29 @@ dump_scan( scan_file_i &scan, ostream &out)
 		w.copy_to(buf, buf_len);
 		buf[pin->length()] = '\0';
 	    if (linked.verbose_flag) {
-		    out << buf 
-				<< "(length=" << pin->length() << ")" 
+#ifdef W_DEBUG
+		    if(hex) {
+		       for(unsigned int qq = 0; qq < pin->length(); qq++) {
+			   cout << int(buf[qq]) << " ";
+		       }
+		    } else{
+		       out << buf ;
+		    }
+#endif /* W_DEBUG */
+	         out << "(length=" << pin->length() << ")" 
 				<< "(size=" << pin->body_size() << ")" 
 				<< endl;
 	    }
 		rc = pin->next_bytes(eof);
 		if(rc) break;
 		j += pin->length();
+	    } else {
+	    // length 0
+		if (linked.verbose_flag) {
+		     out << "(length=" << pin->length() << ")" 
+				    << "(size=" << pin->body_size() << ")" 
+				    << endl;
+		}
 	    }
 	    if(eof || rc) break;
 	}
@@ -2462,10 +3009,12 @@ dump_scan( scan_file_i &scan, ostream &out)
 	    out << endl;
 	}
     }
+    pin->unpin();
     if (buf)
-	    free(buf);
+	    delete[] buf;
     return rc;
 }
+
 
 static int
 t_scan_recs(Tcl_Interp* ip, int ac, char* av[])
@@ -2481,9 +3030,9 @@ t_scan_recs(Tcl_Interp* ip, int ac, char* av[])
 	lrid_t   rid;
 	lstid_t  fid;
 
-	GNUG_BUG_12(istrstream(av[1], strlen(av[1])) ) >> fid;
+	istrstream anon(VCPP_BUG_1 av[1], strlen(av[1])); anon >> fid;
 	if (ac == 3) {
-	    GNUG_BUG_12(istrstream(av[2], strlen(av[2])) ) >> rid;
+	    istrstream anon2(VCPP_BUG_1 av[2], strlen(av[2])); anon2 >> rid;
 	    scan = new scan_file_i(fid.lvid, fid.serial, rid.serial);
 
 	} else {
@@ -2497,9 +3046,9 @@ t_scan_recs(Tcl_Interp* ip, int ac, char* av[])
 	rid_t   rid;
 	stid_t  fid;
 
-	GNUG_BUG_12(istrstream(av[1], strlen(av[1])) ) >> fid;
+	istrstream anon(VCPP_BUG_1 av[1], strlen(av[1])); anon >> fid;
 	if (ac == 3) {
-	    GNUG_BUG_12(istrstream(av[2], strlen(av[2])) ) >> rid;
+	    istrstream anon2(VCPP_BUG_1 av[2], strlen(av[2])); anon2 >> rid;
 	    scan = new scan_file_i(fid, rid);
 	} else {
 	    scan = new scan_file_i(fid);
@@ -2511,7 +3060,7 @@ t_scan_recs(Tcl_Interp* ip, int ac, char* av[])
 
     DO( rc );
 
-    Tcl_AppendElement(ip, "scan success");
+    Tcl_AppendElement(ip, TCL_CVBUG "scan success");
     return TCL_OK;
 }
 
@@ -2533,10 +3082,10 @@ t_scan_rids(Tcl_Interp* ip, int ac, char* av[])
         lstid_t  fid;
         lrid_t   curr;
 
-        GNUG_BUG_12(istrstream(av[1], strlen(av[1])) ) >> fid;
+	istrstream anon(VCPP_BUG_1 av[1], strlen(av[1])); anon >> fid;
 
         if (ac == 3) {
-            GNUG_BUG_12(istrstream(av[2], strlen(av[2])) ) >> rid;
+	    istrstream anon2(VCPP_BUG_1 av[2], strlen(av[2])); anon2 >> rid;
             scan = new scan_file_i(fid.lvid, fid.serial, rid.serial, ss_m::t_cc_page);
         } else {
             scan = new scan_file_i(fid.lvid, fid.serial, ss_m::t_cc_page);
@@ -2557,10 +3106,10 @@ t_scan_rids(Tcl_Interp* ip, int ac, char* av[])
         rid_t   rid;
         stid_t  fid;
 
-        GNUG_BUG_12(istrstream(av[1], strlen(av[1])) ) >> fid;
+	istrstream anon(VCPP_BUG_1 av[1], strlen(av[1])); anon >> fid;
 
         if (ac == 3) {
-            GNUG_BUG_12(istrstream(av[2], strlen(av[2])) ) >> rid;
+	    istrstream anon2(VCPP_BUG_1 av[2], strlen(av[2])); anon2 >> rid;
             scan = new scan_file_i(fid, rid);
         } else {
             scan = new scan_file_i(fid);
@@ -2622,7 +3171,7 @@ t_pin_pin(Tcl_Interp* ip, int ac, char* av[])
 	return TCL_ERROR;
     
     pin_i* p = (pin_i*) strtol(av[1], 0, 0);
-    smsize_t start = atoi(av[3]);
+    smsize_t start = objectsize(av[3]);
     lock_mode_t lmode = SH;
  
     if (ac == 5) {
@@ -2633,13 +3182,13 @@ t_pin_pin(Tcl_Interp* ip, int ac, char* av[])
 
     if (use_logical_id(ip)) {
 	lrid_t   rid;
-	GNUG_BUG_12(istrstream(av[2], strlen(av[2])) ) >> rid;
+	istrstream anon2(VCPP_BUG_1 av[2], strlen(av[2])); anon2 >> rid;
 
 	DO(p->pin(rid.lvid, rid.serial, start, lmode));
 
     } else {
 	rid_t   rid;
-	GNUG_BUG_12(istrstream(av[2], strlen(av[2])) ) >> rid;
+	istrstream anon2(VCPP_BUG_1 av[2], strlen(av[2])); anon2 >> rid;
 
 	DO(p->pin(rid, start, lmode)); 
     }
@@ -2731,6 +3280,25 @@ t_pin_next_bytes(Tcl_Interp* ip, int ac, char* av[])
 }
 
 static int
+t_page_containing(Tcl_Interp* ip, int ac, char* av[])
+{
+    if (check(ip, "pin offset", ac, 3))
+	return TCL_ERROR;
+    
+    pin_i* p = (pin_i*) strtol(av[1], 0, 0);
+    smsize_t offset = strtol(av[2], 0, 0);
+    smsize_t byte_in_page;
+    lpid_t page = p->page_containing(offset, byte_in_page);
+
+    tclout.seekp(ios::beg);
+    tclout << page <<ends;
+
+    Tcl_AppendResult(ip, tclout.str(), 0);
+
+    return TCL_OK;
+}
+
+static int
 t_pin_hdr(Tcl_Interp* ip, int ac, char* av[])
 {
     if (check(ip, "pin", ac, 2))
@@ -2758,6 +3326,22 @@ t_pin_pinned(Tcl_Interp* ip, int ac, char* av[])
     } else {
 	Tcl_AppendResult(ip, "0", 0);
     }
+
+    return TCL_OK;
+}
+
+static int
+t_pin_large_impl(Tcl_Interp* ip, int ac, char* av[])
+{
+    if (check(ip, "pin", ac, 2))
+	return TCL_ERROR;
+    
+    pin_i* p = (pin_i*) strtol(av[1], 0, 0);
+
+    int j= p->large_impl();
+    tclout.seekp(ios::beg);
+    tclout << j <<ends;
+    Tcl_AppendResult(ip, tclout.str(), 0);
 
     return TCL_OK;
 }
@@ -2820,7 +3404,7 @@ t_pin_update_rec(Tcl_Interp* ip, int ac, char* av[])
     if (check(ip, "pin start data", ac, 4))
 	return TCL_ERROR;
    
-    smsize_t start = atoi(av[2]); 
+    smsize_t start = objectsize(av[2]); 
     vec_t   data;
     data.set(parse_vec(av[3], strlen(av[3])));
 
@@ -2836,7 +3420,7 @@ t_pin_update_rec_hdr(Tcl_Interp* ip, int ac, char* av[])
     if (check(ip, "pin start data", ac, 4))
 	return TCL_ERROR;
    
-    smsize_t start = atoi(av[2]); 
+    smsize_t start = objectsize(av[2]); 
     vec_t   data;
     data.set(parse_vec(av[3], strlen(av[3])));
 
@@ -2852,7 +3436,7 @@ t_pin_truncate_rec(Tcl_Interp* ip, int ac, char* av[])
     if (check(ip, "pin amount", ac, 3))
 	return TCL_ERROR;
    
-    smsize_t amount = atoi(av[2]); 
+    smsize_t amount = objectsize(av[2]); 
 
     pin_i* p = (pin_i*) strtol(av[1], 0, 0);
     DO( p->truncate_rec(amount) );
@@ -2873,11 +3457,12 @@ t_scan_file_create(Tcl_Interp* ip, int ac, char* av[])
 
     if (use_logical_id(ip)) {
 	lrid_t   lfid;
-	GNUG_BUG_12(istrstream(av[1], strlen(av[1])) ) >> lfid;
+
+	istrstream anon(VCPP_BUG_1 av[1], strlen(av[1])); anon >> lfid;
 
 	if (ac == 4) {
 	    lrid_t   lrid;
-	    GNUG_BUG_12(istrstream(av[2], strlen(av[3])) ) >> lrid;
+	    istrstream anon2(VCPP_BUG_1 av[2], strlen(av[2])); anon2 >> lrid;
 	    s = new scan_file_i(lfid.lvid, lfid.serial, lrid.serial, cc);
 	} else {
 	    if(cc ==  ss_m::t_cc_append) {
@@ -2897,11 +3482,11 @@ t_scan_file_create(Tcl_Interp* ip, int ac, char* av[])
 	TCL_HANDLE_FSCAN_FAILURE(s);
     } else {
 	stid_t   fid;
-	GNUG_BUG_12(istrstream(av[1], strlen(av[1])) ) >> fid;
+	istrstream anon(VCPP_BUG_1 av[1], strlen(av[1])); anon >> fid;
 
 	if (ac == 4) {
 	    rid_t   rid;
-	    GNUG_BUG_12(istrstream(av[2], strlen(av[3])) ) >> rid;
+	    istrstream anon2(VCPP_BUG_1 av[2], strlen(av[2])); anon2 >> rid;
 	    s = new scan_file_i(fid, rid, cc);
 	} else {
 	    if(cc ==  ss_m::t_cc_append) {
@@ -2967,7 +3552,7 @@ t_scan_file_next(Tcl_Interp* ip, int ac, char* av[])
     if (check(ip, "scan start", ac, 3))
 	return TCL_ERROR;
    
-    smsize_t start = atoi(av[2]);
+    smsize_t start = objectsize(av[2]);
     scan_file_i* s = (scan_file_i*) strtol(av[1], 0, 0);
 
     pin_i* p;
@@ -2993,7 +3578,7 @@ t_scan_file_next_page(Tcl_Interp* ip, int ac, char* av[])
     if (check(ip, "scan start", ac, 3))
 	return TCL_ERROR;
    
-    smsize_t start = atoi(av[2]);
+    smsize_t start = objectsize(av[2]);
     scan_file_i* s = (scan_file_i*) strtol(av[1], 0, 0);
 
     pin_i* p;
@@ -3042,10 +3627,10 @@ t_scan_file_append(Tcl_Interp* ip, int ac, char* av[])
     tclout.seekp(ios::beg);
 
     if(s->is_logical()) {
-	DO( s->create_rec(hdr, atoi(av[3]), data, lrid) );
+	DO( s->create_rec(hdr, objectsize(av[3]), data, lrid) );
 	tclout << lrid << ends;
     } else {
-	DO( s->create_rec(hdr, atoi(av[3]), data, rid) );
+	DO( s->create_rec(hdr, objectsize(av[3]), data, rid) );
 	tclout << rid << ends;
     }
     Tcl_AppendResult(ip, tclout.str(), 0);
@@ -3061,6 +3646,10 @@ t_create_assoc(Tcl_Interp* ip, int ac, char* av[])
     
     vec_t key, el;
     int i; // used iff keytype is int/unsigned
+    unsigned int u; // used iff keytype is int/unsigned
+
+    w_base_t::int8_t il; // used iff keytype is int8_t 
+    w_base_t::uint8_t ul; // used iff keytype is uint8_t
     
     key.put(av[2], strlen(av[2]));
     el.put(av[3], strlen(av[3]));
@@ -3074,7 +3663,7 @@ t_create_assoc(Tcl_Interp* ip, int ac, char* av[])
 	    // Interpret the element as a rid
 
 	    if (use_logical_id(ip)) {
-		GNUG_BUG_12(istrstream(av[3], strlen(av[3])) ) >> lrid;
+		istrstream anon(VCPP_BUG_1 av[3], strlen(av[3])); anon >> lrid;
 		DO( sm->serial_to_rid(lrid.lvid, lrid.serial, rid));
 		static int warning = 0;
 		if( !warning++) {
@@ -3083,11 +3672,85 @@ t_create_assoc(Tcl_Interp* ip, int ac, char* av[])
 			<< " before insertion in index " << endl;
 		}
 	    } else {
-		GNUG_BUG_12(istrstream(av[3], strlen(av[3])) ) >> rid;
+		istrstream anon2(VCPP_BUG_1 av[3], strlen(av[3])); anon2 >> rid;
 	    }
 	    el.reset().put(&rid, sizeof(rid));
 	} 
     }
+
+    if (ac > 4) {
+	const char *keydescr = (const char *)av[4];
+
+	enum typed_btree_test t = cvt2type(keydescr);
+	if (t == test_nosuch) {
+	    Tcl_AppendResult(ip, 
+	       "create_assoc: 4th argument must start with [bBiIuUfF]", 0);
+	    return TCL_ERROR;
+		
+	}
+	switch(t) {
+	    case test_i4: {
+		    i = strtol(av[2], 0, 0);
+		    key.reset();
+		    key.put(&i, sizeof(int));
+		} break;
+	    case test_u4: {
+		    u = strtoul(av[2], 0, 0);
+		    key.reset();
+		    key.put(&u, sizeof(u));
+		}
+		break;
+
+	    case test_i8: {
+		    il = w_base_t::strtoi8(av[2]); 
+		    key.reset();
+		    key.put(&i, sizeof(w_base_t::int8_t));
+		} break;
+	    case test_u8: {
+		    ul = w_base_t::strtou8(av[2]);
+		    key.reset();
+		    key.put(&u, sizeof(w_base_t::uint8_t));
+		}
+		break;
+
+	    case test_bv:
+	    case test_b1:
+	    case test_b23:
+		break;
+
+	    default:
+		Tcl_AppendResult(ip, 
+	       "ssh.create_assoc function unsupported for given keytype:  ",
+		   keydescr, 0);
+	    return TCL_ERROR;
+	}
+    }
+
+    if (use_logical_id(ip)) {
+	lstid_t stid;
+	istrstream anon(VCPP_BUG_1 av[1], strlen(av[1])); anon >> stid;
+	DO( sm->create_assoc(stid.lvid, stid.serial, key, el) );
+    } else {
+	stid_t stid;
+	istrstream anon(VCPP_BUG_1 av[1], strlen(av[1])); anon >> stid;
+	DO( sm->create_assoc(stid, key, el) );
+    }	
+    return TCL_OK;
+}
+
+static int
+t_destroy_assoc(Tcl_Interp* ip, int ac, char* av[])
+{
+    if (check(ip, "stid key el [keytype]", ac, 4, 5)) 
+	return TCL_ERROR;
+    
+    vec_t key, el;
+    
+    key.put(av[2], strlen(av[2]));
+    el.put(av[3], strlen(av[3]));
+
+    int i;
+    unsigned int u;
 
     if (ac > 4) {
 	const char *keydescr = (const char *)av[4];
@@ -3103,46 +3766,24 @@ t_create_assoc(Tcl_Interp* ip, int ac, char* av[])
 	    return TCL_ERROR;
 		
 	}
-	if( keydescr[0] == 'i'
-		||
-	    keydescr[0] == 'u'
-	) {
+	if( keydescr[0] == 'i' ) {
 	    i = atoi(av[2]);
 	    key.reset();
 	    key.put(&i, sizeof(int));
+	} else if( keydescr[0] == 'u') {
+	    u = strtoul(av[2], 0, 0);
+	    key.reset();
+	    key.put(&u, sizeof(u));
 	}
     }
 
     if (use_logical_id(ip)) {
 	lstid_t stid;
-	GNUG_BUG_12(istrstream(av[1], strlen(av[1])) ) >> stid;
-	DO( sm->create_assoc(stid.lvid, stid.serial, key, el) );
-    } else {
-	stid_t stid;
-	GNUG_BUG_12(istrstream(av[1], strlen(av[1])) ) >> stid;
-	DO( sm->create_assoc(stid, key, el) );
-    }	
-    return TCL_OK;
-}
-
-static int
-t_destroy_assoc(Tcl_Interp* ip, int ac, char* av[])
-{
-    if (check(ip, "stid key el", ac, 4)) 
-	return TCL_ERROR;
-    
-    vec_t key, el;
-    
-    key.put(av[2], strlen(av[2]));
-    el.put(av[3], strlen(av[3]));
-
-    if (use_logical_id(ip)) {
-	lstid_t stid;
-	GNUG_BUG_12(istrstream(av[1], strlen(av[1])) ) >> stid;
+	istrstream anon(VCPP_BUG_1 av[1], strlen(av[1])); anon >> stid;
 	DO( sm->destroy_assoc(stid.lvid, stid.serial, key, el) );
     } else {
 	stid_t stid;
-	GNUG_BUG_12(istrstream(av[1], strlen(av[1])) ) >> stid;
+	istrstream anon(VCPP_BUG_1 av[1], strlen(av[1])); anon >> stid;
 	DO( sm->destroy_assoc(stid, key, el) );
     }
     
@@ -3161,11 +3802,11 @@ t_destroy_all_assoc(Tcl_Interp* ip, int ac, char* av[])
     int num_removed;
     if (use_logical_id(ip)) {
 	lstid_t stid;
-	GNUG_BUG_12(istrstream(av[1], strlen(av[1])) ) >> stid;
+	istrstream anon(VCPP_BUG_1 av[1], strlen(av[1])); anon >> stid;
 	DO( sm->destroy_all_assoc(stid.lvid, stid.serial, key, num_removed) );
     } else {
 	stid_t stid;
-	GNUG_BUG_12(istrstream(av[1], strlen(av[1])) ) >> stid;
+	istrstream anon(VCPP_BUG_1 av[1], strlen(av[1])); anon >> stid;
 	DO( sm->destroy_all_assoc(stid, key, num_removed) );
     }
     
@@ -3178,13 +3819,40 @@ t_destroy_all_assoc(Tcl_Interp* ip, int ac, char* av[])
 static int
 t_find_assoc(Tcl_Interp* ip, int ac, char* av[])
 {
-    if (check(ip, "stid key", ac, 3))
+    if (check(ip, "stid key [keytype]", ac, 3, 4))
 	return TCL_ERROR;
     
     vec_t key;
     bool found;
     key.put(av[2], strlen(av[2]));
+
+    int i;
+    unsigned int u;
     
+    if (ac > 3) {
+	const char *keydescr = (const char *)av[3];
+
+	// KLUDGE -- restriction for now
+	// only because it's better than no check at all
+	if(keydescr[0] != 'b' 
+		&& keydescr[0] != 'i'
+		&& keydescr[0] != 'u'
+	) {
+	    Tcl_AppendResult(ip, 
+	       "create_index: 4th argument must start with b,i or u", 0);
+	    return TCL_ERROR;
+		
+	}
+	if( keydescr[0] == 'i' ) {
+	    i = atoi(av[2]);
+	    key.reset();
+	    key.put(&i, sizeof(int));
+	} else if( keydescr[0] == 'u') {
+	    u = strtoul(av[2], 0, 0);
+	    key.reset();
+	    key.put(&u, sizeof(u));
+	}
+    }
 #define ELSIZE 4044
     char *el = new char[ELSIZE];
     smsize_t elen = ELSIZE-1;
@@ -3193,11 +3861,11 @@ t_find_assoc(Tcl_Interp* ip, int ac, char* av[])
 
     if (use_logical_id(ip)) {
 	lstid_t stid;
-	GNUG_BUG_12(istrstream(av[1], strlen(av[1])) ) >> stid;
+	istrstream anon(VCPP_BUG_1 av[1], strlen(av[1])); anon >> stid;
 	___rc = sm->find_assoc(stid.lvid, stid.serial, key, el, elen, found);
     } else {
 	stid_t stid;
-	GNUG_BUG_12(istrstream(av[1], strlen(av[1])) ) >> stid;
+	istrstream anon(VCPP_BUG_1 av[1], strlen(av[1])); anon >> stid;
 	___rc = sm->find_assoc(stid, key, el, elen, found);
     }
     if (___rc)  {
@@ -3210,12 +3878,12 @@ t_find_assoc(Tcl_Interp* ip, int ac, char* av[])
 
     el[elen] = '\0';
     if (found) {
-	Tcl_AppendElement(ip, el);
+	Tcl_AppendElement(ip, TCL_CVBUG el);
 	delete[] el;
 	return TCL_OK;
     } 
 
-    Tcl_AppendElement(ip, "not found");
+    Tcl_AppendElement(ip, TCL_CVBUG "not found");
     delete[] el;
     return TCL_ERROR;
 }
@@ -3226,11 +3894,11 @@ t_create_md_index(Tcl_Interp* ip, int ac, char* av[])
     if (check(ip, "vid dim ndxtype", ac, 4))
 	return TCL_ERROR;
 
-    int2 dim = atoi(av[2]);
+    int2_t dim = atoi(av[2]);
 
     if (use_logical_id(ip)) {
 	lstid_t stid;
-	GNUG_BUG_12(istrstream(av[1], strlen(av[1])) ) >> stid.lvid;
+	istrstream anon(VCPP_BUG_1 av[1], strlen(av[1])); anon >> stid.lvid;
 	DO( sm->create_md_index(stid.lvid, cvt2ndx_t(av[3]),
 				ss_m::t_regular, stid.serial, dim) );
 	tclout.seekp(ios::beg);
@@ -3246,34 +3914,6 @@ t_create_md_index(Tcl_Interp* ip, int ac, char* av[])
     return TCL_OK;
 }
 
-#ifdef USE_RDTREE
-static int
-t_create_set_index(Tcl_Interp* ip, int ac, char* av[])
-{
-    if (check(ip, "vid elemsz ndxtype", ac, 4))
-      return TCL_ERROR;
- 
-    int2 dim = atoi(av[2]);
- 
-    tclout.seekp(ios::beg);
-    if (use_logical_id(ip)) {
- 	lstid_t stid;
- 	GNUG_BUG_12(istrstream(av[1], strlen(av[1])) ) >> stid.lvid;
- 	DO( sm->create_set_index(stid.lvid, cvt2ndx_t(av[3]), 
-				 ss_m::t_regular, stid.serial, dim) );
- 	tclout << stid << ends;
-    } else {
- 	stid_t stid;
- 	DO( sm->create_set_index(atoi(av[1]), cvt2ndx_t(av[3]), 
-				 ss_m::t_regular, stid, dim) );
- 	tclout << stid << ends;
-    }
-    w_assert1(s);
-    Tcl_AppendElement(ip, tmp);
-    return TCL_OK;
-}
-#endif /* USE_RDTREE */
-
 static int
 t_create_md_assoc(Tcl_Interp* ip, int ac, char* av[])
 {
@@ -3286,42 +3926,17 @@ t_create_md_assoc(Tcl_Interp* ip, int ac, char* av[])
     el.put(av[3], strlen(av[3]) + 1);
     if (use_logical_id(ip)) {
 	lstid_t stid;
-	GNUG_BUG_12(istrstream(av[1], strlen(av[1])) ) >> stid;
+	istrstream anon(VCPP_BUG_1 av[1], strlen(av[1])); anon >> stid;
 	DO( sm->create_md_assoc(stid.lvid, stid.serial, key, el) );
     } else {
 	stid_t stid;
-	GNUG_BUG_12(istrstream(av[1], strlen(av[1])) ) >> stid;
+	istrstream anon(VCPP_BUG_1 av[1], strlen(av[1])); anon >> stid;
 	DO( sm->create_md_assoc(stid, key, el) );
     }
 
     return TCL_OK;
 }
 
-#ifdef USE_RDTREE
-static int
-t_create_set_assoc(Tcl_Interp* ip, int ac, char* av[])
-{
-    if (check(ip, "stid box el", ac, 4))
-      return TCL_ERROR;
- 
-    vec_t el;
-    set_t key(strchr(av[2],'{'));
-    rangeset_t rkey(key);
- 
-    el.put(av[3], strlen(av[3]) + 1);
-    if (use_logical_id(ip)) {
- 	lstid_t stid;
- 	GNUG_BUG_12(istrstream(av[1], strlen(av[1])) ) >> stid;
- 	DO( sm->create_set_assoc(stid.lvid, stid.serial, rkey, el) );
-    } else {
- 	stid_t stid;
- 	GNUG_BUG_12(istrstream(av[1], strlen(av[1])) ) >> stid;
- 	DO( sm->create_set_assoc(stid, rkey, el) );
-    }
- 
-    return TCL_OK;
-}
-#endif /* USE_RDTREE */
 
 static int
 t_find_md_assoc(Tcl_Interp* ip, int ac, char* av[])
@@ -3332,55 +3947,26 @@ t_find_md_assoc(Tcl_Interp* ip, int ac, char* av[])
     nbox_t key(av[2]);
     bool found;
 
-    char el[80];
-    smsize_t elen = sizeof(el);
+#define ELEN_ 80
+    char el[ELEN_];
+    smsize_t elen = sizeof(char) * ELEN_;
 
     if (use_logical_id(ip)) {
 	lstid_t stid;
-	GNUG_BUG_12(istrstream(av[1], strlen(av[1])) ) >> stid;
+	istrstream anon(VCPP_BUG_1 av[1], strlen(av[1])); anon >> stid;
 	DO( sm->find_md_assoc(stid.lvid, stid.serial, key, el, elen, found) );
     } else {
 	stid_t stid;
-	GNUG_BUG_12(istrstream(av[1], strlen(av[1])) ) >> stid;
+	istrstream anon(VCPP_BUG_1 av[1], strlen(av[1])); anon >> stid;
 	DO( sm->find_md_assoc(stid, key, el, elen, found) );
     }
     if (found) {
       el[elen] = 0;	// null terminate the string
-      Tcl_AppendElement(ip, el);
+      Tcl_AppendElement(ip, TCL_CVBUG el);
     }
     return TCL_OK;
 }
 
-#ifdef USE_RDTREE
-static int
-t_find_set_assoc(Tcl_Interp* ip, int ac, char* av[])
-{
-    if (check(ip, "stid box", ac, 3))
-      return TCL_ERROR;
- 
-    set_t key(strchr(av[2],'{'));
-    rangeset_t rkey(key);
-    bool found;
- 
-    char el[80];
-    smsize_t elen = sizeof(el);
- 
-    if (use_logical_id(ip)) {
- 	lstid_t stid;
- 	GNUG_BUG_12(istrstream(av[1], strlen(av[1])) ) >> stid;
- 	DO( sm->find_set_assoc(stid.lvid, stid.serial,
-			       rkey, el, elen, found) );
-    } else {
- 	stid_t stid;
- 	GNUG_BUG_12(istrstream(av[1], strlen(av[1])) ) >> stid;
- 	DO( sm->find_set_assoc(stid, rkey, el, elen, found) );
-    }
-    if (found) {
-	Tcl_AppendElement(ip, el);
-    }
-    return TCL_OK;
-}
-#endif /* USE_RDTREE */
 
 static int
 t_destroy_md_assoc(Tcl_Interp* ip, int ac, char* av[])
@@ -3394,11 +3980,11 @@ t_destroy_md_assoc(Tcl_Interp* ip, int ac, char* av[])
     el.put(av[3], strlen(av[3]) + 1);
     if (use_logical_id(ip)) {
 	lstid_t stid;
-	GNUG_BUG_12(istrstream(av[1], strlen(av[1])) ) >> stid;
+	istrstream anon(VCPP_BUG_1 av[1], strlen(av[1])); anon >> stid;
 	DO( sm->destroy_md_assoc(stid.lvid, stid.serial, key, el) );
     } else {
 	stid_t stid;
-	GNUG_BUG_12(istrstream(av[1], strlen(av[1])) ) >> stid;
+	istrstream anon(VCPP_BUG_1 av[1], strlen(av[1])); anon >> stid;
 	DO( sm->destroy_md_assoc(stid, key, el) );
     }
 
@@ -3413,15 +3999,15 @@ static void boxGen(nbox_t* rect[], int number, const nbox_t& universe)
 
     for (i = 0; i < number; i++) {
         // generate the bounding box
-//    length = (int) (generator.drand() * universe.side(0) / 10);
-//    width = (int) (generator.drand() * universe.side(1) / 10);
+//    length = (int) (random_generator::generator.drand() * universe.side(0) / 10);
+//    width = (int) (random_generator::generator.drand() * universe.side(1) / 10);
         length = width = 20;
         if (length > 10*width || width > 10*length)
              width = length = (width + length)/2;
-        box[0] = ((int) (generator.drand() * (universe.side(0) - length)) 
+        box[0] = ((int) (random_generator::generator.drand() * (universe.side(0) - length)) 
 		  + universe.side(0)) % universe.side(0) 
                 + universe.bound(0);
-        box[1] = ((int) (generator.drand() * (universe.side(1) - width)) 
+        box[1] = ((int) (random_generator::generator.drand() * (universe.side(1) - width)) 
 		  + universe.side(1)) % universe.side(1)
                 + universe.bound(1);
         box[2] = box[0] + length;
@@ -3430,32 +4016,11 @@ static void boxGen(nbox_t* rect[], int number, const nbox_t& universe)
         }
 }
 
-#ifdef USE_RDTREE
-static void setGen(set_t* sets[], int number, int numvals, int bound)
-{
-    register int i, j;
-    int curvals;
-    int *array;
- 
-    for (i = 0; i < number; i++) {
-	// generate the set
- 	curvals = 0;
- 	// we can't handle the empty set yet!!
-	//	while (curvals == 0)
- 	curvals = random()%numvals;
- 	array = new int[curvals];
- 	for (j = 0; j < curvals; j++)
- 	  array[j] = random()%bound;
- 	// build the set_t
- 	sets[i] = new set_t(sizeof(int), curvals, (char *)array);
-    }
-} 
-#endif /* USE_RDTREE */
 
 /*
  XXX why are 'flag' and 'i' static?  It breaks multiple threads.
  It's that way so jiebing can have repeatable box generation.
- In the future, the generator should be fixed.  There is also
+ In the future, the random_generator::generator should be fixed.  There is also
  a problem with deleteing  possibly in-use boxes.
  */
 static int
@@ -3464,76 +4029,52 @@ t_next_box(Tcl_Interp* ip, int ac, char* av[])
     if (check(ip, "universe", ac, 2))
         return TCL_ERROR;
 
-    register j;
-    static flag = false;
-    static i = -1;
-    static nbox_t* box[50]; // NB: static
+    int j;
+    static int flag = false;
+    static int i = -1;
+    static const int box_count = 50;
+    static nbox_t* box[box_count]; // NB: static
     nbox_t universe(av[1]);
 
-    if (++i >= 50) {
-        for (j=0; j<50; j++) delete box[j];
+    if (++i >= box_count) {
+        for (j=0; j<box_count; j++) delete box[j];
         flag = false;
     }
 
     if (!flag) {
-        boxGen(box, 50, universe);
+        boxGen(box, box_count, universe);
         i = 0; flag = true;
     }
 
-    Tcl_AppendElement(ip, (char *) (*box[i]));
+    Tcl_AppendElement(ip, TCL_CVBUG (*box[i]));
 
     return TCL_OK;
 }
 
-#ifdef USE_RDTREE
-static int
-t_next_set(Tcl_Interp* ip, int ac, char* av[])
-{
-    if (check(ip, "numvals/bound/seed", ac, 4))
-      return TCL_ERROR;
- 
-    register j;
-    static flag = false;
-    static i = -1;
-    static set_t* sets[300];
-    char *buf;
-    int numvals = atoi(av[1]);
-    int bound = atoi(av[2]);
-    int seed = atoi(av[3]);
-    generator.srand(seed);
- 
-    if (++i >= 300) {
-	for (j=0; j<300; j++) delete sets[j];
-	flag = false;
-    }
- 
-    if (!flag) {
-	setGen(sets, 300, numvals, bound);
-	i = 0; flag = true;
-    }
- 
-    buf = (char *) (*sets[i]);
-    Tcl_AppendElement(ip, buf);
-    delete [] buf;
- 
-    return TCL_OK;
-}
-#endif /* USE_RDTREE */
 
 static int
 t_draw_rtree(Tcl_Interp* ip, int ac, char* av[])
 {
-    if (check(ip, "stid", ac, 2))
+    if (check(ip, "stid", ac, 3))
         return TCL_ERROR;
+
+    ofstream DrawFile(av[2]);
+    if (!DrawFile) {
+    	w_rc_t	e = RC(fcOS);
+	cerr << "Can't open draw file: " << av[2] << ":" << endl
+		<< e << endl;
+
+	return TCL_ERROR;	/* XXX or should it be some other error? */
+    }
 
     if (use_logical_id(ip)) {
 	lstid_t stid;
-	GNUG_BUG_12(istrstream(av[1], strlen(av[1])) ) >> stid;
-	DO( sm->draw_rtree(stid.lvid, stid.serial) );
+	istrstream anon(VCPP_BUG_1 av[1], strlen(av[1])); anon >> stid;
+	DO( sm->draw_rtree(stid.lvid, stid.serial, DrawFile) );
     } else {
 	stid_t stid;
-	GNUG_BUG_12(istrstream(av[1], strlen(av[1])) ) >> stid;
-	DO( sm->draw_rtree(stid) );
+	istrstream anon(VCPP_BUG_1 av[1], strlen(av[1])); anon >> stid;
+	DO( sm->draw_rtree(stid, DrawFile) );
     }
     return TCL_OK;
 }
@@ -3543,17 +4084,17 @@ t_rtree_stats(Tcl_Interp* ip, int ac, char* av[])
 {
     if (check(ip, "stid", ac, 2))
         return TCL_ERROR;
-    uint2 level = 5;
-    uint2 ovp[5];
+    uint2_t level = 5;
+    uint2_t ovp[5];
     rtree_stats_t stats;
 
     if (use_logical_id(ip)) {
 	lstid_t stid;
-	GNUG_BUG_12(istrstream(av[1], strlen(av[1])) ) >> stid;
+	istrstream anon(VCPP_BUG_1 av[1], strlen(av[1])); anon >> stid;
 	DO( sm->rtree_stats(stid.lvid, stid.serial, stats, level, ovp) );
     } else {
 	stid_t stid;
-	GNUG_BUG_12(istrstream(av[1], strlen(av[1])) ) >> stid;
+	istrstream anon(VCPP_BUG_1 av[1], strlen(av[1])); anon >> stid;
 	DO( sm->rtree_stats(stid, stats, level, ovp) );
     }
 
@@ -3590,12 +4131,12 @@ t_rtree_scan(Tcl_Interp* ip, int ac, char* av[])
 
     if (use_logical_id(ip)) {
 	lstid_t stid;
-	GNUG_BUG_12(istrstream(av[1], strlen(av[1])) ) >> stid;
+	istrstream anon(VCPP_BUG_1 av[1], strlen(av[1])); anon >> stid;
 
 	s = new scan_rt_i(stid.lvid, stid.serial, cond, box, cc);
     } else {
 	stid_t stid;
-	GNUG_BUG_12(istrstream(av[1], strlen(av[1])) ) >> stid;
+	istrstream anon(VCPP_BUG_1 av[1], strlen(av[1])); anon >> stid;
 
 	s = new scan_rt_i(stid, cond, box, cc);
     }
@@ -3618,19 +4159,19 @@ t_rtree_scan(Tcl_Interp* ip, int ac, char* av[])
     }
 #endif
 
-    if ( s->next(ret, tmp, elen, eof) ) {
+    if ( s->next(ret, tmp, elen, eof)!=0 ) {
         delete s; return TCL_ERROR;
         }
     while (!eof) {
 	if (linked.verbose_flag)  {
-	    ret.print(4);
+	    ret.print(cout, 4);
 #ifdef SSH_VERBOSE
 	    tmp[elen] = 0;
 	    cout << "\telem " << tmp << endl;
 #endif
 	}
         elen = 100;
-        if ( s->next(ret, tmp, elen, eof) ) {
+        if ( s->next(ret, tmp, elen, eof)!=0 ) {
             delete s; return TCL_ERROR;
             }
         }
@@ -3644,79 +4185,6 @@ t_rtree_scan(Tcl_Interp* ip, int ac, char* av[])
     delete s;
     return TCL_OK;
 }
-
-#ifdef USE_RDTREE
-static int
-t_rdtree_scan(Tcl_Interp* ip, int ac, char* av[])
-{
-    if (check(ip, "stid cond box [concurrency_t]", ac, 4, 5))
-      return TCL_ERROR;
- 
-    set_t set(av[3]);
-    nbox_t::sob_cmp_t cond = cvt2sob_cmp_t(av[2]);
-    scan_rdt_i* s = NULL;
- 
-    ss_m::concurrency_t cc = ss_m::t_cc_page;
-    if (ac == 5) {
-	cc = cvt2concurrency_t(av[4]);
-    }
-
-    if (use_logical_id(ip)) {
- 	lstid_t stid;
- 	GNUG_BUG_12(istrstream(av[1], strlen(av[1])) ) >> stid;
- 
- 	s = new scan_rdt_i(stid.lvid, stid.serial, cond, set, cc);
-    } else {
- 	stid_t stid;
- 	GNUG_BUG_12(istrstream(av[1], strlen(av[1])) ) >> stid;
- 
- 	s = new scan_rdt_i(stid, cond, set, cc);
-    }
-    if (!s) {
- 	cerr << "Out of memory: file " << __FILE__
-	  << " line " << __LINE__ << endl;
-	W_FATAL(fcOUTOFMEMORY);
-    }
- 
-    bool eof = false;
-    char tmp[100];
-    smsize_t elen = 100;
-    rangeset_t ret(set);
- 
-
-#ifdef SSH_VERBOSE
-    if (linked.verbose_flag)  {
-	cout << "------- start of query ----------\n";
-	cout << "matching sets of " << av[2] 
-	  << " query for set (" << av[3] << ") are: \n";
-    }
-#endif
- 
-    if ( s->next(ret, tmp, elen, eof) ) {
-	delete s; return TCL_ERROR;
-    }
-    while (!eof) {
-	ret.print(4);
-#ifdef SSH_VERBOSE
-    if (linked.verbose_flag)  {
- 	cout << "\telem " << tmp << endl;
-    }
-#endif
-	elen = 100;
-	if ( s->next(ret, tmp, elen, eof) ) {
-	    delete s; return TCL_ERROR;
-	}
-    }
-
-#ifdef SSH_VERBOSE
-    if (linked.verbose_flag)  {
-	cout << "-------- end of query -----------\n";
-    }
-#endif
-    delete s;
-    return TCL_OK;
-}
-#endif /* USE_RDTREE */
 
 static sort_stream_i* sort_container;
 
@@ -3771,6 +4239,12 @@ t_begin_sort_stream(Tcl_Interp* ip, int ac, char* av[])
 	    info.type = sortorder::kt_i4;
 	    info.len = sizeof(int4_t);
 	    break;
+	case test_i8:
+	    // NB: Tcl doesn't handle 64-bit arithmetic
+	    // info.type = key_info_t::t_int;
+	    info.type = sortorder::kt_i8;
+	    info.len = sizeof(w_base_t::int8_t);
+	    break;
 	case test_u1:
 	    // new test
 	    info.type = sortorder::kt_u1;
@@ -3785,6 +4259,11 @@ t_begin_sort_stream(Tcl_Interp* ip, int ac, char* av[])
 	    // new test
 	    info.type = sortorder::kt_u4;
 	    info.len = sizeof(uint4_t);
+	    break;
+	case test_u8:
+	    // new test
+	    info.type = sortorder::kt_u8;
+	    info.len = sizeof(w_base_t::uint8_t);
 	    break;
 	case test_f4:
 	    // info.type = key_info_t::t_float;
@@ -3805,7 +4284,7 @@ t_begin_sort_stream(Tcl_Interp* ip, int ac, char* av[])
 	    }
 	    break;
 	default:
-	    W_FATAL(ss_m::eNOTIMPLEMENTED);
+	    W_FATAL(fcNOTIMPLEMENTED);
 	    break;
     }
 
@@ -3820,7 +4299,7 @@ t_begin_sort_stream(Tcl_Interp* ip, int ac, char* av[])
     }
 
     if (strcmp("up", av[updown_arg]))  {
-	sp.ascending = strcmp("down", av[updown_arg]);
+	sp.ascending = (strcmp("down", av[updown_arg]) != 0);
 	if (sp.ascending) {
 	    if (check(ip, usage_string, ac, 0)) return TCL_ERROR;
         }
@@ -3833,12 +4312,12 @@ t_begin_sort_stream(Tcl_Interp* ip, int ac, char* av[])
     }
 
     if (ac>derived_arg) {
-	info.derived = atoi(av[derived_arg]);
+	info.derived = (atoi(av[derived_arg]) != 0);
     }
 
     if (use_logical_id(ip)) {
         lvid_t lvid;
-        GNUG_BUG_12(istrstream(av[vid_arg], strlen(av[vid_arg])) ) >> lvid;
+	istrstream anon(VCPP_BUG_1 av[vid_arg], strlen(av[vid_arg])); anon >> lvid;
 	vid_t tmp_vid;
 	DO(sm->lvid_to_vid(lvid, tmp_vid));
 	sp.vol = tmp_vid;
@@ -3891,7 +4370,7 @@ t_sort_stream_get(Tcl_Interp* ip, int ac, char* av[])
     }
 
     if (eof) {
-	Tcl_AppendElement(ip, "eof");
+	Tcl_AppendElement(ip, TCL_CVBUG "eof");
 	if (sort_container) {
 	    delete sort_container;
 	    sort_container = 0;
@@ -3904,15 +4383,16 @@ t_sort_stream_get(Tcl_Interp* ip, int ac, char* av[])
 
 	switch(t) {
 	case test_bv:{
-		char buf[key.size()];
+		char* buf= new char [key.size()];
 		key.copy_to(buf, key.size());
 
 		tclout <<  buf;
+		delete[] buf;
 	    }
 	    break;
 
 	case test_spatial:
-	    W_FATAL(ss_m::eNOTIMPLEMENTED);
+	    W_FATAL(fcNOTIMPLEMENTED);
 	    break;
 
 	default:
@@ -3945,11 +4425,18 @@ t_sort_stream_get(Tcl_Interp* ip, int ac, char* av[])
 	case  test_i4:
 	    tclout << v._u.i4_num ;
 	    break;
-
 	case  test_u4:
 	    tclout << v._u.u4_num ;
 	    break;
 
+	case  test_i8:
+// TODO: fix on NT
+	    // tclout << v._u.i8_num ;
+	    break;
+	case  test_u8:
+// TODO: fix on NT
+	    // tclout << v._u.u8_num ;
+	    break;
 	case  test_f8:
 	    tclout << v._u.f8_num ;
 	    break;
@@ -3960,15 +4447,16 @@ t_sort_stream_get(Tcl_Interp* ip, int ac, char* av[])
 
 	case test_spatial:
 	default:
-	    W_FATAL(ss_m::eNOTIMPLEMENTED);
+	    W_FATAL(fcNOTIMPLEMENTED);
 	    break;
 	}
 	{
-	    char buf[data.size()+1];
+	    char* buf = new char[data.size()+1];
 	    data.copy_to(buf, data.size());
 	    buf[data.size()] = '\0';
 
 	    tclout << " "  << (char *)&buf[0] ;
+		delete[] buf;
 	}
 	tclout << ends;
     	Tcl_AppendResult(ip, tclout.str(), 0);
@@ -3999,8 +4487,10 @@ t_link_to_remote_id(Tcl_Interp* ip, int ac, char* av[])
     if (use_logical_id(ip)) {
 	lid_t remote_id;
 	lid_t new_id;
-	GNUG_BUG_12(istrstream(av[1], strlen(av[1])) ) >> new_id.lvid;
-	GNUG_BUG_12(istrstream(av[2], strlen(av[2])) ) >> remote_id;
+	istrstream anon(VCPP_BUG_1 av[1], strlen(av[1])); anon >> new_id.lvid;
+
+	istrstream anon2(VCPP_BUG_1 av[2], strlen(av[2])); anon2 >> remote_id;
+
 	DO( sm->link_to_remote_id(new_id.lvid, new_id.serial,
 				  remote_id.lvid, remote_id.serial));
 	tclout.seekp(ios::beg);
@@ -4023,7 +4513,7 @@ t_convert_to_local_id(Tcl_Interp* ip, int ac, char* av[])
     if (use_logical_id(ip)) {
 	lid_t remote_id;
 	lid_t local_id;
-	GNUG_BUG_12(istrstream(av[1], strlen(av[1])) ) >> remote_id;
+	istrstream anon(VCPP_BUG_1 av[1], strlen(av[1])); anon >> remote_id;
 	DO( sm->convert_to_local_id(remote_id.lvid, remote_id.serial,
 	                             local_id.lvid, local_id.serial));
 	tclout.seekp(ios::beg);
@@ -4047,7 +4537,7 @@ t_lfid_of_lrid(Tcl_Interp* ip, int ac, char* av[])
     if (use_logical_id(ip)) {
 	lid_t lrid;
 	lid_t lfid;
-	GNUG_BUG_12(istrstream(av[1], strlen(av[1])) ) >> lrid;
+	istrstream anon(VCPP_BUG_1 av[1], strlen(av[1])); anon >> lrid;
 	DO( sm->lfid_of_lrid(lrid.lvid, lrid.serial, lfid.serial));
 	lfid.lvid = lrid.lvid;
 	tclout.seekp(ios::beg);
@@ -4070,7 +4560,7 @@ t_serial_to_rid(Tcl_Interp* ip, int ac, char* av[])
     if (use_logical_id(ip)) {
 	rid_t rid;
 	lid_t lrid;
-	GNUG_BUG_12(istrstream(av[1], strlen(av[1])) ) >> lrid;
+	istrstream anon(VCPP_BUG_1 av[1], strlen(av[1])); anon >> lrid;
 	DO( sm->serial_to_rid(lrid.lvid, lrid.serial, rid));
 	tclout.seekp(ios::beg);
 	tclout << rid << ends;
@@ -4092,7 +4582,7 @@ t_serial_to_stid(Tcl_Interp* ip, int ac, char* av[])
     if (use_logical_id(ip)) {
 	stid_t stid;
 	lid_t lstid;
-	GNUG_BUG_12(istrstream(av[1], strlen(av[1])) ) >> lstid;
+	istrstream anon(VCPP_BUG_1 av[1], strlen(av[1])); anon >> lstid;
 	DO( sm->serial_to_stid(lstid.lvid, lstid.serial, stid));
 	tclout.seekp(ios::beg);
 	tclout << stid << ends;
@@ -4150,7 +4640,7 @@ t_test_lid_cache(Tcl_Interp* ip, int ac, char* av[])
     int num_add = atoi(av[2]);
     if (use_logical_id(ip)) {
 	lvid_t lvid;
-	GNUG_BUG_12(istrstream(av[1], strlen(av[1])) ) >> lvid;
+	istrstream anon(VCPP_BUG_1 av[1], strlen(av[1])); anon >> lvid;
 	DO(sm->test_lid_cache(lvid, num_add));
     } else {
     }
@@ -4216,7 +4706,8 @@ t_lock(Tcl_Interp* ip, int ac, char* av[])
     }
    
     if (use_phys) {
-	lockid_t n = cvt2lockid_t(av[1]);
+	lockid_t n;
+	cvt2lockid_t(av[1], n);
 	
 	if (ac == 3)  {
 	    DO( sm->lock(n, mode) );
@@ -4280,7 +4771,8 @@ t_dont_escalate(Tcl_Interp* ip, int ac, char* av[])
     } 
 
     if (use_phys)  {
-	lockid_t n = cvt2lockid_t(av[1]);
+	lockid_t n;
+	cvt2lockid_t(av[1], n);
 	DO( sm->dont_escalate(n, passOnToDescendants) );
     }
 
@@ -4293,9 +4785,9 @@ t_get_escalation_thresholds(Tcl_Interp* ip, int ac, char* /*av*/[])
     if (check(ip, "", ac, 1))
 	return TCL_ERROR;
 
-    int4	toPage = 0;
-    int4	toStore = 0;
-    int4	toVolume = 0;
+    int4_t	toPage = 0;
+    int4_t	toStore = 0;
+    int4_t	toVolume = 0;
 
     DO( sm->get_escalation_thresholds(toPage, toStore, toVolume) );
 
@@ -4312,7 +4804,7 @@ t_get_escalation_thresholds(Tcl_Interp* ip, int ac, char* /*av*/[])
     return TCL_OK;
 }
 
-static int4
+static int4_t
 parse_escalation_thresholds(char *s)
 {
     int		result = atoi(s);
@@ -4330,7 +4822,8 @@ t_set_escalation_thresholds(Tcl_Interp* ip, int ac, char* av[])
 {
     int		listArgc;
     char**	listArgv;
-    char*	errString = "{toPage, toStore, toVolume} (0 =don't escalate, <0 =don't modify)";
+    const char*	errString = 
+    "{toPage, toStore, toVolume} (0 =don't escalate, <0 =don't modify)";
 
     if (check(ip, errString, ac, 2))
 	return TCL_ERROR;
@@ -4339,20 +4832,22 @@ t_set_escalation_thresholds(Tcl_Interp* ip, int ac, char* av[])
 	return TCL_ERROR;
     
     if (listArgc != 3)  {
-	ip->result = errString;
+	ip->result = (char *) errString;
 	return TCL_ERROR;
     }
 
-    int4	toPage = parse_escalation_thresholds(listArgv[0]);
-    int4	toStore = parse_escalation_thresholds(listArgv[1]);
-    int4	toVolume = parse_escalation_thresholds(listArgv[2]);
+    int4_t	toPage = parse_escalation_thresholds(listArgv[0]);
+    int4_t	toStore = parse_escalation_thresholds(listArgv[1]);
+    int4_t	toVolume = parse_escalation_thresholds(listArgv[2]);
 
-    free(listArgv);
+    Tcl_Free( (char *) listArgv);
 
     DO( sm->set_escalation_thresholds(toPage, toStore, toVolume) );
 
     return TCL_OK;
 }
+
+#include <deadlock_events.h>
 
 static int
 t_start_deadlock_info_recording(Tcl_Interp* ip, int ac, char* /*av*/[])
@@ -4360,7 +4855,8 @@ t_start_deadlock_info_recording(Tcl_Interp* ip, int ac, char* /*av*/[])
     if (check(ip, "", ac, 1))
 	return TCL_ERROR;
     
-    DO( sm->set_deadlock_event_callback(new DeadlockEventPrinter(cerr)) );
+    DeadlockEventPrinter* x = new DeadlockEventPrinter(cerr);
+    DO( sm->set_deadlock_event_callback(x) );
 
     return TCL_OK;
 }
@@ -4386,13 +4882,13 @@ t_lock_many(Tcl_Interp* ip, int ac, char* av[])
 
     rc_t rc; // return code
     bool use_phys = true;
-    int num_requests = atoi(av[1]);
-    int i;
+    smsize_t num_requests = numobjects(av[1]);
+    smsize_t i;
     lock_mode_t mode = cvt2lock_mode(av[3]);
 
     if (use_logical_id(ip)) {
 	lid_t   id;
-	GNUG_BUG_12(istrstream(av[2], strlen(av[2])) ) >> id;
+	istrstream anon2(VCPP_BUG_1 av[2], strlen(av[2])); anon2 >> id;
 	if (ac == 4)  {
 	    for (i = 0; i < num_requests; i++) {
 		rc = sm->lock(id.lvid, id.serial, mode);
@@ -4423,7 +4919,8 @@ t_lock_many(Tcl_Interp* ip, int ac, char* av[])
     }
    
     if (use_phys) {
-	lockid_t n = cvt2lockid_t(av[2]);
+	lockid_t n;
+	cvt2lockid_t(av[2], n);
 	
 	if (ac == 4)  {
 	    for (i = 0; i < num_requests; i++)
@@ -4454,7 +4951,7 @@ t_unlock(Tcl_Interp* ip, int ac, char* av[])
 
     if (use_logical_id(ip)) {
 	lid_t   id;
-	GNUG_BUG_12(istrstream(av[1], strlen(av[1])) ) >> id;
+	istrstream anon(VCPP_BUG_1 av[1], strlen(av[1])); anon >> id;
 	rc = sm->unlock(id.lvid, id.serial);
 	if (rc)  {
 	    if (rc.err_num() != ss_m::eBADLOGICALID && rc.err_num() != ss_m::eBADVOL) { 
@@ -4465,7 +4962,8 @@ t_unlock(Tcl_Interp* ip, int ac, char* av[])
 	}
     }
     if (use_phys) {
-	lockid_t n = cvt2lockid_t(av[1]);
+	lockid_t n;
+	cvt2lockid_t(av[1], n);
 	DO( sm->unlock(n) );
     }
     return TCL_OK;
@@ -4479,7 +4977,10 @@ t_dump_threads(Tcl_Interp* ip, int ac, char*[])
     if (check(ip, "", ac, 1))
 	return TCL_ERROR;
 
+
+
     dumpthreads();
+
     return TCL_OK;
 }
 static int
@@ -4488,7 +4989,7 @@ t_dump_locks(Tcl_Interp* ip, int ac, char*[])
     if (check(ip, "", ac, 1))
 	return TCL_ERROR;
 
-    DO( sm->dump_locks() );
+    DO( sm->dump_locks(cout) );
     return TCL_OK;
 }
 
@@ -4504,7 +5005,7 @@ t_query_lock(Tcl_Interp* ip, int ac, char* av[])
 
     if (use_logical_id(ip)) {
 	lid_t   id;
-	GNUG_BUG_12(istrstream(av[1], strlen(av[1])) ) >> id;
+	istrstream anon(VCPP_BUG_1 av[1], strlen(av[1])); anon >> id;
 	rc = sm->query_lock(id.lvid, id.serial, m);
 	if (rc)  {
 	    if (rc.err_num() != ss_m::eBADLOGICALID && rc.err_num() != ss_m::eBADVOL) { 
@@ -4515,7 +5016,8 @@ t_query_lock(Tcl_Interp* ip, int ac, char* av[])
 	}
     }
     if (use_phys) {
-	lockid_t n = cvt2lockid_t(av[1]);
+	lockid_t n;
+	cvt2lockid_t(av[1], n);
 	DO( sm->query_lock(n, m) );
     }
 
@@ -4566,7 +5068,7 @@ t_print_lid_index(Tcl_Interp* ip, int ac, char* av[])
 
     if (use_logical_id(ip))  {
 	lvid_t lvid;
-	GNUG_BUG_12(istrstream (av[1], strlen(av[1])) ) >> lvid;
+	istrstream anon(VCPP_BUG_1 av[1], strlen(av[1])); anon >> lvid;
 	DO( sm->print_lid_index(lvid) );
 	return TCL_OK;
     }
@@ -4581,9 +5083,9 @@ t_create_many_rec(Tcl_Interp* ip, int ac, char* av[])
     if (check(ip, "num_recs fid hdr len_hint chunkdata chunkcount", ac, 7)) 
 	return TCL_ERROR;
    
-    unsigned num_recs = atoi(av[1]);
-    unsigned chunk_count = atoi(av[6]);
-    unsigned len_hint = atoi(av[4]);
+    smsize_t num_recs = numobjects(av[1]);
+    smsize_t chunk_count = objectsize(av[6]);
+    smsize_t len_hint = objectsize(av[4]);
     vec_t hdr, data;
     hdr.put(av[3], strlen(av[3]));
     data.put(av[5], strlen(av[5]));
@@ -4593,7 +5095,7 @@ t_create_many_rec(Tcl_Interp* ip, int ac, char* av[])
 	lstid_t  stid;
 	lrid_t   rid;
 
-	GNUG_BUG_12(istrstream(av[2], strlen(av[2])) ) >> stid;
+	istrstream anon(VCPP_BUG_1 av[2], strlen(av[2])); anon >> stid;
 	cout << "creating " << num_recs << " records in " << stid
 	     << " with hdr_len= " << hdr.size() << " chunk_len= "
 	     << data.size() << " in " << chunk_count << " chunks."
@@ -4615,7 +5117,7 @@ t_create_many_rec(Tcl_Interp* ip, int ac, char* av[])
 	stid_t  stid;
 	rid_t   rid;
 	
-	GNUG_BUG_12(istrstream(av[2], strlen(av[2])) ) >> stid;
+	istrstream anon2(VCPP_BUG_1 av[2], strlen(av[2])); anon2 >> stid;
 	cout << "creating " << num_recs << " records in " << stid
 	     << " with hdr_len= " << hdr.size() << " chunk_len= "
 	     << data.size() << " in " << chunk_count << " chunks."
@@ -4640,31 +5142,31 @@ t_update_rec_many(Tcl_Interp* ip, int ac, char* av[])
     if (check(ip, "num_updates rid start data", ac, 5)) 
 	return TCL_ERROR;
     
-    uint4   start;
+    smsize_t   start;
     vec_t   data;
-    int	    num_updates = atoi(av[1]);
+    smsize_t	    num_updates = numobjects(av[1]);
 
     data.set(parse_vec(av[4], strlen(av[4])));
-    start = atoi(av[3]);    
+    start = objectsize(av[3]);    
 
     if (use_logical_id(ip)) {
 	lrid_t   rid;
 
-	GNUG_BUG_12(istrstream(av[2], strlen(av[2])) ) >> rid;
-	for (int i = 0; i < num_updates; i++) {
+	istrstream anon2(VCPP_BUG_1 av[2], strlen(av[2])); anon2 >> rid;
+	for (smsize_t i = 0; i < num_updates; i++) {
 	    DO( sm->update_rec(rid.lvid, rid.serial, start, data) );
 	}
 
     } else {
 	rid_t   rid;
 
-	GNUG_BUG_12(istrstream(av[2], strlen(av[2])) ) >> rid;
-	for (int i = 0; i < num_updates; i++) {
+	istrstream anon2(VCPP_BUG_1 av[2], strlen(av[2])); anon2 >> rid;
+	for (smsize_t i = 0; i < num_updates; i++) {
 	    DO( sm->update_rec(rid, start, data) );
 	}
     }
 
-    Tcl_AppendElement(ip, "update success");
+    Tcl_AppendElement(ip, TCL_CVBUG "update success");
     return TCL_OK;
 }
 
@@ -4675,11 +5177,11 @@ t_lock_record_blind(Tcl_Interp* ip, int ac, char* av[])
     if (check(ip, "num", ac, 2))
 	return TCL_ERROR;
 
-    const page_capacity = 20;
+    const int page_capacity = 20;
     rid_t rid;
     rid.pid._stid.vol = 999;
-    uint4 n;
-    GNUG_BUG_12(istrstream(av[1], strlen(av[1]))) >> n;
+    uint4_t n;
+    istrstream anon(VCPP_BUG_1 av[1], strlen(av[1])); anon >> n;
 
     stime_t start(stime_t::now());
     
@@ -4708,7 +5210,7 @@ t_testing(Tcl_Interp* ip, int ac, char* av[])
 	return TCL_ERROR;
 
     stid_t stid;
-    GNUG_BUG_12(istrstream(av[1], strlen(av[1])) ) >> stid;
+    istrstream anon(VCPP_BUG_1 av[1], strlen(av[1])); anon >> stid;
 
     //align the key
     char* key_align = strdup(av[2]);
@@ -4731,11 +5233,11 @@ t_testing(Tcl_Interp* ip, int ac, char* av[])
     el[elen] = '\0';
 
     if (found)  {
-	Tcl_AppendElement(ip, el);
+	Tcl_AppendElement(ip, TCL_CVBUG el);
 	return TCL_OK;
     }
 
-    Tcl_AppendElement(ip, "not found");
+    Tcl_AppendElement(ip, TCL_CVBUG "not found");
     return TCL_ERROR;
 }
 
@@ -4746,7 +5248,7 @@ t_janet_setup(Tcl_Interp* ip, int ac, char* av[])
 	return TCL_ERROR;
 
     stid_t stid;
-    GNUG_BUG_12(istrstream(av[1], strlen(av[1])) ) >> stid;
+    istrstream anon(VCPP_BUG_1 av[1], strlen(av[1])); anon >> stid;
 
     int nkeys = atoi(av[2]);
 
@@ -4771,7 +5273,7 @@ t_janet_lookup(Tcl_Interp* ip, int ac, char* av[])
 	return TCL_ERROR;
 
     stid_t stid;
-    GNUG_BUG_12(istrstream(av[1], strlen(av[1])) ) >> stid;
+    istrstream anon(VCPP_BUG_1 av[1], strlen(av[1])); anon >> stid;
 
     int nkeys = atoi(av[2]);
     int nlookups = atoi(av[3]);
@@ -4877,9 +5379,10 @@ t_co_newtid(Tcl_Interp* ip, int ac, char* [])
     gtid_t g;
     DO( co->newtid(g));
 
-    //NB: we're assuming for now that anything generated
-    // will be ascii and null-terminated
-    Tcl_AppendResult(ip, (const char*)g, 0);
+    ostrstream s;
+    s << g << ends;
+    Tcl_AppendResult(ip, s.str(), 0);
+    delete [] s.str();
     return TCL_OK;
 }
 
@@ -4927,12 +5430,12 @@ t_co_retry_commit(Tcl_Interp* ip, int ac, char* av[])
     if(co) {
 	rc = co->end_transaction(true,g);
 	tclout.seekp(ios::beg);                                 
-	if(rc && rc.err_num() != ss_m::eVOTENO) {
+	if(rc && rc.err_num() != smlevel_0::eVOTENO) {
 	    tclout << ssh_err_name(rc.err_num()) << ends;	
 	    Tcl_AppendResult(ip, tclout.str(), 0);		
 	    return TCL_ERROR;					
 	}
-	if(rc && rc.err_num() == ss_m::eVOTENO) {
+	if(rc && rc.err_num() == smlevel_0::eVOTENO) {
 	    Tcl_AppendResult(ip, "aborted", 0);		
 	} else {
 	    Tcl_AppendResult(ip, "committed", 0);		
@@ -4971,12 +5474,12 @@ t_co_commit(Tcl_Interp* ip, int ac, char* av[])
 	w_rc_t rc;
 	rc = co->commit(g, num, (const char **)(av+3), is_prepare);
 	tclout.seekp(ios::beg);                                 
-	if(rc && rc.err_num() != ss_m::eVOTENO) {
+	if(rc && rc.err_num() != smlevel_0::eVOTENO) {
 	    tclout << ssh_err_name(rc.err_num()) << ends;	
 	    Tcl_AppendResult(ip, tclout.str(), 0);		
 	    return TCL_ERROR;					
 	}
-	if(rc && rc.err_num() == ss_m::eVOTENO) {
+	if(rc && rc.err_num() == smlevel_0::eVOTENO) {
 	    Tcl_AppendResult(ip, "aborted", 0);		
 	} else {
 	    Tcl_AppendResult(ip, "committed", 0);		
@@ -5044,7 +5547,7 @@ t_local_add(Tcl_Interp* ip, int , char* av[])
 
     // co addlocal gtid tid
     {
-	GNUG_BUG_12(istrstream(av[2], strlen(av[2])) ) >> t;
+	istrstream anon2(VCPP_BUG_1 av[2], strlen(av[2])); anon2 >> t;
     }
     DO( co->add(g, t));
     return TCL_OK;
@@ -5057,7 +5560,7 @@ t_local_rm(Tcl_Interp* ip, int , char* av[])
 
     // co rmlocal gtid tid
     {
-	GNUG_BUG_12(istrstream(av[2], strlen(av[2])) ) >> t;
+	istrstream anon2(VCPP_BUG_1 av[2], strlen(av[2])); anon2 >> t;
     }
     DO( co->remove(g, t));
     return TCL_OK;
@@ -5092,7 +5595,7 @@ t_gtid2tid(Tcl_Interp*ip , int ac , char* av[])
 }
 
 /* name used to identify the deadlock server */
-char *GlobalDeadlockServerName = "DeadlockServer";
+const char *GlobalDeadlockServerName = "DeadlockServer";
 
 static int
 t_startdeadlockclient(Tcl_Interp* ip, int ac, char* [])
@@ -5200,8 +5703,135 @@ t_stopdeadlockvictimizer(Tcl_Interp* ip, int ac, char* [])
 
 #endif
 
+#include <vtable_info.h>
+#include <vtable_enum.h>
+static  void
+__printit(const char *what, int K, vtable_info_array_t  &x) {
+
+    // Too much to fit in tclout
+    if (linked.verbose_flag)  {
+	/* method 1: */
+	cout << what <<
+	    " METHOD 1 - individually: n=" << x.quant() <<endl;
+	for(int i=0; i< x.quant(); i++) {
+	    cout << "------------- first=0, last=" << K 
+		<< " (printing only non-null strings whose value != \"0\") "
+		<<endl;
+	    for(int j=0; j < K; j++) {
+		if(strlen(x[i][j]) > 0) {
+		    if(strcmp(x[i][j], "0") != 0) {
+		    cout << i << "." << j << ":" << x[i][j]<< "|" << endl;
+		    }
+		}
+	    }
+	}
+	cout << endl;
+    }
+
+    /* method 2: */
+    // cout << what << " METHOD 2 - group" <<endl;
+    // x.operator<<(cout);
+}
+
+static int
+t_vt_class_factory(Tcl_Interp* ip, int , char* [])
+{
+    vtable_info_array_t  x;
+    DO(ss_m::class_factory_collect(x));
+    __printit("class factory", factory_last, x);
+    // Tcl_AppendResult(ip, tclout.str(), 0);
+    return TCL_OK;
+}
+
+static int
+t_vt_class_factory_histo(Tcl_Interp* ip, int , char* [])
+{
+    vtable_info_array_t  x;
+    DO(ss_m::class_factory_collect_histogram(x));
+    __printit("class factory histograms", factory_histo_last, x);
+    // Tcl_AppendResult(ip, tclout.str(), 0);
+    return TCL_OK;
+}
+static int
+t_vt_thread(Tcl_Interp* ip, int , char* [])
+{
+    vtable_info_array_t  x;
+    DO(ss_m::thread_collect(x));
+    __printit("threads", thread_last, x);
+    // Tcl_AppendResult(ip, tclout.str(), 0);
+    return TCL_OK;
+}
+
+static int
+t_vt_stats(Tcl_Interp* ip, int , char* [])
+{
+    tclout << "vtable stats: not yet implemented" <<ends;
+    Tcl_AppendResult(ip, tclout.str(), 0);
+    return TCL_ERROR;
+}
+
+static int
+t_vt_xct(Tcl_Interp* ip, int , char* [])
+{
+    vtable_info_array_t  x;
+    DO(ss_m::xct_collect(x));
+
+    __printit("transactions/xct", xct_last, x);
+    // Tcl_AppendResult(ip, tclout.str(), 0);
+    return TCL_OK;
+}
+
+static int
+t_vt_bpool(Tcl_Interp* ip, int , char* [])
+{
+    vtable_info_array_t  x;
+    DO(ss_m::bp_collect(x));
+
+    __printit("buffer pool", bp_last, x);
+    // Tcl_AppendResult(ip, tclout.str(), 0);
+    return TCL_OK;
+}
+
+static int
+t_vt_lock(Tcl_Interp* ip, int , char* [])
+{
+    vtable_info_array_t  x;
+    DO(ss_m::lock_collect(x));
+
+    __printit("locks", lock_last, x);
+    // Tcl_AppendResult(ip, tclout.str(), 0);
+    return TCL_OK;
+}
+
+static int
+t_st_stats(Tcl_Interp *, int argc, char **)
+{
+	if (argc != 1)
+		return TCL_ERROR;
+
+	sthread_t::dump_stats(cout);
+	return TCL_OK;
+}
+
+static int
+t_st_rc(Tcl_Interp *, int argc, char **argv)
+{
+	if (argc < 2)
+		return TCL_ERROR;
+
+	for (int i = 1; i < argc; i++) {
+		w_rc_t	e = w_rc_t("error", 0, atoi(argv[i]));
+		cout << "RC(" << argv[i] << "):" <<
+			endl << e << endl;
+	}
+
+	return TCL_OK;
+}
+
+
+
 struct cmd_t {
-    char* name;
+    const char* name;
     smproc_t* func;
 };
 
@@ -5227,7 +5857,7 @@ static cmd_t co_cmd[] = {
 
     { "startdeadlockclient", t_startdeadlockclient },
     { "startdeadlockserver", t_startdeadlockserver },
-    { "startdeadlockvicimizer", t_startdeadlockvictimizer },
+    { "startdeadlockvictimizer", t_startdeadlockvictimizer },
     { "stopdeadlockclient", t_stopdeadlockclient },
     { "stopdeadlockserver", t_stopdeadlockserver },
     { "stopdeadlockvictimizer", t_stopdeadlockvictimizer }
@@ -5242,6 +5872,7 @@ static cmd_t cmd[] = {
     { "test_int_btree", t_test_int_btree },
     { "test_typed_btree", t_test_typed_btree },
     { "test_bulkload_int_btree", t_test_bulkload_int_btree },
+    { "test_bulkload_rtree", t_test_bulkload_rtree },
 
     { "checkpoint", t_checkpoint },
 
@@ -5274,6 +5905,8 @@ static cmd_t cmd[] = {
     { "force_buffers", t_force_buffers },
     { "force_vol_hdr_buffers", t_force_vol_hdr_buffers },
     { "gather_stats", t_gather_stats },
+    { "gather_xct_stats", t_gather_xct_stats },
+    { "mem_stats", t_mem_stats },
     { "snapshot_buffers", t_snapshot_buffers },
     { "print_lid_index", t_print_lid_index },
     { "config_info", t_config_info },
@@ -5289,6 +5922,8 @@ static cmd_t cmd[] = {
     // Device and Volume
     { "format_dev", t_format_dev },
     { "mount_dev", t_mount_dev },
+    { "unmount_dev", t_dismount_dev },
+    { "unmount_all", t_dismount_all },
     { "dismount_dev", t_dismount_dev },
     { "dismount_all", t_dismount_all },
     { "list_devices", t_list_devices },
@@ -5301,6 +5936,8 @@ static cmd_t cmd[] = {
     { "get_volume_quota", t_get_volume_quota },
     { "get_device_quota", t_get_device_quota },
     { "vol_root_index", t_vol_root_index },
+    { "get_volume_meta_stats", t_get_volume_meta_stats},
+    { "get_file_meta_stats", t_get_file_meta_stats},
 
     { "get_du_statistics", t_get_du_statistics },   // DU DF
     //
@@ -5309,11 +5946,13 @@ static cmd_t cmd[] = {
     { "set_debug", t_set_debug },
     { "simulate_preemption", t_simulate_preemption },
     { "preemption_simulated", t_preemption_simulated },
+    { "purify_print_string", t_purify_print_string },
     //
     //	Indices
     //
     { "create_index", t_create_index },
     { "destroy_index", t_destroy_index },
+    { "destroy_md_index", t_destroy_md_index },
     { "blkld_ndx", t_blkld_ndx },
     { "create_assoc", t_create_assoc },
     { "destroy_all_assoc", t_destroy_all_assoc },
@@ -5334,7 +5973,7 @@ static cmd_t cmd[] = {
     { "blkld_md_ndx", t_blkld_md_ndx },
     { "sort_file", t_sort_file },
     { "compare_typed", t_compare_typed },
-    { "create_typed_rec", t_create_typed_rec },
+    { "create_typed_hdr_body_rec", t_create_typed_hdr_body_rec },
     { "create_typed_hdr_rec", t_create_typed_hdr_rec },
     { "get_store_info", t_get_store_info },
     { "scan_sorted_recs", t_scan_sorted_recs },
@@ -5345,16 +5984,6 @@ static cmd_t cmd[] = {
     { "sort_stream_get", t_sort_stream_get },
     { "sort_stream_end", t_sort_stream_end },
 
-   // RD-Trees
-#ifdef USE_RDTREE
-   { "create_set_index", t_create_set_index },
-   { "create_set_assoc", t_create_set_assoc },
-   { "find_set_assoc", t_find_set_assoc },
-   { "next_set", t_next_set },
-   { "rdtree_query", t_rdtree_scan },
-   { "print_set_index", t_print_set_index },
-#endif /* USE_RDTREE */
-    
     //
     //  Scans
     //
@@ -5372,6 +6001,7 @@ static cmd_t cmd[] = {
     { "multi_file_update", t_multi_file_update },
     { "destroy_rec", t_destroy_rec },
     { "read_rec", t_read_rec },
+    { "read_hdr", t_read_hdr },
     { "print_rec", t_print_rec },
     { "read_rec_body", t_read_rec_body },
     { "update_rec", t_update_rec },
@@ -5391,8 +6021,10 @@ static cmd_t cmd[] = {
     { "pin_body_cond", t_pin_body_cond },
     { "pin_next_bytes", t_pin_next_bytes },
     { "pin_hdr", t_pin_hdr },
+    { "pin_page_containing", t_page_containing },
     { "pin_pinned", t_pin_pinned },
     { "pin_is_small", t_pin_is_small },
+    { "pin_large_impl", t_pin_large_impl },
     { "pin_rid", t_pin_rid },
     { "pin_append_rec", t_pin_append_rec },
     { "pin_update_rec", t_pin_update_rec },
@@ -5442,6 +6074,8 @@ static cmd_t cmd[] = {
     // crash name "command"
     { "crash", t_crash },
 
+    { "multikey_sort_file", t_multikey_sort_file },
+
     //
     // Performance tests
     //   Name format:
@@ -5455,6 +6089,28 @@ static cmd_t cmd[] = {
     //{ 0, 0}
 };
 
+static cmd_t vtable_cmd[] = {
+    { "class_factory_histo", t_vt_class_factory_histo },
+    { "class_factory", t_vt_class_factory },
+    { "thread", t_vt_thread },
+    { "lock", t_vt_lock },
+    { "bp", t_vt_bpool },
+    { "xct", t_vt_xct },
+    { "stat", t_vt_stats },
+    { "stats", t_vt_stats },
+
+    //{ 0, 0}
+};
+
+
+static cmd_t	sthread_cmd[] = {
+	{ "stats", t_st_stats },
+	{ "rc", t_st_rc },
+//	{ "events", t_st_events },
+//	{ "threads", t_st_threads }
+};
+
+
 static int cmd_cmp(const void* c1, const void* c2) 
 {
     cmd_t& cmd1 = *(cmd_t*) c1;
@@ -5462,21 +6118,28 @@ static int cmd_cmp(const void* c1, const void* c2)
     return strcmp(cmd1.name, cmd2.name);
 }
 
-void sm_dispatch_init()
-{
-    qsort( (char*)cmd, sizeof(cmd)/sizeof(cmd_t), sizeof(cmd_t), cmd_cmp);
-}
-
-#ifdef USE_COORD
-void co_dispatch_init()
-{
-    qsort( (char*)co_cmd, sizeof(co_cmd)/sizeof(cmd_t), sizeof(cmd_t), cmd_cmp);
-}
+#ifndef numberof
+#define	numberof(x)	(sizeof(x) / sizeof(x[0]))
 #endif
+
+void dispatch_init() 
+{
+    qsort( (char*)sthread_cmd, numberof(sthread_cmd), sizeof(cmd_t), cmd_cmp);
+    qsort( (char*)vtable_cmd, numberof(vtable_cmd), sizeof(cmd_t), cmd_cmp);
+#ifdef USE_COORD
+    qsort( (char*)co_cmd, numberof(co_cmd), sizeof(cmd_t), cmd_cmp);
+#endif
+    qsort( (char*)cmd, numberof(cmd), sizeof(cmd_t), cmd_cmp);
+}
 
 
 int
-sm_dispatch(ClientData, Tcl_Interp* ip, int ac, char* av[])
+_dispatch(
+    cmd_t *_cmd,
+    size_t sz,
+    const char *module,
+    Tcl_Interp* ip, int ac, char* av[]
+)
 {
     int ret = TCL_OK;
     cmd_t key;
@@ -5484,44 +6147,88 @@ sm_dispatch(ClientData, Tcl_Interp* ip, int ac, char* av[])
     w_assert3(ac >= 2);	
     key.name = av[1];
     cmd_t* found = (cmd_t*) bsearch((char*)&key, 
-				    (char*)cmd, 
-				    sizeof(cmd)/sizeof(cmd_t), 
+				    (char*)_cmd, 
+				    sz/sizeof(cmd_t), 
 				    sizeof(cmd_t), cmd_cmp);
     if (found) {
+        SSH_CHECK_STACK;
 	ret = found->func(ip, ac - 1, av + 1);
+        SSH_CHECK_STACK;
 	return ret;
     }
 
     tclout.seekp(ios::beg);
     tclout << __FILE__ << ':' << __LINE__  << ends;
-    Tcl_AppendResult(ip, tclout.str(), " unknown sm routine \"",
+    Tcl_AppendResult(ip, tclout.str(), " unknown ", module, "  routine \"",
 		     av[1], "\"", 0);
     return TCL_ERROR;
+}
+
+int st_dispatch(ClientData, Tcl_Interp *tcl, int argc, char **argv)
+{
+	return _dispatch(sthread_cmd, sizeof(sthread_cmd), "sthread",
+			 tcl, argc, argv);
+}
+
+int
+vtable_dispatch(ClientData, Tcl_Interp* ip, int ac, char* av[])
+{
+    return _dispatch( vtable_cmd,  sizeof(vtable_cmd), "vtable", ip, ac, av);
+}
+
+int
+sm_dispatch(ClientData, Tcl_Interp* ip, int ac, char* av[])
+{
+    return _dispatch( cmd,  sizeof(cmd), "sm", ip, ac, av);
 }
 
 #ifdef USE_COORD
 int
 co_dispatch(ClientData, Tcl_Interp* ip, int ac, char* av[])
 {
-    int ret = TCL_OK;
-    cmd_t key;
-
-    w_assert3(ac >= 2);	
-    key.name = av[1];
-    cmd_t* found = (cmd_t*) bsearch((char*)&key, 
-				    (char*)co_cmd, 
-				    sizeof(co_cmd)/sizeof(cmd_t), 
-				    sizeof(cmd_t), cmd_cmp);
-    if (found) {
-	ret = found->func(ip, ac - 1, av + 1);
-	return ret;
-    }
-
-    tclout.seekp(ios::beg);
-    tclout << __FILE__ << ':' << __LINE__  << ends;
-    Tcl_AppendResult(ip, tclout.str(), " unknown sm routine \"",
-		     av[1], "\"", 0);
-    return TCL_ERROR;
+    return _dispatch( co_cmd,  sizeof(co_cmd), "co", ip, ac, av);
 }
 #endif
+
+void check_sp(const char *file, int line)
+{
+    // a place to put a breakpoint in the debugger 
+    bool	ok;
+    ok = smthread_t::me()->isStackOK(file, line);
+    if (!ok)
+    	W_FATAL(fcINTERNAL);
+    return;
+}
+
+smsize_t   
+objectsize(const char *str)
+{
+    return  strtoul(str,0,0);
+}
+
+smsize_t   
+numobjects(const char *str)
+{
+    return  strtoul(str,0,0);
+}
+
+static struct nda_t {
+    const char* 	name;
+ss_m::ndx_t 	type;
+} nda[] = {
+    { "btree",	ss_m::t_btree },
+    { "uni_btree", 	ss_m::t_uni_btree },
+    { "rtree",	ss_m::t_rtree },
+    { "rdtree",	ss_m::t_rdtree },
+    { 0,		ss_m::t_bad_ndx_t }
+};
+
+ss_m::ndx_t 
+cvt2ndx_t(char* s)
+{
+    for (nda_t* p = nda; p->name; p++)  {
+	if (streq(s, p->name))  return p->type;
+    }
+    return sm->t_bad_ndx_t;
+}
 

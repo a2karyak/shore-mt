@@ -1,13 +1,35 @@
-/* --------------------------------------------------------------- */
-/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
-/* -- University of Wisconsin-Madison, subject to the terms     -- */
-/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
-/* -- Reserved.                                                 -- */
-/* --------------------------------------------------------------- */
+/*<std-header orig-src='shore'>
 
-/*
- *  $Header: /p/shore/shore_cvs/src/common/devid_t.cc,v 1.5 1997/06/15 02:36:01 solomon Exp $
- */
+ $Id: devid_t.cpp,v 1.15 1999/06/07 19:02:23 kupsch Exp $
+
+SHORE -- Scalable Heterogeneous Object REpository
+
+Copyright (c) 1994-99 Computer Sciences Department, University of
+                      Wisconsin -- Madison
+All Rights Reserved.
+
+Permission to use, copy, modify and distribute this software and its
+documentation is hereby granted, provided that both the copyright
+notice and this permission notice appear in all copies of the
+software, derivative works or modified versions, and any portions
+thereof, and that both notices appear in supporting documentation.
+
+THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+"AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+This software was developed with support by the Advanced Research
+Project Agency, ARPA order number 018 (formerly 8230), monitored by
+the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+Further funding for this work was provided by DARPA through
+Rome Research Laboratory Contract No. F30602-97-2-0247.
+
+*/
+
+#include "w_defines.h"
+
+/*  -- do not edit anything above this line --   </std-header>*/
 
 #define DEVID_T_C
 
@@ -16,40 +38,56 @@
 #endif
 
 #include <stdlib.h>
-#include <sys/types.h>
-#include <stream.h>
-#include <sys/stat.h>
-#include "w_base.h"
+#include <w_stream.h>
+#include <w_base.h>
 #include "basics.h"
 #include "devid_t.h"
-#ifdef PURIFY
-#include <purify.h>
-#include <memory.h>
-#endif
+
+#include <sthread.h>
 
 devid_t::devid_t(const char* path)
+: id(0),
+  dev(0)
 {
-    // generate a device id by stat'ing the path and using the
-    // inode number
+	// generate a device id by stat'ing the path and using the
+	// inode number
 
-    struct stat buf;
-#ifdef PURIFY
-    if(purify_is_running()) {
-	memset(&buf, '\0', sizeof(buf));
-    }
+	int	fd;
+	w_rc_t	e;
+#ifdef W_DEBUG
+	const	char	*what = "open";
 #endif
-    if(stat(path, &buf)) {
-	// error
-	id = 0;
-	dev = 0;
-    }
-    id = buf.st_ino;
-    dev = buf.st_dev;
+
+	e = sthread_t::open(path,
+		sthread_t::OPEN_RDONLY | sthread_t::OPEN_LOCAL, 0,
+		fd);
+	if (e == RCOK) {
+		sthread_t::filestat_t	st;
+#ifdef W_DEBUG
+		what = "fstat";
+#endif
+		e = sthread_t::fstat(fd, st);
+		if (e == RCOK) {
+			id = st.st_file_id;
+			dev = st.st_device_id;
+		}
+		W_COERCE(sthread_t::close(fd));
+	}
+	/* XXX don't complain if file doesn't exist?  IDs should only
+	   be generated in a valid state. */
+	if (e != RCOK) {
+#ifdef W_DEBUG
+		cerr << "devid_t::devid_t(" << path 
+			<< "): " << what << ":" << endl << e << endl;
+#endif
+		*this = null;
+	}
 }
 
 ostream& operator<<(ostream& o, const devid_t& d)
 {
-    return o << d.dev << "." << d.id;
+	return o << d.dev << "." << d.id;
 }
 
 const devid_t devid_t::null;
+

@@ -1,15 +1,38 @@
-/* --------------------------------------------------------------- */
-/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
-/* -- University of Wisconsin-Madison, subject to the terms     -- */
-/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
-/* -- Reserved.                                                 -- */
-/* --------------------------------------------------------------- */
+/*<std-header orig-src='shore' incl-file-exclusion='LOCK_X_H'>
 
-/*
- *  $Id: lock_x.h,v 1.41 1997/05/27 13:41:00 kupsch Exp $
- */
+ $Id: lock_x.h,v 1.57 1999/06/07 19:04:14 kupsch Exp $
+
+SHORE -- Scalable Heterogeneous Object REpository
+
+Copyright (c) 1994-99 Computer Sciences Department, University of
+                      Wisconsin -- Madison
+All Rights Reserved.
+
+Permission to use, copy, modify and distribute this software and its
+documentation is hereby granted, provided that both the copyright
+notice and this permission notice appear in all copies of the
+software, derivative works or modified versions, and any portions
+thereof, and that both notices appear in supporting documentation.
+
+THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+"AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+This software was developed with support by the Advanced Research
+Project Agency, ARPA order number 018 (formerly 8230), monitored by
+the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+Further funding for this work was provided by DARPA through
+Rome Research Laboratory Contract No. F30602-97-2-0247.
+
+*/
+
 #ifndef LOCK_X_H
 #define LOCK_X_H
+
+#include "w_defines.h"
+
+/*  -- do not edit anything above this line --   </std-header>*/
 
 /*
  *
@@ -36,7 +59,7 @@ Because short-duration locks are not cached, yet, obtaining
 locks during a quark is slower.
 
 The user interface for quarks is sm_quark_t defined in sm.h and
-implemented in sm.c.  The sm_quark_t::open/close methods simply
+implemented in sm.cpp.  The sm_quark_t::open/close methods simply
 call remote_lock_m::open/close_quark which then call
 lock_core_m::open/close_quark where the real work is done.
 
@@ -61,16 +84,17 @@ and null otherwise.
 #endif
 
 
-struct lock_head_t;
+class lock_head_t;
 class xct_impl; // forward
 
-struct lock_request_t {
+class lock_request_t {
+public:
     typedef lock_base_t::mode_t mode_t;
     typedef lock_base_t::duration_t duration_t;
     typedef lock_base_t::status_t status_t;
 
     w_link_t		rlink;		// link of req in lock queue
-    uint4		state;		// lock state
+    uint4_t		state;		// lock state
     mode_t		mode;		// mode requested (and granted)
     mode_t		convert_mode;	// if in convert wait, mode desired 
     int			count;
@@ -78,7 +102,7 @@ struct lock_request_t {
     smthread_t*		thread;		// thread to wakeup when serviced 
     xct_t* const	xd;		// ptr to transaction record
     w_link_t		xlink;		// link for xd->_lock.list 
-    int4		numChildren;	// number of child objects obtained
+    int4_t		numChildren;	// number of child objects obtained
 					// under same criteria as xct cache
 
     status_t    status() const       { return (status_t) state; }
@@ -95,12 +119,13 @@ struct lock_request_t {
 
     NORET		~lock_request_t();
 
+    void		vtable_collect(vtable_info_t &t);
     lock_head_t* 	get_lock_head() const;
     bool		is_quark_marker() const;
 
     friend ostream& 	operator<<(ostream&, const lock_request_t& l);
 
-    W_FASTNEW_CLASS_DECL;    
+    W_FASTNEW_CLASS_DECL(lock_request_t);    
 
 };
 
@@ -137,7 +162,8 @@ public:
 	e.lock_id = id;
 	e.mode = m;
 	e.req = req;
-	if (q.put(e))  {
+	w_rc_t rc = q.put(e);
+	if (rc)  {
 	    W_COERCE(q.get());
 	    W_COERCE(q.put(e));
 	}
@@ -153,7 +179,7 @@ class xct_lock_info_t : private lock_base_t {
     friend class CentralizedGlobalDeadlockClient;
 
 public:
-    NORET			xct_lock_info_t(uint2 type);
+    NORET			xct_lock_info_t();
     NORET			~xct_lock_info_t();
     friend ostream &		operator<<(ostream &o, const xct_lock_info_t &x);
     bool			waiting() const { return wait != NULL; }
@@ -164,7 +190,7 @@ public:
 				    int		        numslots,
 				    lockid_t *		space_l,	
 				    lock_mode_t *	space_m = 0,
-				    bool                extents = false
+				    bool                extents=false
 				) const;
     rc_t			get_lock_totals( int & total_EX, int	& total_IX,
 				    int	& total_SIX, int & total_extent ) const;
@@ -178,11 +204,11 @@ private:
     /*
      * Locks acquired
      */
-    w_list_t<lock_request_t>	list[NUM_DURATIONS];
+    w_list_t<lock_request_t>	list[t_num_durations];
 
     lock_request_t*		wait;	// lock waited for by this xct/thread
     xct_t*			cycle;	// used by deadlock detector
-    uint4			last_deadlock_check_id;	// used by deadlock detector
+    uint4_t			last_deadlock_check_id;	// used by deadlock detector
 
     // now this is in the thread :
     // lockid_t			hierarchy[lockid_t::NUMLEVELS];
@@ -217,7 +243,7 @@ public:
 	   t_adaptive = 2,	// set if adaptive EX locks are held on the page
 	   t_pending = 8,	// set when a record level callback gets blocked
 	   t_repeat_cb = 16	// set when a callback operation needs to be
-				// repeated (see comment in callback.c).
+				// repeated (see comment in callback.cpp).
    };
 
 #ifndef NOT_PREEMPTIVE
@@ -240,7 +266,7 @@ public:
 					const lock_request_t* exclude);
 
     friend ostream& 		operator<<(ostream&, const lock_head_t& l);
-    W_FASTNEW_CLASS_DECL;    
+    W_FASTNEW_CLASS_DECL(lock_head_t);    
 
 private:
     // disabled
@@ -260,25 +286,30 @@ inline NORET
 lock_head_t::lock_head_t( const lockid_t& n, mode_t m)
 	: 
 #ifndef NOT_PREEMPTIVE
-#ifdef DEBUG
+#ifdef W_DEBUG
       mutex("m:lkhdt"),  
 #else
       mutex(0),  // make it unnamed
-#endif
+#endif /* W_DEBUG */
 #endif
 	  name(n),
 	  queue(offsetof(lock_request_t, rlink)), granted_mode(m),
 	  waiting(false)
 {
-    smlevel_0::stats.lock_head_t_cnt++;
+    INC_TSTAT(lock_head_t_cnt);
 }
 
 inline lock_head_t* 
 lock_request_t::get_lock_head() const
 {
+#ifdef W_DEBUG
+    // if not in list, returns garbage otherwise
+    if(! rlink.member_of()) return (lock_head_t*) 0;
+#endif /* W_DEBUG */
     return (lock_head_t*) (((char*)rlink.member_of()) -
 			   offsetof(lock_head_t, queue));
 }
 
-#endif /*LOCK_X_H*/
+/*<std-footer incl-file-exclusion='LOCK_X_H'>  -- do not edit anything below this line -- */
 
+#endif          /*</std-footer>*/

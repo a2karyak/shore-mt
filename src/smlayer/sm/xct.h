@@ -1,21 +1,38 @@
-/* --------------------------------------------------------------- */
-/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
-/* -- University of Wisconsin-Madison, subject to the terms     -- */
-/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
-/* -- Reserved.                                                 -- */
-/* --------------------------------------------------------------- */
+/*<std-header orig-src='shore' incl-file-exclusion='XCT_H'>
 
-/*
- *  $Id: xct.h,v 1.116 1997/05/27 13:10:10 kupsch Exp $
- */
+ $Id: xct.h,v 1.140 1999/07/20 20:28:24 nhall Exp $
+
+SHORE -- Scalable Heterogeneous Object REpository
+
+Copyright (c) 1994-99 Computer Sciences Department, University of
+                      Wisconsin -- Madison
+All Rights Reserved.
+
+Permission to use, copy, modify and distribute this software and its
+documentation is hereby granted, provided that both the copyright
+notice and this permission notice appear in all copies of the
+software, derivative works or modified versions, and any portions
+thereof, and that both notices appear in supporting documentation.
+
+THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+"AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+This software was developed with support by the Advanced Research
+Project Agency, ARPA order number 018 (formerly 8230), monitored by
+the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+Further funding for this work was provided by DARPA through
+Rome Research Laboratory Contract No. F30602-97-2-0247.
+
+*/
+
 #ifndef XCT_H
 #define XCT_H
 
-// defined in remote.h
-class master_xct_proxy_t;
-class remote_xct_proxy_t;
-class callback_xct_proxy_t;
-class callback_op_t;
+#include "w_defines.h"
+
+/*  -- do not edit anything above this line --   </std-header>*/
 
 #ifdef __GNUG__
 #pragma interface
@@ -64,7 +81,6 @@ class xct_t : public smlevel_1 {
     friend class xct_prepare_alk_log;
     friend class xct_prepare_fi_log; 
     friend class xct_prepare_lk_log; 
-    friend class btree_latch_log; 
     friend class sm_quark_t; 
     friend class CentralizedGlobalDeadlockClient; 
 
@@ -72,32 +88,33 @@ protected:
     enum commit_t { t_normal = 0, t_lazy = 1, t_chain = 2 };
 public:
     typedef xct_state_t 	state_t;
-    enum type_t { t_master, t_remote, t_callback };
 
 public:
     NORET			xct_t(
-	long			    timeout = WAIT_SPECIFIED_BY_THREAD,
-	type_t			    type = t_master);
+	sm_stats_info_t* 	    stats = 0,  // allocated by caller
+	timeout_in_ms		    timeout = WAIT_SPECIFIED_BY_THREAD);
     NORET			xct_t(
 	const tid_t& 		    tid, 
 	state_t 		    s, 
 	const lsn_t&		    last_lsn,
 	const lsn_t& 		    undo_nxt,
-	long			    timeout = WAIT_SPECIFIED_BY_THREAD);
+	timeout_in_ms		    timeout = WAIT_SPECIFIED_BY_THREAD);
     // NORET			xct_t(const logrec_t& r);
     NORET			~xct_t();
 
    friend ostream& operator<<(ostream&, const xct_t&);
 
-    NORET			operator const void*() const {
-				    return state() == xct_stale ? 0 : 
-					(void*) this;
+   static int   		collect(vtable_info_array_t&);
+   void	  			vtable_collect(vtable_info_t &);
+
+    NORET			operator bool() const {
+				    return state() != xct_stale && this != 0;
 				}
 
     state_t			state() const;
-    void 			set_timeout(long t) ;
+    void 			set_timeout(timeout_in_ms t) ;
     inline
-    long			timeout_c() const { 
+    timeout_in_ms		timeout_c() const { 
 				    return  _timeout; 
 				}
 
@@ -133,21 +150,42 @@ public:
 
     tid_t 			tid() const { return _tid; }
 
+    bool	 	    	is_instrumented() {
+					return (__stats != 0);
+				}
+    void			give_stats(sm_stats_info_t* s) {
+				    w_assert1(__stats == 0);
+				    __stats = s;
+				}
+    void	 	    	clear_stats() {
+
+				    // save & restore xlog_bytes_generated, 
+				    // since the SM uses it
+				    unsigned long save = 
+					__stats->summary_thread.xlog_bytes_generated;
+				    memset(__stats,0, sizeof(*__stats)); 
+				    __stats->summary_thread.xlog_bytes_generated =  save;
+				}
+    sm_stats_info_t* 	    	steal_stats() {
+				    sm_stats_info_t*s = __stats; 
+				    __stats = 0;
+				    return	 s;
+				}
+    const sm_stats_info_t&	const_stats_ref() { return *__stats; }
     rc_t			commit(bool lazy = false);
     rc_t			rollback(lsn_t save_pt);
     rc_t			save_point(lsn_t& lsn);
     rc_t			chain(bool lazy = false);
-    rc_t			abort();
+    rc_t			abort(bool save_stats = false);
 
-    // used by restart.c, some logrecs
+    // used by restart.cpp, some logrecs
 protected:
+    sm_stats_info_t&		stats_ref() { return *__stats; }
     rc_t			dispose();
     void                        change_state(state_t new_state);
     void			set_first_lsn(const lsn_t &) ;
     void			set_last_lsn(const lsn_t &) ;
     void			set_undo_nxt(const lsn_t &) ;
-    int				recovery_latches()const;
-    rc_t			recover_latch(lpid_t& root, bool unlatch);
 
 public:
 
@@ -163,7 +201,7 @@ public:
     static tid_t 		youngest_tid();	// with max tid value
     static void 		update_youngest_tid(const tid_t &);
 
-    // used by sm.c:
+    // used by sm.cpp:
     static uint4_t		num_active_xcts();
 
     // used for compensating (top-level actions)
@@ -177,18 +215,18 @@ public:
 
 
 public:
-    // used in sm.c
+    // used in sm.cpp
     rc_t			add_dependent(xct_dependent_t* dependent);
     bool			find_dependent(xct_dependent_t* dependent);
 
     //
-    //	logging functions -- used in logstub.i only, so it's inlined here:
+    //	logging functions -- used in logstub_gen.cpp only, so it's inlined here:
     //
     bool			is_log_on() const {
-				    return (!me()->xct_log()->xct_log_off() ) ? true : false;
+				    return (!me()->xct_log()->xct_log_off());
 				}
     rc_t			get_logbuf(logrec_t*&);
-    void			give_logbuf(logrec_t*, const page_p *p = 0);
+    void 			give_logbuf(logrec_t*, const page_p *p = 0);
     void			flush_logbuf();
 
     //
@@ -196,16 +234,19 @@ public:
     //
     void			AddStoreToFree(const stid_t& stid);
     void			AddLoadStore(const stid_t& stid);
-    //	Used by vol.c
+    //	Used by vol.cpp
     void                        set_alloced();
     void                        set_freed();
 
+    void 			num_extents_marked_for_deletion(
+					base_stat_t &num) const;
 public:
+
     //	For SM interface:
-    void			GetEscalationThresholds(int4 &toPage, 
-					int4 &toStore, int4 &toVolume);
-    void			SetEscalationThresholds(int4 toPage, 
-					int4 toStore, int4 toVolume);
+    void			GetEscalationThresholds(int4_t &toPage, 
+					int4_t &toStore, int4_t &toVolume);
+    void			SetEscalationThresholds(int4_t toPage, 
+					int4_t toStore, int4_t toVolume);
     bool 			set_lock_cache_enable(bool enable);
     bool 			lock_cache_enabled();
 
@@ -225,15 +266,13 @@ protected:
     int				detach_thread(); // returns # attached
 
 
-    // stored per-thread, used by lock.c
+    // stored per-thread, used by lock.cpp
     lockid_t*  			lock_info_hierarchy() const {
 				    return me()->lock_hierarchy();
 				}
 public:
-    // stored per-thread, used by dir.c
-    sdesc_cache_t*    		sdesc_cache() const {
-				    return me()->sdesc_cache();
-				}
+    // stored per-thread, used by dir.cpp
+    sdesc_cache_t*    		sdesc_cache() const;
 
 protected:
     // for xct_log_switch_t:
@@ -243,7 +282,7 @@ protected:
 
 public:
     ///////////////////////////////////////////////////////////
-    // used for OBJECT_CC: TODO: remove from sm.c also
+    // used for OBJECT_CC: TODO: remove from sm.cpp also
     // if not used elsewhere
     ///////////////////////////////////////////////////////////
     concurrency_t		get_lock_level(); // non-const: acquires mutex 
@@ -253,9 +292,9 @@ public:
 
 protected:
     // For use by lock manager:
-    w_rc_t			lockblock(long timeout);// await other thread
+    w_rc_t			lockblock(timeout_in_ms timeout);// await other thread
     void			lockunblock(); 	 // inform other waiters
-    const int4*			GetEscalationThresholdsArray();
+    const int4_t*			GetEscalationThresholdsArray();
 
     rc_t			check_lock_totals(int nex, 
 					int nix, int nsix, int ) const;
@@ -269,11 +308,7 @@ protected:
 
 public:
     // use faster new/delete
-    NORET			W_FASTNEW_CLASS_DECL;
-    void*			operator new(size_t, void* p)  {
-	return p;
-    }
-
+    NORET			W_FASTNEW_CLASS_DECL(xct_t);
 
 
 /////////////////////////////////////////////////////////////////
@@ -288,6 +323,9 @@ protected:
     void 			put_in_order();
 
 private:
+    sm_stats_info_t* 	    	__stats; // allocated by user
+    base_stat_t	 	    	__log_bytes_generated; // must be kept
+				// even if not instrumented
     lockid_t*			__saved_lockid_t;
     sdesc_cache_t*		__saved_sdesc_cache_t;
     xct_log_t*			__saved_xct_log_t;
@@ -295,10 +333,21 @@ private:
     static tid_t 		_nxt_tid;// Not safe for pre-emptive threads
 
     const tid_t 		_tid;
-    long			_timeout; // default timeout value for lock reqs
+    timeout_in_ms		_timeout; // default timeout value for lock reqs
     xct_impl *			i_this;
     xct_lock_info_t*		_lock_info;
+
+    /* 
+     * _lock_cache_enable is protected by its own mutex, because
+     * it is used from the lock manager, and the lock mgr is used
+     * by the volume mgr, which necessarily holds the xct's 1thread_log
+     * mutex.  Thus, in order to avoid mutex-mutex deadlocks,
+     * we have a mutex to cover _lock_cache_enable that is used
+     * for NOTHING but reading and writing this datum.
+     */
     bool  			_lock_cache_enable;
+    smutex_t			_lock_cache_enable_mutex;
+
 
     // the 1thread_xct mutex is used to ensure that only one thread
     // is using the xct structure on behalf of a transaction 
@@ -308,6 +357,14 @@ private:
 private:
     void			acquire_1thread_xct_mutex();
     void			release_1thread_xct_mutex();
+
+public:
+    void			serialize_xct_threads() {
+				    acquire_1thread_xct_mutex();
+				}
+    void			allow_xct_parallelism() {
+				    release_1thread_xct_mutex();
+				}
 };
 
 /*
@@ -339,7 +396,7 @@ public:
     xct_log_switch_t(switch_t s) 
     {
 	if(smlevel_1::log) {
-	    smlevel_0::stats.log_switches++;
+	    INC_TSTAT(log_switches);
 	    nested = false;
 	    if (xct()) {
 		old_state = xct()->set_log_state(s, nested);
@@ -428,5 +485,6 @@ private:
     xct_t*	_xct;
 };
 
+/*<std-footer incl-file-exclusion='XCT_H'>  -- do not edit anything below this line -- */
 
-#endif /* XCT_H */
+#endif          /*</std-footer>*/

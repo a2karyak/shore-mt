@@ -1,24 +1,46 @@
-/* --------------------------------------------------------------- */
-/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
-/* -- University of Wisconsin-Madison, subject to the terms     -- */
-/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
-/* -- Reserved.                                                 -- */
-/* --------------------------------------------------------------- */
+/*<std-header orig-src='shore'>
 
-/*
- *  $Header: /p/shore/shore_cvs/src/fc/w_statistics.cc,v 1.18 1997/06/15 02:03:16 solomon Exp $
- */
+ $Id: w_statistics.cpp,v 1.26 1999/06/07 19:02:57 kupsch Exp $
+
+SHORE -- Scalable Heterogeneous Object REpository
+
+Copyright (c) 1994-99 Computer Sciences Department, University of
+                      Wisconsin -- Madison
+All Rights Reserved.
+
+Permission to use, copy, modify and distribute this software and its
+documentation is hereby granted, provided that both the copyright
+notice and this permission notice appear in all copies of the
+software, derivative works or modified versions, and any portions
+thereof, and that both notices appear in supporting documentation.
+
+THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+"AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+This software was developed with support by the Advanced Research
+Project Agency, ARPA order number 018 (formerly 8230), monitored by
+the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+Further funding for this work was provided by DARPA through
+Rome Research Laboratory Contract No. F30602-97-2-0247.
+
+*/
+
+#include "w_defines.h"
+
+/*  -- do not edit anything above this line --   </std-header>*/
 
 #ifdef __GNUG__
 #pragma implementation
 #endif
+#include <w.h>
 
 #include "w_statistics.h"
-#include "fc_error.h"
+#include "fc_error_enum_gen.h"
 #include <assert.h>
-#include <stream.h>
-#include <iostream.h>
-#include <strstream.h>
+
+#include <w_stream.h> 
 
 W_FASTNEW_STATIC_DECL(w_stat_module_t, 100);
 
@@ -265,10 +287,6 @@ w_statistics_t::printf() const
 }
 
 
-#ifdef __GNUC__
-extern "C" int strncmp(const char*, const char *, int);
-#endif
-
 char *
 w_stat_module_t::strcpy(const char *s) const
 {
@@ -511,40 +529,40 @@ operator<<(ostream &out, const w_statistics_t &s)
 			case 'v':
 				if((s._print_flags & w_statistics_t::print_nonzero_only)==0 || 
 					(m->values[i]._u.v != 0)) {
-					W_FORM(out)("%*.*s", field, field, m->strings[i]) << ": ";
-					W_FORM(out)("%10d",m->values[i]._u.v);
+					W_FORM2(out,("%*.*s: ", field, field, m->strings[i]));
+					W_FORM2(out,("%10d",m->values[i]._u.v));
 					out << endl;
 				}
 				break;
 			case 'l':
 				if((s._print_flags & w_statistics_t::print_nonzero_only)==0 || 
 					(m->values[i]._u.l != 0)) {
-					W_FORM(out)("%*.*s", field, field, m->strings[i]) << ": ";
-					W_FORM(out)("%10d",m->values[i]._u.l);
+					W_FORM2(out,("%*.*s: ", field, field, m->strings[i]));
+					W_FORM2(out,("%10d",m->values[i]._u.l));
 					out << endl;
 				}
 				break;
 			case 'i':
 				if((s._print_flags & w_statistics_t::print_nonzero_only)==0 || 
 					(m->values[i]._u.i != 0)) {
-					W_FORM(out)("%*.*s", field, field, m->strings[i]) << ": ";
-					W_FORM(out)("%10d",m->values[i]._u.i);
+					W_FORM2(out,("%*.*s: ", field, field, m->strings[i]));
+					W_FORM2(out,("%10d",m->values[i]._u.i));
 					out << endl;
 				}
 				break;
 			case 'u':
 				if((s._print_flags & w_statistics_t::print_nonzero_only)==0 || 
 					(m->values[i]._u.u != 0)) {
-					W_FORM(out)("%*.*s", field, field, m->strings[i]) << ": ";
-					W_FORM(out)("%10u",m->values[i]._u.u);
+					W_FORM2(out,("%*.*s: ", field, field, m->strings[i]));
+					W_FORM2(out,("%10u",m->values[i]._u.u));
 					out << endl;
 				}
 				break;
 			case 'f':
 				if((s._print_flags & w_statistics_t::print_nonzero_only)==0 || 
 					(m->values[i]._u.f != 0.0)) {
-					W_FORM(out)("%*.*s", field, field, m->strings[i]) << ": ";
-					W_FORM(out)("%#10.6g",m->values[i]._u.f);
+					W_FORM2(out,("%*.*s: ", field, field, m->strings[i]));
+					W_FORM2(out,("%#10.6g",m->values[i]._u.f));
 					out << endl;
 				}
 				break;
@@ -842,3 +860,4 @@ w_stat_module_t::op(enum operators which, const w_stat_module_t *r) const
 	}
 	return RCOK;
 }
+

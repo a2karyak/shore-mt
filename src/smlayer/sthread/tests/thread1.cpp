@@ -1,15 +1,38 @@
-/* --------------------------------------------------------------- */
-/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
-/* -- University of Wisconsin-Madison, subject to the terms     -- */
-/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
-/* -- Reserved.                                                 -- */
-/* --------------------------------------------------------------- */
+/*<std-header orig-src='shore'>
 
-/*
- *  $Id: thread1.cc,v 1.24 1997/09/26 18:57:24 solomon Exp $
- */
-#include <iostream.h>
-#include <strstream.h>
+ $Id: thread1.cpp,v 1.39 1999/08/03 16:13:37 bolo Exp $
+
+SHORE -- Scalable Heterogeneous Object REpository
+
+Copyright (c) 1994-99 Computer Sciences Department, University of
+                      Wisconsin -- Madison
+All Rights Reserved.
+
+Permission to use, copy, modify and distribute this software and its
+documentation is hereby granted, provided that both the copyright
+notice and this permission notice appear in all copies of the
+software, derivative works or modified versions, and any portions
+thereof, and that both notices appear in supporting documentation.
+
+THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+"AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+This software was developed with support by the Advanced Research
+Project Agency, ARPA order number 018 (formerly 8230), monitored by
+the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+Further funding for this work was provided by DARPA through
+Rome Research Laboratory Contract No. F30602-97-2-0247.
+
+*/
+
+#include "w_defines.h"
+
+/*  -- do not edit anything above this line --   </std-header>*/
+
+#include <w_debug.h>
+#include <w_stream.h>
 #include <stdlib.h>
 #include <assert.h>
 #include <time.h>
@@ -98,6 +121,18 @@ public:
 
 protected:
 	void run();
+	void	recurse(unsigned overflow, char *sp0, char *last);
+
+	enum	{ overflowFrameSize = 8192 };
+};
+
+class error_thread_t : public sthread_t {
+public:
+	error_thread_t() : sthread_t(t_regular, false, false, "error")
+	{ }
+
+protected:
+	void run();
 };
 
 
@@ -114,6 +149,10 @@ int	StackOverflow = 0;	/* check stack overflow by allocatings
 				   this much on the stack */
 bool	ThreadExit = false;	/* exit main via thread package */
 bool	DumpThreads = false;
+bool	TestAssert = false;
+bool	TestFatal = false;
+bool	TestErrorInThread = false;
+bool	verbose = false;
 
 worker_thread_t		**worker;
 int			*ack; 
@@ -124,7 +163,7 @@ int	parse_args(int argc, char **argv)
 	int	errors = 0;
 	int	c;
 
-	while ((c = getopt(argc, argv, "n:p:s:g:o:xd")) != EOF) {
+	while ((c = getopt(argc, argv, "afn:p:s:g:o:xdTv")) != EOF) {
 		switch (c) {
 		case 'n':
 			NumThreads = atoi(optarg);
@@ -147,19 +186,36 @@ int	parse_args(int argc, char **argv)
 		case 'd':
 			DumpThreads = true;
 			break;
+		case 'a':
+			TestAssert = true;
+			break;
+		case 'f':
+			TestFatal = true;
+			break;
+		case 'T':
+			TestErrorInThread = true;
+			break;
+		case 'v':
+			verbose = true;
+			break;
 		default:
 			errors++;
 			break;
 		}
 	}
 	if (errors) {
-		cerr << "usage: " << argv[0];
-		cerr << " [-n threads]";
-		cerr << " [-p pongs]";
-		cerr << " [-g pong_games]";
-		cerr << " [-s sleep_time]";
-		cerr << " [-o overflow_alloc]";
-		cerr << endl;
+		cerr 
+			<< "usage: "
+			<< argv[0]
+			<< " [-n threads]"
+			<< " [-p pongs]"
+			<< " [-g pong_games]"
+			<< " [-s sleep_time]"
+			<< " [-o overflow_alloc]"
+			<< " [-a]"
+			<< " [-f]"
+			<< " [-T]"
+			<< endl;
 	}
 
 	return errors ? -1 : optind;
@@ -217,16 +273,22 @@ void playPong()
 	delete [] games;
 }
 
+void doErrorTests()
+{
+	if (TestAssert) {
+		cout << endl << "** Generating an assertion failure." << endl;
+		w_assert1(false);
+	}
+
+	if (TestFatal) {
+		cout << endl << "** Generating a fatal error." << endl;
+		W_FATAL(fcINTERNAL);
+	}
+}
 
 int	main(int argc, char* argv[])
 {
     int i;
-
-    /* print out the arguments */
-    cout << argv[0] << ": " << argc << " args" << endl;
-    for(i=0; i<argc; ++i){
-	cout << "  arg["<< i << "] = " << argv[i] << endl;
-    }
 
     int next_arg = parse_args(argc, argv);
     if (next_arg < 0)
@@ -290,6 +352,24 @@ int	main(int argc, char* argv[])
 	    delete overflow;
     }
 
+    if (TestAssert || TestFatal) {
+	if (TestErrorInThread) {
+		error_thread_t *error = new error_thread_t;
+		if (!error)
+		W_FATAL(fcOUTOFMEMORY);
+		W_COERCE(error->fork());
+		W_COERCE(error->wait());
+		delete error;
+	}
+	else {
+		cout << "Errors testing in main thread" << endl;
+		doErrorTests();
+	}
+    }
+
+    if (verbose)
+    	sthread_t::dump_stats(cout);
+
     if (ThreadExit) 
 	sthread_t::exit();
 
@@ -322,7 +402,7 @@ pong_thread_t::pong_thread_t(ping_pong_t &which_game,
 {
 	char	buf[128];
 	ostrstream	s(buf, sizeof(buf));
-	s.form("pong[%d]", id);
+	W_FORM2(s,("pong[%d]", id));
 	s << ends;
 	rename(s.str());
 }
@@ -359,7 +439,7 @@ timer_thread_t::timer_thread_t()
 
 void timer_thread_t::run()
 {
-    cout.form("timeThread going to sleep for %d ms\n", SleepTime);
+    W_FORM2(cout,("timeThread going to sleep for %d ms\n", SleepTime));
     sthread_t::sleep(SleepTime);
     cout << "timeThread awakened and die" << endl;
 }
@@ -369,8 +449,43 @@ void timer_thread_t::run()
    to recursively call run with a fixed size object, instead of
    using the gcc-specific dynamic array size hack. */
 
+void overflow_thread_t::recurse(unsigned overflow, char *sp0, char *last)
+{
+	/* XXX This is supposed to be a huge stack allocation, don't
+	   get rid of it */
+	char	on_stack[overflowFrameSize];
+
+	last = last;	/* create variable use so compilers don't complain */
+
+	int	i;
+
+	i = on_stack[0];	// save it from the optimizer
+
+	/* make sure the context switch checks can catch it */
+	for (i = 0; i < 10; i++)
+		yield();
+
+	ptrdiff_t	depth = (char*) sp0 - on_stack;
+	if (depth < 0)
+		depth = -depth;
+
+	cout << "Recurse to " << depth << endl << flush;
+
+	if ((unsigned)depth < overflow) {
+		bool	ok = isStackFrameOK(overflowFrameSize);
+		if (!ok)
+			cout << "will_overflow says yeah!" << endl;
+
+		recurse(overflow, sp0, on_stack);
+	}
+}
+
+
 void overflow_thread_t::run()
 {
+#if 0 && defined(__GNUG__)
+	/* XXX This is supposed to be a huge stack allocation, don't
+	   get rid of it */
 	char	on_stack[StackOverflow];
 	int	i;
 
@@ -379,6 +494,17 @@ void overflow_thread_t::run()
 	/* make sure the context switch checks can catch it */
 	for (i = 0; i < 100; i++)
 		yield();
+#else
+	char	sp0;
+	recurse(StackOverflow, &sp0, &sp0);
+#endif
+}
+
+
+void error_thread_t::run()
+{
+	cout << "Error Testing Thread Running" << endl;
+	doErrorTests();
 }
 
 

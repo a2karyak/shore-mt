@@ -1,6 +1,0 @@
-module m1 {
-	interface IndexObj {
-	public:
-		attribute index<long,long> indx;
-	};
-}

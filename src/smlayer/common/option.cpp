@@ -1,13 +1,36 @@
-/* --------------------------------------------------------------- */
-/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
-/* -- University of Wisconsin-Madison, subject to the terms     -- */
-/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
-/* -- Reserved.                                                 -- */
-/* --------------------------------------------------------------- */
+/*<std-header orig-src='shore'>
 
-/*
- * $Id: option.cc,v 1.24 1997/06/15 02:38:05 solomon Exp $
- */
+ $Id: option.cpp,v 1.51 1999/06/07 19:02:27 kupsch Exp $
+
+SHORE -- Scalable Heterogeneous Object REpository
+
+Copyright (c) 1994-99 Computer Sciences Department, University of
+                      Wisconsin -- Madison
+All Rights Reserved.
+
+Permission to use, copy, modify and distribute this software and its
+documentation is hereby granted, provided that both the copyright
+notice and this permission notice appear in all copies of the
+software, derivative works or modified versions, and any portions
+thereof, and that both notices appear in supporting documentation.
+
+THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+"AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+This software was developed with support by the Advanced Research
+Project Agency, ARPA order number 018 (formerly 8230), monitored by
+the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+Further funding for this work was provided by DARPA through
+Rome Research Laboratory Contract No. F30602-97-2-0247.
+
+*/
+
+#include "w_defines.h"
+
+/*  -- do not edit anything above this line --   </std-header>*/
+
 #define OPTION_C
 #ifdef __GNUC__
 #   pragma implementation
@@ -18,11 +41,11 @@
 #include <ctype.h>
 #include "w_autodel.h"
 #include "option.h"
-#include "debug.h"
+#include "w_debug.h"
 
-#include "regex.posix.h"
+#include "regex_posix.h"
 
-#ifdef __GNUG__
+#ifdef EXPLICIT_TEMPLATE
 template class w_list_i<option_t>;
 template class w_list_t<option_t>;
 #endif /*__GNUG__*/
@@ -41,7 +64,8 @@ option_t::~option_t()
 
 w_rc_t option_t::init(const char* name, const char* newPoss,
     		      const char* defaultVal, const char* descr,
-    		      bool req, OptionSetFunc setFunc) 
+    		      bool req, OptionSetFunc setFunc,
+		      ostream *err_stream) 
 {
     _name = name;
     _possible_values = newPoss;
@@ -52,7 +76,7 @@ w_rc_t option_t::init(const char* name, const char* newPoss,
     _set = false;
     if (!_required) {
     	if (_default_value) {
-	    w_rc_t rc = set_value(_default_value, false, NULL);
+	    w_rc_t rc = set_value(_default_value, false, err_stream);
 	    _set = false;
 	    return rc;
     	}
@@ -105,6 +129,8 @@ bool option_t::match(const char* matchName, bool exact)
 
 w_rc_t option_t::set_value(const char* value, bool overRide, ostream* err_stream)
 {
+    DBG(<<"option_t::set_value " << name()
+	<< " value = " << value);
     if (_set && !overRide) {
     	/* option not set */
     	return RCOK;
@@ -143,7 +169,7 @@ w_rc_t option_t::copyValue(const char* value)
 w_rc_t option_t::concatValue(const char* value)
 {
     char* new_value;
-    char* separator = "\n";
+    const char* separator = "\n";
 
     if (_value) {
 	new_value = (char*)realloc(_value, strlen(_value) + strlen(separator) + strlen(value)+1);
@@ -191,12 +217,26 @@ w_rc_t option_t::set_value_bool(option_t* opt, const char* value, ostream* err_s
     return RCOK;
 }
 
-w_rc_t option_t::set_value_long(option_t* opt, const char* value, ostream* err_stream)
+w_rc_t 
+option_t::set_value_int4(
+	option_t* opt, 
+	const char* value, 
+	ostream* err_stream)
 {
     long l;
     char* lastValid;
 
+    errno = 0;
     l = strtol(value, &lastValid, 0/*any base*/);
+    if(((l == LONG_MAX) || (l == LONG_MIN)) && errno == ERANGE) {
+	/* out of range */
+	if (err_stream)  {
+		*err_stream 
+		<< "value is out of range for a long integer " 
+		<< value;
+	    return RC(OPT_BadValue);
+	}
+    }
     if (lastValid == value) {
 	// not integer could be formed
 	if (err_stream) *err_stream << "no valid integer could be formed from " << value;
@@ -207,7 +247,71 @@ w_rc_t option_t::set_value_long(option_t* opt, const char* value, ostream* err_s
     return RCOK;
 }
 
-w_rc_t option_t::set_value_charstr(option_t* opt, const char* value, ostream* /*err_stream_unused*/)
+w_rc_t 
+option_t::set_value_long(
+	option_t* opt, 
+	const char* value, 
+	ostream* err_stream)
+{
+	/* XXX breaks on 64 bit machines? */
+	return	set_value_int4(opt, value, err_stream);
+}
+
+w_rc_t 
+option_t::set_value_int8(
+	option_t* opt, 
+	const char* value, 
+	ostream* err_stream)
+{
+    w_base_t::int8_t l;
+
+#ifdef _MSC_VER
+    /* Unfortunately, with visual c++, the underlying library
+     * doesn't do all the good stuff.  It isn't worth hacking
+     * the conversion function do do any better, since this
+     * is the only place in the SM that uses the extra
+     * features.
+     */
+    l = w_base_t::strtoi8(value);
+#else
+    char* lastValid;
+    errno = 0;
+    l = w_base_t::strtoi8(value, &lastValid);
+    if (errno == ERANGE) {
+	/* out of range */
+	if (err_stream)  {
+		*err_stream 
+		<< "value is out of range for a long integer " 
+		<< value;
+	    return RC(OPT_BadValue);
+	}
+    }
+    if (lastValid == value) {
+	// not integer could be formed
+	if (err_stream) *err_stream << "no valid integer could be formed from " << value;
+	return RC(OPT_BadValue);
+    }
+    // value is good
+#endif
+
+    W_DO(opt->copyValue(value));
+    return RCOK;
+}
+
+w_rc_t 
+option_t::set_value_long_long(
+	option_t* opt, 
+	const char* value, 
+	ostream* err_stream)
+{
+	return	set_value_int8(opt, value, err_stream);
+}
+
+w_rc_t option_t::set_value_charstr(
+	option_t* opt, 
+	const char* value, 
+	ostream * //err_stream_unused
+	)
 {
     W_DO(opt->copyValue(value));
     return RCOK;
@@ -219,7 +323,7 @@ w_rc_t option_t::set_value_charstr(option_t* opt, const char* value, ostream* /*
 
 bool option_group_t::_error_codes_added = false;
 
-#include "opt_einfo.i"
+#include "opt_einfo_gen.h"
 
 option_group_t::option_group_t(int maxNameLevels) :
     _options(offsetof(option_t, _link)),
@@ -255,21 +359,25 @@ option_group_t::~option_group_t()
 	delete scan.curr();
     }
     if (_class_name) free(_class_name);
-    if (_levelLocation) delete _levelLocation;
+    if (_levelLocation) delete[]  _levelLocation;
 }
 
 w_rc_t option_group_t::add_option(
 	const char* name, const char* newPoss,
 	const char* default_value, const char* description,
 	bool required, option_t::OptionSetFunc setFunc,
-	option_t*& newOpt)
+	option_t*& newOpt,
+	ostream *err_stream
+	)
 {
+    DBG(<<"option_group_t::add_option " << name );
     W_DO(lookup(name, true, newOpt));
     if (newOpt) return RC(OPT_Duplicate);
 
     newOpt = new option_t();
     if (!newOpt) return RC(fcOUTOFMEMORY);
-    w_rc_t rc = newOpt->init(name, newPoss, default_value, description, required, setFunc);
+    w_rc_t rc = newOpt->init(name, newPoss, 
+	default_value, description, required, setFunc, err_stream);
     if (rc) {
 	delete newOpt;
 	newOpt = NULL;
@@ -337,12 +445,23 @@ w_rc_t option_group_t::setClassLevel(const char* name, int level)
 
 w_rc_t option_group_t::lookup(const char* name, bool exact, option_t*& returnOption)
 {
+    DBG(<<"option_group_t::lookup " << name << " exact=" << exact);
     w_rc_t rc;
 
     returnOption = NULL;
 
     w_list_i<option_t> scan(_options);
     while (scan.next()) {
+
+#ifdef notdef
+option_t *z = scan.curr();
+if(z) {
+	cerr << "curr=" << z << endl;
+	cerr << "curr->name ="  << z->name() << endl;
+} else {
+	cerr << "curr is null" << endl;
+}
+#endif
 	DBG(<<"scan.curr()==|" << scan.curr()->name() <<"|");
      	if (scan.curr()->match(name, exact)) {
 	    DBG(<<"match");
@@ -358,6 +477,7 @@ w_rc_t option_group_t::lookup(const char* name, bool exact, option_t*& returnOpt
 	    DBG(<<"nomatch");
 	}
     }
+    DBG(<<"option_group_t::lookup " << name << " scan done" );
     return rc;
 }
 
@@ -374,8 +494,10 @@ option_group_t::lookup_by_class(
     int			lastNewSpecial;
     w_rc_t		rc;
     int			newClen;
-    char*		regex = NULL;
+    const char*		regex = NULL;
     bool		backSlash = false;
+
+    DBG(<<"option_group_t::lookup_by_class " << optClassName);
 
     // regular expr is placed here, at most
     // it can be twice as long as optClassName
@@ -466,11 +588,13 @@ option_group_t::lookup_by_class(
 	rc = RC(OPT_IllegalClass);
     } else {
     	if (re_exec(_class_name) == 1) {
+	    DBG(<<"re_exec("<<_class_name<<") returned 1");
 
 	    // see if option name matches
 	    const char* option = lastSpecial+1;
 	    return lookup(option, exact, returnOption);
     	} else {
+	    DBG(<<"re_exec("<<_class_name<<") failed");
 	    rc = RC(OPT_NoClassMatch);
 	}
 
@@ -486,11 +610,15 @@ option_group_t::set_value(
     const char* value, bool overRide,
     ostream* err_stream)
 {
+    DBG(<<"option_group_t::set_value: " << name
+	<< " exact=" << exact);
     option_t* opt = 0;
     W_DO(lookup(name, exact, opt));
     if (!opt) {
+	DBG(<<"nomatch");
 	return RC(OPT_NoOptionMatch);
     }
+    DBG(<<"MATCH");
     W_DO(opt->set_value(value, overRide, err_stream));
     return RCOK;
 }
@@ -563,6 +691,7 @@ void option_group_t::print_values(bool longForm, ostream& err_stream)
 
 w_rc_t option_group_t::check_required(ostream* err_stream)
 {
+    DBG(<<"option_group_t::check_required");
     w_rc_t rc;
     option_t* curr;
     bool at_least_one_not_set = false;
@@ -578,7 +707,7 @@ w_rc_t option_group_t::check_required(ostream* err_stream)
     return rc;
 }
 
-w_rc_t option_group_t::parse_command_line(char** argv, int& argc, size_t min_len, ostream* err_stream)
+w_rc_t option_group_t::parse_command_line(const char** argv, int& argc, size_t min_len, ostream* err_stream)
 {
 
     /*
@@ -606,7 +735,9 @@ w_rc_t option_group_t::parse_command_line(char** argv, int& argc, size_t min_len
 		    argc--;
 		    rc = RC(OPT_BadValue);
 		} else {
-		    if (rc = opt->set_value(argv[i+1], true, err_stream)) {
+			// VCPP Wierdness if (rc = ...)
+		    rc = opt->set_value(argv[i+1], true, err_stream);
+			if (rc) {
 			if (err_stream) *err_stream << "bad value for argument " << argv[i];
 		    }
 
@@ -633,27 +764,55 @@ w_rc_t option_group_t::parse_command_line(char** argv, int& argc, size_t min_len
 //    	option_file_scan_t functions				 //
 ///////////////////////////////////////////////////////////////////
 
-option_file_scan_t::option_file_scan_t(const char* optFile, option_group_t* list)
+const char *option_stream_scan_t::default_label = "istream";
+
+option_stream_scan_t::option_stream_scan_t(istream &is, option_group_t *list)
+: _input(is),
+  _optList(list),
+  _line(0),
+  _label(default_label),
+  _lineNum(0)
 {
-    _maxLineLen = 2000;
-
-    _fileName = optFile;
-    _optList = list;
-
-    _line = new char[_maxLineLen+1];	
-    if (!_line) {
-	W_FATAL(fcOUTOFMEMORY);
-    }
-
-    _lineNum = 0;
 }
 
-option_file_scan_t::~option_file_scan_t()
+option_stream_scan_t::~option_stream_scan_t()
 {
-    delete _line;
+	if (_line) {
+		delete [] _line;
+		_line = 0;
+	}
+	if (_label != default_label) {
+#ifdef _MSC_VER
+		delete [] (char *) _label;
+#else
+		delete [] _label;
+#endif
+		_label = default_label;
+	}
 }
 
-w_rc_t option_file_scan_t::scan(
+
+void option_stream_scan_t::setLabel(const char *newLabel)
+{
+	if (_label != default_label) {
+#ifdef _MSC_VER
+		delete [] (char *)_label;
+#else
+		delete [] _label;
+#endif
+		_label = default_label;
+	}
+	if (newLabel) {
+		// behavior in case of memory failure is fail safe
+		char *s = new char[strlen(newLabel) + 1];
+		if (s) {
+			strcpy(s, newLabel);
+			_label = s;
+		}
+	}
+}
+
+w_rc_t option_stream_scan_t::scan(
 	bool overRide, 
 	ostream& err_stream, 
 	bool exact,
@@ -666,16 +825,18 @@ w_rc_t option_file_scan_t::scan(
     bool	backSlash = false;
     const char* optionName = NULL;
 
-    ifstream f(_fileName);
-
-    if (!f) {
-	err_stream << "Could not open the option file " << _fileName;
-    	return RC(fcOS);
+    if (!_line) {
+	    _line = new char[_maxLineLen+1];	
+	    if (!_line)
+		return RC(fcOUTOFMEMORY);
     }
 
+    DBG(<<"scanning options stream " << _label);
+
     w_rc_t rc;
-    while ( !rc && (f.getline(_line, _maxLineLen) != NULL) ) {
+    while ( !rc && (_input.getline(_line, _maxLineLen) != NULL) ) {
     	_lineNum++;
+	DBG(<<"scan line " << _lineNum);
 	
 	if (strlen(_line)+1 >= _maxLineLen) {
 	    err_stream << "line " << _lineNum << " is too long";
@@ -715,7 +876,7 @@ w_rc_t option_file_scan_t::scan(
 
     	// check syntax
     	if (optEnd < 0) {
-    		err_stream << "syntax error in file: " << _fileName << "  line: " << _lineNum;
+    		err_stream << "syntax error at " << _label << ":" << _lineNum;
     		rc = RC(OPT_Syntax);
     		break;
     	}
@@ -737,20 +898,23 @@ w_rc_t option_file_scan_t::scan(
     		break;
     	case OPT_NoOptionMatch:
 		if(!mismatch_ok) {
-    		err_stream << "unknown option in file: " << _fileName << "  line: " << _lineNum;
+    		err_stream << "unknown option at " << _label << ":" << _lineNum;
 		}
     		break;
     	case OPT_Duplicate:
-    		err_stream << "option name is not unique in file: " << _fileName << "  line: " << _lineNum;
+    		err_stream << "option name is not unique at "
+			<< _label << ":" << _lineNum;
     		break;
     	case OPT_Syntax:
-    		err_stream << "syntax error in file: " << _fileName << "  line: " << _lineNum;
+    		err_stream << "syntax error at " << _label << ":" << _lineNum;
     		break;
     	case OPT_IllegalClass:
-    		err_stream << "illegal/missing option class in file: " << _fileName << "  line: " << _lineNum;
+    		err_stream << "illegal/missing option class at "
+			<< _label << ":" << _lineNum;
     		break;
     	default:
-    		err_stream << "general error in option file: " << _fileName << "  line: " << _lineNum;
+    		err_stream << "general error in option at "
+			<< _label << ":" << _lineNum;
     		break;	
     	}
 
@@ -786,7 +950,8 @@ w_rc_t option_file_scan_t::scan(
     	}
 
     	if (valBegin < 0) {
-	    err_stream << "syntax error (missing option value) in file: " << _fileName << "  line: " << _lineNum;
+	    err_stream << "syntax error (missing option value) at "
+		<< _label << ":" << _lineNum;
 	    rc = RC(OPT_Syntax);
 	    break;
     	}
@@ -795,7 +960,8 @@ w_rc_t option_file_scan_t::scan(
     	if (_line[valBegin] == '"') {
 	    valBegin++;
 	    if (_line[valEnd] != '"') {
-    		err_stream << "syntax error (missing \") in file: " << _fileName << "  line: " << _lineNum;
+    		err_stream << "syntax error (missing \") at "
+			<< _label << ":" << _lineNum;
 		rc = RC(OPT_Syntax);
 		break;
 	    }
@@ -804,7 +970,8 @@ w_rc_t option_file_scan_t::scan(
     	valLength = valEnd - valBegin + 1;
 
     	if (valLength < 0) {
-	    err_stream << "syntax error (bad option value) in file: " << _fileName << "  line: " << _lineNum;
+	    err_stream << "syntax error (bad option value) at "
+		<< _label << ":" << _lineNum;
 	    rc = RC(OPT_Syntax);
 	    break;
     	}
@@ -818,12 +985,52 @@ w_rc_t option_file_scan_t::scan(
 	    _line[valEnd+1] = '\0';
 	    rc = optInfo->set_value(_line+valBegin, overRide, &err_stream);
 	    if (rc) {
-		err_stream << "Option value error in file: " << _fileName << "  line: " << _lineNum;
+		err_stream << "Option value error at "
+			<< _label << ":" << _lineNum;
 		break;
 	    }
     	}
     
     }
+    DBG(<<"last line scanned: " << _lineNum);
 
     return rc; 
 }
+
+option_file_scan_t::option_file_scan_t(const char* optFile, option_group_t* list)
+: _fileName(optFile),
+  _optList(list)
+{
+}
+
+option_file_scan_t::~option_file_scan_t()
+{
+}
+
+w_rc_t option_file_scan_t::scan(
+	bool overRide, 
+	ostream& err_stream, 
+	bool exact,
+	bool mismatch_ok
+)
+{
+    w_rc_t	e;
+
+    DBG(<<"scanning options file " << _fileName);
+
+    ifstream f(_fileName);
+
+    if (!f) {
+	e = RC(fcOS);    
+	DBG(<<"scan: open failure file " << _fileName);
+	err_stream << "Could not open the option file " << _fileName;
+    	return e;
+    }
+    DBG(<<"scanning options file " << _fileName);
+
+    option_stream_scan_t	ss(f, _optList);
+    ss.setLabel(_fileName);
+
+    return ss.scan(overRide, err_stream, exact, mismatch_ok);
+}
+

@@ -1,13 +1,36 @@
-/* --------------------------------------------------------------- */
-/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
-/* -- University of Wisconsin-Madison, subject to the terms     -- */
-/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
-/* -- Reserved.                                                 -- */
-/* --------------------------------------------------------------- */
+/*<std-header orig-src='shore'>
 
-/*
- *  $Id: rtree.cc,v 1.111 1997/06/15 03:13:53 solomon Exp $
- */
+ $Id: rtree.cpp,v 1.141 1999/06/07 19:04:25 kupsch Exp $
+
+SHORE -- Scalable Heterogeneous Object REpository
+
+Copyright (c) 1994-99 Computer Sciences Department, University of
+                      Wisconsin -- Madison
+All Rights Reserved.
+
+Permission to use, copy, modify and distribute this software and its
+documentation is hereby granted, provided that both the copyright
+notice and this permission notice appear in all copies of the
+software, derivative works or modified versions, and any portions
+thereof, and that both notices appear in supporting documentation.
+
+THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+"AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+This software was developed with support by the Advanced Research
+Project Agency, ARPA order number 018 (formerly 8230), monitored by
+the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+Further funding for this work was provided by DARPA through
+Rome Research Laboratory Contract No. F30602-97-2-0247.
+
+*/
+
+#include "w_defines.h"
+
+/*  -- do not edit anything above this line --   </std-header>*/
+
 #define SM_SOURCE
 #define RTREE_C
 
@@ -16,7 +39,10 @@
 #    pragma implementation "rtree_p.h"
 #endif
 
+#ifndef _MSC_VER
 #include <values.h>
+#endif
+
 #include <math.h>
 #include <sm_int_2.h>
 #include <rtree_p.h>
@@ -24,18 +50,28 @@
 
 #include <crash.h>
 
-#ifdef __GNUG__
+#ifndef MIN
+#define MIN(x,y) ((x) < (y) ? (x) : (y))
+#endif
+
+#ifndef MAX
+#define MAX(x,y) ((x) > (y) ? (x) : (y))
+#endif
+
+#ifndef ABS
+#define ABS(x) ((x) >= 0 ? (x) : -(x))
+#endif
+
+
+#ifdef EXPLICIT_TEMPLATE
 template class w_auto_delete_array_t<wrk_branch_t>;
 #endif
 
 
-nbox_t CoverAll;
-FILE *DrawFile;
-
 INLINE void 
-SWITCH(int2& x, int2& y)
+SWITCH(int2_t& x, int2_t& y)
 {
-    { int2 _temp_ = x; x = y; y = _temp_; }
+    { int2_t _temp_ = x; x = y; y = _temp_; }
 }
 
 const double MaxDouble = 4.0*max_int4*max_int4;
@@ -88,17 +124,18 @@ class rtwork_p : public smlevel_0 {
 public:
     rtwork_p()
     : _buf(new page_s), _pg(_buf, st_tmp)  {
-        w_assert3(_pg);
+        w_assert3(_pg.is_fixed());
 	mbb = new nbox_t(2);
     }
 
-    rtwork_p(const lpid_t& pid, int2 l, int2 d = 2)
+    rtwork_p(const lpid_t& pid, int2_t l, int2_t d = 2)
     : _buf(new page_s), _pg(_buf, st_tmp) {
 	    /*
 	     * Turning off logging makes this a critical section:
 	     */
 	    xct_log_switch_t log_off(smlevel_0::OFF);
-            W_COERCE( _pg.format(pid, rtree_p::t_rtree_p, _pg.t_virgin) );
+            W_COERCE( _pg.format(pid, rtree_p::t_rtree_p, _pg.t_virgin,
+		st_regular) );
             W_COERCE( _pg.set_level(l) );
             W_COERCE( _pg.set_dim(d) );
 	    mbb = new nbox_t(d);
@@ -106,14 +143,15 @@ public:
 
     ~rtwork_p() { if (_buf)  delete _buf;  if (mbb) delete mbb; }
 
-    void init(int2 l, int2 d = 2) {
+    void init(int2_t l, int2_t d = 2) {
         lpid_t pid;
 	/*
 	 * Turning off logging makes this a critical section:
 	 */
 	xct_log_switch_t log_off(smlevel_0::OFF);
 
-	W_COERCE( _pg.format(pid, rtree_p::t_rtree_p, _pg.t_virgin) ) ;
+	W_COERCE( _pg.format(pid, rtree_p::t_rtree_p, _pg.t_virgin, 
+		st_regular) ) ;
         W_COERCE( _pg.set_level(l)) ;
         W_COERCE( _pg.set_dim(d)) ;
 	if (!mbb) mbb = new nbox_t(d);
@@ -132,7 +170,9 @@ public:
     }
 
     void expn_bound(const nbox_t& key) {
-	(*mbb) += key;
+	    if(!key.is_Null()) {
+		(*mbb) += key;
+	    }
         }
 
     rtree_p* rp()		{ return &_pg; }  // convert to rtree page
@@ -147,17 +187,17 @@ public:
 //
 class rtld_cache_t {
     rtwork_p buf[3];
-    int2 _idx;
+    int2_t _idx;
     nbox_t* last_box;
 
 public:
     rtld_cache_t() { _idx = -1; last_box=NULL; }
     ~rtld_cache_t() { if (last_box) delete last_box; }
 
-    int2 count() { return _idx+1; }
+    int2_t count() { return _idx+1; }
     void incr_cnt() { _idx++; w_assert1(_idx<3); }
 
-    void init_buf(int2 lvl);
+    void init_buf(int2_t lvl);
 	
     rtwork_p* top() {
 	w_assert1(_idx >= 0);
@@ -184,10 +224,10 @@ public:
 //
 class rtld_stk_t {
     enum { max_ldstk_sz = 10 };
-    rtree_p rp;
-    rtld_cache_t* layers;
-    int _top;
-    rtld_desc_t dc;
+    rtree_p 		rp;
+    rtld_cache_t* 	layers;
+    int 		_top;
+    rtld_desc_t 	dc;
 
     void init_next_layer() {
 	_top++;
@@ -198,18 +238,22 @@ class rtld_stk_t {
     rc_t			tmp2real(rtwork_p* tmp, rtree_p* real);
 
 public:
-    uint2 height;
-    uint4 leaf_pages;
-    uint4 num_pages;
-    uint4 fill_sum;
+    uint2_t height;
+    uint4_t leaf_pages;
+    uint4_t num_pages;
+    uint4_t fill_sum;
 
-    rtld_stk_t(const rtree_p& rtp, const rtld_desc_t& desc){ 
-	rp = rtp;
-	_top = -1; 
-	dc = desc;
-	layers = new rtld_cache_t[max_ldstk_sz]; 
-	leaf_pages = num_pages = fill_sum = 0;
-	height = 0;
+    rtld_stk_t(const rtree_p& rtp, const rtld_desc_t& desc) :
+	rp(rtp), 
+	layers(0),
+	_top(-1),
+	height(0),
+	leaf_pages(0),
+	num_pages(0),
+	fill_sum(0)
+	{
+	    layers = new rtld_cache_t[max_ldstk_sz]; 
+	    dc = desc;
 	}
 
     ~rtld_stk_t() { if (layers) delete[] layers; }
@@ -218,7 +262,7 @@ public:
 	const nbox_t&		    key,
 	const cvec_t& 		    el,
 	shpid_t 		    child,
-	int2 			    level);
+	int2_t 			    level);
     rc_t			wrap_up();
 };
 
@@ -272,7 +316,7 @@ _sort_cmp_axis_(const void* k1, const void* k2)
 
 
 static void 
-quick_sort(wrk_branch_t key[], int2 num, int axis)
+quick_sort(wrk_branch_t key[], int2_t num, int axis)
 {
     if (axis == -1)
 	    qsort(key, num, sizeof(wrk_branch_t), _sort_cmp_area_);
@@ -290,10 +334,10 @@ quick_sort(wrk_branch_t key[], int2 num, int axis)
 // overlap: sum of overlap between target and each box in list[]
 //
 static double 
-overlap(const nbox_t& target, int2 index, 
-	wrk_branch_t list[], int2 num)
+overlap(const nbox_t& target, int2_t index, 
+	wrk_branch_t list[], int2_t num)
 {
-    register int i;
+    int i;
     double sum = 0.0, area;
 
     for (i=0; i<num; i++) {
@@ -326,9 +370,9 @@ void rtree_base_p::ntoh()
 
 rc_t
 rtree_p::format(const lpid_t& pid, tag_t tag, 
-	uint4_t flags)
+	uint4_t flags, store_flag_t store_flags)
 {
-    W_DO( rtree_base_p::format(pid, tag, flags) );
+    W_DO( rtree_base_p::format(pid, tag, flags, store_flags) );
     return RCOK;
 }
 
@@ -347,7 +391,7 @@ MAKEPAGECODE(rtree_base_p, keyed_p);
 // set up level in header
 //
 rc_t
-rtree_base_p::set_level(int2 l)
+rtree_base_p::set_level(int2_t l)
 {
     rtctrl_t tmp;
     
@@ -362,7 +406,7 @@ rtree_base_p::set_level(int2 l)
 // set up dimension in header
 //
 rc_t
-rtree_base_p::set_dim(int2 d)
+rtree_base_p::set_dim(int2_t d)
 {
     rtctrl_t tmp;
     
@@ -379,13 +423,15 @@ rtree_base_p::set_dim(int2 d)
 rc_t
 rtree_p::calc_bound(nbox_t& nb)
 {
-    register int i;
+    int i;
     nbox_t cur;
     nb.nullify();
 
     for (i=nrecs()-1; i>=0; i--)  {
 	cur.bytes2box(rec(i).key(), rec(i).klen());
-	nb += cur;
+	if(!cur.is_Null()) {
+	    nb += cur;
+	}
     }
 
     return RCOK;
@@ -397,18 +443,18 @@ rtree_p::calc_bound(nbox_t& nb)
 void 
 rtree_p::print()
 {
-    register int i, j;
+    int i, j;
     nbox_t key;
 
     for (i=0; i<nrecs(); i++)  {
     	key.bytes2box(rec(i).key(), rec(i).klen());
-	key.print( level() );
+	key.print(cout, level() );
 
 	for (j=0; j<5-level(); j++) cout << "\t";
 	if ( is_node() )  
 	    cout << ":- pid = " << rec(i).child() << endl;
 	else 
-	    cout << "(" << rec(i).elem() << ")" << endl;
+	    cout << "elem=(" << rec(i).elem() << ")" << endl;
     }
     cout << endl;
 }
@@ -417,9 +463,9 @@ rtree_p::print()
 // draw all the entries in the current rtree page
 //
 void 
-rtree_p::draw()
+rtree_p::draw(ostream &DrawFile, nbox_t &CoverAll)
 {
-    register int i;
+    int i;
     nbox_t key;
 
     for (i=0; i<nrecs(); i++)  {
@@ -433,10 +479,10 @@ rtree_p::draw()
 // 	total overlap area / total area
 // 
 //
-uint2
+uint2_t
 rtree_p::ovp()
 {
-    register int i, j;
+    int i, j;
     nbox_t key1, key2;
     double all_sum = 0.0, ovp_sum = 0.0, area;
 
@@ -454,7 +500,7 @@ rtree_p::ovp()
     }
 
     if (all_sum == 0.0) return 0;
-    else return (uint2) (ovp_sum*50.0 / all_sum);
+    else return (uint2_t) (ovp_sum*50.0 / all_sum);
 }
 
 //
@@ -462,7 +508,7 @@ rtree_p::ovp()
 //
 rc_t
 rtree_base_p::format(const lpid_t& pid, tag_t tag, 
-	uint4_t flags)
+	uint4_t flags, store_flag_t store_flags)
 {
     rtctrl_t rtc;
     rtc.level = 1;
@@ -470,7 +516,7 @@ rtree_base_p::format(const lpid_t& pid, tag_t tag,
     vec_t vec;
     vec.put(&rtc, sizeof(rtctrl_t));
 
-    W_DO( keyed_p::format(pid, tag, flags, vec) );
+    W_DO( keyed_p::format(pid, tag, flags, store_flags, vec) );
 
     return RCOK;
 }
@@ -484,9 +530,9 @@ rtree_p::pick_optimum(const nbox_t& key, slotid_t& ret_slot)
     w_assert3( is_node() );
 
     ret_slot = -1;
-    register int i;
+    int i;
     double min_area = MaxDouble;
-    int2 min_idx = -1, count = nrecs();
+    int2_t min_idx = -1, count = nrecs();
     wrk_branch_t* work = new wrk_branch_t[count];
     w_assert1(work);
     w_auto_delete_array_t<wrk_branch_t> auto_del_work(work);
@@ -496,10 +542,17 @@ rtree_p::pick_optimum(const nbox_t& key, slotid_t& ret_slot)
 	work[i].rect.bytes2box(rec(i).key(), rec(i).klen());
 	work[i].area = work[i].rect.area();
 	work[i].idx = i;
-	if (work[i].rect / key && work[i].area < min_area) {
-	    min_area = work[i].area; ret_slot = i;
+	if(key.is_Null()) {
+	    // Just find min-sized box
+	    if( work[i].area < min_area ) {
+		min_area = work[i].area; ret_slot = i;
+	    }
+	} else {
+	    if( work[i].rect / key && work[i].area < min_area ) {
+		min_area = work[i].area; ret_slot = i;
+	    }
+	    work[i].area = (work[i].rect+key).area() - work[i].area;
 	}
-	work[i].area = (work[i].rect+key).area() - work[i].area;
     }
 
     if (this->level()==2) {
@@ -513,7 +566,9 @@ rtree_p::pick_optimum(const nbox_t& key, slotid_t& ret_slot)
 
 	// find the pick with least overlapping resulting from the insertion
 	// a hack to reduce computation
-	for (i=MIN(32, count)-1; i>=0; i--) {
+	if(key.is_Null()) {
+	    min_idx = MIN(32, count)-1;
+	} else for (i=MIN(32, count)-1; i>=0; i--) {
 	    double diff = overlap((key + work[i].rect), i, work, count) -
 				overlap(work[i].rect, i, work, count);
 	    if (diff < min_diff) { min_diff = diff; min_idx = i; }
@@ -540,9 +595,9 @@ rtree_p::pick_optimum(const nbox_t& key, slotid_t& ret_slot)
 rc_t
 rtree_p::ov_remove(rtree_p* dst, const nbox_t& key, const nbox_t& bound)
 {
-    register int i, j;
-    int2 count = this->nrecs();
-    int2 num_rem = (int2) ((count+1) * REMOVE_RATIO + 0.5);
+    int i, j;
+    int2_t count = this->nrecs();
+    int2_t num_rem = (int2_t) ((count+1) * REMOVE_RATIO + 0.5);
     wrk_branch_t* work = new wrk_branch_t[count+1];
     if (!work) return RC(smlevel_0::eOUTOFMEMORY);
     w_auto_delete_array_t<wrk_branch_t> auto_del_work(work);
@@ -562,7 +617,7 @@ rtree_p::ov_remove(rtree_p* dst, const nbox_t& key, const nbox_t& bound)
 
     // remove the last num_rem entries
     for (i=0; i<num_rem; i++) {
-        int2 index = work[i].idx;
+        int2_t index = work[i].idx;
 	// find the largest index of tuple to be removed
 	for (j=i+1; j<num_rem; j++)
 	    if (index < work[j].idx) { SWITCH(index, work[j].idx); }
@@ -602,10 +657,12 @@ rtree_p::insert(const nbox_t& key, const cvec_t& el, shpid_t child)
     else { w_assert3(!is_leaf()); }
 
     slotid_t num_slot = 0;
-    u_char smap[smap_sz];
+    u_char *smap = new u_char[rtree_p::smap_sz];
+    w_auto_delete_array_t<u_char> auto_del(smap);
 
-    // do a earch to find the correct position
-    if ( search(key, nbox_t::t_exact, smap, num_slot, &el, child) ) {
+    // do a search to find the correct position
+    if ( search(key, nbox_t::t_exact, smap, num_slot, key.is_Null(), &el, child) ) {
+	DBG(<<"duplicate, key=" << key);
 	return RC(eDUPLICATE);
     } else {
 	keyrec_t::hdr_s hdr;
@@ -631,32 +688,124 @@ rtree_base_p::remove(slotid_t slot)
     return RCOK;
 }
 
+/*
+ * Helper function for _exact_match(), below
+ * Return true if key matches box found in slot 
+ */
+
+bool 
+rtree_p::_key_match(const nbox_t& key, int slot, bool include_nulls,
+	bool& bigger) const
+{
+    bool result = false;
+    const rtrec_t& tuple = rec(slot);
+    nbox_t box;
+
+    box.bytes2box(tuple.key(), tuple.klen());
+
+    // So we don't get to the nbox_t comparison operators below
+    // if either key or box is Null...
+    if(box.is_Null()) {
+	if(include_nulls) {
+	    if(key.is_Null()) {
+		// found exact match
+		result = true;
+	    } else {
+		// treat as box < key
+		bigger = true;
+	    }
+	} else { // ignore nulls
+	    // treat as box < key and keep looking
+	    bigger = true;
+	}
+    } else if(key.is_Null()) {
+	if(include_nulls) {
+	    if(box.is_Null()) {
+		// found exact match
+		result = true;
+	    } else {
+		// treat as box > key
+	    }
+	} else { // ignore nulls
+	    result = false;
+	}
+    } else if (box==key) {
+	result = true;
+    } else if (box<key) {
+	bigger = true;
+    }
+    return result;
+}
+
 //
-// exact match
+// exact match:
+// Sets bits for all satisfying slots.  
+// We can only have >1 satisfying slot if we are scanning,
+// i.e., no element is given for comparison.
 //
 bool 
 rtree_p::exact_match(const nbox_t& key, u_char smap[], const cvec_t& el, 
-		     const shpid_t child)
+		     const shpid_t child, bool include_nulls)
 {
-    register int low, high, mid;
+    int low, high, mid;
     int diff;
-    int2 cnt = nrecs();
+    int2_t cnt = nrecs();
     nbox_t box;
 
+    DBG(<<"_exact_match: cnt=" << cnt << " include_nulls=" <<include_nulls );
     bm_zero(smap, cnt+1);
+    if(key.is_Null() && !include_nulls) return false;
+
     for (low=mid=0, high=cnt-1; low<=high; ) {
 	mid = (low + high) >> 1;
-	const rtrec_t& tuple = rec(mid);
-    	box.bytes2box(tuple.key(), tuple.klen());
-	if (box==key) {
+	bool keymatch=false;
+	bool keybigger=false;
+	keymatch = _key_match(key, mid, include_nulls, keybigger);
+	DBG(<<"keymatch=" << keymatch);
+	if (keymatch) {
 	    if (is_leaf()) { // compare elements
-		if (el.size()==0) { bm_set(smap, mid); return true; }
-		if ((diff = el.cmp(tuple.elem(), tuple.elen())) > 0)
-		  low = mid + 1;
-		else if (diff < 0) high = mid - 1;
-		else { bm_set(smap, mid); return true; }
-	    }
-	    else { // compare children
+		if (el.size()==0) { 
+		    DBG(<<" mid=" << mid);
+		    bm_set(smap, mid); 
+
+		    /*
+		     * Since we are scanning (no element given)
+		     * we can have duplicates, but we'll miss
+		     * them if we don't go up & down, setting
+		     * bits for all that match.
+		     */
+
+		    // Go up until we run out.
+		    // NB: test is slot < high because of the
+		    // ++slot in the _key_match call
+		    int slot=mid;
+		    while (slot < high && (keymatch = 
+			_key_match(key, ++slot, include_nulls, keybigger))) {
+			bm_set(smap, slot);
+		    }
+
+		    // Go down until we run out.
+		    // NB: test is slot > 0 because of the
+		    // --slot in the _key_match call
+		    slot = mid;
+		    while (slot > 0 && (keymatch = 
+			_key_match(key, --slot, include_nulls, keybigger))) {
+			bm_set(smap, slot);
+		    }
+		    return true; 
+		}
+		const rtrec_t& tuple = rec(mid);
+		if ((diff = el.cmp(tuple.elem(), tuple.elen())) > 0) {
+		    low = mid + 1;
+		} else if (diff < 0) {
+		    high = mid - 1;
+		} else { 
+		    DBG(<<" mid=" << mid);
+		    bm_set(smap, mid); 
+		    return true; 
+		}
+	    } else { // compare children
+		const rtrec_t& tuple = rec(mid);
 		if (tuple.child() == child) {
 		    bm_set(smap, mid); 
 		    return true;
@@ -666,8 +815,11 @@ rtree_p::exact_match(const nbox_t& key, u_char smap[], const cvec_t& el,
 		else // child < tuple.child()
 		  high = mid -1;
 	    }
-	} else if (box < key)  low = mid + 1; 
-	else  high = mid - 1;
+	} else if (keybigger) { // (box < key)  
+	    low = mid + 1; 
+	} else    {
+	    high = mid - 1;
+	}
     }
 
     bm_set(smap, ((low > mid) ? low : mid));
@@ -675,44 +827,167 @@ rtree_p::exact_match(const nbox_t& key, u_char smap[], const cvec_t& el,
     return false;
 }
 
+// Type of basic spatial comparison func
+typedef int(*SPATIAL_CMP_FUNC)(const nbox_t&, const nbox_t&, nbox_t::sob_cmp_t);
 //
 // basic comparison functions for spatial objects (other than exact match)
 //
 static int
 sob_cmp(const nbox_t& key, const nbox_t& box, nbox_t::sob_cmp_t type)
 {
+    bool result;
+
     switch(type) {
 	case nbox_t::t_overlap: 	// overlap match
-	    return (box || key);
+	    // ignore nulls altogether
+	    if(key.is_Null() || box.is_Null() ) {
+		DBG(<<"sob_cmp Null argument returns false");
+		return false;
+	    }
+	    result = (box || key);
+	    break;
+
 	case nbox_t::t_cover: 		// coverage: key covers box
-	    return (key / box);
-	case nbox_t::t_inside:		// containment: box contained in key
-	    return (box / key);
+	    // ignore nulls altogether
+	    if(key.is_Null() || box.is_Null() ) {
+		DBG(<<"sob_cmp Null argument returns false");
+		return false;
+	    }
+	    result = (key / box);
+	    break;
+
+	case nbox_t::t_inside:		// containment: key contained in box
+	    /* HACK: special case for t_inside, because nbox_t::Null is 
+	     * inside everything, and we need to do sob_cmp_nulls rather
+	     * than sob_cmp iff condition is key t_inside X for key.is_Null()
+	     * even if we're not including nulls in the results.
+	     * We use this function ONLY if not including nulls in the
+	     * results, so, first skip nulls in on the page (box):
+	     */
+	    if(box.is_Null() ) {
+		DBG(<<"sob_cmp box null, returns false");
+		return false;
+	    }
+	    // Now consider non-nulls - Null key is inside them.
+	    if(key.is_Null()) {
+		DBG(<<"sob_cmp t_inside Null key returns true");
+		return true;
+	    }
+	    result = (box / key);
+	    break;
+
 	default:
 	    w_assert1(0);
-	    return false;
+	    result = false;
+	    break;
     }
+    DBG(<<"sob_cmp " << key << " , " << box << "  returns " << result);
+    return result;
+}
+//
+// basic functions for spatial objects (other than exact match)
+// where nulls are considererd
+//
+static int
+sob_cmp_nulls(const nbox_t& key, const nbox_t& box, nbox_t::sob_cmp_t type)
+{
+    bool	result;
+    switch(type) {
+	case nbox_t::t_overlap: 	// overlap match
+	    // Null overlaps everything and everything overlaps Null
+	    if(box.is_Null() || key.is_Null()) {
+		DBG(<<"");
+		result = true;
+	    } else {
+		DBG(<<"");
+		result =  (box || key);
+	    }
+	    break;
+
+	case nbox_t::t_cover: 		// coverage: key covers box
+	    // Null covers nothing except Null
+	    if(key.is_Null()) {
+		DBG(<<"");
+		result = box.is_Null();
+	    } else if(box.is_Null()) {
+		// Everything covers Null, including Null
+		DBG(<<"");
+		result = true;
+	    } else {
+		DBG(<<"");
+		result = (key / box);
+	    }
+	    break;
+
+	case nbox_t::t_inside:		// containment: key contained in box
+	    // Null inside everything, including Null
+	    if(key.is_Null()) {
+		DBG(<<"");
+		result = true;
+	    } else if(box.is_Null()) {
+	        // Nothing inside Null except Null
+		DBG(<<"");
+		result = key.is_Null();
+	    } else {
+		DBG(<<"");
+		result =  (box / key);
+	    }
+	    break;
+
+	default:
+	    w_assert1(0);
+	    result = false;
+	    break;
+    }
+    DBG(<<"sob_cmp_nulls " << key << " , " << box << "  returns " << result);
+    return result;
 }
 
+/*
 //
-// spatial search
+// Spatial search. Called only by rtree_p::search().
+
+// On input:
+// key is the key for the search condition.
+// ctype is the operation for the search condition.
+// smap is a bitmap allocated by the caller, to be filled-in by
+//    this function.
+// num_slot is == -1 or != -1.  If == -1, it means
+//    we quit after the first satisfying slot is found,
+//    and return with num_slot == 0.
+// include_nulls tells whether or not we are considering
+//    null keys when satisfying the condition.
+
+// When done:
+// num_slot is set to number of slots that satisfy the
+//    search conditions.  
+// smap has the bits set for the satisfying slots
+// at least 1 slot satisfies, as indicated by the assertion,
+//    but I don't know why that is true.
 //
+*/
+
 bool 
 rtree_p::spatial_srch(const nbox_t& key, nbox_t::sob_cmp_t ctype, 
-			       u_char smap[], slotid_t& num_slot)
+			       u_char smap[], slotid_t& num_slot,
+			       bool include_nulls)
 {
-    register int i;
-    bool done = (num_slot==-1)? true : false;
+    int i;
+    bool done = (num_slot == -1);
     num_slot = 0;
-    int2 cnt = nrecs();
+    int2_t cnt = nrecs();
     nbox_t box;
+
+    SPATIAL_CMP_FUNC	cmp = include_nulls ?
+					sob_cmp_nulls : sob_cmp;
 
     bm_zero(smap, cnt);
     for (i=0; i<cnt; i++) {
 	const rtrec_t& tuple = rec(i);
 	box.bytes2box(tuple.key(), tuple.klen());
-	if (sob_cmp(key, box, ctype)) {
-	    bm_set(smap, i); num_slot++;
+	if ((*cmp)(key, box, ctype)) {
+	    bm_set(smap, i); 
+	    num_slot++;
 	    if (done) break;
 	}
     }
@@ -725,35 +1000,67 @@ rtree_p::spatial_srch(const nbox_t& key, nbox_t::sob_cmp_t ctype,
 //
 bool 
 rtree_p::query(const nbox_t& key, nbox_t::sob_cmp_t ctype, u_char smap[],
-			slotid_t& num_slot)
+			slotid_t& num_slot,
+			bool include_nulls)
 {
+    bool found=false;
     w_assert3(!is_leaf());
-    nbox_t::sob_cmp_t cond = (ctype==nbox_t::t_exact)? nbox_t::t_inside : nbox_t::t_overlap;
-    return search(key, cond, smap, num_slot);
+    nbox_t::sob_cmp_t cond = 
+	(ctype==nbox_t::t_exact)? nbox_t::t_inside : nbox_t::t_overlap;
+    found = search(key, cond, smap, num_slot, include_nulls);
+
+    DBG(<<"page.query: key= " << key 
+	<< " include_nulls=" << include_nulls
+	<< " found= " << found 
+	<< " num_slot=" << num_slot
+	<< " cond=" << int(cond)
+    );
+    return found;
 }
 
 //
 // leaf and non-leaf level search function
 //
 bool 
-rtree_p::search(const nbox_t& key, nbox_t::sob_cmp_t ctype, u_char smap[],
-			slotid_t& num_slot, const cvec_t* el, const shpid_t child)
+rtree_p::search(
+	const nbox_t& key, 
+	nbox_t::sob_cmp_t ctype, 
+	u_char smap[],
+	slotid_t& num_slot, 
+	bool  include_nulls,
+	const cvec_t* el, 
+	const shpid_t child
+)
 {
+    bool found=false;
     switch(ctype) {
 	case nbox_t::t_exact: 		// exact match search: binary search
+	    if(key.is_Null() && !include_nulls) return false;
 	    num_slot = 1;
+	    DBG(<<"set num_slot to 1");
 	    if (!el) {
 		cvec_t dummy;
-		return exact_match(key, smap, dummy, child);
+		found = exact_match(key, smap, dummy, child, include_nulls);
+		break;
 	    }
-	    return exact_match(key, smap, *el, child);
-	case nbox_t::t_overlap: 	// overlap match
-	case nbox_t::t_cover: 		// coverage: any rct cover the key
-	case nbox_t::t_inside:		// containment: any rct contained in the key
-	    return spatial_srch(key, ctype, smap, num_slot);
+	    found =  exact_match(key, smap, *el, child, include_nulls);
+	    break;
+
+	case nbox_t::t_overlap: 	// overlap match : anything overlapped
+					// by the key
+	case nbox_t::t_cover: 		// coverage: any rct covered by key
+	case nbox_t::t_inside:		// containment: any rct covering key
+	    DBG(<<"num_slot going into spatial_src=" << num_slot);
+	    found = spatial_srch(key, ctype, smap, num_slot, include_nulls);
+	    break;
 	default:
-	    return false;
+	    found = false;
+	    break;
     }
+    DBG(<<"page.search: key= " << key << " include_nulls=" << include_nulls
+	<< " found=" << found << " num_slot=" << num_slot
+    );
+    return found;
 }
 
 //
@@ -763,13 +1070,19 @@ rtree_p::search(const nbox_t& key, nbox_t::sob_cmp_t ctype, u_char smap[],
 rc_t
 rtree_m::_alloc_page(
     const lpid_t&	root,
-    int2		level,
-    const rtree_p&	near,
-    int2		dim,
+    int2_t		level,
+    const rtree_p&	near_p,
+    int2_t		dim,
     lpid_t&		pid)
 {
-    w_assert3(near);
-    W_DO( io->alloc_pages(root.stid(), near.pid(), 1, &pid) );
+    w_assert3(near_p.is_fixed());
+    W_DO( io->alloc_pages(root.stid(), 
+	near_p.pid(),  // hint
+	1, &pid,	// npages, array for output pids
+	true, 	// may realloc
+	NL,	// ignored
+	true	// search file
+	) );
 
     rtree_p page;
     W_DO( page.fix(pid, LATCH_EX, page.t_virgin) );
@@ -804,7 +1117,8 @@ rtree_m::_search(
     const cvec_t& 		el,
     bool& 			found,
     rtstk_t& 			pl,
-    oper_t oper)
+    oper_t 			oper,
+    bool			include_nulls)
 {
     //lock_mode_t lmode = (oper == t_read) ? SH : EX;
     latch_mode_t latch_m = (oper == t_read) ? LATCH_SH : LATCH_EX;
@@ -817,7 +1131,7 @@ rtree_m::_search(
     pl.push(page, -1);
 
     // traverse through non-leaf pages
-    W_DO ( _traverse(key, el, found, pl, oper) );
+    W_DO ( _traverse(key, el, found, pl, oper, include_nulls) );
 
     return RCOK;
 }
@@ -831,22 +1145,26 @@ rtree_m::_traverse(
     const cvec_t& 	el,
     bool& 		found,
     rtstk_t& 		pl,
-    oper_t 		oper)
+    oper_t 		oper,
+    bool		include_nulls)
 {
-    register int i;
+    int i;
     //lock_mode_t lmode = (oper == t_read) ? SH : EX;
     latch_mode_t latch_m = (oper == t_read) ? LATCH_SH : LATCH_EX;
 
     rtree_p page;
 
     lpid_t pid = pl.top().page.pid();
-    int2 count = pl.top().page.nrecs();
+    int2_t count = pl.top().page.nrecs();
     slotid_t num_slot = 0;
-    u_char smap[rtree_p::smap_sz];
+    DBG(<<"init local num_slot to 0");
+
+    u_char *smap = new u_char[rtree_p::smap_sz];
+    w_auto_delete_array_t<u_char> auto_del(smap);
 
     if (! pl.top().page.is_leaf())  {
 	// check for containment
-	found = ((rtree_p)pl.top().page).search(key, nbox_t::t_inside, smap, num_slot);
+	found = ((rtree_p)pl.top().page).search(key, nbox_t::t_inside, smap, num_slot, include_nulls);
 	if (!found) { // fail to find in the sub tree
 	    return RCOK;
 	}
@@ -854,7 +1172,7 @@ rtree_m::_traverse(
 	int first = -1;
 	for (i=0; i<num_slot; i++) {
 	    first = bm_first_set(smap, count, ++first);
-	    pl.update_top((int2)first); // push to the stack
+	    pl.update_top((int2_t)first); // push to the stack
 	    
 	    // read in the child page
 	    pid.page = pl.top().page.rec(first).child(); 
@@ -862,7 +1180,7 @@ rtree_m::_traverse(
 
 	    // traverse its children
 	    pl.push(page, -1); // push to the stack
-	    W_DO ( _traverse(key, el, found, pl, oper) );
+	    W_DO ( _traverse(key, el, found, pl, oper, include_nulls) );
 	    if (found) { return RCOK; }
 
 	    // pop the top 2 entries from stack, check for next child
@@ -875,8 +1193,8 @@ rtree_m::_traverse(
     }
     
     // reach leaf level: exact match
-    found = ((rtree_p)pl.top().page).search(key, nbox_t::t_exact, smap, num_slot, &el);
-    if (found) { pl.update_top((int2)bm_first_set(smap, count, 0)); }
+    found = ((rtree_p)pl.top().page).search(key, nbox_t::t_exact, smap, num_slot, include_nulls, &el);
+    if (found) { pl.update_top((int2_t)bm_first_set(smap, count, 0)); }
 
     return RCOK;
 }
@@ -889,10 +1207,11 @@ rtree_m::_dfs_search(
     const lpid_t&	root,
     const nbox_t&	key,
     bool&		found,
-    nbox_t::sob_cmp_t		ctype,
-    ftstk_t&		fl)
+    nbox_t::sob_cmp_t	ctype,
+    ftstk_t&		fl,
+    bool		include_nulls)
 {
-    register int i;
+    int i;
     rtree_p page;
     lpid_t pid = root;
 
@@ -904,11 +1223,18 @@ rtree_m::_dfs_search(
     W_DO( page.fix(pid, LATCH_SH) );
     slotid_t num_slot = 0;
     slotid_t count = page.nrecs();
-    u_char smap[rtree_p::smap_sz];
+
+    u_char *smap = new u_char[rtree_p::smap_sz];
+    w_auto_delete_array_t<u_char> auto_del(smap);
+
+    DBG(<<"_dfs_search");
 
     if (! page.is_leaf())  {
 	// check for condition
-	found = page.query(key, ctype, smap, num_slot);
+	found = page.query(key, ctype, smap, num_slot, include_nulls);
+	DBG(<<"page.query: key= " << key << " include_nulls=" << include_nulls
+	    << " found=" << found << " num_slot=" << num_slot
+	);
 	if (!found) {
 	    // fail to find in the sub tree, search for the next
 	    // W_DO( lm->unlock(page.pid()) );
@@ -928,7 +1254,7 @@ rtree_m::_dfs_search(
 
 	found = false;
 	while (!found && !fl.is_empty()) {
-	    W_DO ( _dfs_search(root, key, found, ctype, fl) );
+	    W_DO ( _dfs_search(root, key, found, ctype, fl, include_nulls) );
 	}
 
 	return RCOK;
@@ -937,8 +1263,10 @@ rtree_m::_dfs_search(
     //
     // leaf page
     //
-    num_slot = -1; // interested in first slot found
-    found = page.search(key, ctype, smap, num_slot);
+    num_slot = -1; // interested only in first slot found
+    DBG(<<"num_slot <- -1 for spatial search");
+
+    found = page.search(key, ctype, smap, num_slot, include_nulls);
 
     if (found) { fl.push(pid.page); }
 
@@ -953,7 +1281,7 @@ rtree_m::_pick_branch(
     const lpid_t&	root,
     const nbox_t&	key,
     rtstk_t&		pl,
-    int2		lvl,
+    int2_t		lvl,
     oper_t		oper)
 {
     slotid_t slot = 0;
@@ -997,9 +1325,9 @@ rtree_m::_ov_treat(
     bool*		lvl_split)
 {
 
-    register int i;
+    int i;
     rtree_p page = pl.top().page;
-    int2 level = page.level();
+    int2_t level = page.level();
     w_assert3(page.pid()!=root && !lvl_split[level]);
 
     // get the bounding box for current page
@@ -1042,13 +1370,13 @@ rtree_m::_split_page(
     rtree_p&		ret_page,
     bool*		lvl_split)
 {
-    register i;
+    int i;
     rtree_p page(pl.pop().page);
-    int2 count = page.nrecs();
+    int2_t count = page.nrecs();
 
     wrk_branch_t* work = new wrk_branch_t[count+1];
     if (!work) return RC(eOUTOFMEMORY);
-#ifdef PURIFY
+#ifdef PURIFY_ZERO
     memset(work, '\0', sizeof(wrk_branch_t) * (count +1) );
 #endif
     w_auto_delete_array_t<wrk_branch_t> auto_del_work(work);
@@ -1065,12 +1393,17 @@ rtree_m::_split_page(
     work[count].rect = key;
 
     int min_margin = max_int4, margin;
-    u_char save_smap[rtree_p::smap_sz], smap[rtree_p::smap_sz];
+
+    u_char *save_smap = new u_char[rtree_p::smap_sz];
+    w_auto_delete_array_t<u_char> auto_del_save(save_smap);
+
+    u_char *smap = new u_char[rtree_p::smap_sz];
+    w_auto_delete_array_t<u_char> auto_del(smap);
 
     // determine which axis and where to split
     for (i=0; i<key.dimension(); i++) {
 	sweep_n_split(i, work, smap, margin, count+1, 
-			(int2) (count*MIN_RATIO));
+			(int2_t) (count*MIN_RATIO));
 	if (margin < min_margin) {
 	    min_margin = margin;
 	    int bytes_of_bits_to_copy = count/8 + 1;
@@ -1101,10 +1434,14 @@ rtree_m::_split_page(
     W_DO( sibling_p.calc_bound(sibling_bound) );
     if (bm_is_set(save_smap, count)) {
 	ret_page = sibling_p;
-	sibling_bound += key;
+	if(!key.is_Null()) {
+	    sibling_bound += key;
+	}
     } else {
 	ret_page = page;
-	page_bound += key;
+	if(!key.is_Null()) {
+	    page_bound += key;
+	}
     }
     
     // now to adjust the higher level
@@ -1129,7 +1466,7 @@ rtree_m::_split_page(
 	pl.push(page, -1); // push to stack
 
 	// release pages
-	if (sibling_p != ret_page) {
+	if (sibling_p.pid() != ret_page.pid()) {
 	    ret_page = duplicate_p;
 	    // W_DO( lm->unlock(sibling) );
 	} else {
@@ -1151,7 +1488,7 @@ rtree_m::_split_page(
 	W_DO( parent.insert(page_bound, el, child) );
 	
 	// release the page that doesn't contain the new entry
-	if (sibling_p != ret_page) {
+	if (sibling_p.pid() != ret_page.pid()) {
 	    // W_DO( lm->unlock(sibling) );
 	} else {
 	    // W_DO( lm->unlock(duplicate) ); }
@@ -1223,22 +1560,29 @@ rtree_m::__propagate_insert(
 {
     nbox_t child_bound(pl.top().page.dim());
     
-    for (register i=pl.size()-1; i>0; i--) {
+    for (int i=pl.size()-1; i>0; i--) {
 	// recalculate bound for current page for next iteration
         W_DO( ((rtree_p)pl.top().page).calc_bound(child_bound) );
 	// W_DO( lm->unlock(pl.top().page.pid()) );
 	pl.pop();
 
 	// find the associated entry
-	int2 index = pl.top().idx;
+	int2_t index = pl.top().idx;
 	const rtrec_t& tuple = pl.top().page.rec(index);
 	nbox_t old_bound(tuple.key(), tuple.klen());
 
-	// if already contained, exit
-	if (old_bound / child_bound || old_bound == child_bound)
-	    break;
-	else
+	/*
+	 * if already contained, exit
+	 */
+	// NB: everything contains Null, Null contains nothing except Null
+	if(child_bound.is_Null()) 	break;
+	if ( old_bound.is_Null() ) {
+	    old_bound = child_bound;
+	} else {
+	    if (old_bound == child_bound) break;
+	    if (old_bound / child_bound) break;
 	    old_bound += child_bound;
+	}
 
 	// replace the parent entry with updated key
 	vec_t el((const void*) tuple.elem(), tuple.elen());
@@ -1275,20 +1619,20 @@ rtree_m::_propagate_insert(
 //
 rc_t
 rtree_m::__propagate_remove(
-    xct_t	*/*xd*/,
+    xct_t*	/*xd not used*/,
     rtstk_t&	pl
 )
 {
     nbox_t child_bound(pl.top().page.dim());
 
-    for (register i=pl.size()-1; i>0; i--) {
+    for (int i=pl.size()-1; i>0; i--) {
 	// recalculate bound for current page for next iteration
         W_DO( ((rtree_p)pl.top().page).calc_bound(child_bound) );
 	//W_DO(lm->unlock(pl.top().page.pid()) );
 	pl.pop();
 
 	// find the associated entry
-	int2 index = pl.top().idx;
+	int2_t index = pl.top().idx;
 	const rtrec_t& tuple = pl.top().page.rec(index);
 	nbox_t key(tuple.key(), tuple.klen());
 	if (key==child_bound) { break; } // no more change needed
@@ -1330,7 +1674,7 @@ rtree_m::_reinsert(
     const lpid_t&	root,
     const rtrec_t&	tuple,
     rtstk_t&		pl,
-    int2		level,
+    int2_t		level,
     bool*		lvl_split)
 {
     nbox_t key(tuple.key(), tuple.klen());
@@ -1382,14 +1726,20 @@ rc_t
 rtree_m::create(
     stid_t	stid,
     lpid_t&	root,
-    int2 	dim)
+    int2_t 	dim)
 {
     lsn_t anchor;
     xct_t* xd = xct();
     w_assert3(xd);
     anchor = xd->anchor();
 
-    X_DO( io->alloc_pages(stid, lpid_t::eof, 1, &root), anchor );
+    X_DO( io->alloc_pages(stid, 
+	lpid_t::eof, // hint
+	1, &root, 	// npages, array for output pids
+	true, 	// may realloc
+	NL,	// ignored
+	true 	// search file
+	), anchor );
 
     rtree_p page;
     X_DO( page.fix(root, LATCH_EX, page.t_virgin), anchor );
@@ -1407,7 +1757,9 @@ rtree_m::create(
 }
 
 //
-// search for exact match for key: only return the first matched
+// Search for exact match for key: only return the first matched
+// This is called ONLY from find_md_assoc() and so the key.is_Null()
+// suffices for determining if nulls are returned.  
 //
 rc_t
 rtree_m::lookup(
@@ -1421,12 +1773,15 @@ rtree_m::lookup(
     rtstk_t pl;
 
     // do an exact match search
-    W_DO ( _search(root, key, elvec, found, pl, t_read) );
+    W_DO ( _search(root, key, elvec, found, pl, t_read, key.is_Null()) );
 
     if (found) {
     	const rtrec_t& tuple = pl.top().page.rec(pl.top().idx);
     	if (elen < tuple.elen())  return RC(eRECWONTFIT);
+	DBG(<<"tuple.elen==" <<tuple.elen());
     	memcpy(el, tuple.elem(), elen = tuple.elen());
+    } else {
+	DBG(<<"Key not found: " << key );
     }
 
     return RCOK;
@@ -1446,8 +1801,11 @@ rtree_m::insert(
     bool found = false, split = false;
 
     // search for exact match first
-    W_DO( _search(root, key, elem, found, pl, t_insert) );
-    if (found)  return RC(eDUPLICATE);
+    W_DO( _search(root, key, elem, found, pl, t_insert, key.is_Null()) );
+    if (found)  {
+	DBG(<<"duplicate, key=" << key);
+	return RC(eDUPLICATE);
+    }
 	
     // pick appropriate branch
     pl.drop_all_but_last();
@@ -1540,7 +1898,7 @@ rtree_m::remove(
     rtstk_t pl;
     bool found = false;
 
-    W_DO( _search(root, key, elem, found, pl, t_remove) );
+    W_DO( _search(root, key, elem, found, pl, t_remove, key.is_Null()) );
     if (! found) 
 	return RC(eNOTFOUND);
     
@@ -1576,9 +1934,9 @@ rtree_m::print(const lpid_t& root)
     if (root.page == page.root()) {
         // print real root boundary
     	nbox_t bound(page.dim());
-    	page.calc_bound(bound);
+    	W_DO(page.calc_bound(bound));
     	cout << "Universe:\n";
-    	bound.print(5);
+    	bound.print(cout, 5);
     }
    
     int i;
@@ -1609,7 +1967,7 @@ rtree_m::print(const lpid_t& root)
 
     if (page.level() == 1) {
         nbox_t bound(page.dim());
-        page.calc_bound(bound);
+        W_DO(page.calc_bound(bound));
         cout << endl;
         cout << page.nrecs() << endl;
         cout << bound.bound(0) << " " << bound.bound(1) << endl;
@@ -1634,28 +1992,24 @@ rtree_m::print(const lpid_t& root)
 rc_t
 rtree_m::draw(
     const lpid_t&	root,
+    ostream		&DrawFile,
     bool		skip)
 {
     rtree_p page;
     W_DO( page.fix(root, LATCH_SH) );
 
     nbox_t rbound(page.dim());
-    page.calc_bound(rbound);
-    CoverAll = rbound;
+    W_DO(page.calc_bound(rbound));
 
-    if ((DrawFile = fopen("graph_out", "w")) == NULL) {
-	cout << " can't open gremlin file\n";
-	return RC(eOS);
-    }
-    
-    fprintf(DrawFile, "sungremlinfile\n");
-    fprintf(DrawFile, "0 0.00 0.00\n");
+    nbox_t	CoverAll = rbound;
+
+    W_FORM(DrawFile)("sungremlinfile\n");
+    W_FORM(DrawFile)("0 0.00 0.00\n");
 
     CoverAll.draw(page.level()+1, DrawFile, CoverAll);
-    W_DO ( _draw(root, skip) );
+    W_DO ( _draw(root, DrawFile, CoverAll, skip) );
 
-    fprintf(DrawFile, "-1");
-    fclose(DrawFile);
+    W_FORM(DrawFile)("-1");
 
     return RCOK;
 }
@@ -1663,18 +2017,20 @@ rtree_m::draw(
 rc_t
 rtree_m::_draw(
     const lpid_t&	pid,
+    ostream		&DrawFile,
+    nbox_t		&CoverAll,
     bool		skip)
 {
     rtree_p page;
     W_DO( page.fix(pid, LATCH_SH) );
 
-    if (!skip || page.is_leaf()) page.draw();
+    if (!skip || page.is_leaf()) page.draw(DrawFile, CoverAll);
 
     lpid_t sub_tree = page.pid();
     if (page.level() != 1)  {
 	for (int i = 0; i < page.nrecs(); i++) {
 	    sub_tree.page = page.rec(i).child();
-	    W_DO( _draw(sub_tree, skip) );
+	    W_DO( _draw(sub_tree, DrawFile, CoverAll, skip) );
 	}
     }
 
@@ -1689,8 +2045,8 @@ rc_t
 rtree_m::stats(
     const lpid_t&	root,
     rtree_stats_t&	stat,
-    uint2		size,
-    uint2*		ovp,
+    uint2_t		size,
+    uint2_t*		ovp,
     bool		audit)
 {
     rtree_p page;
@@ -1742,7 +2098,7 @@ rtree_m::stats(
 	    }
 	}
     	stat.int_pg_cnt++;
-	stat.fill_percent = (uint2) (fill_sum/stat.leaf_pg_cnt); 
+	stat.fill_percent = (uint2_t) (fill_sum/stat.leaf_pg_cnt); 
     } else {
         stat.leaf_pg_cnt = 1;
 	stat.fill_percent = (page.used_space()*100/rtree_p::data_sz); 
@@ -1764,8 +2120,8 @@ rtree_m::_stats(
     const lpid_t&	root,
     rtree_stats_t&	stat,
     base_stat_t&	fill_sum,
-    uint2		size,
-    uint2*		ovp)
+    uint2_t		size,
+    uint2_t*		ovp)
 {
     rtree_p page;
     W_DO( page.fix(root, LATCH_SH) );
@@ -1790,7 +2146,7 @@ rtree_m::_stats(
     	stat.int_pg_cnt++;
     } else {
         stat.leaf_pg_cnt += 1;
-	fill_sum +=  ((uint4)page.used_space()*100/rtree_p::data_sz);
+	fill_sum +=  ((uint4_t)page.used_space()*100/rtree_p::data_sz);
 	stat.entry_cnt += page.nrecs();
     }
 
@@ -1815,7 +2171,9 @@ rtree_m::fetch_init(
 
     //W_DO(lm->lock(root, SH, t_medium, WAIT_FOREVER));
 
-    rc_t rc = _dfs_search(root, cursor.qbox, found, cursor.cond, cursor.fl);
+    DBG(<<"");
+    rc_t rc = _dfs_search(root, cursor.qbox, found, 
+	cursor.cond, cursor.fl, cursor._include_nulls);
     if (rc) {
 	cursor.fl.empty_all(); 
 	return RC_AUGMENT(rc);
@@ -1828,10 +2186,15 @@ rtree_m::fetch_init(
     W_DO( cursor.page.fix(pid, LATCH_SH) );
 
     w_assert3(cursor.page.is_leaf());
+    DBG(<<"");
+    // TODO: this can mean a duplicate search
     found = cursor.page.search(cursor.qbox, cursor.cond, 
-				    cursor.smap, cursor.num_slot);
+				    cursor.smap, cursor.num_slot,
+				    cursor._include_nulls);
     w_assert3(found);
     cursor.idx = bm_first_set(cursor.smap, cursor.page.nrecs(), 0);
+    DBG(<<"leave fetch_init w/ cursor.num_slot=" << cursor.num_slot
+	<< " cursor.idx=" << cursor.idx);
 
     return RCOK;
 }
@@ -1848,7 +2211,9 @@ rtree_m::fetch(
     bool&		eof,
     bool		skip)
 {
-    if ((eof = (cursor.page ? false : true)) )  { return RCOK; }
+    DBG(<<"enter fetch w/ cursor.num_slot=" << cursor.num_slot
+	    <<" cursor.idx=" << cursor.idx);
+    if ((eof = !cursor.page.is_fixed()))  { return RCOK; }
 
     // get the key and elem
     const rtrec_t& r = cursor.page.rec(cursor.idx);
@@ -1867,17 +2232,23 @@ rtree_m::fetch(
     lpid_t pid = cursor.page.pid();
 
     //	move cursor to the next eligible unit based on 'condition'
-    if (skip && ++cursor.idx < cursor.page.nrecs())
+    DBG(<<"skip=" << skip << " cursor.idx=" << cursor.idx);
+    if (skip && ++cursor.idx < cursor.page.nrecs()) {
         cursor.idx = bm_first_set(cursor.smap, cursor.page.nrecs(),
 					cursor.idx);
+	
+	DBG(<<"cursor.idx=" << cursor.idx);
+    }
     if (cursor.idx == -1 || cursor.idx >= cursor.page.nrecs())  {
         // W_DO( lm->unlock(cursor.page.pid()) );
 	cursor.page.unfix();
 
 	found = false;
 	while (!found && !cursor.fl.is_empty()) {
+	    DBG(<<"doing _dfs_search");
 	    rc_t rc = _dfs_search(root, cursor.qbox, found, 
-				  cursor.cond, cursor.fl);
+				  cursor.cond, cursor.fl,
+				  cursor._include_nulls);
             if (rc) {
 	        cursor.fl.empty_all();
 		return RC_AUGMENT(rc);
@@ -1889,12 +2260,18 @@ rtree_m::fetch(
     	    pid.page = cursor.fl.pop();
     	    W_DO( cursor.page.fix(pid, LATCH_SH) );
     	    w_assert3(cursor.page.is_leaf());
+	    DBG(<<"cursor.num_slot=" << cursor.num_slot);
     	    found = cursor.page.search(cursor.qbox, cursor.cond, 
-				           cursor.smap, cursor.num_slot);
+				           cursor.smap, cursor.num_slot,
+					   cursor._include_nulls);
+	    DBG(<<"cursor.num_slot=" << cursor.num_slot);
 	    w_assert3(found);
 	    cursor.idx = bm_first_set(cursor.smap, cursor.page.nrecs(), 0);
+	    DBG(<<"cursor.idx=" << cursor.idx);
 	}
     }
+    DBG(<<"leave fetch w/ cursor.num_slot=" << cursor.num_slot
+	    <<" cursor.idx=" << cursor.idx);
 	
     return RCOK;
 }
@@ -1906,7 +2283,7 @@ static void
 sweep_n_split(int axis, wrk_branch_t work[], u_char smap[], int& margin,
     		int max_num, int min_num, nbox_t* extra)
 {
-    register i,j;
+    int i,j;
     margin = 0;
     if (min_num == 0) min_num = (int) (MIN_RATIO*max_num + 0.5);
     int split = -1, diff = max_num - min_num;
@@ -1964,7 +2341,7 @@ sweep_n_split(int axis, wrk_branch_t work[], u_char smap[], int& margin,
 
 
 void 
-rtld_cache_t::init_buf(int2 lvl) 
+rtld_cache_t::init_buf(int2_t lvl) 
 {
     buf[0].init(lvl);
     buf[1].init(lvl);
@@ -1981,15 +2358,15 @@ rtld_cache_t::force(
     bool&	out,
     nbox_t*	universe)
 {
-    register i,j;
+    int i,j;
     out = false;
 
     if (_idx==0) return RCOK;
 
     // count the size of all entries
-    int2 size = 0, cnt = 0;
+    uint2_t size = 0, cnt = 0;
     for (i=0; i<=1; i++) {
-	size += buf[i].rp()->used_space();
+	size += (uint2_t) buf[i].rp()->used_space();
 	cnt += buf[i].rp()->nrecs();
     }
 
@@ -2047,7 +2424,9 @@ rtld_cache_t::force(
     }
 
     int margin;
-    u_char smap[rtree_p::smap_sz*2];
+    u_char *smap = new u_char[rtree_p::smap_sz*2];
+    w_auto_delete_array_t<u_char> auto_del(smap);
+
     int min_cnt = cnt - rtree_p::data_sz*buf[0].rp()->nrecs()
 			/ buf[0].rp()->used_space();
     min_cnt = (min_cnt + cnt/2) / 2;
@@ -2139,7 +2518,7 @@ rtld_stk_t::tmp2real(
     	xct_log_switch_t toggle(smlevel_0::OFF);
 
     	// shift all tuples in tmp to real
-    	for (register i=0; i<tmp->rp()->nrecs(); i++) {
+    	for (int i=0; i<tmp->rp()->nrecs(); i++) {
 	    W_DO( real->insert(tmp->rp()->rec(i)) );
     	}
     }
@@ -2176,7 +2555,11 @@ heuristic_cut(
 {
     int offset = (page->rp()->used_space()*20/rtree_p::data_sz);
     if (offset <= 4) return false;
-    else if ((page->bound()+key).area() >
+    nbox_t  consider(page->bound()); // copy
+    if(!key.is_Null()) {
+	consider += key;
+    }
+    if (consider.area() >
 	     page->bound().area()*expn_table[offset-1]/100.0)
 	return true;
     else 
@@ -2195,7 +2578,7 @@ rtld_stk_t::add_to_stk(
     const nbox_t&	key,
     const cvec_t&	el,
     shpid_t		child,
-    int2		level)
+    int2_t		level)
 {
     w_assert1(level<=_top+1);
     if (level == _top+1) { init_next_layer(); }
@@ -2203,7 +2586,7 @@ rtld_stk_t::add_to_stk(
     // cache page at current top layer
     rtwork_p* page = layers[level].top();
     
-    if (dc.h) {
+    if (dc.h != 0) {
 	// check heuristics 
 	if (heuristic_cut(page, key)) { 
 	    // fill factor and expansion factor reached thresholds,
@@ -2257,7 +2640,7 @@ rtld_stk_t::add_to_stk(
 	    num_pages++;
 	    if (level==0) { 
 		leaf_pages++;
-		fill_sum += (uint4) (np.used_space()*100/rtree_p::data_sz);
+		fill_sum += (uint4_t) (np.used_space()*100/rtree_p::data_sz);
 	    }
 
 	    // insert to the higher level
@@ -2287,7 +2670,7 @@ rtld_stk_t::wrap_up()
     vec_t e;
     
     // examine all non-root layers
-    for (register i=0; i<_top; i++) {
+    for (int i=0; i<_top; i++) {
 	do {
 	    out = false;
 	    while (!out && layers[i].count() > 1) {
@@ -2303,7 +2686,7 @@ rtld_stk_t::wrap_up()
 	    	num_pages++;
 	    	if (i==0) {
 		    leaf_pages++;
-		    fill_sum += (uint4)(np.used_space()*100/rtree_p::data_sz);
+		    fill_sum += (uint4_t)(np.used_space()*100/rtree_p::data_sz);
 		}
 
 	    	// insert to the higher level
@@ -2320,7 +2703,7 @@ rtld_stk_t::wrap_up()
 	num_pages++;
 	if (i==0) { 
 	    leaf_pages++;
-	    fill_sum += (uint4) (np.used_space()*100/rtree_p::data_sz);
+	    fill_sum += (uint4_t) (np.used_space()*100/rtree_p::data_sz);
 	}
 	
 	// insert to the higher level
@@ -2349,7 +2732,7 @@ rtld_stk_t::wrap_up()
 	    num_pages++;
 	    if (_top==0) {
 		leaf_pages++;
-	    	fill_sum += (uint4) (np.used_space()*100/rtree_p::data_sz);
+	    	fill_sum += (uint4_t) (np.used_space()*100/rtree_p::data_sz);
 	    }
 
 	    W_COERCE( rp.insert(out_page.bound(), e, np.pid().page) );
@@ -2369,7 +2752,7 @@ rtld_stk_t::wrap_up()
 	num_pages++;
 	if (_top==0) {
 	    leaf_pages++;
-	    fill_sum += (uint4) (np.used_space()*100/rtree_p::data_sz);
+	    fill_sum += (uint4_t) (np.used_space()*100/rtree_p::data_sz);
 	}
 	height = _top+2;
 
@@ -2381,7 +2764,7 @@ rtld_stk_t::wrap_up()
 	num_pages++;
 	if (_top==0) {
 	    leaf_pages++;
-	    fill_sum += (uint4) (rp.used_space()*100/rtree_p::data_sz);
+	    fill_sum += (uint4_t) (rp.used_space()*100/rtree_p::data_sz);
 	}
 	height = _top+1;
     }
@@ -2396,11 +2779,14 @@ rtld_stk_t::wrap_up()
 //
 rc_t
 rtree_m::bulk_load(
-    const lpid_t& root,		// I- root of rtree
-    stid_t src, 		// I- store containing new records
-    const rtld_desc_t& desc,	// I- load descriptor
-    rtree_stats_t& stats)	// O- index stats
+    const lpid_t& 	root,	// I- root of rtree
+    int	 		nsrcs, 	// I- store containing new records
+    const stid_t* 	src, 	// I- store containing new records
+    const rtld_desc_t&	desc,	// I- load descriptor
+    rtree_stats_t& 	stats)	// O- index stats
 {
+    DBG(<<"bulk_load source=" << src << " index=" << root
+	);
     stats.clear();
     if (!is_empty(root)) {
 	 return RC(eNDXNOTEMPTY);
@@ -2416,6 +2802,8 @@ rtree_m::bulk_load(
     X_DO( rp.fix(root, LATCH_EX), anchor );
     rtld_stk_t ld_stack(rp, desc);
 
+    // W_DO( io->set_store_flags(root.stid(), smlevel_0::st_insert_file) );
+
     nbox_t key(rp.dim());
     int klen = key.klen();
 
@@ -2427,32 +2815,48 @@ rtree_m::bulk_load(
     const record_t* pr = 0; // previous record
     base_stat_t cnt=0, uni_cnt=0;
 
-    X_DO( fi->first_page(src, pid), anchor );
-    for (bool eof = false; ! eof; ) {
-	X_DO( page[i].fix(pid, LATCH_SH), anchor );
-	for (slotid_t s = page[i].next_slot(0); s; s = page[i].next_slot(s)) {
-	    const record_t* r;
-	    W_COERCE( page[i].get_rec(s, r) );
+    for(int src_index=0; src_index<nsrcs; src_index++) {
+	X_DO( fi->first_page(src[src_index], pid), anchor );
+	for (bool eof = false; ! eof; ) {
+	    X_DO( page[i].fix(pid, LATCH_SH), anchor );
+	    for (slotid_t s = page[i].next_slot(0); s; s = page[i].next_slot(s)) {
+		const record_t* r;
+		W_COERCE( page[i].get_rec(s, r) );
 
-	    key.bytes2box(r->hdr(), klen);
-	    vec_t el(r->body(), (int)r->body_size());
+		// key.bytes2box(r->hdr(), klen); // if klen==0 dim will be 0
+		w_assert3(r->hdr_size() <= (smsize_t)klen);
+		key.bytes2box(r->hdr(), r->hdr_size()); // if klen==0 dim will be 0
+		vec_t el(r->body(), (int)r->body_size());
 
-	    ++cnt;
-	    if (!pr) ++ uni_cnt;
-	    else {
-		// check unique
-		if (memcmp(pr->hdr(), r->hdr(), klen)) 
-		    ++ uni_cnt;
+		++cnt;
+		if (!pr) ++ uni_cnt;
+		else {
+		    // check unique
+		    if(r->hdr_size() == 0 &&  pr->hdr_size() == 0) {
+			/* All rtrees handle duplicate keys, but
+			 * not dup key/elems
+			 */
+			w_assert1(pr->is_small());
+			if (el.cmp(pr->body(), (int)pr->body_size())==0) {
+			    // duplicate null entries
+			    X_DO(RC(eDUPLICATE), anchor);
+			}
+		    } else if (memcmp(pr->hdr(), r->hdr(), klen))  {
+			++ uni_cnt;
+		    }
+		}
+
+		X_DO( ld_stack.add_to_stk(key, el, 0, 0), anchor );
+		pr = r;
 	    }
-
-	    X_DO( ld_stack.add_to_stk(key, el, 0, 0), anchor );
-	    pr = r;
-        }
-	i = 1 - i;
-	X_DO( fi->next_page(pid, eof), anchor );
+	    i = 1 - i;
+	    X_DO( fi->next_page(pid, eof), anchor );
+	}
     }
-
-    X_DO( ld_stack.wrap_up(), anchor );
+    if (cnt > 0)
+    {
+        X_DO( ld_stack.wrap_up(), anchor );
+    }
 
     if (xd)  {
 	SSMTEST("rtree.5");
@@ -2464,7 +2868,11 @@ rtree_m::bulk_load(
     stats.level_cnt = ld_stack.height;
     stats.leaf_pg_cnt = ld_stack.leaf_pages;
     stats.int_pg_cnt = ld_stack.num_pages - stats.leaf_pg_cnt;
-    stats.fill_percent = (uint2) (ld_stack.fill_sum/ld_stack.leaf_pages);
+    if(ld_stack.leaf_pages == 0) {
+        stats.fill_percent = 0; // no leaves -- less than 1 page
+    } else {
+        stats.fill_percent = (uint2_t) (ld_stack.fill_sum/ld_stack.leaf_pages);
+    }
 
     return RCOK;
 }
@@ -2487,12 +2895,14 @@ rtree_m::bulk_load(
     /*
      *  go thru the sorted stream
      */
-    uint4 cnt=0, uni_cnt=0;
+    uint4_t cnt=0, uni_cnt=0;
 
     {
     	rtree_p rp;
 	W_DO( rp.fix(root, LATCH_EX) );
     	rtld_stk_t ld_stack(rp, desc);
+
+	// W_DO( io->set_store_flags(root.stid(), smlevel_0::st_insert_file) );
 
     	nbox_t box(rp.dim());
     	int klen = box.klen();
@@ -2502,8 +2912,9 @@ rtree_m::bulk_load(
 
     	char* prev_tmp = new char[klen];
 	w_auto_delete_array_t<char> auto_del_prev_tmp(prev_tmp);
+
 	bool prev = false;
-	bool eof;
+	bool eof = false;
 	vec_t key, el;
 	W_DO ( sorted_stream.get_next(key, el, eof) );
 
@@ -2530,15 +2941,19 @@ rtree_m::bulk_load(
 	    W_DO ( sorted_stream.get_next(key, el, eof) );
 	}
     
-	W_DO( ld_stack.wrap_up() );
+	if (cnt > 0)
+	{
+	    W_DO( ld_stack.wrap_up() );
+	}
 
 	stats.level_cnt = ld_stack.height;
 	stats.leaf_pg_cnt = ld_stack.leaf_pages;
 	stats.int_pg_cnt = ld_stack.num_pages - stats.leaf_pg_cnt;
-	stats.fill_percent = (uint2) (ld_stack.fill_sum / ld_stack.leaf_pages);
+	stats.fill_percent = (uint2_t) (ld_stack.fill_sum / ld_stack.leaf_pages);
     }
 
     stats.entry_cnt = cnt;
     stats.unique_cnt = uni_cnt;
     return RCOK;
 }
+

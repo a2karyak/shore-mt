@@ -1,12 +1,56 @@
-/* --------------------------------------------------------------- */
-/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
-/* -- University of Wisconsin-Madison, subject to the terms     -- */
-/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
-/* -- Reserved.                                                 -- */
-/* --------------------------------------------------------------- */
+/*<std-header orig-src='shore' incl-file-exclusion='STHREAD_H'>
+
+ $Id: sthread.h,v 1.180 1999/07/12 17:55:57 bolo Exp $
+
+SHORE -- Scalable Heterogeneous Object REpository
+
+Copyright (c) 1994-99 Computer Sciences Department, University of
+                      Wisconsin -- Madison
+All Rights Reserved.
+
+Permission to use, copy, modify and distribute this software and its
+documentation is hereby granted, provided that both the copyright
+notice and this permission notice appear in all copies of the
+software, derivative works or modified versions, and any portions
+thereof, and that both notices appear in supporting documentation.
+
+THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+"AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+This software was developed with support by the Advanced Research
+Project Agency, ARPA order number 018 (formerly 8230), monitored by
+the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+Further funding for this work was provided by DARPA through
+Rome Research Laboratory Contract No. F30602-97-2-0247.
+
+*/
 
 #ifndef STHREAD_H
 #define STHREAD_H
+
+#include "w_defines.h"
+
+/*  -- do not edit anything above this line --   </std-header>*/
+
+/*
+ *   NewThreads is Copyright 1992, 1993, 1994, 1995, 1996, 1997 by:
+ *
+ *	Josef Burger	<bolo@cs.wisc.edu>
+ *	Dylan McNamee	<dylan@cse.ogi.edu>
+ *      Ed Felten       <felten@cs.princeton.edu>
+ *
+ *   All Rights Reserved.
+ *
+ *   NewThreads may be freely used as long as credit is given
+ *   to the above authors and the above copyright is maintained.
+ */
+
+/*
+ * The base thread functionality of Shore Threads is derived
+ * from the NewThreads implementation wrapped up as c++ objects.
+ */
 
 #ifndef W_H
 #include <w.h>
@@ -18,14 +62,13 @@ class sthread_t;
 class smthread_t;
 
 #include <signal.h>
-
 #include <setjmp.h>
 
 /* The setjmp() / longjmp() used should NOT restore the signal mask.
    If sigsetjmp() / siglongjmp() is available, use them, as they
    guarantee control of the save/restore of the signal mask */
 
-#if defined(SUNOS41) || defined(SOLARIS2) || defined(Ultrix42) || defined(HPUX8) || defined(AIX32) || defined(AIX41) || defined(Linux)
+#if defined(SUNOS41) || defined(SOLARIS2) || defined(Ultrix42) || defined(HPUX8) || defined(AIX32) || defined(AIX41)
 #define POSIX_SETJMP
 #endif
 
@@ -35,16 +78,21 @@ class smthread_t;
 typedef	sigjmp_buf	thread_jmp_buf;
 #else
 #define	thread_setjmp(j)	_setjmp(j)
+
+#ifdef _WINDOWS
+#define	thread_longjmp(j,i)	longjmp(j,i)
+#else
 #define	thread_longjmp(j,i)	_longjmp(j,i)
+#endif /* !_WINDOWS */
+
 typedef	jmp_buf		thread_jmp_buf;
 #endif /* POSIX_SETJMP */
 
-extern "C" {
-#include "stcore.h"
 #if defined(AIX32) || defined(AIX41)
+extern "C" {
 #include <sys/select.h>
-#endif
 }
+#endif
 
 typedef w_list_t<sthread_t>		sthread_list_t;
 
@@ -52,19 +100,29 @@ typedef w_list_t<sthread_t>		sthread_list_t;
 #pragma interface
 #endif
 
-// in linux sys/wait.h defines WAIT_ANY
-#if defined(Linux) && defined(WAIT_ANY)
+// If it is defined by the system includes, lose it.  We should
+// change our WAIT_ enums to not overlap the posix WAIT_ namespace
+// for wait
+#if defined(WAIT_ANY)
 #undef WAIT_ANY
 #endif
 
-#if 1
-    /* XXX temporary hack to scope geometry stuff here */
-#include "sdisk.hh"
+#include <sdisk.h>
+
+#ifdef STHREAD_IO_DISKRW
+class sdisk_handler_t;
 #endif
+
+class vtable_info_t;
+class vtable_info_array_t;
 
 class smutex_t;
 class scond_t;
 class sevsem_t;
+
+struct sthread_core_t;
+
+class	svcport_t;
 
 /*
  * Normally these typedefs would be defined in the sthread_t class,
@@ -78,7 +136,6 @@ public:
     typedef uint4_t id_t;
 
     enum {
-	max_thread 	= 32,
 	WAIT_IMMEDIATE 	= 0, 
 		// sthreads package recognizes 2 WAIT_* values:
 		// == WAIT_IMMEDIATE
@@ -99,58 +156,77 @@ public:
 	WAIT_ANY 	= -2,
 	WAIT_ALL 	= -3,
 	WAIT_SPECIFIED_BY_THREAD 	= -4, // used by lock manager
-	WAIT_SPECIFIED_BY_XCT = -5, // used by lock manager
+	WAIT_SPECIFIED_BY_XCT = -5 // used by lock manager
     };
+    typedef long timeout_in_ms;
 
     static const w_error_t::info_t 	error_info[];
 	static void  init_errorcodes();
 
-#include "st_error.h"
+#include "st_error_enum_gen.h"
 
     enum {
 	stOS = fcOS,
 	stINTERNAL = fcINTERNAL,
-	stNOTIMPLEMENTED = fcNOTIMPLEMENTED,
-    };
-    /* XXX sdisk stuff hung into sthread for now */
-    enum {
-	    OPEN_RDWR = O_RDWR,
-	    OPEN_RDONLY = O_RDONLY,
-	    OPEN_WRONLY = O_WRONLY,
-	    OPEN_TRUNC = O_TRUNC,
-	    OPEN_CREATE = O_CREAT,
-	    OPEN_SYNC = O_SYNC,
-	    OPEN_EXCL = O_EXCL
+	stNOTIMPLEMENTED = fcNOTIMPLEMENTED
     };
 
-    /* additional open flags which shouldn't collide with unix flags */
+    /* import sdisk base */
+    typedef sdisk_base_t::fileoff_t	fileoff_t;
+    typedef sdisk_base_t::filestat_t	filestat_t;
+    typedef sdisk_base_t::disk_geometry_t	disk_geometry_t;
+    typedef sdisk_base_t::iovec_t	iovec_t;
+
+    static const fileoff_t		fileoff_max;
+
+    /* XXX magic number */
+    enum { iovec_max = 8 };
+
     enum {
-	OPEN_LOCAL = 0x10000000,	// do I/O locally
-	OPEN_KEEP  = 0x20000000,	// keep fd open
-	OPEN_FAST  = 0x40000000 	// open for fastpath I/O
+	OPEN_RDWR = sdisk_base_t::OPEN_RDWR,
+	OPEN_RDONLY = sdisk_base_t::OPEN_RDONLY,
+	OPEN_WRONLY = sdisk_base_t::OPEN_WRONLY,
+
+	OPEN_SYNC = sdisk_base_t::OPEN_SYNC,
+	OPEN_TRUNC = sdisk_base_t::OPEN_TRUNC,
+	OPEN_CREATE = sdisk_base_t::OPEN_CREATE,
+	OPEN_EXCL = sdisk_base_t::OPEN_EXCL,
+	OPEN_APPEND = sdisk_base_t::OPEN_APPEND,
+	OPEN_RAW = sdisk_base_t::OPEN_RAW
     };
     enum {
-	IOF_LOCAL = 0x1,		// do I/O locally
-	IOF_KEEP = 0x2,			// FD open locally
-	IOF_FASTPATH= 0x4		// fd open for fastpath I/O	
+	SEEK_AT_SET = sdisk_base_t::SEEK_AT_SET,
+	SEEK_AT_CUR = sdisk_base_t::SEEK_AT_CUR,
+	SEEK_AT_END = sdisk_base_t::SEEK_AT_END
     };
-    /* XXX if this doesn't match the native iovec, the I/O code
-       will need to convert between shore and kernel formats. */
-    typedef struct iovec iovec;
-    enum { iovec_max = 8 };	/* XXX magic number from diskrw */
+
+    /* Additional open flags which shouldn't collide with sdisk flags,
+       the top nibble is left for sthread flags. */
+    enum {
+	OPEN_LOCAL   = 0x10000000,	// do I/O locally
+	OPEN_KEEP    = 0x20000000,	// keep fd open
+	OPEN_FAST    = 0x40000000, 	// open for fastpath I/O
+	OPEN_STHREAD = 0x70000000	// internal, sthread-specific mask
+    };
 };
 
-#define NAME_ARRAY 64
+
 class sthread_name_t {
 public:
-    void rename(const char *n1, const char *n2=0, const char *n3=0);
-    NORET			sthread_name_t();
-    NORET			~sthread_name_t();
-    char 			_name[NAME_ARRAY];
-    NORET           W_FASTNEW_CLASS_PTR_DECL;
+	enum { NAME_ARRAY = 64 };
+
+	char		_name[NAME_ARRAY];
+
+	sthread_name_t();
+	~sthread_name_t();
+
+	void rename(const char *n1, const char *n2=0, const char *n3=0);
+
+	W_FASTNEW_CLASS_PTR_DECL(sthread_name_t);
 };
 
-class sthread_named_base_t: public sthread_base_t  {
+
+class sthread_named_base_t: public sthread_base_t, public w_own_heap_base_t  {
 public:
     NORET			sthread_named_base_t(
 	const char*		    n1 = 0,
@@ -189,13 +265,19 @@ sthread_named_base_t::name() const
 
 class sthread_main_t;
 class sthread_idle_t;
+#if defined(NEW_IO) && defined(_WIN32)
+class win32_event_handler_t;
+class win32_event_t;
+#else
 class sfile_handler_t;
 class sfile_hdl_base_t;
+#endif
 
 class ThreadFunc
 {
     public:
 	virtual void operator()(const sthread_t& thread) = 0;
+	virtual NORET ~ThreadFunc() {}
 };
 
 
@@ -211,12 +293,13 @@ class sthread_t : public sthread_named_base_t  {
     friend class sthread_idle_t;
     friend class sthread_main_t;
     friend class sthread_timer_t;
-#ifndef OLD_SM_BLOCK
     /* For access to block() and unblock() */
     friend class smutex_t;
     friend class scond_t;
     friend class diskport_t;
-#endif
+    friend class sdisk_handler_t;
+    /* For access to I/O stats */
+    friend class IOmonitor;
     
 public:
 
@@ -228,7 +311,7 @@ public:
 	t_blocked,      // thread is blocked on something
 	t_boot		// system boot
     };
-    static char *status_strings[];
+    static const char *status_strings[];
 
     enum priority_t {
 	t_time_critical = 3,
@@ -236,9 +319,9 @@ public:
 	t_fixed_low	= 1,
 	t_idle_time 	= 0,
 	max_priority    = t_time_critical,
-	min_priority    = t_idle_time,
+	min_priority    = t_idle_time
     };
-    static char *priority_strings[];
+    static const char *priority_strings[];
 
     /* Default stack size for a thread */
     enum { default_stack = 64*1024 };
@@ -252,29 +335,43 @@ public:
 
     int				trace_level;	// for debugging
 
-#ifndef OLD_SM_BLOCK
 private:
-#endif
-    /*
-       Block() and unblock() do not belong in the user-visible interface.
-       They are scheduled for deletion in the near future.
-     */
     static w_rc_t		block(
 	int4_t 			    timeout = WAIT_FOREVER,
 	sthread_list_t*		    list = 0,
 	const char* const	    caller = 0,
 	const void *		    id = 0);
     w_rc_t			unblock(const w_rc_t& rc = *(w_rc_t*)0);
-#ifndef OLD_SM_BLOCK
-public:
-#endif
 
-    virtual void		_dump(ostream &); // to be over-ridden
-    static void			dump(const char *, ostream &); // traverses whole list
-    static void                 dump_stats(ostream & o);
+public:
+    virtual void		_dump(ostream &) const; // to be over-ridden
+
+    // these traverse all threads
+    static void			dump(const char *, ostream &);
+    static void			dump(ostream &);
+
+    static void			dump_io(ostream &);
+    static void			dump_event(ostream &);
+
+    static void                 dump_stats(ostream &);
     static void                 reset_stats();
+
+    static void			dump_stats_io(ostream &);
+    static void			reset_stats_io();
+
+    virtual void		vtable_collect(vtable_info_t &); // to be over-ridden
+    static int 			collect(vtable_info_array_t &v);
+
     static void			find_stack(void *address);
     static void			for_each_thread(ThreadFunc& f);
+
+    /* request stack overflow check, die on error. */
+    static void			check_all_stacks(const char *file = "",
+    						 int line = 0);
+    bool			isStackOK(const char *file = "", int line = 0);
+
+    /* Recursion, etc stack depth estimator */
+    bool			isStackFrameOK(unsigned size = 0);
 
     w_rc_t			set_priority(priority_t priority);
     priority_t			priority() const;
@@ -286,48 +383,61 @@ public:
     void			pop_resource_alloc(const void *id = 0);
 
     /*
+     * per-thread heap management
+     */
+    static sthread_t* 		id2thread( w_heapid_t );
+    w_heapid_t 			per_thread_alloc(size_t amt, bool is_free);
+    void 			per_thread_alloc_stats(size_t& amt, 
+					    size_t& allocations,
+					    size_t& hiwat) const;
+
+    /*
      *  Concurrent I/O ops
      */
-    static char*		set_bufsize(int size);
+    static char*		set_bufsize(unsigned size);
+    static w_rc_t		set_bufsize(unsigned size, char *&start);
+
     static w_rc_t		open(
 	const char*		    path,
 	int			    flags,
 	int			    mode,
 	int&			    fd);
     static w_rc_t		close(int fd);
-    static w_rc_t		writev(
+    static w_rc_t		read(
 	int 			    fd,
-	const iovec*	    	    iov,
-	size_t 			    iovcnt);
+	void*	 		    buf,
+	int 			    n);
     static w_rc_t		write(
 	int 			    fd, 
 	const void* 		    buf, 
 	int 			    n);
-    static w_rc_t		read(
-	int 			    fd,
-	const void* 		    buf,
-	int 			    n);
     static w_rc_t		readv(
 	int 			    fd, 
-	const iovec* 		    iov,
+	const iovec_t* 		    iov,
 	size_t			    iovcnt);
+    static w_rc_t		writev(
+	int 			    fd,
+	const iovec_t*	    	    iov,
+	size_t 			    iovcnt);
+    static w_rc_t		pread(int fd, void *buf, int n, fileoff_t pos);
+    static w_rc_t		pwrite(int fd, const void *buf, int n,
+				       fileoff_t pos);
     static w_rc_t		lseek(
 	int			    fd,
-	off_t			    offset,
+	fileoff_t		    offset,
 	int			    whence,
-	off_t&			    ret);
+	fileoff_t&		    ret);
     /* returns an error if the seek doesn't match its destination */
     static w_rc_t		lseek(
 	int			    fd,
-	off_t			    offset,
+	fileoff_t	    	    offset,
 	int			    whence);
     static w_rc_t		fsync(int fd);
-    static w_rc_t		ftruncate(int fd, off_t sz);
-    static w_rc_t		fstat(int fd, struct stat &sb);
+    static w_rc_t		ftruncate(int fd, fileoff_t sz);
+    static w_rc_t		fstat(int fd, filestat_t &sb);
     static w_rc_t		fgetfile(int fd, void *);
-    static w_rc_t		fgetgeometry(int fd, struct disk_geometry &dg);
+    static w_rc_t		fgetgeometry(int fd, disk_geometry_t &dg);
     static w_rc_t		fisraw(int fd, bool &raw);
-    static	int		_io_in_progress;
 
 
     /*
@@ -339,7 +449,7 @@ public:
 
     // sleep for timeout milliseconds
     void			sleep(long timeout = WAIT_IMMEDIATE,
-				      char *reason = 0);
+				      const char *reason = 0);
     void			wakeup();
 
     // wait for a thread to finish running
@@ -355,8 +465,7 @@ public:
     // give up the processor
     static void			yield(bool doselect=false);
 
-    static void			set_diskrw_name(const char* diskrw)
-					{_diskrw = diskrw;}
+    static void			set_diskrw_name(const char* diskrw);
 
     ostream			&print(ostream &) const;
 
@@ -365,9 +474,14 @@ public:
     // anyone can wait and delete a thread
     virtual			~sthread_t();
 
+#if defined(NEW_IO) && defined(_WIN32)
+    static w_rc_t		io_start(win32_event_t &);
+    static w_rc_t		io_finish(win32_event_t &);
+#else
     static w_rc_t		io_start(sfile_hdl_base_t &);
     static w_rc_t		io_finish(sfile_hdl_base_t &);
     static bool			io_active(int fd);
+#endif
 
     // function to do runtime up-cast to smthread_t
     // return 0 if the sthread is not derrived from sm_thread_t.
@@ -410,7 +524,7 @@ private:
 
     sevsem_t*			_terminate;	// posted when thread ends
 
-    sthread_core_t		_core;		// registers, stack, etc
+    sthread_core_t		*_core;		// registers, stack, etc
     status_t			_status;	// thread status
     priority_t			_priority; 	// thread priority
     thread_jmp_buf		_exit_addr;	// longjmp to end thread
@@ -424,37 +538,72 @@ private:
     sthread_t*			_ready_next;	// used in ready_q_t
     sthread_timer_t*		_tevent;	// used in sleep/wakeup
 
-    static	unsigned char	_io_flags[sthread_open_max];	    
-    static w_rc_t		_io(
-	int 			    fd, 
-	int 			    op,
-	const 			    iovec*, 
-	int			    cnt,
-	off_t                       other=0);
+    /* Per-thread heap management */
+    size_t			_bytes_allocated;
+    size_t			_allocations;    
+    size_t			_high_water_mark;    
+
+    /* I/O subsystem */
+#ifdef dynamic_fds
+	static	sdisk_t		**_disks;
+	static	unsigned	open_max;
+#else
+	enum { open_max = 20 };
+	static	sdisk_t		*_disks[open_max];
+#endif
+	static	unsigned	open_count;
+
+    static	bool		_do_fastpath;
 
     /* in-thread startup and shutdown */ 
     static void			__start(void *arg_thread);
     void			_start();
+    void			_reset_cpu();
+
 
     /* system initialization and shutdown */
     static w_rc_t		startup();
+    static w_rc_t		startup_events();
+    static w_rc_t		startup_io();
     static w_rc_t		shutdown();
+    static w_rc_t		shutdown_io();
+
+    static stime_t		boot_time;
+
+#ifdef _WINDOWS
+   typedef unsigned int sigset_t;
+#else
     static w_rc_t		setup_signals(sigset_t &lo_spl,
 					      sigset_t &hi_spl);
+#endif
 
     static void 		_caught_signal(int);
+    static void 		_caught_signal_io(int);
     static void 		_ctxswitch(status_t s); 
     static void			_polldisk();
 
-    static const char*		_diskrw;	// name of diskrw executable
-    static pid_t		_dummy_disk;
     static sthread_t*		_me;		// the running thread
     static sthread_t*		_idle_thread;
     static sthread_t*		_main_thread; 
     static uint4_t		_next_id;	// unique id generator
+    static bool			_stack_checks;
+
     static w_timerqueue_t	_event_q;
+#if defined(NEW_IO) && defined(_WIN32)
+    static win32_event_handler_t	*_io_events;
+#else
     static sfile_handler_t	*_io_events;
-    
+#endif
+    static bool			in_cs;
+
+#ifdef STHREAD_IO_DISKRW
+    static sdisk_handler_t	*sdisk_handler;    
+#else
+    static char			*disk_buffer;
+#endif
+
+    static const char*		_diskrw;	// name of diskrw executable
+    static	int		_io_in_progress;
 
     /* Control for idle thread dynamically changing priority */
     static int			_idle_priority_phase;
@@ -463,8 +612,8 @@ private:
 };
 
 
+
 extern ostream &operator<<(ostream &o, const sthread_t &t);
-extern ostream &operator<<(ostream &o, const sthread_core_t &c);
 void print_timeout(ostream& o, const long timeout);
 
 
@@ -505,7 +654,7 @@ class smutex_t : public sthread_named_base_t {
 public:
     NORET			smutex_t(const char* name = 0);
     NORET			~smutex_t();
-#ifdef DEBUG
+#ifdef W_DEBUG
     w_rc_t			acquire(int4_t timeout = WAIT_FOREVER);
 #else
     w_rc_t			acquire(int4_t timeout);
@@ -605,12 +754,13 @@ class sthread_init_t : public sthread_base_t {
 public:
     NORET			sthread_init_t();
     NORET			~sthread_init_t();
+    static w_base_t::int8_t 	max_os_file_size;
 private:
     static uint4_t 		count;
 };
 
 //////////////////////////////////////////////////////
-// In sthread_core.c sthread_init_t must be the 2nd
+// In sthread_core.cpp sthread_init_t must be the 2nd
 // thing initialized; in every other file it
 // must be the first.
 //////////////////////////////////////////////////////
@@ -645,10 +795,6 @@ sevsem_t::setname(const char* n1, const char* n2)
 }
 
 
-/* include sfile stuff for backwards-compatability */
-#include "sfile_handler.h"
-
-
 inline    void	sthread_t::push_resource_alloc(const char* n,
 					       const void *id,
 					       bool is_latch)
@@ -660,5 +806,7 @@ inline	void	sthread_t::pop_resource_alloc(const void *id)
 {
 	_trace.pop(id);
 }
-#endif /* STHREAD_H */
 
+/*<std-footer incl-file-exclusion='STHREAD_H'>  -- do not edit anything below this line -- */
+
+#endif          /*</std-footer>*/

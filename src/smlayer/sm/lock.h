@@ -1,25 +1,45 @@
-/* --------------------------------------------------------------- */
-/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
-/* -- University of Wisconsin-Madison, subject to the terms     -- */
-/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
-/* -- Reserved.                                                 -- */
-/* --------------------------------------------------------------- */
+/*<std-header orig-src='shore' incl-file-exclusion='LOCK_H'>
 
-/*
- *  $Id: lock.h,v 1.50 1997/05/27 13:40:58 kupsch Exp $
- */
+ $Id: lock.h,v 1.62 1999/06/07 19:04:10 kupsch Exp $
+
+SHORE -- Scalable Heterogeneous Object REpository
+
+Copyright (c) 1994-99 Computer Sciences Department, University of
+                      Wisconsin -- Madison
+All Rights Reserved.
+
+Permission to use, copy, modify and distribute this software and its
+documentation is hereby granted, provided that both the copyright
+notice and this permission notice appear in all copies of the
+software, derivative works or modified versions, and any portions
+thereof, and that both notices appear in supporting documentation.
+
+THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+"AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+This software was developed with support by the Advanced Research
+Project Agency, ARPA order number 018 (formerly 8230), monitored by
+the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+Further funding for this work was provided by DARPA through
+Rome Research Laboratory Contract No. F30602-97-2-0247.
+
+*/
+
 #ifndef LOCK_H
 #define LOCK_H
 
-#ifndef KVL_T_H
+#include "w_defines.h"
+
+/*  -- do not edit anything above this line --   </std-header>*/
+
 #include <kvl_t.h>
-#endif
-#ifndef LOCK_S_H
 #include <lock_s.h>
-#endif
 
 class xct_lock_info_t;
 class lock_core_m;
+class GatherThreadWaitFors;
 
 #ifdef __GNUG__
 #pragma interface
@@ -28,18 +48,18 @@ class lock_core_m;
 class lock_m : public lock_base_t {
 friend class callback_m;
 friend class remote_lock_m;
+friend class GatherThreadWaitFors;
 public:
 
-#ifdef GNUG_BUG_4
     typedef lock_base_t::mode_t mode_t;
     typedef lock_base_t::duration_t duration_t;
     typedef lock_base_t::status_t status_t;
-#endif
 
     NORET			lock_m(int sz);
     NORET			~lock_m();
 
-    void			dump();
+    int   			collect(vtable_info_array_t&);
+    void			dump(ostream &o);
 
     void			stats(
 				    u_long & buckets_used,
@@ -59,7 +79,7 @@ public:
 	const lockid_t& 	    n, 
 	mode_t 			    m,
 	duration_t 		    duration = t_long,
-	long 			    timeout = WAIT_SPECIFIED_BY_XCT,
+	timeout_in_ms		    timeout = WAIT_SPECIFIED_BY_XCT,
 	mode_t*			    prev_mode = 0,
 	mode_t*			    prev_pgmode = 0,
 	lockid_t**		    nameInLockHead = 0);
@@ -68,7 +88,7 @@ public:
 	const lockid_t& 	    n,
 	mode_t 			    m,
 	duration_t 		    duration = t_long,
-	long			    timeout = WAIT_SPECIFIED_BY_XCT,
+	timeout_in_ms		    timeout = WAIT_SPECIFIED_BY_XCT,
 	mode_t*			    prev_mode = 0,
 	mode_t*			    prev_pgmode = 0,
 	lockid_t**		    nameInLockHead = 0);
@@ -115,7 +135,7 @@ private:
 	mode_t&			    prev_mode,
 	mode_t&			    prev_pgmode,
 	duration_t 		    duration,
-	long 			    timeout,
+	timeout_in_ms		    timeout,
 	bool 			    force,
 	lockid_t**		    nameInLockHead);
 
@@ -131,8 +151,11 @@ private:
 
 inline bool is_valid(lock_base_t::mode_t m)
 {
-    return ((m==lock_base_t::MIN_MODE || m > lock_base_t::MIN_MODE) &&
-	    m <= lock_base_t::MAX_MODE);
+    return ((int(m)==lock_base_t::MIN_MODE || 
+	int(m) > lock_base_t::MIN_MODE) &&
+	int(m) <= lock_base_t::MAX_MODE);
 }
 
-#endif /*LOCK_H*/
+/*<std-footer incl-file-exclusion='LOCK_H'>  -- do not edit anything below this line -- */
+
+#endif          /*</std-footer>*/

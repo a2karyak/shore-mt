@@ -1,15 +1,38 @@
-/* --------------------------------------------------------------- */
-/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
-/* -- University of Wisconsin-Madison, subject to the terms     -- */
-/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
-/* -- Reserved.                                                 -- */
-/* --------------------------------------------------------------- */
+/*<std-header orig-src='shore' incl-file-exclusion='SRV_LOG_H'>
 
-/*
- *  $Id: srv_log.h,v 1.15 1997/04/13 16:29:52 nhall Exp $
- */
+ $Id: srv_log.h,v 1.30 1999/06/15 15:11:57 nhall Exp $
+
+SHORE -- Scalable Heterogeneous Object REpository
+
+Copyright (c) 1994-99 Computer Sciences Department, University of
+                      Wisconsin -- Madison
+All Rights Reserved.
+
+Permission to use, copy, modify and distribute this software and its
+documentation is hereby granted, provided that both the copyright
+notice and this permission notice appear in all copies of the
+software, derivative works or modified versions, and any portions
+thereof, and that both notices appear in supporting documentation.
+
+THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+"AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+This software was developed with support by the Advanced Research
+Project Agency, ARPA order number 018 (formerly 8230), monitored by
+the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+Further funding for this work was provided by DARPA through
+Rome Research Laboratory Contract No. F30602-97-2-0247.
+
+*/
+
 #ifndef SRV_LOG_H
 #define SRV_LOG_H
+
+#include "w_defines.h"
+
+/*  -- do not edit anything above this line --   </std-header>*/
 
 #include <log.h>
 
@@ -18,14 +41,15 @@
 #endif
 
 
-typedef	uint4	partition_number_t;
+typedef	uint4_t	partition_number_t;
 typedef	int	partition_index_t;
-typedef enum    { 
+
+typedef enum    {  /* partition_t::_mask values */
 	m_exists=0x2,
 	m_open_for_read=0x4,
 	m_open_for_append=0x8,
-	m_flushed=0x10,	// has no data cached
-};
+	m_flushed=0x10	// has no data cached
+} partition_mask_values;
 
 #define CHKPT_META_BUF 512
 			
@@ -41,14 +65,19 @@ class srv_log : public log_base {
 
 protected:
 
-    char *			_chkpt_meta_buf;
+    char *		_chkpt_meta_buf;
+			// in a log partition.  It maps to the disk
+			// address at logfile, partition->start()
+			// whereas the physical beginning of partition is
+			// at partition->end_lsn()
 
 public:
     void                check_wal(const lsn_t &) ;
     void 		compute_space(); 
 
     // CONSTRUCTOR -- figures out which srv type to construct
-    static srv_log*	new_log_m(
+    static rc_t	new_log_m(
+		srv_log	*&srv_log_p,		  
 		const char *logdir,
 		int rdbufsize,
 		int wrbufsize,
@@ -81,6 +110,7 @@ public:
 				// in which we're opening a file to 
 				// be the new "current"
     partition_t *		open(partition_number_t n, 
+				    const lsn_t&  end_hint,
 				    bool existing = false,
 				    bool forappend = true,
 				    bool during_recovery = false
@@ -93,8 +123,8 @@ public:
 
     partition_index_t		partition_index() const { return _curr_index; }
     partition_number_t		partition_num() const { return _curr_num; }
-    uint4			limit() const { return _shared->_max_logsz; }
-    uint4			logDataLimit() const { return _shared->_maxLogDataSize; }
+    fileoff_t			limit() const { return _shared->_max_logsz; }
+    fileoff_t			logDataLimit() const { return _shared->_maxLogDataSize; }
 
     virtual
     void			_write_master(const lsn_t& l, const lsn_t& min)=0;
@@ -123,15 +153,18 @@ protected:
     // log_buf stuff:
 public:
     log_buf *			writebuf() { return _writebuf; }
+    const log_buf *		writebuf_const() const { return _writebuf; }
     int				writebufsize() const { return _wrbufsize; }
     char *			readbuf() { return _readbuf; }
     int 			readbufsize() const { return _rdbufsize; }
+    lsn_t			last_durable_skip() const;
 protected:
     int 			_rdbufsize;
     int 			_wrbufsize;
     char*   			_readbuf;  
     log_buf*   			_writebuf;  
 };
+
 
 typedef int  FHDL;
 
@@ -141,7 +174,10 @@ class partition_t {
 	friend class srv_log;
 
 public:
-	const XFERSIZE = log_base::XFERSIZE;
+	// typedef sthread_base_t::fileoff_t fileoff_t;
+	typedef smlevel_0::fileoff_t fileoff_t;
+	// const XFERSIZE = log_base::XFERSIZE;
+	enum { XFERSIZE = log_base::XFERSIZE };
 	partition_t() :_start(0),
 		_index(0), _num(0), _size(0), _mask(0), 
 		_owner(0) {}
@@ -150,21 +186,33 @@ public:
 	~partition_t() {};
 
 protected: // these are common to all partition types:
-	const			max_open_log = smlevel_0::max_openlog;
+	// const   max_open_log = smlevel_0::max_openlog;
+	enum { max_open_log = smlevel_0::max_openlog };
 
-	uint4			_start;
+	fileoff_t		_start;
+	/* store end lsn at the beginning of each partition; updated
+	* when partition closed 
+	*/
+	fileoff_t		start() const { return _start; }
+	lsn_t			first_lsn() const {
+				    return log_base::first_lsn(uint4_t(_num));
+				}
+
+
 	partition_index_t	_index;
 	partition_number_t 	_num;
-	uint4			_size;
-	uint4			_mask;
+	fileoff_t 		_size;
+	uint4_t			_mask;
 	srv_log			*_owner;
+	lsn_t			_last_skip_lsn;
 
 protected:
-	uint4			_eop; // physical end of partition
+	fileoff_t		_eop; // physical end of partition
 	// logical end of partition is _size;
 
 public:
-	const uint4		nosize = max_uint4;
+	// const uint4_t		nosize = max_uint4_t;
+	enum { nosize = -1 };
 
 	const log_buf &		writebuf() const { return *_owner->writebuf(); }
 	int			writebufsize() const { return _owner->
@@ -178,8 +226,8 @@ public:
 	virtual 
 	int 			fhdl_rd() const = 0;
 
-	void			set_state(uint4 m) { _mask |= m ; }
-	void			clr_state(uint4 m) { _mask &= ~m ; }
+	void			set_state(uint4_t m) { _mask |= m ; }
+	void			clr_state(uint4_t m) { _mask &= ~m ; }
 
 	virtual
 	void			_clear()=0;
@@ -191,15 +239,16 @@ public:
 	partition_number_t	num() const { return _num; }
 
 
-	uint4			size()const { return _size; }
-	void			set_size(uint4 v) { 
+	fileoff_t		size()const { return _size; }
+	void			set_size(fileoff_t v) { 
 					_size =  v;
 				}
 
 	virtual
 	void			open_for_read(partition_number_t n, bool err=true) = 0;
 
-	void			open_for_append(partition_number_t n);
+	void			open_for_append(partition_number_t n,
+					const lsn_t& end_hint);
 
 	void			skip(const lsn_t &ll, int fd);
 
@@ -210,6 +259,7 @@ public:
 
 	virtual
 	void			close(bool both) = 0;
+	void			close();
 
 	virtual
 	void			destroy() = 0;
@@ -238,14 +288,29 @@ public:
 	bool			is_current() const;
 
 	virtual
-	void			peek(partition_number_t n, bool, int* fd=0) = 0;
+	void			peek(partition_number_t n, 
+					const lsn_t&	end_hint,
+					bool, 
+					int* fd=0) = 0;
 
 	virtual
 	void			set_fhdl_app(int fd)=0;
 
-	void			_peek(partition_number_t n, bool, int fd);
+	void			_peek(partition_number_t n, 
+					fileoff_t startloc,
+					fileoff_t wholesize,
+					bool, int fd);
 
+	const lsn_t&		last_skip_lsn() const { return _last_skip_lsn; }
+	void			set_last_skip_lsn(const lsn_t &l) { _last_skip_lsn = l; }
 };
 
-#endif /* SRV_LOG_H */
+inline void			
+partition_t::close()
+{
+    this->close(false); 
+}
 
+/*<std-footer incl-file-exclusion='SRV_LOG_H'>  -- do not edit anything below this line -- */
+
+#endif          /*</std-footer>*/

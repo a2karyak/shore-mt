@@ -1,15 +1,38 @@
-/* --------------------------------------------------------------- */
-/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
-/* -- University of Wisconsin-Madison, subject to the terms     -- */
-/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
-/* -- Reserved.                                                 -- */
-/* --------------------------------------------------------------- */
+/*<std-header orig-src='shore' incl-file-exclusion='SERIAL_T_H'>
 
-/*
- *  $Header: /p/shore/shore_cvs/src/common/serial_t.h,v 1.46 1997/05/19 19:41:07 nhall Exp $
- */
+ $Id: serial_t.h,v 1.57 1999/06/07 19:02:31 kupsch Exp $
+
+SHORE -- Scalable Heterogeneous Object REpository
+
+Copyright (c) 1994-99 Computer Sciences Department, University of
+                      Wisconsin -- Madison
+All Rights Reserved.
+
+Permission to use, copy, modify and distribute this software and its
+documentation is hereby granted, provided that both the copyright
+notice and this permission notice appear in all copies of the
+software, derivative works or modified versions, and any portions
+thereof, and that both notices appear in supporting documentation.
+
+THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+"AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+This software was developed with support by the Advanced Research
+Project Agency, ARPA order number 018 (formerly 8230), monitored by
+the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+Further funding for this work was provided by DARPA through
+Rome Research Laboratory Contract No. F30602-97-2-0247.
+
+*/
+
 #ifndef SERIAL_T_H
 #define SERIAL_T_H
+
+#include "w_defines.h"
+
+/*  -- do not edit anything above this line --   </std-header>*/
 
 #ifdef __GNUG__
 #pragma interface
@@ -52,10 +75,10 @@ struct serial_t {
 #ifdef __cplusplus
 
 #  	ifdef HP_CC_BUG_1
-    static const uint4 mask_remote;
-	static const uint4 max_inc;
-	static const uint4 max_any;
-	static const uint4 other_bits;
+        static const uint4_t mask_remote;
+	static const uint4_t max_inc;
+	static const uint4_t max_any;
+	static const uint4_t other_bits;
 #	endif /* HP_CC_BUG_1 */
 
     enum {
@@ -73,11 +96,12 @@ struct serial_t {
 #	define OVERFLOWBITS 30
 #endif
 
-		overflow_shift_bits = OVERFLOWBITS,
+		overflow_shift_bits = OVERFLOWBITS
 #  	ifndef HP_CC_BUG_1
+		,
 		max_inc = ((1<<overflow_shift_bits)-1),
 		max_any = max_inc,
-		other_bits = ~max_inc,
+		other_bits = ~max_inc
 #	endif /* !HP_CC_BUG_1 */
 	};
 
@@ -96,7 +120,7 @@ struct serial_t {
     serial_t( bool ondisk=true)
 		{ 
 #			ifdef BITS64
-				data._high = 0;
+			data._high = 0;
 #			endif
 			data._low = ondisk?mask_disk:mask_zero;
 		} 
@@ -105,16 +129,24 @@ struct serial_t {
 	 * -- it shifts the given value around and sets bits indicating
 	 * on/off-volume-reference, on-disk or in-memory, etc.
 	 */
-    serial_t(uint4 start, bool remote)
+    serial_t(uint4_t start, bool remote)
         /* use middle 30 bits, low bit to 1, high bit to remote */
         {	
 			/*
 			// carefully written so that it works whether data
 			// has _low only or _low and _high...
 			*/
+#			ifdef BITS64
 			data._high = 0;
+#			endif
+
 			data._low = (start << 1) | mask_disk;
+
+#			ifdef BITS64
 			data._high |= remote ? mask_remote : mask_zero; 
+#			else
+			data._low |= remote ? mask_remote : mask_zero; 
+#			endif
 		}
 
     serial_t(const serial_t& s) 	{ *this = s; } 
@@ -126,16 +158,16 @@ struct serial_t {
 private:
 	bool _incr(
 		unsigned long 	*what,
-		uint4	  		amt,
+		uint4_t	  		amt,
 		unsigned long 	*overflow
 	);
 
 public:
 	// return value true indicates overflow
-    bool increment(uint4 amount); // also decrements 
+    bool increment(uint4_t amount); // also decrements 
 
-    bool is_remote() 	const {return (data._high & mask_remote)==mask_remote;} 
-    bool is_local()  	const {return (data._high & mask_remote)==0; }
+    bool is_remote() 	const {return (data.high() & mask_remote)==mask_remote;} 
+    bool is_local()  	const {return (data.high() & mask_remote)==0; }
     bool is_on_disk()	const {return (data._low  & mask_disk)==mask_disk; }
     bool is_in_memory() const {return (data._low  & mask_disk)==0; }
 
@@ -185,7 +217,7 @@ public:
 // == 
 
 		 // compare 2 serial_ts 
-    operator==(const serial_t& s) const { 
+    bool operator==(const serial_t& s) const { 
 		return (data._low == s.data._low)
 #ifdef BITS64
 			&& (data._high==s.data._high) 
@@ -193,7 +225,7 @@ public:
 		;
 	}
 		 // compare a serial_t  with a data 
-    operator==(const serial_t_data& s) const { 
+    bool operator==(const serial_t_data& s) const { 
 		return (data._low == s._low)
 #ifdef BITS64
 		 	&& (data._high==s._high) 
@@ -201,22 +233,22 @@ public:
 		;
 	}
 		// and... to make the above operator commutative:
-    inline friend operator==(const serial_t_data& g, const serial_t&s) { 
+    inline friend bool operator==(const serial_t_data& g, const serial_t&s) { 
 		return s == g;
 	}
 
 // != 
 
 		 // compare 2 serial_ts 
-    operator!=(const serial_t& s) const { 
+    bool operator!=(const serial_t& s) const { 
 		return !(*this==s);
 	}
 		 // compare a serial_t  with a data 
-    operator!=(const serial_t_data& s) const { 
+    bool operator!=(const serial_t_data& s) const { 
 		return !(*this==s);
 	}
 		// and... to make it commutative:
-    inline friend operator!=(const serial_t_data& g, const serial_t&s) {  
+    inline friend bool operator!=(const serial_t_data& g, const serial_t&s) {  
 		return !(s==g); 
 	}
 
@@ -231,7 +263,7 @@ public:
 
 // <= 
 		 // compare 2 serial_ts 
-    operator<=(const serial_t& s) const { 	
+    bool operator<=(const serial_t& s) const { 	
 			//
 			// using asserts in here creates problem with
 			// HP CC when this file is run through rpcgen.
@@ -249,7 +281,7 @@ public:
 		}
 
 		 // compare a serial_t  with a data 
-    operator<=(const serial_t_data& g) const { 	
+    bool operator<=(const serial_t_data& g) const { 	
 			return
 #ifdef BITS64
 			(data._high < g._high) || ((data._high==g._high) && 
@@ -263,7 +295,7 @@ public:
 
 // < 
 		 // compare 2 serial_ts 
-    operator<(const serial_t& s) const { 
+    bool operator<(const serial_t& s) const { 
 			//
 			// using asserts in here creates problem with
 			// HP CC when this file is used in a template
@@ -281,7 +313,7 @@ public:
 			;
 		}
 		 // compare a serial_t  with a data 
-    operator<(const serial_t_data& g) const { 	
+    bool operator<(const serial_t_data& g) const { 	
 			return
 #ifdef BITS64
 			(data._high < g._high) || ((data._high==g._high) && 
@@ -295,31 +327,31 @@ public:
 
 // >= 
 		 // compare 2 serial_ts 
-    operator>=(const serial_t& s) const { 
+    bool operator>=(const serial_t& s) const { 
 			return ! ((*this) < s);
 		}
 		 // compare a serial_t  with a data 
-    operator>=(const serial_t_data& g) const { 	
+    bool operator>=(const serial_t_data& g) const { 	
 			return ! ((*this) < g);
 		}
 // > 
 		 // compare 2 serial_ts 
-    operator>(const serial_t& s) const { 
+    bool operator>(const serial_t& s) const { 
 			return ! ((*this) <= s);
 		}
 		 // compare a serial_t  with a data 
-    operator>(const serial_t_data& g) const { 	
+    bool operator>(const serial_t_data& g) const { 	
 			return ! ((*this <= g));
 		}
 
 		// and... to make the above 4 serial_t/data operators commutative:
-    inline friend operator<=(const serial_t_data& g, const serial_t&s) 
+    inline friend bool operator<=(const serial_t_data& g, const serial_t&s) 
 		{  return (s >= g); }
-    inline friend operator>=(const serial_t_data& g, const serial_t&s) 
+    inline friend bool operator>=(const serial_t_data& g, const serial_t&s) 
 		{  return (s <= g); }
-    inline friend operator<(const serial_t_data& g, const serial_t&s) 
+    inline friend bool operator<(const serial_t_data& g, const serial_t&s) 
 		{  return (s > g); }
-    inline friend operator>(const serial_t_data& g, const serial_t&s) 
+    inline friend bool operator>(const serial_t_data& g, const serial_t&s) 
 		{  return (s < g); }
 
 /* INPUT and OUTPUT */
@@ -330,7 +362,7 @@ public:
     friend ostream& operator<<(ostream&, const serial_t_data& g);
 
 /* CONSTANTS */
-    /* defined in serial_t.c: */
+    /* defined in serial_t.cpp: */
 	/* all of the following are in on-disk form: */
 	static const serial_t max_local;
 	static const serial_t max_remote;
@@ -352,4 +384,6 @@ inline u_long hash(const serial_t& s)
 }
 #endif /* __cplusplus */
 
-#endif /* SERIAL_T_H */
+/*<std-footer incl-file-exclusion='SERIAL_T_H'>  -- do not edit anything below this line -- */
+
+#endif          /*</std-footer>*/

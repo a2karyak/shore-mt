@@ -1,71 +1,97 @@
-/* --------------------------------------------------------------- */
-/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
-/* -- University of Wisconsin-Madison, subject to the terms     -- */
-/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
-/* -- Reserved.                                                 -- */
-/* --------------------------------------------------------------- */
+/*<std-header orig-src='shore' incl-file-exclusion='SHELL_H'>
+
+ $Id: shell.h,v 1.39 1999/06/07 19:04:59 kupsch Exp $
+
+SHORE -- Scalable Heterogeneous Object REpository
+
+Copyright (c) 1994-99 Computer Sciences Department, University of
+                      Wisconsin -- Madison
+All Rights Reserved.
+
+Permission to use, copy, modify and distribute this software and its
+documentation is hereby granted, provided that both the copyright
+notice and this permission notice appear in all copies of the
+software, derivative works or modified versions, and any portions
+thereof, and that both notices appear in supporting documentation.
+
+THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+"AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+This software was developed with support by the Advanced Research
+Project Agency, ARPA order number 018 (formerly 8230), monitored by
+the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+Further funding for this work was provided by DARPA through
+Rome Research Laboratory Contract No. F30602-97-2-0247.
+
+*/
+
+#ifndef SHELL_H
+#define SHELL_H
+
+#include "w_defines.h"
+
+/*  -- do not edit anything above this line --   </std-header>*/
 
 /*
- *  $Id: shell.h,v 1.12 1997/05/19 19:49:17 nhall Exp $
- *
- * Everything common to shell.c, shell2.c, etc
+ * Everything common to shell.cpp, shell2.cpp, etc
  */
 
-#include <limits.h>
-#ifndef W_H
-#include "w.h"
-#endif
-#ifndef SM_VAS_H
-#include "sm_vas.h"
-#endif
-#ifndef __DEBUG_H__
-#include "debug.h"
-#endif
-#ifndef SSH_H
+
+#include <sm_vas.h>
 #include "ssh.h"
-#endif
-#ifndef SSH_RANDOM_H
-#include "ssh_random.h"
-#endif
-#include <tcl.h>
+#include "w_random.h"
 #include <string.h>
 #include "ssh_error.h"
+#undef EXTERN
+#include <tcl.h>
 #include "tcl_thread.h"
-
-#ifndef NBOX_H
-#include <nbox.h>
-#endif
 
 #ifdef USE_COORD
 #include <sm_coord.h>
+#include <deadlock_events.h>
 #include <sm_global_deadlock.h>
 extern sm_coordinator* co;
 extern CentralizedGlobalDeadlockServer *globalDeadlockServer;
 #endif
 
+#ifdef PURIFY
+#include <purify.h>
+#endif
+
+extern bool newsort;
+extern sm_config_info_t global_sm_config_info;
+
+extern void check_sp(const char *, int);
+#define	SSH_CHECK_STACK	check_sp(__FILE__, __LINE__)
 
 #define SSH_VERBOSE 
 
-#if !defined(SOLARIS2) && !defined(HPUX8)
+#if !defined(SOLARIS2) && !defined(HPUX8) && !defined(_WINDOWS)
 extern "C" {
-	extern	int	strcasecmp(const char *, const char *);	
+    extern	int	strcasecmp(const char *, const char *);	
 }
 #endif
 
 extern ss_m* sm;
 
-extern bool start_client_support; // from ssh.c
+extern bool start_client_support; // from ssh.cpp
 
 typedef int smproc_t(Tcl_Interp* ip, int ac, char* av[]);
-const MAXRECLEN = 1000;
+const int MAXRECLEN = 1000;
 
 
 typedef w_base_t::uint1_t  uint1_t;
 typedef w_base_t::uint2_t  uint2_t;
 typedef w_base_t::uint4_t  uint4_t;
+// NB: can't do this because it's defined in sys include files:
+// typedef w_base_t::uint8_t  uint8_t;
 typedef w_base_t::int1_t  int1_t;
 typedef w_base_t::int2_t  int2_t;
 typedef w_base_t::int4_t  int4_t;
+// NB: can't do this because it's defined in sys include files:
+// typedef w_base_t::int8_t  int8_t;
 typedef w_base_t::f4_t  f4_t;
 typedef w_base_t::f8_t  f8_t;
 
@@ -74,6 +100,8 @@ struct typed_value {
     union {
 	char *  bv;
 	char    b1;
+	w_base_t::uint8_t u8_num;
+	w_base_t::int8_t  i8_num;
 	uint4_t u4_num;
 	int4_t  i4_num;
 	uint2_t u2_num;
@@ -82,6 +110,7 @@ struct typed_value {
 	int1_t  i1_num;
 	f4_t    f4_num;
 	f8_t    f8_num;
+	char    polygon[sizeof(nbox_t)]; // for rtree test
     } _u; 
 };
 
@@ -92,12 +121,20 @@ static char   outbuf[(ss_m::page_sz * 2) > (1024 * 16) ?
 // a mutex for preemptive threads
 static ostrstream tclout(outbuf, sizeof(outbuf));
 
+#ifdef W_DEBUG
+extern bool dumprc; // in shell.cpp
+#define DUMPRC(a) if(dumprc) { cerr << a << endl; }
+#else
+#define DUMPRC(a)
+#endif
+
 #undef DO
 #define DO(x)							\
 {								\
     w_rc_t ___rc = x;						\
     if (___rc)  {						\
 	tclout.seekp(ios::beg);                                 \
+	DUMPRC(___rc);                                          \
 	tclout << ssh_err_name(___rc.err_num()) << ends;	\
 	Tcl_AppendResult(ip, tclout.str(), 0);			\
 	return TCL_ERROR;					\
@@ -117,9 +154,9 @@ static ostrstream tclout(outbuf, sizeof(outbuf));
 }
 
 #define TCL_HANDLE_FSCAN_FAILURE(f_scan) 			\
-    if(f_scan==0 || f_scan->error_code()) { 			\
+    if((f_scan==0) || (f_scan->error_code()!= 0)) { 			\
        w_rc_t err; 						\
-       if(f_scan) {  						\
+       if(f_scan != 0) {  						\
 	    err = f_scan->error_code(); 			\
 	    delete f_scan; f_scan =0;  				\
 	} else { 						\
@@ -129,7 +166,7 @@ static ostrstream tclout(outbuf, sizeof(outbuf));
     }
 
 #define HANDLE_FSCAN_FAILURE(f_scan)				\
-    if(f_scan==0 || f_scan->error_code()) {			\
+    if((f_scan==0) || (f_scan->error_code()!=0)) {			\
        w_rc_t err; 						\
        if(f_scan) { 						\
 	    err = f_scan->error_code(); 			\
@@ -140,16 +177,20 @@ static ostrstream tclout(outbuf, sizeof(outbuf));
 	} 							\
     }
     
+extern smsize_t   objectsize(const char *);
+extern smsize_t   numobjects(const char *);
+
 extern void   dump_pin_hdr(ostream &out, pin_i &handle); 
 extern void   dump_pin_body(ostrstream &out, pin_i &handle,
 	smsize_t start, smsize_t length, Tcl_Interp *ip); 
-extern w_rc_t dump_scan(scan_file_i &scan, ostream &out); 
+extern w_rc_t dump_scan(scan_file_i &scan, ostream &out, bool hex=false); 
 extern bool tcl_scan_boolean(char *rep, bool &result);
 extern vec_t & parse_vec(const char *c, int len) ;
 extern vid_t make_vid_from_lvid(const char* lv);
-extern ss_m::ndx_t cvt2ndx_t(char* s);
-extern lockid_t cvt2lockid_t(char* str);
+extern ss_m::ndx_t cvt2ndx_t(const char* s);
+extern lockid_t cvt2lockid_t(const char* str);
 extern bool use_logical_id(Tcl_Interp* ip);
+extern const char * check_compress_flag(const char *);
 
 inline 
 void tcl_append_boolean(Tcl_Interp *ip, bool flag)
@@ -158,7 +199,7 @@ void tcl_append_boolean(Tcl_Interp *ip, bool flag)
 }
 
 inline int
-streq(char* s1, char* s2)
+streq(const char* s1, const char* s2)
 {
     return !strcmp(s1, s2);
 }
@@ -207,7 +248,7 @@ cvt2lock_mode(char* s)
 inline lock_duration_t 
 cvt2lock_duration(char* s)
 {
-    for (int i = 0; i < lock_base_t::NUM_DURATIONS; i++) {
+    for (int i = 0; i < t_num_durations; i++) {
 	if (strcmp(s, lock_base_t::duration_str[i]) == 0)
 	    return (lock_duration_t) i;
     }
@@ -253,6 +294,7 @@ cvt2concurrency_t(char* s)
     if (streq(s, "t_cc_record"))  return ss_m::t_cc_record;
     if (streq(s, "t_cc_page"))  return ss_m::t_cc_page;
     if (streq(s, "t_cc_file"))  return ss_m::t_cc_file;
+    if (streq(s, "t_cc_vol"))  return ss_m::t_cc_vol;
     if (streq(s, "t_cc_kvl"))  return ss_m::t_cc_kvl;
     if (streq(s, "t_cc_modkvl"))  return ss_m::t_cc_modkvl;
     if (streq(s, "t_cc_im"))  return ss_m::t_cc_im;
@@ -278,20 +320,22 @@ check(Tcl_Interp* ip, const char* s, int ac, int n1, int n2 = 0, int n3 = 0,
 
 enum typed_btree_test {
     test_nosuch, 
-    test_i1, test_i2, test_i4, 
-    test_u1, test_u2, test_u4, 
+    test_i1, test_i2, test_i4, test_i8,
+    test_u1, test_u2, test_u4, test_u8,
     test_f4, test_f8, 
     // selected byte lengths v=variable
-    test_b1, test_b23, test_bv, 
+    test_b1, test_b23, test_bv, test_blarge,
     test_spatial
 };
 
 extern "C" {
+    int t_multikey_sort_file(Tcl_Interp* ip, int ac, char* av[]);
     int t_test_bulkload_int_btree(Tcl_Interp* ip, int ac, char* av[]);
+    int t_test_bulkload_rtree(Tcl_Interp* ip, int ac, char* av[]);
     int t_test_int_btree(Tcl_Interp* ip, int ac, char* av[]);
     int t_test_typed_btree(Tcl_Interp* ip, int ac, char* av[]);
     int t_sort_file(Tcl_Interp* ip, int ac, char* av[]);
-    int t_create_typed_rec(Tcl_Interp* ip, int ac, char* av[]);
+    int t_create_typed_hdr_body_rec(Tcl_Interp* ip, int ac, char* av[]);
     int t_create_typed_hdr_rec(Tcl_Interp* ip, int ac, char* av[]);
     int t_scan_sorted_recs(Tcl_Interp* ip, int ac, char* av[]);
     int t_compare_typed(Tcl_Interp* ip, int ac, char* av[]);
@@ -303,10 +347,12 @@ extern "C" {
     int check_key_type(Tcl_Interp *ip, typed_btree_test t, 
 	const char *given, const char *stidstring);
     typed_btree_test get_key_type(Tcl_Interp *ip,  const char *stidstring );
-    char* cvt_concurrency_t( ss_m::concurrency_t cc);
-    char* cvt_ndx_t( ss_m::ndx_t cc);
-    char* cvt_store_t(ss_m::store_t n);
+    const char* cvt_concurrency_t( ss_m::concurrency_t cc);
+    const char* cvt_ndx_t( ss_m::ndx_t cc);
+    const char* cvt_store_t(ss_m::store_t n);
 
 }
 
+/*<std-footer incl-file-exclusion='SHELL_H'>  -- do not edit anything below this line -- */
 
+#endif          /*</std-footer>*/

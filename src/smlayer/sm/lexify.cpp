@@ -1,9 +1,36 @@
-/* --------------------------------------------------------------- */
-/* -- Copyright (c) 1997 Computer Sciences Department,          -- */
-/* -- University of Wisconsin-Madison, subject to the terms     -- */
-/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
-/* -- Reserved.                                                 -- */
-/* --------------------------------------------------------------- */
+/*<std-header orig-src='shore'>
+
+ $Id: lexify.cpp,v 1.26 1999/06/07 19:04:07 kupsch Exp $
+
+SHORE -- Scalable Heterogeneous Object REpository
+
+Copyright (c) 1994-99 Computer Sciences Department, University of
+                      Wisconsin -- Madison
+All Rights Reserved.
+
+Permission to use, copy, modify and distribute this software and its
+documentation is hereby granted, provided that both the copyright
+notice and this permission notice appear in all copies of the
+software, derivative works or modified versions, and any portions
+thereof, and that both notices appear in supporting documentation.
+
+THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+"AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+This software was developed with support by the Advanced Research
+Project Agency, ARPA order number 018 (formerly 8230), monitored by
+the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+Further funding for this work was provided by DARPA through
+Rome Research Laboratory Contract No. F30602-97-2-0247.
+
+*/
+
+#include "w_defines.h"
+
+/*  -- do not edit anything above this line --   </std-header>*/
+
 /* Routines for translating integers and floating point numbers
  * into a form that allows lexicographic
  * comparison in an architecturally-neutral form.
@@ -17,8 +44,6 @@
 #ifndef __GNUC__
 #define __attribute__(x)
 #endif
-static char *rcsid  __attribute__((unused)) =
-"$Header: /p/shore/shore_cvs/src/sm/lexify.cc,v 1.10 1997/08/01 18:20:54 solomon Exp $";
 
 /* Compile-time options:
  *  BIGDOUBLE declares that doubles are stored "big-endian" -- that is,
@@ -61,25 +86,19 @@ static char *rcsid  __attribute__((unused)) =
 #include "sm_int_0.h"
 #include "lexify.h"
 
+#ifdef EXPLICIT_TEMPLATE
+template class w_auto_delete_array_t<sortorder::uint1_t>;
+#endif
+
 sortorder SortOrder;
 
 NORET
 sortorder::sortorder()
 {
-    Ibyteorder(I4perm);
-    // Create I2perm:
-    if(I4perm[0] == 0) {
-	I2perm[0] = I4perm[0];
-	I2perm[1] = I4perm[1];
-    } else if(I4perm[0] == 3) {
-	I2perm[0] = I4perm[2];
-	I2perm[1] = I4perm[3];
-    } else {
-	// this byte order isn't implemented!
-	W_FATAL(eINTERNAL);
-    }
-    // Create I1perm:
-    I1perm[0] = 0;
+    Ibyteorder(I8perm, 8);
+    Ibyteorder(I4perm, 4);
+    Ibyteorder(I2perm, 2);
+    Ibyteorder(I1perm, 1);
 
     Fbyteorder(Fperm);
     Dbyteorder(Dperm);
@@ -93,6 +112,15 @@ sortorder::~sortorder()
 /* Discover the byte order of the current machine and store in permutation
  * (which should be an array of length 8) a permutation for converting to/from
  * "standard" (big-endian) order.
+ *
+ * The idea behind this code is nice, but to fully take advantage
+ * of it, a magic number needs to be constructed for each size
+ * of integer that will generate a perumtation.  The reason for
+ * this is machines with "twisted" byte orders, where the
+ * byte order of larger integers does not match the byte order
+ * of smaller integers.  If that is the case, this style
+ * of approach is really nice.  Short of that, the big/little
+ * byte order convention suffices -- Bolo
  */
 
 void 
@@ -101,26 +129,67 @@ sortorder::Ibyteorder(int permutation[4])
     /* The following magic constant has the representation
      * 0x3f404142 on a BIGLONG machine.
      */
-    int magic = 1061175618;
+    int magic = 0x3f404142;
     u_char *p = (u_char *)&magic;
     int i;
     for (i=0;i<4;i++)
-	    permutation[i] = p[i] - 63;
+	    permutation[i] = p[i] - 0x3f;
 #ifdef BIGLONG
     /* verify that the BIGLONG assertion is correct */
     for (i=0;i<4;i++) w_assert1(permutation[i] == i);
 
    w_assert3(w_base_t::is_big_endian()); 
 #else
-#ifdef DEBUG
+#ifdef W_DEBUG
     // Make sure lexify agrees with w_base_t
     if(permutation[1] == 1) {
        w_assert3(w_base_t::is_big_endian()); 
     } else {
        w_assert3(w_base_t::is_little_endian()); 
     }
-#endif /* DEBUG */
+#endif /* W_DEBUG */
 #endif
+}
+
+/*
+ * Generate a reordering permuatation for an integer of length size
+ * to convert from big endian to small endian and back again.
+ *
+ * This will not work correctly on systems with "twisted" byte
+ * orders where different types are in a different byte order.
+ * On the other hand, such a system breaks numerous other assumptions
+ * throughout the  system!
+ */
+void sortorder::Ibyteorder(int *permutation, int size) 
+{
+#if defined(W_DEBUG)
+	/*
+	 * XXX Paranoia, overly so.  w_base_t should be paranoid.
+	 * Verify that our concept of byte order matches the base class
+	 */
+	int2_t	magic = 0x1234;
+	bool	my_big_endian;
+
+	my_big_endian = ((uint1_t *)&magic)[0] == 0x12;
+		
+	if (my_big_endian) {
+		w_assert3(w_base_t::is_big_endian()); 
+	}
+	else {
+		w_assert3(w_base_t::is_little_endian()); 
+	}
+#endif
+#ifdef BIGLONG
+#error	"BIGLONG not supported"
+#endif
+	
+	int	i;
+	if (w_base_t::is_big_endian())
+		for  (i = 0; i < size; i++)
+			permutation[i] = i;
+	else
+		for (i = 0; i < size; i++)
+			permutation[i] = size - i - 1;
 }
 
 void 
@@ -129,11 +198,11 @@ sortorder::Fbyteorder(int permutation[4])
     /* The following magic constant has the representation
      * 0x3f404142 on a BIGFLOAT machine.
      */
-    f4_t f = 0.7509957552;
+    f4_t f = 0.7509957552f;
     u_char *p = (u_char *)&f;
     int i;
     for (i=0;i<4;i++)
-	    permutation[i] = p[i] - 63;
+	    permutation[i] = p[i] - 0x3f;
 #ifdef BIGFLOAT
     /* verify that the BIGFLOAT assertion is correct */
     for (i=0;i<4;i++)
@@ -151,7 +220,7 @@ sortorder::Dbyteorder(int permutation[8])
 	u_char *p = (u_char *)&d;
 	int i;
 	for (i=0;i<8;i++)
-		permutation[i] = p[i] - 63;
+		permutation[i] = p[i] - 0x3f;
 #ifdef BIGDOUBLE
 	/* verify that the BIGDOUBLE assertion is correct */
 	for (i=0;i<8;i++)
@@ -180,6 +249,12 @@ sortorder::int_lexify(
 
 #ifdef BIGLONG
     switch(len) {
+    case 8:
+	    // NB: can't count on alignment for this, so
+	    // do it the simple way
+	    for (i=0;i<8;i++)
+		    ((int1_t *)res)[i] = ((int1_t *)&d)[perm[i]];
+	    break;
     case 4:
 	    ((int4_t *)res)[0] = ((int4_t *)d)[0];
 	    break;
@@ -216,6 +291,9 @@ sortorder::int_unlexify(
 
 #ifdef BIGLONG
     switch(len) {
+    case 8:
+	((int8_t *)res)[0] = ((int8_t *)str)[0] ^ 0x8000000000000000;
+	break;
     case 4:
 	((int4_t *)res)[0] = ((int4_t *)str)[0] ^ 0x80000000;
 	break;
@@ -227,7 +305,9 @@ sortorder::int_unlexify(
 	break;
     }
 #else
-    uint1_t cp[len];
+
+    uint1_t* cp = new uint1_t[len];
+    w_auto_delete_array_t<uint1_t> auto_del_cp(cp);
 
     memcpy(cp, str, len);
     uint1_t x = cp[0];
@@ -372,6 +452,12 @@ sortorder::dbl_unlexify(
 
     // Can't count on solaris memcpy working here if the address
     // isn't 8-byte aligned.
+    /*
+     * NB: It's not the memcpy, it's the too-smart-for-its-
+     * britches gcc that bypasses memcpy if it thinks it
+     * can do better -- unfortunately, sometimes it doesn't
+     * really know what the alignment is...
+     */
     // memcpy(cp, str, sizeof(double));
     for(i=0; i<8; i++) ((char *)cp)[i] = ((char *)str)[i];
 
@@ -395,9 +481,15 @@ sortorder::dbl_unlexify(
     // don't do anything that requires alignment
     // *result = res;
     // memcpy((char *)result, (char *)&res, sizeof(f8_t));
-    // brain-damaged memcpy(? )on solaris appears to do
+    // brain-damaged memcpy(?) on solaris appears to do
     // double assignment, so we do a byte copy to avoid
     // alignment problems here:
+    /*
+     * NB: It's not the memcpy, it's the too-smart-for-its-
+     * britches gcc that bypasses memcpy if it thinks it
+     * can do better -- unfortunately, sometimes it doesn't
+     * really know what the alignment is...
+     */
     switch((unsigned)result & 0x00000007) {
 	case 0x00:
 	    *result = res;
@@ -425,7 +517,7 @@ sortorder::lexify(
 {
     FUNC(lexify);
     keytype k = convert(kp);
-    DBG(<<" k=" << k);
+    DBG(<<" k=" << int(k));
     switch(k) {
 	case kt_nosuch:
 	case kt_spatial:
@@ -443,6 +535,10 @@ sortorder::lexify(
 	    int_lexify(d, true, 4, res, I4perm);
 	    break;
 
+	case kt_i8:
+	    int_lexify(d, true, 8, res, I8perm);
+	    break;
+
 	case kt_u1:
 	    int_lexify(d, false, 1, res, I1perm);
 	    break;
@@ -455,20 +551,27 @@ sortorder::lexify(
 	    int_lexify(d, false, 4, res, I4perm);
 	    break;
 
+	case kt_u8:
+	    int_lexify(d, false, 8, res, I8perm);
+	    break;
+
 	case kt_f4:
 	    DBG(<<"");
 	    float_lexify(*(f4_t *)d, res, Fperm);
 	    break;
 
-	case kt_f8:
-	    dbl_lexify(*(f8_t *)d, res, Dperm);
+	case kt_f8: {
+	    double dbl;
+	    memcpy(&dbl, d, sizeof(f8_t));
+	    dbl_lexify(dbl, res, Dperm);
+	    }
 	    break;
 
 	case kt_b:
 	    if(kp->variable) {
 		return false;
 	    }
-	    memcpy(res, str, kp->length);
+	    memcpy(res, d, kp->length);
 	    break;
     }
     return true;
@@ -483,7 +586,7 @@ sortorder::unlexify(
 {
     FUNC(unlexify);
     keytype k = convert(kp);
-    DBG(<<" k=" << k);
+    DBG(<<" k=" << int(k));
     switch(k) {
 	case kt_nosuch:
 	case kt_spatial:
@@ -504,6 +607,11 @@ sortorder::unlexify(
 	    int_unlexify(str, true, 4, res, I4perm);
 	    break;
 
+	case kt_i8:
+	    w_assert3(((unsigned)res & 0x3) == 0x0);
+	    int_unlexify(str, true, 8, res, I8perm);
+	    break;
+
 	case kt_u1:
 	    int_unlexify(str, false, 1, res, I1perm);
 	    break;
@@ -518,6 +626,11 @@ sortorder::unlexify(
 	    int_unlexify(str, false, 4, res, I4perm);
 	    break;
 
+	case kt_u8:
+	    w_assert3(((unsigned)res & 0x3) == 0x0);
+	    int_unlexify(str, false, 8, res, I8perm);
+	    break;
+
 	case kt_f4:
 	    // should be at least 4-byte aligned
 	    w_assert3(((unsigned)res & 0x3) == 0x0);
@@ -530,6 +643,9 @@ sortorder::unlexify(
 	    // for doubles might differ.
 
 	    w_assert3(((unsigned)res & 0x3) == 0x0);
+#ifdef Sparc
+	    w_assert3(((unsigned)res & 0x7) == 0x0);
+#endif
 	    dbl_unlexify(str, Dperm, (f8_t *)res);
 	    break;
 
@@ -553,19 +669,31 @@ sortorder::convert(const key_type_s *kp)
 
     switch (kp->type)  {
     case key_type_s::i:
+    case key_type_s::I:
     case key_type_s::u:
+    case key_type_s::U:
         w_assert3(kp->length == 1 || kp->length == 2 
-		|| kp->length == 4 );
+		|| kp->length == 4 
+		|| kp->length == 8 
+		);
     	w_assert3(! kp->variable);
         switch(kp->length) {
 	    case 1:
-		result = kp->type==key_type_s::i?kt_i1:kt_u1;
+		result = (kp->type==key_type_s::i
+			    || kp->type==key_type_s::I)?
+			    kt_i1 : kt_u1;
 		break;
 	    case 2:
-		result = kp->type==key_type_s::i?kt_i2:kt_u2;
+		result = (kp->type==key_type_s::i ||
+			  kp->type==key_type_s::I)?kt_i2:kt_u2;
 		break;
 	    case 4:
-		result = kp->type==key_type_s::i?kt_i4:kt_u4;
+		result = (kp->type==key_type_s::i ||
+			  kp->type==key_type_s::I)?kt_i4:kt_u4;
+		break;
+	    case 8:
+		result = (kp->type==key_type_s::i ||
+			  kp->type==key_type_s::I)?kt_i8:kt_u8;
 		break;
 	    default:
 		break;
@@ -573,6 +701,7 @@ sortorder::convert(const key_type_s *kp)
         break;
 
     case key_type_s::f:
+    case key_type_s::F:
         w_assert3(kp->length == 4 || kp->length == 8); 
     	w_assert3(! kp->variable);
         switch(kp->length) {
@@ -587,6 +716,7 @@ sortorder::convert(const key_type_s *kp)
 	}
         break;
 
+    case key_type_s::B: // unsigned byte compare
     case key_type_s::b: // unsigned byte compare
     	// may be  kp->variable
 	result = kt_b;
@@ -595,6 +725,7 @@ sortorder::convert(const key_type_s *kp)
     default:
         W_FATAL(eNOTIMPLEMENTED);
     }
-    DBG(<<"convert returns " << result);
+    DBG(<<"convert returns " << int(result));
     return result;
 }
+

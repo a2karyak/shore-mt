@@ -1,32 +1,50 @@
-/* --------------------------------------------------------------- */
-/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
-/* -- University of Wisconsin-Madison, subject to the terms     -- */
-/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
-/* -- Reserved.                                                 -- */
-/* --------------------------------------------------------------- */
+/*<std-header orig-src='shore'>
 
-/*
- *   $RCSfile: unix_stats.cc,v $
- *   $Revision: 1.7 $
- *   $Date: 1997/06/15 02:06:02 $
- */ 
+ $Id: unix_stats.cpp,v 1.17 1999/06/07 19:02:48 kupsch Exp $
+
+SHORE -- Scalable Heterogeneous Object REpository
+
+Copyright (c) 1994-99 Computer Sciences Department, University of
+                      Wisconsin -- Madison
+All Rights Reserved.
+
+Permission to use, copy, modify and distribute this software and its
+documentation is hereby granted, provided that both the copyright
+notice and this permission notice appear in all copies of the
+software, derivative works or modified versions, and any portions
+thereof, and that both notices appear in supporting documentation.
+
+THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+"AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+This software was developed with support by the Advanced Research
+Project Agency, ARPA order number 018 (formerly 8230), monitored by
+the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+Further funding for this work was provided by DARPA through
+Rome Research Laboratory Contract No. F30602-97-2-0247.
+
+*/
+
+#include "w_defines.h"
+
+/*  -- do not edit anything above this line --   </std-header>*/
 
 #ifdef __GNUC__
 #pragma implementation "unix_stats.h"
 #endif
-
-#include <stream.h>
 #include <w_workaround.h>
 #include "unix_stats.h"
 #define MILLION 1000000
 
 unix_stats::unix_stats()  { who = RUSAGE_SELF; }
-unix_stats::unix_stats(int _who)  { who = _who; }
+unix_stats::unix_stats(int _who)  { who = WHO (_who); }
 
 void
 unix_stats::start() 
 {
-	iterations = 0; 
+    iterations = 0; 
     /*
      * Save the current stats in buffer area 1.
      */
@@ -134,57 +152,52 @@ unix_stats::msgrecv()  const
 ostream &unix_stats::print(ostream &o) const
 {
 	int   i;
-	int clk,usr,sys;
+	double clk,usr,sys;
 
 	if(iterations== 0) {
 		o << "error: unix_stats was never properly \"stop()\"-ed. ";
 		return o;
 	}
-	clk=clocktime();
-	usr=usertime();
-	sys=systime();
-#define FORM(u) ("%2.2f", ((((float)u)/iterations)/MILLION)) << #u <<" ";
-	if(clk+usr+sys != 0) {
-		o << "usec/iter for " << iterations << " iterations" << endl;
-		// print in order that time(csh(1)) does:
-		if(usr!= 0) { W_FORM(o)FORM(usr); }
-		if(sys != 0) { W_FORM(o)FORM(sys); }
-		if(clk!= 0) { W_FORM(o)FORM(clk); }
-		if(clk!= 0) {
-		    W_FORM(o)("%2.2f %%",(float)((float)(usr+sys)/clk)*100) << " ";
-		}
-		o << endl;
-	}
+#define MIL 1000000
+	clk=(double) clocktime()/MIL;
+	usr=(double) usertime()/MIL;
+	sys=(double) systime()/MIL;
+	o << "seconds/iter: ";
+	W_FORM2(o,("  clk: %3.2f ",(clk/iterations)));
+	W_FORM2(o,("  usr: %3.2f ",(usr/iterations)));
+	W_FORM2(o,("  sys: %3.2f ",(sys/iterations)));
+	o << endl;
+
 	if( (i=page_faults()) != 0) {
-		W_FORM(o)("%6d maj ",i);
+		W_FORM2(o,("%6d maj ",i));
 	}
 	if( (i=page_reclaims()) != 0) {
-		W_FORM(o)("%6d min ",i);
+		W_FORM2(o,("%6d min ",i));
 	}
 	if( (i=swaps()) != 0) {
-		W_FORM(o)("%6d swp ",i);
+		W_FORM2(o,("%6d swp ",i));
 	}
 	if( (i=vcsw()) != 0) {
-		W_FORM(o)("%6d csw",i);
+		W_FORM2(o,("%6d csw",i));
 	}
 	if( (i=invcsw()) != 0) {
-		W_FORM(o)("%6d inv",i);
+		W_FORM2(o,("%6d inv",i));
 	}
 	if( (i=inblock()) != 0) {
-		W_FORM(o)("%6d inblk",i);
+		W_FORM2(o,("%6d inblk",i));
 	}
 	if( (i=oublock()) != 0) {
-		W_FORM(o)("%6d oublk",i);
+		W_FORM2(o,("%6d oublk",i));
 	}
 	// Rss is sort of meaningless
 	// if( (i=rss()) != 0) {
 	//	W_FORM(o)("%6d rss",i);
 	//}
 	if( (i=msgsent()) != 0) {
-		W_FORM(o)("%6d snd",i);
+		W_FORM2(o,("%6d snd",i));
 	}
 	if( (i=msgrecv()) != 0) {
-		W_FORM(o)("%6d rcv",i);
+		W_FORM2(o,("%6d rcv",i));
 	}
 	return o;
 }
@@ -250,7 +263,7 @@ float compute_time(const struct timeval* start_time, const struct timeval* end_t
         useconds = 1000000.0 + useconds;
         seconds--;
     }
-    return (seconds + useconds/1000000.0);
+    return (float)(seconds + useconds/1000000.0);
 }
 
 float 

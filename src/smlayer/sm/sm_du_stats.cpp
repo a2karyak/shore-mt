@@ -1,38 +1,66 @@
-/* --------------------------------------------------------------- */
-/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
-/* -- University of Wisconsin-Madison, subject to the terms     -- */
-/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
-/* -- Reserved.                                                 -- */
-/* --------------------------------------------------------------- */
+/*<std-header orig-src='shore'>
 
-/*
- *  $Id: sm_du_stats.cc,v 1.16 1997/06/15 03:13:59 solomon Exp $
- */
+ $Id: sm_du_stats.cpp,v 1.28 1999/06/07 19:04:35 kupsch Exp $
+
+SHORE -- Scalable Heterogeneous Object REpository
+
+Copyright (c) 1994-99 Computer Sciences Department, University of
+                      Wisconsin -- Madison
+All Rights Reserved.
+
+Permission to use, copy, modify and distribute this software and its
+documentation is hereby granted, provided that both the copyright
+notice and this permission notice appear in all copies of the
+software, derivative works or modified versions, and any portions
+thereof, and that both notices appear in supporting documentation.
+
+THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+"AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+This software was developed with support by the Advanced Research
+Project Agency, ARPA order number 018 (formerly 8230), monitored by
+the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+Further funding for this work was provided by DARPA through
+Rome Research Laboratory Contract No. F30602-97-2-0247.
+
+*/
+
+#include "w_defines.h"
+
+/*  -- do not edit anything above this line --   </std-header>*/
+
 #define SM_DU_STATS_C
 
 #ifdef __GNUG__
 #pragma implementation
 #endif
 
+#include <w.h>
 #include <memory.h>
-#include <stream.h>
-#include "w_base.h"
-#include "w_list.h"
-#include "w_minmax.h"
-#include "basics.h"
+#include <w_stream.h>
+#include <w_debug.h>
+#include <w_list.h>
+#include <w_minmax.h>
+#include <basics.h>
 #include "lid_t.h"
 #include "sm_s.h"
-#include "sm_base.h"
+#define SM_SOURCE
+#include "sm_int_1.h"
 #include "sm_du_stats.h"
-#include <debug.h>
 
 
 // This function is a convenient debugging breakpoint for
 // detecting audit failures.
-static void
-stats_audit_failed()
+static w_rc_t
+stats_audit_failed(int W_IFDEBUG(line))
 {
-    DBG( << "stats audit failed");
+#ifdef W_DEBUG
+    cerr << "stats audit failed at line " << line 
+	<< " of file " __FILE__ << endl;
+#endif /* W_DEBUG */
+    return RC(fcINTERNAL);
 }
 
 void
@@ -60,20 +88,16 @@ file_pg_stats_t::audit() const
     if (total_bytes() % smlevel_0::page_sz != 0) {
 	DBG(
 	    << " file_pg_stats_t::total_bytes= " << total_bytes()
-	    << " smlevel_0::page_sz= " << smlevel_0::page_sz
+	    << " smlevel_0::page_sz= " << int(smlevel_0::page_sz)
 	);
-	stats_audit_failed();
-	return RC(fcINTERNAL);
+	return stats_audit_failed(__LINE__);
     }
     if (lg_rec_cnt) {
 	if (rec_lg_chunk_bs + rec_lg_indirect_bs == 0) {
-	    DBG(
-		<< " lg_rec_cnt= " << lg_rec_cnt
-		<< " rec_lg_chunk_bs= " << rec_lg_chunk_bs
-		<< " rec_lg_indirect_bs= " << rec_lg_indirect_bs
-	    );
-	    stats_audit_failed();
-	    return RC(fcINTERNAL);
+	    DBG( << " lg_rec_cnt= " << lg_rec_cnt);
+	    DBG( << " rec_lg_chunk_bs= " << rec_lg_chunk_bs);
+	    DBG( << " rec_lg_indirect_bs= " << rec_lg_indirect_bs);
+	    return stats_audit_failed(__LINE__);
 	}
     }
     DBG(<<"file_pg_stats_t audit ok");
@@ -174,10 +198,9 @@ lgdata_pg_stats_t::audit() const
     if (total_bytes() % smlevel_0::page_sz != 0)  {
 	DBG(
 	    << " lgdata_pg_stats_t::total_bytes= " << total_bytes()
-	    << " smlevel_0::page_sz= " << smlevel_0::page_sz
+	    << " smlevel_0::page_sz= " << int(smlevel_0::page_sz)
 	);
-	stats_audit_failed();
-	return RC(fcINTERNAL);
+	return stats_audit_failed(__LINE__);
     }
     DBG(<<"lgdata_pg_stats_t audit ok");
     return RCOK;
@@ -238,10 +261,9 @@ lgindex_pg_stats_t::audit() const
     if (total_bytes() % smlevel_0::page_sz != 0) {
 	DBG(
 	    << " lgindex_pg_stats_t::total_bytes= " << total_bytes()
-	    << " smlevel_0::page_sz= " << smlevel_0::page_sz
+	    << " smlevel_0::page_sz= " << int(smlevel_0::page_sz)
 	);
-	stats_audit_failed();
-	return RC(fcINTERNAL);
+	return stats_audit_failed(__LINE__);
     }
     DBG(<<"lgindex_pg_stats_t audit ok");
     return RCOK;
@@ -318,20 +340,18 @@ file_stats_t::audit() const
 	DBG(
 	    << " total_alloc_pgs= " << total_alloc_pgs
 	    << " file_stats_t::total_bytes= " << total_bytes()
-	    << " smlevel_0::page_sz= " << smlevel_0::page_sz
+	    << " smlevel_0::page_sz= " << int(smlevel_0::page_sz)
 	);
-	stats_audit_failed();
-	return RC(fcINTERNAL);
+	return stats_audit_failed(__LINE__);
     }
     if ( (total_alloc_pgs + unalloc_file_pg_cnt + unalloc_large_pg_cnt) % smlevel_0::ext_sz != 0) {
 	DBG(
 	    << " total_alloc_pgs= " << total_alloc_pgs
 	    << " unalloc_file_pg_cnt= " << unalloc_file_pg_cnt
 	    << " unalloc_large_pg_cnt= " << unalloc_large_pg_cnt
-	    << " smlevel_0::ext_sz= " << smlevel_0::ext_sz
+	    << " smlevel_0::ext_sz= " << int(smlevel_0::ext_sz)
 	);
-	stats_audit_failed();
-	return RC(fcINTERNAL);
+	return stats_audit_failed(__LINE__);
     }
     DBG(<<"file_stats_t audit ok");
     return RCOK;
@@ -420,10 +440,9 @@ btree_lf_stats_t::audit() const
     if (total_bytes() % smlevel_0::page_sz != 0) {
 	DBG(
 	    << " btree_lf_stats_t::total_bytes= " << total_bytes()
-	    << " smlevel_0::page_sz= " << smlevel_0::page_sz
+	    << " smlevel_0::page_sz= " << int(smlevel_0::page_sz)
 	);
-	stats_audit_failed();
-	return RC(fcINTERNAL);
+	return stats_audit_failed(__LINE__);
     }
     DBG(<<"btree_lf_stats_t audit ok");
     return RCOK;
@@ -494,10 +513,9 @@ btree_int_stats_t::audit() const
     if (total_bytes() % smlevel_0::page_sz != 0) {
 	DBG(
 	    << " btree_int_stats_t::total_bytes= " << total_bytes()
-	    << " smlevel_0::page_sz= " << smlevel_0::page_sz
+	    << " smlevel_0::page_sz= " << int(smlevel_0::page_sz)
 	);
-	stats_audit_failed();
-	return RC(fcINTERNAL);
+	return stats_audit_failed(__LINE__);
     }
     DBG(<<"btree_int_stats_t audit ok");
     return RCOK;
@@ -571,10 +589,9 @@ btree_stats_t::audit() const
 	    << " leaf_pg_cnt= " << leaf_pg_cnt
 	    << " int_pg_cnt= " << int_pg_cnt
 	    << " btree_stats_t::total_bytes= " << total_bytes()
-	    << " smlevel_0::page_sz= " << smlevel_0::page_sz
+	    << " smlevel_0::page_sz= " << int(smlevel_0::page_sz)
 	);
-	stats_audit_failed();
-	return RC(fcINTERNAL);
+	return stats_audit_failed(__LINE__);
     }
     if ( (total_alloc_pgs + unlink_pg_cnt + unalloc_pg_cnt) %
 	 smlevel_0::ext_sz != 0) {
@@ -583,10 +600,9 @@ btree_stats_t::audit() const
 	    << " int_pg_cnt= " << int_pg_cnt
 	    << " unlink_pg_cnt= " << unlink_pg_cnt
 	    << " unalloc_pg_cnt= " << unalloc_pg_cnt
-	    << " smlevel_0::ext_sz= " << smlevel_0::ext_sz
+	    << " smlevel_0::ext_sz= " << int(smlevel_0::ext_sz)
 	);
-	stats_audit_failed();
-	return RC(fcINTERNAL);
+	return stats_audit_failed(__LINE__);
     }
     DBG(<<"btree_stats_t audit ok");
     return RCOK;
@@ -677,10 +693,9 @@ rtree_stats_t::audit() const
 	    << " leaf_pg_cnt= " << leaf_pg_cnt
 	    << " int_pg_cnt= " << int_pg_cnt
 	    << " unalloc_pg_cnt= " << unalloc_pg_cnt
-	    << " smlevel_0::ext_sz= " << smlevel_0::ext_sz
+	    << " smlevel_0::ext_sz= " << int(smlevel_0::ext_sz)
 	);
-	stats_audit_failed();
-	return RC(fcINTERNAL);
+	return stats_audit_failed(__LINE__);
     }
     DBG(<<"rtree_stats_t audit ok");
     return RCOK;
@@ -750,10 +765,9 @@ volume_hdr_stats_t::audit() const
     if (extent_size != smlevel_0::ext_sz) {
 	DBG(
 	    << " extent_size= " << extent_size
-	    << " smlevel_0::ext_sz= " << smlevel_0::ext_sz
+	    << " smlevel_0::ext_sz= " << int(smlevel_0::ext_sz)
 	);
-	stats_audit_failed();
-	return RC(fcINTERNAL);
+	return stats_audit_failed(__LINE__);
     }
     DBG(<<"volume_hdr_stats_t audit ok");
     return RCOK;
@@ -823,10 +837,9 @@ volume_map_stats_t::audit() const
 	DBG(
 	    << " alloc_pg_cnt= " << alloc_pg_cnt()
 	    << " unalloc_pg_cnt= " << unalloc_pg_cnt()
-	    << " smlevel_0::ext_sz= " << smlevel_0::ext_sz
+	    << " smlevel_0::ext_sz= " << int(smlevel_0::ext_sz)
 	);
-	stats_audit_failed();
-	return RC(fcINTERNAL);
+	return stats_audit_failed(__LINE__);
     }
     DBG(<<"volume_hdr_stats_t audit ok");
     return RCOK;
@@ -924,20 +937,18 @@ small_store_stats_t::audit() const
 	DBG(
 	    << " btree_cnt= " << btree_cnt
 	    << " small_store_stats_t::total_bytes= " << total_bytes()
-	    << " smlevel_0::page_sz= " << smlevel_0::page_sz
+	    << " smlevel_0::page_sz= " << int(smlevel_0::page_sz)
 	);
-	stats_audit_failed();
-	return RC(fcINTERNAL);
+	return stats_audit_failed(__LINE__);
     }
     if ( (total_alloc_pgs + unalloc_pg_cnt) %
 	 smlevel_0::ext_sz != 0) {
 	DBG(
 	    << " btree_cnt= " << btree_cnt
 	    << " unalloc_pg_cnt= " << unalloc_pg_cnt
-	    << " smlevel_0::ext_sz= " << smlevel_0::ext_sz
+	    << " smlevel_0::ext_sz= " << int(smlevel_0::ext_sz)
 	);
-	stats_audit_failed();
-	return RC(fcINTERNAL);
+	return stats_audit_failed(__LINE__);
     }
     DBG(<<"small_store_stats_t audit ok");
     return RCOK;
@@ -1034,47 +1045,56 @@ sm_du_stats_t::audit() const
     W_DO(volume_map.audit());
     W_DO(small_store.audit());
 
-    base_stat_t alloc_pg_cnt =
-	(volume_hdr.alloc_ext_cnt + volume_hdr.hdr_ext_cnt) * 
-	smlevel_0::ext_sz -
+    base_stat_t unalloc_pg_cnt =
 	(file.unalloc_file_pg_cnt + file.unalloc_large_pg_cnt +
 	 btree.unalloc_pg_cnt + btree.unlink_pg_cnt +
 	 rtree.unalloc_pg_cnt + rdtree.unalloc_pg_cnt+
 	 volume_map.unalloc_pg_cnt() + small_store.unalloc_pg_cnt);
 
-    base_stat_t alloc_and_unalloc_cnt =
+
+    base_stat_t alloc_pg_cnt2 =
 	    (btree.leaf_pg_cnt + btree.int_pg_cnt +
 	    rtree.leaf_pg_cnt + rtree.int_pg_cnt +
 	    rdtree.leaf_pg_cnt + rdtree.int_pg_cnt +
 	    file.file_pg_cnt + file.lgdata_pg_cnt +
 	    file.lgindex_pg_cnt + volume_map.alloc_pg_cnt() +
-	    small_store.alloc_pg_cnt())
-	    +
-	    (file.unalloc_file_pg_cnt + file.unalloc_large_pg_cnt +
-	     btree.unalloc_pg_cnt + btree.unlink_pg_cnt +
-	     rtree.unalloc_pg_cnt + rdtree.unalloc_pg_cnt + 
-	     volume_map.unalloc_pg_cnt() + small_store.unalloc_pg_cnt
-	    );
+	    small_store.alloc_pg_cnt());
+
+    base_stat_t alloc_and_unalloc_cnt = alloc_pg_cnt2 + unalloc_pg_cnt;
     
+    xct_t* x = me()->xct();
+    base_stat_t marked_for_deletion_by_me;
+    x->num_extents_marked_for_deletion(marked_for_deletion_by_me);
+	
     if (alloc_and_unalloc_cnt != 
-	volume_hdr.alloc_ext_cnt * smlevel_0::ext_sz ) {
+	(volume_hdr.alloc_ext_cnt - marked_for_deletion_by_me) 
+		* smlevel_0::ext_sz ) {
 	DBG(
-	    << " alloc total pages = " << alloc_and_unalloc_cnt
-	    << " ext total pages = " << volume_hdr.alloc_ext_cnt * smlevel_0::ext_sz
+	    << " alloc2 total pages = " << alloc_pg_cnt2
+	    << " unalloc total pages = " << unalloc_pg_cnt
+	    << " marked_for_deletion_by_me = " << marked_for_deletion_by_me
+	    << " ext total pages = " << int(volume_hdr.alloc_ext_cnt * smlevel_0::ext_sz)
 	);
-	stats_audit_failed();
-	return RC(fcINTERNAL);
+	return stats_audit_failed(__LINE__);
     }
 
 
+    base_stat_t alloc_pg_cnt = 
+	( volume_hdr.alloc_ext_cnt + volume_hdr.hdr_ext_cnt ) 
+	* smlevel_0::ext_sz; 
+    alloc_pg_cnt -= unalloc_pg_cnt;
+    alloc_pg_cnt -= (marked_for_deletion_by_me * smlevel_0::ext_sz);
+
+	
     if ( alloc_pg_cnt * smlevel_0::page_sz != total_bytes()) {
 	DBG(
 	    << " alloc_pg_cnt= " << alloc_pg_cnt
-	    << " ditto * page_sz= " << alloc_pg_cnt * smlevel_0::page_sz
+	    << " unalloc_pg_cnt= " << unalloc_pg_cnt
+	    << " marked_for_deletion_by_me=" << marked_for_deletion_by_me
+	    << " page_sz = " << int(smlevel_0::page_sz) 
 	    << " total bytes= " << total_bytes()
 	);
-	stats_audit_failed();
-	return RC(fcINTERNAL);
+	return stats_audit_failed(__LINE__);
     }
     DBG(<<"sm_du_stats_t audit ok");
     return RCOK;

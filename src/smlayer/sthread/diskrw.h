@@ -1,29 +1,52 @@
-/* --------------------------------------------------------------- */
-/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
-/* -- University of Wisconsin-Madison, subject to the terms     -- */
-/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
-/* -- Reserved.                                                 -- */
-/* --------------------------------------------------------------- */
+/*<std-header orig-src='shore' incl-file-exclusion='DISKRW_H'>
 
-/*
- * $Id: diskrw.h,v 1.39 1997/09/06 22:39:18 solomon Exp $
- */
+ $Id: diskrw.h,v 1.67 1999/06/10 23:32:30 bolo Exp $
+
+SHORE -- Scalable Heterogeneous Object REpository
+
+Copyright (c) 1994-99 Computer Sciences Department, University of
+                      Wisconsin -- Madison
+All Rights Reserved.
+
+Permission to use, copy, modify and distribute this software and its
+documentation is hereby granted, provided that both the copyright
+notice and this permission notice appear in all copies of the
+software, derivative works or modified versions, and any portions
+thereof, and that both notices appear in supporting documentation.
+
+THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+"AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+This software was developed with support by the Advanced Research
+Project Agency, ARPA order number 018 (formerly 8230), monitored by
+the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+Further funding for this work was provided by DARPA through
+Rome Research Laboratory Contract No. F30602-97-2-0247.
+
+*/
+
 #ifndef DISKRW_H
-
 #define DISKRW_H
+
+#include "w_defines.h"
+
+/*  -- do not edit anything above this line --   </std-header>*/
 
 // define this to volatile if the compiler supports it
 #define VOLATILE 
 
-#if defined(I860)
-#define	PIPE_NOTIFY
+
+#include <unix_error.h>
+
+#if defined(_WIN32) && defined(NEW_IO)
+#define	DISKRW_FD_NONE	INVALID_HANDLE_VALUE
+#else
+#define	DISKRW_FD_NONE	-1
 #endif
 
-#ifdef	PIPE_NOTIFY
-#include <errno.h>
-extern "C" void perror(const char *);
-#endif /* PIPE_NOTIFY */
-
+typedef	sdisk_t::fileoff_t	diskrw_off_t;
 
 /* 
  * Magic numbers used to verify that the server and diskrw agree
@@ -31,18 +54,14 @@ extern "C" void perror(const char *);
  * Increment the last part of the magic number if you make
  * any change to the size or shape of any of the data structures:
  */
-#ifdef PIPE_NOTIFY
-    enum { diskrw_magic = 0x7adbda03 };
-#else
-    enum { diskrw_magic = 0x7edbde03 };
-#endif /* PIPE_NOTIFY */
+enum { diskrw_magic = 0x7adbda13 + sizeof(diskrw_off_t) };
 
 class sthread_t;
 
 #include "shmc_stats.h"
 
-const open_max = 32;
-const max_diskv = 8;
+const int open_max = 32;
+const int max_diskv = 8;
 
 struct diskv_t {
     long	bfoff;
@@ -55,15 +74,30 @@ struct diskv_t {
    communicate I/O requests and completions.
  */
 
+#ifndef SIGALRM
+#ifndef _WINDOWS
+#error SIGALRM should be defined for this architecture
+#endif
+#define SIGALRM  1
+#define SIGUSR1  2
+#endif
+
 struct diskmsg_t {
-    enum op_t { t_read, t_write, t_sync, t_trunc };
+    enum op_t {
+	t_inval,
+	t_read, t_write,
+	t_sync, t_trunc,
+	t_close,
+	t_pread, t_pwrite,
+	t_last
+    };
     op_t	op;
     sthread_t*	thread;
-    off_t	off;
+    diskrw_off_t	off;
     int		dv_cnt;
     diskv_t	diskv[max_diskv];
 
-    diskmsg_t()	{};
+    diskmsg_t()	: op(t_inval), thread(0), off(0), dv_cnt(0) {}
     diskmsg_t& operator=(const diskmsg_t& m)  {
 	op = m.op;
 	thread = m.thread;
@@ -76,22 +110,47 @@ struct diskmsg_t {
 	return *this;
     }
 
-#ifdef STHREAD_C
-    diskmsg_t(op_t o, off_t offset, const diskv_t* v, int cnt) 
+#if defined(SDISK_DISKRW_C)
+    diskmsg_t(op_t o, diskrw_off_t offset, const diskv_t* v, int cnt) 
 	: op(o), thread(sthread_t::me()), off(offset), dv_cnt(cnt)
     {
 	w_assert3(cnt>=0 && cnt <= max_diskv);
 	memcpy(diskv, v, sizeof(diskv_t) * cnt);
     }
 	
-    diskmsg_t(op_t o, off_t offset, long bfoffset, int n)
+    diskmsg_t(op_t o, diskrw_off_t offset, long bfoffset, int n)
     : op(o), thread(sthread_t::me()), off(offset), dv_cnt(1)
     {
 	diskv[0].bfoff = bfoffset;
 	diskv[0].nbytes = n;
     }
-#endif
+#endif /* IO_C */
 };
+
+
+extern ostream &operator<<(ostream &o, const diskmsg_t::op_t op);
+
+
+#if (defined(SDISK_DISKRW_C) || (defined(DISKRW_C) && !defined(_WIN32)))
+ostream &operator<<(ostream &o, const diskmsg_t::op_t op)
+{
+	/* XXX dependency upon enum */
+	static const char *names[] = {
+		"t_inval",
+		"t_read", "t_write", "t_sync", "t_trunc", "t_close",
+		"t_pread", "t_pwrite",
+		"t_last"
+
+	};
+
+	if (op < 0  ||  op > diskmsg_t::t_last)
+		o << "<unknown diskmsg_t::op_t " << (int)op << ">";
+	else
+		o << names[(int)op];
+
+	return o;	
+}
+#endif
 
 
 /*
@@ -111,6 +170,8 @@ struct diskmsg_t {
  */  
 
 class msgq_t {
+    friend class sdisk_handler_t;
+
 public:
     VOLATILE int		_outstanding;
     VOLATILE spinlock_t	lock;
@@ -122,7 +183,7 @@ public:
     msgq_t() : _outstanding(0), head(0), tail(0), cnt(0) {};
     ~msgq_t()	{};
 
-    outstanding() const  { return _outstanding; }
+    int outstanding() const  { return _outstanding; }
 
     void put(const diskmsg_t& m, bool getlock=true) {
 	w_assert1(cnt < qsize);
@@ -148,8 +209,8 @@ public:
 	    lock.release();
 	}
     }
-    is_empty()	{ return cnt == 0; }
-    is_full()	{ return cnt == qsize; }
+    bool is_empty()	{ return cnt == 0; }
+    bool is_full()	{ return cnt == qsize; }
 };
 
 
@@ -164,6 +225,7 @@ public:
  */
 
 class svcport_t {
+    friend class sdisk_handler_t;
 
 private:
     VOLATILE int		incoming;	// disk op reply pending
@@ -179,7 +241,7 @@ private:
     const int	_magic;
 
 public:
-    check_magic()	{ return magic == _magic; }
+    bool check_magic()	{ return magic == _magic; }
     svcport_t() : incoming(0), sleep(0), _magic(magic) {
 	    if(!check_magic()) {
 		cerr << 
@@ -194,8 +256,9 @@ public:
 	++incoming;
 	lock.release();
     }
-#endif
-#ifdef STHREAD_C
+#endif /* DISKRW_C */
+
+#if defined(SDISK_DISKRW_C)
     int		peek_incoming_counter() {
 	return incoming;
     }
@@ -210,14 +273,54 @@ public:
 #endif
 	lock.release();
     }
-#endif
+#endif /* IO_C */
 
 };
 
-#ifdef PIPE_NOTIFY
-typedef	int	ChanToken;
+#ifdef _WINDOWS
+class CommandLineArgs {
+public:
+	// CommandLineArgs(CString cmdline, int nargs);
+	CommandLineArgs(int nargs) : argc(nargs), _filled(0) {
+	    argv = new char *[argc];
+	    for(int i=0; i < argc; i++) {
+	        argv[i] = 0;
+            }
+	};
+
+	CommandLineArgs& operator+=(const char *c) {
+	    w_assert3(_filled < argc);
+	    int len = strlen(c);
+	    char *tmp = new char[len+1];
+	    w_assert1(tmp);
+	    strncpy(tmp, c, len);
+	    tmp[len]='\0';
+	    argv[_filled++] = tmp;
+            return *this;
+	};
+
+	~CommandLineArgs() {
+	    for (int i = 0; i < _filled; i++)
+		delete [] argv[i];
+	    delete [] argv;
+	}
+	int argc;
+	int _filled;
+	char** argv;
+
+        friend ostream& operator<<(ostream &o, const CommandLineArgs&c);
+};
+inline
+ostream& operator<<(ostream &o, const CommandLineArgs&c) {
+    for (int i = 0; i < c._filled; i++) {
+	o << c.argv[i] << " ";
+    }
+    return o;
+}
+#endif /* _WINDOWS */
+
+typedef	char	ChanToken;
 enum { PIPE_IN = 0, PIPE_OUT = 1 };
-#endif /* PIPE_NOTIFY */
 
 
 /*
@@ -229,202 +332,293 @@ enum { PIPE_IN = 0, PIPE_OUT = 1 };
  */
 
 class diskport_t {
+    friend class sdisk_handler_t;
+
 private:
     // NOTE: be sure to increment diskrw_magic if you change this
     //       data structure.
     enum { magic = diskrw_magic };
-#ifdef DISKRW_C
-    enum { IN = 0, OUT = 1 };
-#else
-    enum { IN = 1, OUT = 0 };
-#endif
+    enum { DISKRW_OUT = 1, DISKRW_IN = 0 };
+    enum { STHREAD_OUT = 0, STHREAD_IN = 1 };
+
     VOLATILE msgq_t	queue[2];
-    VOLATILE int		sleep;
+    VOLATILE int	sleep;
 public:
-    off_t	pos;
+    diskrw_off_t	pos;
     pid_t	pid;
-#ifdef PIPE_NOTIFY
+
+#ifdef _WINDOWS
+    HANDLE	_thread; // thread to await on close
+    CommandLineArgs *_args;
+#endif
+    int		_openflags; // _WINDOWS: can't fsync a file opened RDONLY
+
+#if defined(_WIN32) && defined(NEW_IO)
+    HANDLE	rw_chan[2];	/* channel to notify diskrw on 		*/
+    HANDLE	sv_chan[2];	/* channel to notify server on 		*/
+#else
     int		rw_chan[2];	/* channel to notify diskrw on 		*/
     int		sv_chan[2];	/* channel to notify server on 		*/
-#endif /* PIPE_NOTIFY */
+#endif
+
     const int	_magic; /* magic should be last so that data structure
 				   size differences are detected 	*/
     int	        _fd;    /* for server's fastpath                        */
 
-    diskport_t() : sleep(0), pos(0), pid(0), _magic(magic) {};
+    unsigned	_requested;	/* requests queued by a thread */
+    unsigned	_completed;	/* operation completed by a diskrw */
+    unsigned	_awakened;	/* request threads wakened from sleep */
+    char	name[20];	/* label for debug output, blocking */
+
+    diskport_t(int id = -1) : sleep(0), pos(0), pid(0), 
+#ifdef _WINDOWS
+	 _thread(0),
+	 _args(0),
+#endif
+	 _openflags(0),
+	_magic(magic),
+	_fd(-1),
+	_requested(0),
+	_completed(0),
+	_awakened(0) {
+		/* diskrw[-1] means it wasn't labelled. */
+		ostrstream s(name, sizeof(name));
+		s << "diskrw[" << id << "]" << ends;
+    };
+
     ~diskport_t()	{
 	pos = 0, pid = 0, sleep = 0;
-#ifdef PIPE_NOTIFY
-	rw_chan[0] = rw_chan[1] = -1;
-	sv_chan[0] = sv_chan[1] = -1;
-#endif /* PIPE_NOTIFY */
+
+#ifdef _WINDOWS
+	delete _args;
+#endif
+	rw_chan[0] = rw_chan[1] = DISKRW_FD_NONE;
+	sv_chan[0] = sv_chan[1] = DISKRW_FD_NONE;
     }
 
-    outstanding() const  { 
+    int outstanding() const  { 
 		return queue[0].outstanding()+queue[1].outstanding();
 	}
 
-    void send(const diskmsg_t& m);
-    void recv(diskmsg_t& m);
-    int send_ready()	{ return !queue[OUT].is_full(); }
-    int recv_ready()	{ return !queue[IN].is_empty(); }
+    int diskrw_recv(diskmsg_t& m) {
+#ifdef _WINDOWS
+			    return _recv(DISKRW_IN, m);
+#else
+			    if (_recv(DISKRW_IN, m) < 0) ::exit(1);
+			    return 0;
+#endif /* ! _WINDOWS */
+			}
 
-    check_magic()	{ return magic == _magic; }
+    void diskrw_send(const diskmsg_t& m) {
+			    queue[DISKRW_OUT].put(m);
+			    _completed++;
+			}
+
+    void sthread_send(const diskmsg_t& m) {
+			    _send(STHREAD_OUT, m);
+			}
+
+    void sthread_recv(diskmsg_t& m) {
+			    queue[STHREAD_IN].get(m);
+			}
+
+    int diskrw_send_ready() { return !queue[DISKRW_OUT].is_full(); }
+    int diskrw_recv_ready() { return !queue[DISKRW_IN].is_empty(); }
+    int sthread_send_ready() { return !queue[STHREAD_OUT].is_full(); }
+    int sthread_recv_ready() { return !queue[STHREAD_IN].is_empty(); }
+
+    bool check_magic()	{ return magic == _magic; }
+
+private:
+    void _send(int _q, const diskmsg_t& m);
+    int  _recv(int _q, diskmsg_t& m);
 };
 
-#ifdef DISKRW_C
-
-void diskport_t::send(const diskmsg_t& m)
+#if defined(DISKRW_C)
+int
+diskport_t::_recv(int _q, diskmsg_t& m)
 {
-    queue[OUT].put(m);
-}
-
-void diskport_t::recv(diskmsg_t& m)
-{
-    ACQUIRE(queue[IN].lock);		// SPUN in diskrw recving request
+    ACQUIRE(queue[_q].lock);		// SPUN in diskrw recving request
 
     sleep = 1;  // may sleep, set set this now to avoid race condition
-    if (queue[IN].is_empty())  {
-#ifndef PIPE_NOTIFY
-	sigset_t	mask, oldmask;
-	sigemptyset(&mask);
-	sigaddset(&mask, SIGUSR1);
-	int kr = sigprocmask(SIG_BLOCK, &mask, &oldmask);
-	if (kr == -1) {
-		cerr << "sigprocmask(BLOCK SIGUSR1)"
-			<< ::strerror(::errno) << endl;
-		::_exit(1);
-	}
-#endif
-	queue[IN].lock.release();
-	ShmcStats.lastsig = 0;
-#ifdef PIPE_NOTIFY
+    if (queue[_q].is_empty())  {
+	queue[_q].lock.release();
+	SET_SHMCSTATS(lastsig, 0);
 	ChanToken token = 0;
 	int	n;
-	void clean_shutdown();
-	while (queue[IN].is_empty()) {
+	void clean_shutdown(int);
+	while (queue[_q].is_empty()) {
 		errno = 0;
+		w_assert3(rw_chan[PIPE_IN] != DISKRW_FD_NONE);
+#if defined(_WIN32) && defined(NEW_IO)
+		n = WaitForSingleObject(rw_chan[PIPE_IN], INFINITE);
+		switch (n) {
+		case WAIT_TIMEOUT:	/* XXX ??? */
+			continue;
+		case WAIT_OBJECT_0:	/* success */
+			break;
+		case WAIT_ABANDONED:	/* no more writers */
+			clean_shutdown(1);
+			break;
+		default:
+			w_rc_t e = RC(fcWIN32);
+			cerr << "diskrw: - read channel token:" << endl
+				<< e << endl;
+			return -1;
+		}
+#else
+#ifdef _WINDOWS
+		n = recv(rw_chan[PIPE_IN], (char *)&token, sizeof(token), 0);
+#else
 		n = read(rw_chan[PIPE_IN], (char *)&token, sizeof(token));
+#endif
 		if (n == -1 && errno == EINTR)	/* intr syscall */
 			continue;
 		else if (n == 0) 	/* no more writers */
-			clean_shutdown();
+			clean_shutdown(1);
 		else if (n != sizeof(token)) {
-			::perror("diskrw:- read channel token");
-			//cerr << "    additional info: n = " << n << endl;
-			exit(1);
+			w_rc_t e;
+#ifdef _WINDOWS
+			e  = RC(fcWIN32);
+#else
+			e  = RC(fcOS);
+#endif
+			cerr << "diskrw: - read channel token"
+			<< "additional info: n = " << n
+			<< " fd = " << rw_chan[PIPE_IN] 
+			<< ":" << endl << e << endl;
+			return -1;
+			// was exit(1);
 		}
-		ShmcStats.notify++;
-		ShmcStats.lastsig = SIGUSR1; // pretend
+#endif
+		INC_SHMCSTATS(notify)
+		SET_SHMCSTATS(lastsig, SIGUSR1) // pretend
 	}
-#else /* PIPE_NOTIFY */
-	while (queue[IN].is_empty()) {
-		int kr = sigsuspend(&oldmask);
-		if (kr == -1  &&  errno != EINTR) {
-			cerr << "sigsuspend(): " <<
-				::strerror(::errno) << endl;
-			::_exit(1);
-		}
-	}
-#endif /* PIPE_NOTIFY */
-	switch(ShmcStats.lastsig){
-	case SIGALRM: ShmcStats.falarm++; break;
-	case SIGUSR1: ShmcStats.fnotify++; break;
-	case 0: ShmcStats.found++; break;
+
+#ifndef EXCLUDE_SHMCSTATS
+	switch(SHMCSTATS(lastsig)){
+	case SIGALRM: INC_SHMCSTATS(falarm) break;
+	case SIGUSR1: INC_SHMCSTATS(fnotify) break;
+	case 0: INC_SHMCSTATS(found) break;
 	default:
 		w_assert3(0);
 	}
+#endif /* EXCLUDE_SHMCSTATS */
 
-#ifndef PIPE_NOTIFY
-	kr = sigprocmask(SIG_SETMASK, &oldmask, 0);
-	if (kr == -1) {
-		cerr << "sigprocmas(SIG_SETMASK): "
-			<< ::strerror(::errno) << endl;
-		::_exit(1);
-	}
-#endif
-
-	ACQUIRE(queue[IN].lock);
+	ACQUIRE(queue[_q].lock);
     }
     sleep = 0;
-    queue[IN].get(m,false);
-    queue[IN].lock.release();
+    queue[_q].get(m,false);
+    queue[_q].lock.release();
+    return 0;
 }
+#endif /* !IO_C */
 
-#endif /*DISKRW_C*/
-
-#ifdef STHREAD_C
-
-void diskport_t::send(const diskmsg_t& m)
+#if defined(SDISK_DISKRW_C)
+void 
+diskport_t::_send(int _q, const diskmsg_t& m)
 {
-    ACQUIRE(queue[OUT].lock);
-    while (queue[OUT].is_full())  {
-	queue[OUT].lock.release();
+    ACQUIRE(queue[_q].lock);
+    while (queue[_q].is_full())  {
+	queue[_q].lock.release();
 	sthread_t::yield();
-	ACQUIRE(queue[OUT].lock);
+	ACQUIRE(queue[_q].lock);
     }
-    queue[OUT].put(m,false);
+    _requested++;
+    queue[_q].put(m,false);
     int kick = sleep;
-    queue[OUT].lock.release();
+    queue[_q].lock.release();
     if (kick)  {
-	ShmcStats.kicks++;
-#ifdef PIPE_NOTIFY
-	ChanToken token = 0;
-	if (::write(rw_chan[PIPE_OUT], (char *)&token, sizeof(token)) 
-							!= sizeof(token)) {
-		::perror("write channel token");
+	INC_SHMCSTATS(kicks);
+
+        int n=0;
+	w_assert3(rw_chan[PIPE_OUT] != DISKRW_FD_NONE);
+#if defined(_WIN32) && defined(NEW_IO)
+	n = SetEvent(rw_chan[PIPE_OUT]);
+	if (!n) {
+		w_rc_t e = RC(fcWIN32);
+		cerr << "sthread: write channel token:" << endl
+			<< e << endl;
 		::exit(-1);
 	}
 #else
-	if (kill(pid, SIGUSR1) == -1) {
-	    W_FATAL(fcOS);
+	ChanToken token = 0;
+#ifdef _WINDOWS
+	n = ::send(rw_chan[PIPE_OUT], (char *)&token, sizeof(token), 0);
+#else
+	n = ::write(rw_chan[PIPE_OUT], (char *)&token, sizeof(token));
+#endif
+	if(n != sizeof(token)) {
+		w_rc_t e;
+#ifdef _WINDOWS
+		e  = RC(fcWIN32);
+#else
+		e  = RC(fcOS);
+#endif
+		cerr << "sthread: write channel token additional info: n = "
+			<< n << " fd = " << rw_chan[PIPE_OUT]
+			<< ":" << endl << e << endl;
+		::exit(-1);
 	}
 #endif
     }
     
     sthread_t::priority_t oldp = sthread_t::me()->priority();
-    W_COERCE( 
-	sthread_t::me()->set_priority(sthread_t::t_time_critical) );
+    W_COERCE( sthread_t::me()->set_priority(sthread_t::t_time_critical) );
     
     int befores = SthreadStats.selects;
 
     SthreadStats.iowaits++;
 
-    W_COERCE( sthread_t::block(sthread_t::WAIT_FOREVER, 0,
-			       "sthread_t::_io") );
+    W_COERCE( sthread_t::block(sthread_t::WAIT_FOREVER, 0, name) );
+    _awakened++;
+
     int	afters = SthreadStats.selects;
 
     switch(afters-befores) {
-	case 0: SthreadStats.zero++; break;
-	case 1: SthreadStats.one++; break;
-	case 2: SthreadStats.two++; break;
-	case 3: SthreadStats.three++; break;
+	case 0: INC_STH_STATS(zero); break;
+	case 1: INC_STH_STATS(one); break;
+	case 2: INC_STH_STATS(two); break;
+	case 3: INC_STH_STATS(three); break;
 	default:
 		if(afters>befores) {
-		    SthreadStats.more++;
+		    INC_STH_STATS(more);
 		} else {
-		    SthreadStats.wrapped++;
+		    INC_STH_STATS(wrapped);
 		}
 		break;
     }
     
     W_COERCE( sthread_t::me()->set_priority(oldp) );
 }
+#endif /* !DISKRW_C */
 
-void diskport_t::recv(diskmsg_t& m)
-{
-    queue[IN].get(m);
-}
-#endif /*STHREAD_C*/
+
+#ifdef _WINDOWS
+#ifdef _MT
+unsigned
+#else
+DWORD
+#endif
+__stdcall DiskRWMain(void* data);
+
+#else /* !_WINDOWS */
 
 #ifdef DISKRW_C
+#ifndef EXCLUDE_SHMCSTATS
 const char *shmc_stats::stat_names[1]; // not used by diskrw
 #endif
+#endif /* DISKRW_C */
 
-#if !(defined(HPUX8) && defined(_INCLUDE_XOPEN_SOURCE)) && !defined(Linux)
-extern "C" {
-	int fsync(int);
-	int ftruncate(int, off_t);
-}
-#endif
-#endif /*DISKRW_H*/
+#if !(defined(HPUX8) && defined(_INCLUDE_XOPEN_SOURCE))
+	extern "C" {
+		int fsync(int);
+		int ftruncate(int, off_t);
+	}
+#endif /* ! HPUX8 ... */
+
+#endif /* !_WINDOWS */
+
+/*<std-footer incl-file-exclusion='DISKRW_H'>  -- do not edit anything below this line -- */
+
+#endif          /*</std-footer>*/

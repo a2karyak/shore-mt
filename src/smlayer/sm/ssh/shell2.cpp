@@ -1,16 +1,46 @@
-/* --------------------------------------------------------------- */
-/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
-/* -- University of Wisconsin-Madison, subject to the terms     -- */
-/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
-/* -- Reserved.                                                 -- */
-/* --------------------------------------------------------------- */
+/*<std-header orig-src='shore'>
 
-/*
- *  $Id: shell2.cc,v 1.14 1997/06/15 10:30:30 solomon Exp $
- */
+ $Id: shell2.cpp,v 1.43 1999/06/07 19:04:59 kupsch Exp $
+
+SHORE -- Scalable Heterogeneous Object REpository
+
+Copyright (c) 1994-99 Computer Sciences Department, University of
+                      Wisconsin -- Madison
+All Rights Reserved.
+
+Permission to use, copy, modify and distribute this software and its
+documentation is hereby granted, provided that both the copyright
+notice and this permission notice appear in all copies of the
+software, derivative works or modified versions, and any portions
+thereof, and that both notices appear in supporting documentation.
+
+THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+"AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+This software was developed with support by the Advanced Research
+Project Agency, ARPA order number 018 (formerly 8230), monitored by
+the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+Further funding for this work was provided by DARPA through
+Rome Research Laboratory Contract No. F30602-97-2-0247.
+
+*/
+
+#include "w_defines.h"
+
+/*  -- do not edit anything above this line --   </std-header>*/
 
 #include <ctype.h>
 #include "shell.h"
+
+#ifdef EXPLICIT_TEMPLATE
+template class w_auto_delete_array_t<bool>;
+#endif
+
+#define LARGEKEYSTRING (ss_m::page_sz/3)
+#define LARGESTRING ss_m::page_sz 
+#define STRINGMAX LARGESTRING+1
 
 void
 cvt2typed_value(
@@ -22,6 +52,8 @@ cvt2typed_value(
 )
 {
     switch(t) {
+	case test_blarge:
+	case test_b23:
 	case test_bv:
 	    _v._u.bv = string;
 	    _v._length = strlen(_v._u.bv);
@@ -33,37 +65,49 @@ cvt2typed_value(
 	    break;
 
 	case test_i1:
-	    _v._u.i1_num = (int1_t)atoi(string);
+	    _v._u.i1_num = int1_t(atoi(string));
 	    _v._length = sizeof(int1_t);
 	    break;
 
 	case test_i2:
-	    _v._u.i2_num = (int2_t)atoi(string);
+	    _v._u.i2_num = int2_t(atoi(string));
 	    _v._length = sizeof(int2_t);
 	    break;
 
 	case test_i4:
-	    _v._u.i4_num = (int4_t) atoi(string);
+	    _v._u.i4_num = int4_t(atoi(string));
 	    _v._length = sizeof(int4_t);
 	    break;
 
+	case test_i8:
+		/* XXX need input operators for types */
+	    _v._u.i8_num = w_base_t::strtoi8(string);
+	    _v._length = sizeof(w_base_t::int8_t);
+	    break;
+
 	case test_u1:
-	    _v._u.u1_num = (uint1_t) atoi(string);
+	    _v._u.u1_num = uint1_t(atoi(string));
 	    _v._length = sizeof(uint1_t);
 	    break;
 
 	case test_u2:
-	    _v._u.u2_num = (uint2_t) atoi(string);
+	    _v._u.u2_num = uint2_t(atoi(string));
 	    _v._length = sizeof(uint2_t);
 	    break;
 
 	case test_u4:
-	    _v._u.u4_num = (uint4_t) atoi(string);
+	    _v._u.u4_num = uint4_t(atoi(string));
 	    _v._length = sizeof(uint4_t);
 	    break;
 
+	case test_u8:
+		/* XXX need input operators for types */
+	    _v._u.u8_num = w_base_t::strtou8(string);
+	    _v._length = sizeof(w_base_t::uint8_t);
+	    break;
+
 	case test_f4:
-	    _v._u.f4_num = (float) atof(string);
+	    _v._u.f4_num = float(atof(string));
 	    _v._length = sizeof(f4_t);
 	    break;
 
@@ -78,158 +122,12 @@ cvt2typed_value(
     }
 }
 
-int
-t_test_bulkload_int_btree(Tcl_Interp* ip, int ac, char* av[])
-{
-    if (check(ip, "vid nkeys", ac, 3))
-	return TCL_ERROR;
-
-    const n = atoi(av[2]);
-    const h = n/2;
-    if (use_logical_id(ip))  {
-	lfid_t lfid;
-	lstid_t lstid;
-	GNUG_BUG_12(istrstream(av[1], strlen(av[1]))) >> lstid.lvid;
-	lfid.lvid = lstid.lvid;
-
-	DO( sm->create_index(lstid.lvid, sm->t_uni_btree, 
-		        ss_m::t_regular, "i4", ss_m::t_cc_kvl, 
-			0, lstid.serial) );
-
-	DO( sm->create_file(lfid.lvid, lfid.serial, ss_m::t_temporary) );
-	
-	int i;	
-	for (i = 0; i < n; i++)  {
-	    long k = i - h;
-	    lrid_t rid;
-	    DO( sm->create_rec( lfid.lvid, lfid.serial, 
-				vec_t(&k, sizeof(k)),
-				sizeof(k),
-				vec_t(&k, sizeof(k)),
-				rid.serial) );
-	}
-
-	sm_du_stats_t stats;
-	DO( sm->bulkld_index(lstid.lvid, lstid.serial,
-			     lfid.lvid, lfid.serial,
-			     stats) );
-
-	/* verify */
-	scan_index_i scan(lstid.lvid, lstid.serial, 
-			  scan_index_i::gt, cvec_t::neg_inf, 
-			  scan_index_i::lt, cvec_t::pos_inf);
-	
-	bool eof;
-	w_rc_t rc;
-	for (i = 0; (!(rc = scan.next(eof)) && !eof) ; i++)  {
-	    long k, e;
-	    vec_t key, el;
-	    key.put(&k, sizeof(k));
-	    el.put(&e, sizeof(e));
-	    smsize_t klen, elen;
-	    klen = elen = sizeof(k);
-	    DO( scan.curr(&key, klen, &el, elen));
-	    w_assert1(klen == elen && klen == sizeof(k));
-	    w_assert1(k == i - h);
-	    w_assert1(e == k);
-#ifdef SSH_VERBOSE
-	    cout << "retrieved " << k << endl;
-#endif
-	}
-	DO( rc );
-	w_assert1(i == n);
-
-	DO( sm->destroy_index(lstid.lvid, lstid.serial) );
-	DO( sm->destroy_file(lfid.lvid, lfid.serial) );
-    } else {
-	stid_t stid;
-	stid_t fid;
-	DO( sm->create_index(atoi(av[1]), sm->t_uni_btree, 
-		     ss_m::t_regular, "i4", ss_m::t_cc_kvl, stid) );
-	DO( sm->create_file(atoi(av[1]), fid, ss_m::t_temporary) );
-
-	int i;
-	for (i = 0; i < n; i++)  {
-	    long k = i - h;
-	    rid_t rid;
-	    DO( sm->create_rec( fid, 
-				vec_t(&k, sizeof(k)), 
-				sizeof(k),
-				vec_t(&k, sizeof(k)),
-				rid) );
-	}
-	
-	sm_du_stats_t stats;
-	DO( sm->bulkld_index(stid, fid, stats) );
-
-	scan_index_i scan(stid,
-			  scan_index_i::gt, cvec_t::neg_inf, 
-			  scan_index_i::lt, cvec_t::pos_inf);
-	
-	bool eof;
-	w_rc_t rc;
-	for (i = 0; (!(rc = scan.next(eof)) && !eof) ; i++)  {
-	    long k, e;
-	    vec_t key, el;
-	    key.put(&k, sizeof(k));
-	    el.put(&e, sizeof(e));
-	    smsize_t klen, elen;
-	    klen = elen = sizeof(k);
-	    DO( scan.curr(&key, klen, &el, elen));
-	    w_assert1(klen == elen && klen == sizeof(k));
-	    w_assert1(k == i - h);
-	    w_assert1(e == k);
-	}
-	DO( rc );
-	w_assert1(i == n);
-
-	DO( sm->destroy_index(stid) );
-	DO( sm->destroy_file(fid) );
-    }
-	
-    return TCL_OK;
-}
-
-
-typed_btree_test
-cvt2type(const char* s)
-{
-    static struct junk {
-	char* 			name;
-	typed_btree_test 	type;
-    } Junk[] = {
-	{ "i1",	test_i1 },
-	{ "u1",	test_u1 },
-
-	{ "i2",	test_i2 },
-	{ "u2",	test_u2 },
-
-	{ "i4", test_i4 },
-	{ "u4", test_u4 },
-
-	{ "f4",	test_f4 },
-	{ "f8",	test_f8 },
-
-	{ "b1",	test_b1 },
-	{ "b23",test_b23 },
-#define STRINGMAX 40
-	{ "b*1000",test_bv },
-
-/* for rtree ssh scripts */
-	{ "spatial",  test_spatial },
-
-	{ 0,	test_nosuch }
-    };
-
-    for (junk* p = Junk; p->name; p++)  {
-	if (streq((char *)s, p->name))  return p->type;
-    }
-    return test_nosuch;
-}
+typed_btree_test cvt2type(const char* s); // forward
 
 int1_t *values_i1  = 0;
 int2_t *values_i2  = 0;
 int4_t *values_i4  = 0;
+w_base_t::int8_t *values_i8  = 0;
 f4_t *values_f4  = 0;
 f8_t *values_f8  = 0;
 char **values_b  = 0;
@@ -265,6 +163,20 @@ int u4_cmp(const void *_p, const void *_q)
     if (*p > *q) return 1;
     return 0;
 }
+
+int u8_cmp(const void *_p, const void *_q) 
+{
+    w_base_t::uint8_t *p = (w_base_t::uint8_t *)&values_i8[*(int *)_p];
+    w_base_t::uint8_t *q = (w_base_t::uint8_t *)&values_i8[*(int *)_q];
+
+    DBG(<<"p=" << *(w_base_t::int8_t *)p
+        <<"q=" << *(w_base_t::int8_t *)q
+	);
+    if (*p < *q) return -1;
+    if (*p > *q) return 1;
+    return 0;
+}
+
 int i1_cmp(const void *_p, const void *_q) 
 {
     int1_t *p = &values_i1[*(int *)_p];
@@ -297,6 +209,19 @@ int i4_cmp(const void *_p, const void *_q)
     return 0;
 }
 
+int i8_cmp(const void *_p, const void *_q) 
+{
+    w_base_t::int8_t *p = &values_i8[*(int *)_p];
+    w_base_t::int8_t *q = &values_i8[*(int *)_q];
+
+    DBG(<<"p=" << *(w_base_t::int8_t *)p
+        <<"q=" << *(w_base_t::int8_t *)q
+	);
+    if (*p < *q) return -1;
+    if (*p > *q) return 1;
+    return 0;
+}
+
 int f4_cmp(const void *_p, const void *_q) 
 {
     f4_t *p = &values_f4[*(int *)_p];
@@ -316,6 +241,9 @@ int f8_cmp(const void *_p, const void *_q)
     if (*p > *q) return 1;
     return 0;
 }
+#define LARGEKEYSTRING (ss_m::page_sz/3)
+#define LARGESTRING ss_m::page_sz 
+#define STRINGMAX LARGESTRING+1
 
 int lex_cmp(const void *_p, const void *_q, int len) 
 {
@@ -328,23 +256,35 @@ int lex_cmp(const void *_p, const void *_q, int len)
     const u_char *a = *(u_char **)p;
     const u_char *b = *(u_char **)q;
 
-    if(len == STRINGMAX) {
-	unsigned int l1 = strlen((const char *)a);
-	unsigned int l2 = strlen((const char *)b);
-	len = (int)(l1>l2 ? l1 : l2);
-    }
+    int l1 = 0, l2 = 0;
+    { for(const u_char *pp = a; *pp && (l1 < len); pp++, l1++); }
+    { for(const u_char *pp = b; *pp && (l2 < len); pp++, l2++); }
+    len = (int)(l1>l2 ? l1 : l2);
 
-    DBG(<<"lex_cmp(_p = "
+#ifdef W_TRACE
+    {
+	vec_t tmpa(a, unsigned(l1));
+	vec_t tmpb(b, unsigned(l2));
+        DBG(<<"lex_cmp(_p = "
 	    << *(int *)_p << ", _q=" 
-	    << *(int *)_q << ", len=" << len << ")\na=" << a
-	    << "\nb=" << b);
+	    << *(int *)_q << ", len=" << len 
+	    << ")\na=" << tmpa
+	    << "\nb=" << tmpb);
+    }
+#endif
     int diff;
+#ifdef W_TRACE
+    const u_char *start = a;
+#endif
     while (len-- > 0) {
 	if ((diff = *a - *b)) {
+	    DBG(<<"lex_cmp returns " << diff
+		<< " in char " << int(a - start));
 	    return diff;
 	}
-	a++; b++;
+	a++; b++; 
     }
+    DBG(<<"lex_cmp returns 0 (SAME)");
     return 0;
 }
 
@@ -352,19 +292,26 @@ int lex_cmp1(const void *p, const void *q)
 {
     return lex_cmp(p,q,1);
 }
+int lex_cmplarge(const void *p, const void *q) 
+{
+    return lex_cmp(p,q,LARGEKEYSTRING);
+}
 int lex_cmp23(const void *p, const void *q) 
 {
     return lex_cmp(p,q,23);
 }
 int lex_cmpv(const void *p, const void *q) 
 {
-    return lex_cmp(p,q,STRINGMAX);
+    return lex_cmp(p,q,LARGEKEYSTRING);
 }
 
 char *make_printable(int i, int limit)
 {
+    if(i < 0) {
+	i = 0-i;
+    }
     if(i > limit) {
-	i = (int) (((unsigned)i) % limit);
+	i =  i % limit;
     }
     if(i < 1) i=1;
 
@@ -378,22 +325,22 @@ char *make_printable(int i, int limit)
 	while(!isalnum(j) 
 		// && !ispunct(j)
 		) {
-	    rnd = (generator.lrand() & 0x7f);
+	    rnd = (random_generator::generator.lrand() & 0x7f);
 	    j = (char)rnd;
 	}
 	s[i] = j; 
-	DBG(<<"chose random# " << hex <<  rnd  << dec
-		<< "== char " << j
-		<< "== octal " << oct << (int)j << dec
-		);
-	// j=0;
     }
     
     for (i=0; i<(int)strlen(s); i++) {
 	w_assert3(isalnum(s[i]));
     }
 
-    DBG(<<"make_printable(" << i << "," << limit <<")=" << s);
+#ifdef W_TRACE
+    {
+	    vec_t tmp(s, strlen(s));
+	    DBG(<<"make_printable(" << i << "," << limit <<")=" << tmp);
+    }
+#endif
     w_assert3( (int)strlen(s) <= limit);
     w_assert3( (int)strlen(s) > 0);
     return s;
@@ -417,7 +364,7 @@ _t_test_typed_btree(
 	int vid,
 	lstid_t &lstid,
 	int n, 
-	const char *keytype,
+	const char *_keytype,
 	const char *ccstring
 	)
 {
@@ -428,11 +375,14 @@ _t_test_typed_btree(
     }
     ss_m::concurrency_t cc = build_cc;
 
+    const char *keytype = check_compress_flag(_keytype);
+
     w_rc_t rc;
     FUNC(_t_test_typed_btree);
     DBG(<<"test typed btree vid= " << vid
 	<< " lstid=" << lstid 
 	<< " n=" << n
+	<< " _keytype=" << _keytype
 	<< " keytype=" << keytype
 	);
     char *key_buffer =0;
@@ -449,8 +399,8 @@ _t_test_typed_btree(
 	 * to use negative values.
 	 */
 	assert(n > 0);
-	// const h = n/2;
-	const h = 0;
+	// const int h = n/2;
+	const int h = 0;
 	int low = 0 - h;
 	int high = (n-1) - h;
 	int zero = 0;
@@ -470,6 +420,7 @@ _t_test_typed_btree(
 	/* keys: */
 	char i1=0;
 	int i4=0;
+	w_base_t::int8_t i8 = 0;
 	short i2=0;
 	float f4=0;
 	double f8=0;
@@ -510,6 +461,10 @@ _t_test_typed_btree(
 	    case test_i4:
 		values_i4 = new int4_t[n];
 		break;
+	    case test_u8:
+	    case test_i8:
+		values_i8 = new w_base_t::int8_t[n];
+		break;
 	    case test_f4:
 		values_f4 = new f4_t[n];
 		break;
@@ -518,10 +473,14 @@ _t_test_typed_btree(
 		break;
 	    case test_b1:
 	    case test_b23:
-	    case test_bv:
-		values_b = new (char*)[n];
-		key_buffer = new char[STRINGMAX]; // max
+	    case test_blarge:
+	    case test_bv:  {
+		typedef char * cp;
+		values_b = new cp[n];
+		key_buffer = new char[LARGEKEYSTRING]; // max
+		}
 		break;
+
 
 	    case test_spatial:
 	    default: 
@@ -542,11 +501,12 @@ _t_test_typed_btree(
 
 	    // TODO : limit this by the range of the
 	    // domain instead
-	    i = generator.mrand() % 65535;
+	    i = random_generator::generator.mrand() % 65535;
 
     #define MAKE_CHAR(i) ((char)(i&0xff))
     #define MAKE_SHORT(i) ((short)i)
     #define MAKE_INT(i) (i)
+    #define MAKE_INT8(i) (i)
     #define MAKE_FLOAT(i) ((float)i * 1.0001)
     #define MAKE_DOUBLE(i) (((double)i*100000000) * 1.00001)
     #define MAKE_STRING(i,limit) make_printable(i,limit) 
@@ -597,8 +557,20 @@ _t_test_typed_btree(
 			}
 		    }
 		    break;
+		case test_u8:
+		case test_i8:
+		    i8 = MAKE_INT8(j==low?0:i);
+		    values_i8[NORMALIZE(j)] = i8;
+		    if (linked.verbose_flag) {
+			if(t == test_i8) {
+			    cerr << values_i8[NORMALIZE(j)] << endl;
+			} else {
+			    cerr << (unsigned) values_i8[NORMALIZE(j)] << endl;
+			}
+		    }
+		    break;
 		case test_f4:
-		    f4 = MAKE_FLOAT(j==low?0:i);
+		    f4 = (float) MAKE_FLOAT(j==low?0:i);
 		    values_f4[NORMALIZE(j)] = f4;
 		    if (linked.verbose_flag) {
 			cerr << values_f4[NORMALIZE(j)] << endl;
@@ -615,11 +587,13 @@ _t_test_typed_btree(
 		    b = MAKE_STRING(1, 1);
 		case test_b23:
 		    if(!b) b = MAKE_STRING(23, 23);
-		case test_bv:
-		    if(!b) b = MAKE_STRING(i, STRINGMAX-1);
+		case test_blarge:
+		case test_bv: {
+		    if(!b) b = MAKE_STRING(i, LARGEKEYSTRING-1);
 		    values_b[NORMALIZE(j)] = b;
 		    if (linked.verbose_flag) {
 			cerr << values_b[NORMALIZE(j)] << endl;
+		    }
 		    }
 		    break;
 
@@ -637,11 +611,16 @@ _t_test_typed_btree(
 	 *     values_*[sorted[i]] for i=0->n
 	 *   value_*[i] should appear in the scan in place reverse[i]
 	 */
-	int sorted[n];
-	int reverse[n];
-	bool duplicated[n]; // if true, sorted[i] is duplicated
+	int* sorted = new int[n];
+	w_auto_delete_array_t<int> auto_del_sorted(sorted);
+
+	int* reverse = new int[n];
+	w_auto_delete_array_t<int> auto_del_reverse(reverse);
+
+	bool* duplicated = new bool[n]; // if true, sorted[i] is duplicated
 	    // if value X appears 3 times, the first 2 sorted[j] are
 	    // marked duplicated, and the last one isn't
+	w_auto_delete_array_t<bool> auto_del_dup(duplicated);
 
 	{
 	    for(j=0; j<n; j++) { 
@@ -669,6 +648,12 @@ _t_test_typed_btree(
 		case test_i4:
 		    compar = i4_cmp;
 		    break;
+		case test_u8:
+		    compar = u8_cmp;
+		    break;
+		case test_i8:
+		    compar = i8_cmp;
+		    break;
 		case test_f4:
 		    compar = f4_cmp;
 		    break;
@@ -678,14 +663,19 @@ _t_test_typed_btree(
 
 		case test_b1:
 		case test_b23:
-		case test_bv:
+		case test_blarge:
+		case test_bv: {
 		    if(t==test_b1) {
 			compar = lex_cmp1;
+		    } else 
+		    if(t==test_blarge) {
+			compar = lex_cmplarge;
 		    } else 
 		    if(t==test_b23) {
 			compar = lex_cmp23;
 		    } else {
 			compar = lex_cmpv;
+		    }
 		    }
 		    break;
 
@@ -783,6 +773,33 @@ _t_test_typed_btree(
 		    }
 		    break;
 
+		case test_u8:
+		    DBG(<<"j=" << j
+			<< " values_i8[sorted[j]] = " << (unsigned)
+			    values_i8[sorted[j]]
+			<< " values_i8[sorted[j-1]] = " << (unsigned)
+			    values_i8[sorted[j-1]]
+			);
+		    w_assert1((unsigned) values_i8[sorted[j]] >= (unsigned)
+				    values_i8[sorted[j-1]]);
+		    if(values_i8[sorted[j]] == values_i8[sorted[j-1]]) {
+			duplicates++;
+			duplicated[j-1] = true;
+		    }
+		    break;
+
+		case test_i8:
+		    DBG(<<"j=" << j
+			<< " values_i8[sorted[j]] = " << values_i8[sorted[j]]
+			<< " values_i8[sorted[j-1]] = " << values_i8[sorted[j-1]]
+			);
+		    w_assert1(values_i8[sorted[j]] >= values_i8[sorted[j-1]]);
+		    if(values_i8[sorted[j]] == values_i8[sorted[j-1]]) {
+			duplicates++;
+			duplicated[j-1] = true;
+		    }
+		    break;
+
 		case test_f4:
 		    DBG(<<"j=" << j
 			<< " values_f4[sorted[j]] = " << values_f4[sorted[j]]
@@ -811,14 +828,25 @@ _t_test_typed_btree(
 		    len=1;
 		case test_b23:
 		    if(!len) len=23;
+		case test_blarge:
 		case test_bv:
-		    if(!len) len=STRINGMAX;
+		    if(!len) len=LARGEKEYSTRING;
 
-		    DBG(<<"j=" << j
+#ifdef W_TRACE
+		    {
+			vec_t tmpa(values_b[sorted[j]], 
+				strlen(values_b[sorted[j]]));
+			vec_t tmpb(values_b[sorted[j-1]], 
+				strlen(values_b[sorted[j-1]]));
+			DBG(<<"j=" << j
 			<<" len=" << len
-			<< " values_b[sorted[j]] = " << values_b[sorted[j]]
-			<< " values_b[sorted[j-1]] = " << values_b[sorted[j-1]]
+			<< " values_b[sorted[j]] = " 
+			<< tmpa
+			<< " values_b[sorted[j-1]] = " 
+			<< tmpb
 			);
+		    }
+#endif
 		    w_assert1( lex_cmp(&sorted[j], &sorted[j-1], len)>=0);
 
 		    if(lex_cmp(&sorted[j],&sorted[j-1], len)==0) {
@@ -906,6 +934,22 @@ _t_test_typed_btree(
 			    );
 		    break;
 
+		case test_u8:
+		    DBG( << j << " : " <<  (unsigned) values_i8[j] 
+			    << " /\t"  << sorted[j]
+			    << " :\t" << (unsigned) values_i8[sorted[j]]
+			    << (char * )(duplicated[j]?"*":"")
+			    );
+		    break;
+
+		case test_i8:
+		    DBG( << j << " : " <<  values_i8[j] 
+			    << " /\t"  << sorted[j]
+			    << " :\t" << values_i8[sorted[j]]
+			    << (char * )(duplicated[j]?"*":"")
+			    );
+		    break;
+
 		case test_f4:
 		    DBG( << j << " : " <<  values_f4[j] 
 			    << " /\t"  << sorted[j]
@@ -924,12 +968,21 @@ _t_test_typed_btree(
 
 		case test_b1:
 		case test_b23:
+		case test_blarge:
 		case test_bv:
-		    DBG( << j << " : " <<  values_b[j] 
+#ifdef W_TRACE
+		    {
+			vec_t tmpa(values_b[j], strlen(values_b[j]));
+			vec_t tmpb(values_b[sorted[j]], 
+				strlen(values_b[sorted[j]]));
+			DBG( << j << " : " <<  tmpa
 			    << " /\t"  << sorted[j]
-			    << " :\t" << values_b[sorted[j]]
+			    << " :\t" << tmpb 
 			    << (char * )(duplicated[j]?"*":"")
 			    );
+		    }
+		    
+#endif
 		    break;
 
 		case test_spatial:
@@ -993,6 +1046,11 @@ _t_test_typed_btree(
 		key.put(&i4, (klen = sizeof(i4))); 
 		break;
 
+	    case test_u8:
+	    case test_i8:
+		key.put(&i8, (klen = sizeof(i8))); 
+		break;
+
 	    case test_f4:
 		key.put(&f4, (klen = sizeof(f4))); 
 		break;
@@ -1002,9 +1060,10 @@ _t_test_typed_btree(
 		break;
 
 	    case test_b23:
+	    case test_blarge:
 	    case test_b1:
 	    case test_bv:
-		// to be done below
+		// to be done below -- see "HERE"
 		// key.put(b, (klen = strlen(b)));
 		break;
 
@@ -1031,16 +1090,18 @@ _t_test_typed_btree(
 	    if(values_i1) i1 = values_i1[NORMALIZE(i)];
 	    if(values_i2) i2 = values_i2[NORMALIZE(i)];
 	    if(values_i4) i4 = values_i4[NORMALIZE(i)];
+	    if(values_i8) i8 = values_i8[NORMALIZE(i)];
 	    if(values_f4) f4 = values_f4[NORMALIZE(i)];
 	    if(values_f8) f8 = values_f8[NORMALIZE(i)];
 	    if(values_b) {
 		b = values_b[NORMALIZE(i)];
+		// put into key HERE
 		w_assert3(b);
 		w_assert3(isalnum(*b));
 
 		key.reset().put(b, (klen = strlen(b)));
-		w_assert3(key.size() < STRINGMAX);
-		w_assert3(klen < STRINGMAX);
+		w_assert3(key.size() < LARGEKEYSTRING);
+		w_assert3(klen < LARGEKEYSTRING);
 		w_assert3(klen == key.size());
 	    }
 
@@ -1049,6 +1110,7 @@ _t_test_typed_btree(
 		// << i1 << "," 
 		// << i2 << "," 
 		// << i4 << "," 
+		// << i8 << "," 
 		// << f4 << "," 
 		// << f8 << ","
 		<< b << ";"
@@ -1060,13 +1122,16 @@ _t_test_typed_btree(
 		<< " el.size()=" << el.size() 
 		<< endl
 		);
+#ifdef W_DEBUG
 	    if(values_b) w_assert3(isalnum(*b));
+#endif /* W_DEBUG */
 	    if (linked.verbose_flag) {
 		cerr  << "inserting " << keytype <<
 		    " key[" << i << "] : "  
 		    << (u_char)i1 << "," 
 		    << i2 << "," 
 		    << i4 << "," 
+		    << i8 << "," 
 		    << f4 << "," 
 		    << f8 << ","
 		    << b << "; elem=" << elemvalue
@@ -1083,6 +1148,27 @@ _t_test_typed_btree(
 	    } else {
 		rc = sm->create_assoc( stid, key, el);
 	    }
+#ifdef W_DEBUG
+	    if (rc.reset()) {
+		cerr  << "inserting " << keytype <<
+		    " key[" << i << "] : "  
+		    << (u_char)i1 << "," 
+		    << i2 << "," 
+		    << i4 << "," 
+		    << i8 << "," 
+		    << f4 << "," 
+		    << f8 << ","
+		    << b << "; elem=" << elemvalue
+		    << endl
+		    << " klen " << klen
+		    << " key.size()=" << key.size()
+		    << " elen " << elen
+		    << " el.size()=" << el.size() << " "
+		    << endl;
+		cerr  << "Dump of index after insert:" << endl;
+		DO( sm->print_index(stid) );
+	    }
+#endif /* W_DEBUG */
 	}
 	if (rc)  {
 	    cerr << RC_AUGMENT(rc) <<endl;
@@ -1095,6 +1181,9 @@ _t_test_typed_btree(
 	}
 
 	DBG(<<"Insertions done.");
+	if (linked.verbose_flag) {
+	    DO( sm->print_index(stid) );
+	}
 
 	/*
 	 * Done with insertions; now test the scans.
@@ -1110,9 +1199,10 @@ _t_test_typed_btree(
 	    char first_i1=0, last_i1=0;
 	    short first_i2=0, last_i2=0;
 	    int first_i4=0, last_i4=0;
+	    w_base_t::int8_t first_i8=0, last_i8=0;
 	    float first_f4=0.0, last_f4=0.0;
 	    double first_f8=0.0, last_f8=0.0;
-	    char *first_b=0, *last_b=0;
+	    const char *first_b=0, *last_b=0;
 
 	    vec_t first_vec;
 	    vec_t last_vec;
@@ -1140,6 +1230,11 @@ _t_test_typed_btree(
 		    first_vec.put(&first_i4, sizeof(first_i4)); 
 		    last_vec.put(&last_i4, sizeof(last_i4)); 
 		    break;
+		case test_u8:
+		case test_i8:
+		    first_vec.put(&first_i8, sizeof(first_i8)); 
+		    last_vec.put(&last_i8, sizeof(last_i8)); 
+		    break;
 		case test_f4:
 		    first_vec.put(&first_f4, sizeof(first_f4)); 
 		    last_vec.put(&last_f4, sizeof(last_f4)); 
@@ -1153,12 +1248,13 @@ _t_test_typed_btree(
 		    len = 1;
 		    w_assert1(strlen(b)==1);
 		case test_b23:
-		    if(t == test_b23) {
+		    if(t==test_b23) {
 			w_assert1(strlen(b)==23);
 		    }
+		case test_blarge:
 		case test_bv:
 		    len = strlen(b);
-		    w_assert1(len < STRINGMAX);
+		    w_assert1(len < LARGEKEYSTRING);
 		    /*
 		     * NB: first_b, last_b == 0 here: we
 		     * have to do the vec.put()s after
@@ -1504,6 +1600,40 @@ _t_test_typed_btree(
 			    }
 			    break;
 
+			case test_u8:
+			case test_i8:
+			    first_i8 = first_adjust +
+				values_i8[sorted[NORMALIZE(first_index)]];
+			    last_i8 = 
+				values_i8[sorted[NORMALIZE(last_index)]]
+				+ last_adjust;
+			    if (linked.verbose_flag) {
+				cerr << " values range: "  
+				     << cvt2string(op1) <<" " 
+				     << first_i8 << " " 
+				     << cvt2string(op2) <<" " 
+				     << last_i8 <<endl;
+			    }
+			    if(first < low && t == test_u8) {
+				// can't create a smaller unsigned
+				// number than 0
+				expected = -2;
+			    }
+			    // If our random set covers the entire
+			    // range of values, we can't
+			    // do this test. If it extends either to the 
+			    // highest small value or to the lowest
+			    // small value, we can't do this test.
+			    if(first_i8 >=
+				values_i8[sorted[NORMALIZE(first_index)]]) {
+				expected = -2;
+			    }
+			    if( last_i8 <=
+				values_i8[sorted[NORMALIZE(last_index)]] ) {
+				expected = -2;
+			    }
+			    break;
+
 			case test_f4:
 			    first_f4 = first_adjust +
 				    values_f4[sorted[NORMALIZE(first_index)]];
@@ -1560,28 +1690,46 @@ _t_test_typed_btree(
 
 			case test_b1:
 			case test_b23:
+			case test_blarge:
 			case test_bv:
-			    first_b = first_adjust? "" :
+			    first_b = first_adjust ? "" :
 				    values_b[sorted[NORMALIZE(first)]];
+#ifdef W_DEBUG
 			    w_assert3(first_b);
 			    if(!first_adjust) w_assert3(isalnum(*first_b) );
+#endif /* W_DEBUG */
 
 			    last_b = last_adjust? LASTSTRING :
-				    values_b[sorted[NORMALIZE(last)]];
+			    values_b[sorted[NORMALIZE(last)]];
 			    w_assert3(last_b);
 
-			    if (linked.verbose_flag) {
-				cerr << " values range: "  
-				     << cvt2string(op1) <<" " 
-				     << first_b << " " 
-				     << cvt2string(op2) <<" " 
-				     << last_b <<endl;
+			    if(last > high) {
+				if (linked.verbose_flag) {
+				    cerr << " values range: "  
+					 << cvt2string(op1) <<" " 
+					 << first_b << " " 
+					 << cvt2string(op2) <<" " 
+					 << "<unprintable:last+1>" <<endl;
+				}
+				DBG(<< " values range: "  
+					 << cvt2string(op1) <<" " 
+					 << first_b << " " 
+					 << cvt2string(op2) <<" " 
+					 << "<unprintable:last+1>" );
+			    } else {
+				if (linked.verbose_flag) {
+				    cerr << " values range: "  
+					 << cvt2string(op1) <<" " 
+					 << first_b << " " 
+					 << cvt2string(op2) <<" " 
+					 << last_b <<endl;
+				}
+				DBG(<< " values range: "  
+					 << cvt2string(op1) <<" " 
+					 << first_b << " " 
+					 << cvt2string(op2) <<" " 
+					 << last_b );
 			    }
-			    DBG(<< " values range: "  
-				     << cvt2string(op1) <<" " 
-				     << first_b << " " 
-				     << cvt2string(op2) <<" " 
-				     << last_b );
 			    /*
 			     * see comment above, at VEC_XXXX
 			     */
@@ -1622,15 +1770,15 @@ _t_test_typed_btree(
 		    if (logical)  {
 			scan = new (scan_space) scan_index_i(lstid.lvid, lstid.serial, 
 					  op1, first_vec, 
-					  op2, last_vec, cc);
+					  op2, last_vec, false, cc);
 		    } else {
 			DBG(<<"stid=" << stid);
 			scan = new (scan_space) scan_index_i(stid,
 					  op1, first_vec, 
-					  op2, last_vec, cc);
+					  op2, last_vec, false, cc);
 		    }
 
-		    if(scan && scan->error_code()) {
+		    if(scan != 0 && scan->error_code()!=0) {
 			if(expected < 0 ) {
 				// expected this error
 				scan->~scan_index_i();
@@ -1669,8 +1817,8 @@ _t_test_typed_btree(
 
 		    // special case for strings:
 		    if(values_b) {
-			key.reset().put(key_buffer, STRINGMAX);
-			klen = STRINGMAX;
+			key.reset().put(key_buffer, LARGEKEYSTRING);
+			klen = LARGEKEYSTRING;
 		    }
 
 		    /* MAIN SCAN LOOP */
@@ -1685,7 +1833,7 @@ _t_test_typed_btree(
 
 			/* clobber key holders */
 			i1 = 0; i2 = 0; i4 = 0; f4 = -0.0; f8 = -0.0; 
-			if(key_buffer) memset(key_buffer, '\0', STRINGMAX);
+			if(key_buffer) memset(key_buffer, '\0', LARGEKEYSTRING);
 
 			smsize_t _klen, _elen;
 			DO_GOTO( scan->curr(&key, _klen, &el, _elen));
@@ -1718,6 +1866,13 @@ _t_test_typed_btree(
 				cerr << i4 << endl;
 				break;
 
+				case test_u8:
+				cerr << (unsigned) i8 << endl;
+				break;
+				case test_i8:
+				cerr << i8 << endl;
+				break;
+
 				case test_f4:
 				cerr << f4 << endl;
 				break;
@@ -1728,6 +1883,7 @@ _t_test_typed_btree(
 
 				case test_b1:
 				case test_b23:
+				case test_blarge:
 				case test_bv:
 				cerr << key_buffer << endl;
 				break;
@@ -1800,12 +1956,13 @@ _t_test_typed_btree(
 			 * don't care if it's stable, do this here:
 			 sort_is_stable = false;
 			 */
-			w_assert1(sort_is_stable);
+		 sort_is_stable = false;
+		// w_assert1(sort_is_stable);
 			if(what != DONTCARE && expected != -2) {
-			    if(sort_is_stable) {
-				w_assert1(elemvalue == NORMALIZE(what));
-			    } else {
-				if(elemvalue != NORMALIZE(what)) {
+			    if (elemvalue != NORMALIZE(what)) {
+				if(sort_is_stable) {
+		    cerr << "WARNING!****BTREE SORT IS NOT STABLE" <<endl;
+				} else {
 				    // it's a duplicate
 				    // elemvalue must match ONE of the
 				    // duplicates
@@ -1872,6 +2029,20 @@ _t_test_typed_btree(
 			    w_assert1(i4 == values_i4[sorted[elemvalue]]);
 			    break;
 
+			    case test_u8:
+			    DBG(<<"i8=" <<(unsigned) i8
+				<< " expect " 
+				<< (unsigned) values_i8[sorted[elemvalue]]);
+			    w_assert1(i8 == values_i8[sorted[elemvalue]]);
+			    break;
+
+			    case test_i8:
+			    DBG(<<"i8=" <<i8
+				<< " expect " 
+				<< values_i8[sorted[elemvalue]]);
+			    w_assert1(i8 == values_i8[sorted[elemvalue]]);
+			    break;
+
 			    case test_f4:
 			    DBG(<<"f4=" <<f4
 				<< " expect " << values_f4[sorted[elemvalue]]);
@@ -1888,8 +2059,9 @@ _t_test_typed_btree(
 				len=1;
 			    case test_b23:
 				if(!len) len=23;
+			    case test_blarge:
 			    case test_bv:
-				if(!len) len=STRINGMAX;
+				if(!len) len=LARGEKEYSTRING;
 			    DBG(<<"b=" << key_buffer
 				<< " expect " << values_b[sorted[elemvalue]]);
 			    break;
@@ -1904,7 +2076,7 @@ _t_test_typed_btree(
 		     * EPILOGUE TO MAIN SCAN LOOP 
 		     * check ending conditions
 		     */
-		    DBG(<<" rc= " << rc);
+		    DBG(<<" rc= " << rc << " eof=" << eof);
 		    scan->finish();
 		    DO_GOTO( rc );
 
@@ -2017,6 +2189,7 @@ _t_test_typed_btree(
 	if(values_i1) { delete[] values_i1; values_i1=0; }
 	if(values_i2) { delete[] values_i2; values_i2=0; }
 	if(values_i4) { delete [] values_i4; values_i4=0; }
+	if(values_i8) { delete [] values_i8; values_i8=0; }
 	if(values_f4) { delete[] values_f4; values_f4=0; }
 	if(values_f8) { delete[] values_f8; values_f8=0; }
 	if(values_b) { 
@@ -2034,6 +2207,7 @@ failure:
     if(values_i1) { delete[] values_i1; values_i1=0; }
     if(values_i2) { delete[] values_i2; values_i2=0; }
     if(values_i4) { delete [] values_i4; values_i4=0; }
+    if(values_i8) { delete [] values_i8; values_i8=0; }
     if(values_f4) { delete[] values_f4; values_f4=0; }
     if(values_f8) { delete[] values_f8; values_f8=0; }
     if(values_b) { 
@@ -2052,11 +2226,11 @@ t_test_int_btree(Tcl_Interp* ip, int ac, char* av[])
 {
     if (check(ip, "vid nkeys", ac, 3))
 	return TCL_ERROR;
-    const n = atoi(av[2]);
+    const int n = atoi(av[2]);
     lstid_t lstid;
     int vid = 0;
     if(use_logical_id(ip)) {
-	GNUG_BUG_12(istrstream(av[1], strlen(av[1]))) >> lstid.lvid;
+	istrstream anon(VCPP_BUG_1 av[1], strlen(av[1])); anon >> lstid.lvid;
     } else {
 	vid = atoi(av[1]);
     }
@@ -2078,11 +2252,11 @@ t_test_typed_btree(Tcl_Interp* ip, int ac, char* av[])
 {
     if (check(ip, "vid nkeys type cc", ac, 4, 5))
 	return TCL_ERROR;
-    const n = atoi(av[2]);
+    const int n = atoi(av[2]);
     lstid_t lstid;
     int vid = 0;
     if(use_logical_id(ip)) {
-	GNUG_BUG_12(istrstream(av[1], strlen(av[1]))) >> lstid.lvid;
+	istrstream anon(VCPP_BUG_1 av[1], strlen(av[1])); anon >> lstid.lvid;
     } else {
 	vid = atoi(av[1]);
     }
@@ -2090,66 +2264,98 @@ t_test_typed_btree(Tcl_Interp* ip, int ac, char* av[])
 }
 
 int
-t_create_typed_hdr_rec(Tcl_Interp* ip, int ac, char* av[])
+t_create_typed_hdr_body_rec(Tcl_Interp* ip, int ac, char* av[])
 {
-    // Same as create_typed_rec except that we interpret both
+    // Same as create_typed_hdr_rec except that we interpret both
     // the header and the data as typed values 
+    // We give a data type for the header and another for the body.
     //
     //	             1 2   3    4        5    6    7
     if (check(ip, "fid hdr type len_hint data type [universe]", ac, 7, 8))
 	return TCL_ERROR;
 
+    int fid_arg = 1;
+    int hdr_arg = 2;
+    int hdr_type_arg = 3;
+    int len_hint_arg = 4;
+    int body_arg = 5;
+    int body_type_arg = 6;
+    int universe_arg = 7;
     typed_btree_test t;
     vec_t hdr, data;
     typed_value vh, vd;
-    int hval = 0;
     nbox_t box;
 
-    t = cvt2type(av[3]);
+    const char *keydescr = check_compress_flag(av[hdr_type_arg]);
+    t = cvt2type(keydescr);
+
     switch(t) {
     case test_spatial:
-	box.put(av[2]);
-	if (ac == 8) {
-	    nbox_t u(av[7]);
-	    hval = box.hvalue(u);
-    	    hdr.put(&hval, sizeof(hval));
+	box.put(av[hdr_arg]);
+	if(newsort) {
+	    hdr.put(box.kval(), box.klen()); // just the box
 	} else {
-    	    hdr.put(box.kval(), box.klen());
-        }
+	    nbox_t u(hdr_arg);
+	    if(ac > universe_arg) {
+		u.put(av[universe_arg]);
+		int hval = box.hvalue(u);
+		hdr.put(&hval, sizeof(hval));
+	    } else {
+	        hdr.put(box.kval(), box.klen()); // just the box
+	    }
+	}
 	break;
 
     case test_bv:
-	hdr.put(av[2], strlen(av[2]));
+	// include null terminator
+	hdr.put(av[hdr_arg], strlen(av[hdr_arg])+1);
+	break;
+
+    case test_blarge:
+	cerr << "Cannot use blarge test for hdrs"<<endl;
+        W_FATAL(ss_m::eNOTIMPLEMENTED);
 	break;
 
     default:
-	cvt2typed_value(t, av[2], vh);
+	cvt2typed_value(t, av[hdr_arg], vh);
 	hdr.put(&vh._u, vh._length);
 	break;
     }
 
-    int hval2 = 0;
     nbox_t box2;
 
-    t = cvt2type(av[6]);
+    char *strbuf = new char[STRINGMAX];
+    w_auto_delete_array_t<char> autodel(strbuf);
+
+    t = cvt2type(av[body_type_arg]);
     switch(t) {
     case test_spatial: 
-	box2.put(av[5]);
-	if (ac == 8) {
-	    nbox_t u(av[7]);
-	    hval2 = box2.hvalue(u);
-    	    data.put(&hval2, sizeof(hval2));
-	} else {
-    	    data.put(box2.kval(), box2.klen());
-        }
+	box2.put(av[body_arg]);
+        data.put(box2.kval(), box2.klen()); // just the box
         break;
 
+    case test_blarge: {
+	// fall through
+	size_t s = strlen(av[body_arg]); 
+	s++;
+	// Copy the key to the END of the string
+	// to make sure it ends up not at the
+	// very beginning of the record, thereby
+	// defeating this test.
+        memset(strbuf, 'Z', LARGESTRING);
+        memcpy((strbuf+LARGESTRING)-s, av[body_arg], s);
+	data.put(strbuf, LARGESTRING);
+	}
+	break;
+
+    case test_b23:
     case test_bv:
-	data.put(av[5], strlen(av[5]));
+	// include null terminator
+	data.put(av[body_arg], strlen(av[body_arg])+1);
 	break;
 
     default:
-	cvt2typed_value(t, av[5], vd);
+	cvt2typed_value(t, av[body_arg], vd);
 	data.put(&vd._u, vd._length);
 	break;
     }
@@ -2158,8 +2364,8 @@ t_create_typed_hdr_rec(Tcl_Interp* ip, int ac, char* av[])
 	lstid_t  stid;
 	lrid_t   rid;
 
-	GNUG_BUG_12(istrstream(av[1], strlen(av[1])) ) >> stid;
-	DO( sm->create_rec(stid.lvid, stid.serial, hdr, atoi(av[3]),
+	istrstream anon(VCPP_BUG_1 av[1], strlen(av[1])); anon >> stid;
+	DO( sm->create_rec(stid.lvid, stid.serial, hdr, objectsize(av[3]),
 			   data, rid.serial) );
 	rid.lvid = stid.lvid;
 	tclout.seekp(ios::beg);
@@ -2168,8 +2374,10 @@ t_create_typed_hdr_rec(Tcl_Interp* ip, int ac, char* av[])
 	stid_t  stid;
 	rid_t   rid;
 
-	GNUG_BUG_12(istrstream(av[1], strlen(av[1])) ) >> stid;
-	DO( sm->create_rec(stid, hdr, atoi(av[3]), data, rid) );
+	istrstream anon(VCPP_BUG_1 av[fid_arg], strlen(av[fid_arg])); 
+		anon >> stid;
+	DO( sm->create_rec(stid, hdr, 
+		objectsize(av[len_hint_arg]), data, rid) );
 	tclout.seekp(ios::beg);
 	tclout << rid << ends;
     }
@@ -2178,42 +2386,64 @@ t_create_typed_hdr_rec(Tcl_Interp* ip, int ac, char* av[])
 }
 
 int
-t_create_typed_rec(Tcl_Interp* ip, int ac, char* av[])
+t_create_typed_hdr_rec(Tcl_Interp* ip, int ac, char* av[])
 {
     // NB: type refers to what goes into the header, NOT the data
+    // The data are just taken as a string
     //	             1 2   3        4    5    6
     if (check(ip, "fid hdr len_hint data type [universe]", ac, 6, 7))
 	return TCL_ERROR;
+    int fid_arg = 1;
+    int hdr_arg = 2;
+    int len_hint_arg = 3;
+    int body_arg = 4;
+    int body_type_arg = 5;
+    int universe_arg = 6;
 
-    typed_btree_test t = cvt2type(av[5]);
     
     vec_t hdr, data;
 
-    data.put(av[4], strlen(av[4]));
+    // include null terminator
+    data.put(av[body_arg], strlen(av[body_arg])+1);
 
     typed_value vh;
     nbox_t box;
     
-    t = cvt2type(av[5]);
+    typed_btree_test t = cvt2type(av[body_type_arg]);
 
     switch(t) {
     case test_spatial: 
-	box.put(av[2]);
-	if (ac == 7) {
-	    nbox_t u(av[6]);
-	    int hval = box.hvalue(u);
-    	    hdr.put(&hval, sizeof(hval));
+	box.put(av[hdr_arg]);
+	if(newsort) {
+	    hdr.put(box.kval(), box.klen()); // just the box
 	} else {
-    	    hdr.put(box.kval(), box.klen());
-        }
+	    nbox_t u(hdr_arg);
+	    if(ac > universe_arg) {
+		u.put(av[universe_arg]);
+		int hval = box.hvalue(u);
+		hdr.put(&hval, sizeof(hval));
+	    } else {
+	    	hdr.put(box.kval(), box.klen()); // just the box
+	    }
+	}
         break;
 
     case test_bv:
-	hdr.put(av[2], strlen(av[2]));
+	// include null terminator for printing purposes
+	hdr.put(av[hdr_arg], strlen(av[hdr_arg])+1);
+	break;
+
+    case test_blarge:
+	cerr << "******* SCRIPT ERROR ******" <<endl;
+	cerr << "Cannot use blarge test for hdrs"<<endl;
+	cerr << "***************************" <<endl;
+	cerr << endl;
+	cerr << endl;
+        W_FATAL(ss_m::eNOTIMPLEMENTED);
 	break;
 
     default:
-	cvt2typed_value(t, av[2], vh);
+	cvt2typed_value(t, av[hdr_arg], vh);
 	hdr.put(&vh._u, vh._length);
 	break;
     }
@@ -2222,9 +2452,11 @@ t_create_typed_rec(Tcl_Interp* ip, int ac, char* av[])
 	lstid_t  stid;
 	lrid_t   rid;
 
-	GNUG_BUG_12(istrstream(av[1], strlen(av[1])) ) >> stid;
-	DO( sm->create_rec(stid.lvid, stid.serial, hdr, atoi(av[3]),
-			   data, rid.serial) );
+	istrstream anon(VCPP_BUG_1 av[fid_arg], strlen(av[fid_arg])); 
+			anon >> stid;
+	DO( sm->create_rec(stid.lvid, stid.serial, hdr, 
+			objectsize(av[len_hint_arg]),
+		        data, rid.serial) );
 	rid.lvid = stid.lvid;
 	tclout.seekp(ios::beg);
 	tclout << rid << ends;
@@ -2232,8 +2464,9 @@ t_create_typed_rec(Tcl_Interp* ip, int ac, char* av[])
 	stid_t  stid;
 	rid_t   rid;
 
-	GNUG_BUG_12(istrstream(av[1], strlen(av[1])) ) >> stid;
-	DO( sm->create_rec(stid, hdr, atoi(av[3]), data, rid) );
+	istrstream anon(VCPP_BUG_1 av[fid_arg], strlen(av[fid_arg])); anon >> stid;
+	DO( sm->create_rec(stid, hdr, 
+		objectsize(av[len_hint_arg]), data, rid) );
 	tclout.seekp(ios::beg);
 	tclout << rid << ends;
     }
@@ -2253,11 +2486,11 @@ t_get_store_info(Tcl_Interp* ip, int ac, char* av[])
     sm_store_info_t info(100);
     if (use_logical_id(ip)) {
 	lstid_t  fid;
-	GNUG_BUG_12(istrstream(stidstring, strlen(stidstring)) ) >> fid;
+	istrstream anon(VCPP_BUG_1 stidstring, strlen(stidstring)); anon >> fid;
 	DO(sm->get_store_info(fid.lvid, fid.serial, info));
     } else {
 	stid_t  fid;
-	GNUG_BUG_12(istrstream(stidstring, strlen(stidstring)) ) >> fid;
+	istrstream anon(VCPP_BUG_1 stidstring, strlen(stidstring)); anon >> fid;
 	DO(sm->get_store_info(fid, info));
     }
     tclout.seekp(ios::beg);
@@ -2284,11 +2517,11 @@ get_key_type( Tcl_Interp *ip, const char *stidstring )
     sm_store_info_t info(100);
     if (use_logical_id(ip)) {
 	lstid_t  fid;
-	GNUG_BUG_12(istrstream(stidstring, strlen(stidstring)) ) >> fid;
+	istrstream anon(VCPP_BUG_1 stidstring, strlen(stidstring)); anon >> fid;
 	rc = sm->get_store_info(fid.lvid, fid.serial, info);
     } else {
 	stid_t  fid;
-	GNUG_BUG_12(istrstream(stidstring, strlen(stidstring)) ) >> fid;
+	istrstream anon(VCPP_BUG_1 stidstring, strlen(stidstring)); anon >> fid;
 	rc = sm->get_store_info(fid, info);
     }
     if (rc)  {
@@ -2320,32 +2553,39 @@ check_key_type(
 int
 t_scan_sorted_recs(Tcl_Interp* ip, int ac, char* av[])
 {
-    //              1    2   3   4
+    //              1    2     3        4     
     if (check(ip, "fid hdrtype datatype [universe]", ac, 4, 5))
 	return TCL_ERROR;
     
 
+    int 	universe_arg = 4;
     pin_i*  	pin;
     bool  	eof;
     rc_t    	rc;
     scan_file_i* scan;
 
-    typed_btree_test t = cvt2type(av[2]);
+    typed_btree_test th = cvt2type(av[2]);
+    typed_btree_test tb = cvt2type(av[3]);
 
     if (use_logical_id(ip)) {
 	lstid_t  fid;
-	GNUG_BUG_12(istrstream(av[1], strlen(av[1])) ) >> fid;
+	istrstream anon(VCPP_BUG_1 av[1], strlen(av[1])); anon >> fid;
 	scan = new scan_file_i(fid.lvid, fid.serial, ss_m::t_cc_file);
     } else {
 	stid_t  fid;
-	GNUG_BUG_12(istrstream(av[1], strlen(av[1])) ) >> fid;
+	istrstream anon(VCPP_BUG_1 av[1], strlen(av[1])); anon >> fid;
 	scan = new scan_file_i(fid, ss_m::t_cc_file);
     }
     TCL_HANDLE_FSCAN_FAILURE(scan);
 
+    char *strbuf = new char[STRINGMAX];
+    w_auto_delete_array_t<char> autodel(strbuf);
+
     while ( !(rc=scan->next(pin, 0, eof)) && !eof) {
+	DBG(<<" record " << pin->rid());
+
 	tclout.seekp(ios::beg);
-	switch(t) {
+	switch(th) {
 	case  test_bv:
 	    tclout << "(" << (char*)pin->hdr() << ")";
 	    break;
@@ -2371,27 +2611,45 @@ t_scan_sorted_recs(Tcl_Interp* ip, int ac, char* av[])
 	case  test_i4:
 	    tclout << "(" << *(int4_t*)pin->hdr() << ")";
 	    break;
-
 	case  test_u4:
 	    tclout << "(" << *(uint4_t*)pin->hdr() << ")";
 	    break;
 
-	case  test_f8:
-	    tclout << "(" << (f8_t)*(f8_t*)pin->hdr() << ")";
+	case  test_i8:
+	    tclout << "(" << *(w_base_t::int8_t*)pin->hdr() << ")";
+	    break;
+	case  test_u8:
+	    tclout << "(" << *(w_base_t::uint8_t*)pin->hdr() << ")";
+	    break;
+
+	case  test_f8: {
+	    w_base_t::f8_t tmp;
+	    memcpy(&tmp, pin->hdr(), sizeof(w_base_t::f8_t));
+	    tclout << "(" << tmp << ")";
+	    }
 	    break;
 
 	case  test_f4:
 	    tclout << "(" << (f4_t) *(f4_t*)pin->hdr() << ")";
 	    break;
 
-	case test_spatial:
-	    if (ac==5) {
-		nbox_t space(av[4]);
-		nbox_t key((char*)pin->hdr(), space.klen());
-		tclout << "(" << key.hvalue(space) << " : " 
-				 << (char *)key << ")";
+	case test_spatial:  {
+	    if(newsort) {
+		int hvalue; 
+
+		nbox_t key(2);
+		nbox_t u(2);
+		u.put(av[universe_arg]);
+		key.bytes2box((char*)pin->hdr(), pin->hdr_size());
+		hvalue = key.hvalue(u);
+		tclout << "(hilbert=" << hvalue << "):" << key ;
+				 
 	    } else {
-		W_FATAL(ss_m::eNOTIMPLEMENTED);
+		int hvalue; 
+		w_assert3(pin->hdr_size() == sizeof(hvalue));
+		memcpy(&hvalue, pin->hdr(), pin->hdr_size());
+		tclout << "(" << hvalue  << ")";
+	    }
 	    }
 	    break;
 
@@ -2401,18 +2659,38 @@ t_scan_sorted_recs(Tcl_Interp* ip, int ac, char* av[])
 	}
 
 	// get type of body
-	typed_btree_test t = cvt2type(av[3]);
 
-	char strbuf[100];
+	memset(strbuf, 'Z', STRINGMAX);
+
 	if (pin->is_small()) {
 	    memcpy(strbuf, pin->body(), pin->body_size());
             strbuf[pin->body_size()] = '\0';
-	} else {
+	} else if(tb != test_blarge) {
 	    memcpy(strbuf, pin->body(), 96);
 	    memcpy(&strbuf[96], "...", 3);
 	    strbuf[99] = '\0';
 	}
-	switch(t) {
+	switch(tb) {
+	case  test_blarge: {
+		int i=0;
+		char *p = strbuf;
+		while(*p == 'Z') {
+		    i++;
+		    p++; 
+		    if(i>int(pin->body_size())) {
+			*p = '\0';
+			break;
+		    }
+		}
+		w_assert3(pin->body_size() < STRINGMAX );
+		strbuf[pin->body_size()]= '\0';
+
+	        tclout << "(Z(" << (p-strbuf) << " times) "
+			<< (char*)p << ")";
+	    }
+	    break;
+
+	case  test_b23:
 	case  test_bv:
 	    tclout << "(" << (char*)strbuf << ")";
 	    break;
@@ -2422,10 +2700,10 @@ t_scan_sorted_recs(Tcl_Interp* ip, int ac, char* av[])
 	    break;
 
 	case  test_i1:
-	    tclout << "(" << *(int1_t*)strbuf << ")";
+	    tclout << "(" << (int)(*(uint1_t*)strbuf) << ")";
 	    break;
 	case  test_u1:
-	    tclout << "(" << *(uint1_t*)strbuf << ")";
+	    tclout << "(" << (unsigned int)(*(uint1_t*)strbuf) << ")";
 	    break;
 
 	case  test_i2:
@@ -2438,9 +2716,15 @@ t_scan_sorted_recs(Tcl_Interp* ip, int ac, char* av[])
 	case  test_i4:
 	    tclout << "(" << *(int4_t*)strbuf << ")";
 	    break;
-
 	case  test_u4:
 	    tclout << "(" << *(uint4_t*)strbuf << ")";
+	    break;
+
+	case  test_i8:
+	    tclout << "(" << *(w_base_t::int8_t*)strbuf << ")";
+	    break;
+	case  test_u8:
+	    tclout << "(" << *(w_base_t::uint8_t*)strbuf << ")";
 	    break;
 
 	case  test_f8:
@@ -2463,13 +2747,13 @@ t_scan_sorted_recs(Tcl_Interp* ip, int ac, char* av[])
 	if (linked.verbose_flag) {
 	    cout << tclout.str() <<endl;
 	}
-    }
+    } //scan
 
     delete scan;
 
     DO(rc);
 
-    Tcl_AppendElement(ip, "scan success");
+    Tcl_AppendElement(ip, TCL_CVBUG "scan success");
     return TCL_OK;
 }
 
@@ -2481,14 +2765,16 @@ t_sort_file(Tcl_Interp* ip, int ac, char* av[])
     const int vid_arg =2;
     const int runsize_arg =3;
     const int type_arg =4;
-    const int distinct_arg =5;
-    const int destruct_arg=6;
-    const int property_arg=7;
-    const int universe_arg=8;
-    const int derived_arg=0;
+    const int where_arg=5;
+    const int distinct_arg =6;
+    const int destruct_arg=7;
+    const int property_arg=8;
+    const int universe_arg=9;
+    const int derived_arg=10;
     const char *usage_string = 
-    //1  2   3         4    5                  6                   7                     8
-    "fid vid runsize type \"distinct|normal\" \"destruct|keep\" [\"tmp|regular|load_file\" [universe [derived]]]";
+    //1  2   3       4    5              6                   7            
+    "fid vid runsize type \"body|hdr\"   \"distinct|normal\" \"destruct|keep\" [\"tmp|regular|load_file\" [universe [derived]]]";
+//8                       9        10
 
     if (check(ip, usage_string, ac, destruct_arg+1, property_arg+1, 
 	universe_arg+1, derived_arg+1)) 
@@ -2497,7 +2783,7 @@ t_sort_file(Tcl_Interp* ip, int ac, char* av[])
     key_info_t info;
 
     info.offset = 0;
-    info.where = key_info_t::t_hdr;
+    info.where = key_info_t::t_body;
     info.universe = NULL;
 
     bool unique = false;
@@ -2519,27 +2805,37 @@ t_sort_file(Tcl_Interp* ip, int ac, char* av[])
     }
     
     if (ac > derived_arg) {
-	info.derived = atoi(av[derived_arg]);
+	info.derived = (atoi(av[derived_arg]) != 0);
     } else {
 	info.derived = false;
     }
 
-    ss_m::sm_store_property_t property = ss_m::t_regular;
+    ss_m::store_property_t property = ss_m::t_regular;
     if (ac > property_arg) {
 	property = cvt2store_property(av[property_arg]);
     }
 
-    if (info.derived)
-        info.where = key_info_t::t_hdr;
+    if (strcmp("hdr", av[where_arg]) == 0)  {
+	info.where = key_info_t::t_hdr;
+    } else if (strcmp("body", av[where_arg]) ==0)  {
+	info.where = key_info_t::t_body;
+    } else {
+	if(check(ip, usage_string, ac, 0)) return TCL_ERROR;
+    }
 
     typed_btree_test t = cvt2type(av[type_arg]);
 
-    nbox_t bbox;
+    nbox_t bbox(2);
     switch(t) {
     case test_bv:
         // info.type = key_info_t::t_string;
         info.type = sortorder::kt_b;
 	info.len = 0;
+	break;
+
+    case test_blarge:
+        info.type = sortorder::kt_b;
+	info.len = LARGESTRING;
 	break;
 
     case test_b23:
@@ -2570,6 +2866,12 @@ t_sort_file(Tcl_Interp* ip, int ac, char* av[])
 	info.len = sizeof(uint4_t);
 	break;
 
+    case test_u8:
+        // info.type = key_info_t::t_char;
+        info.type = sortorder::kt_u8;
+	info.len = sizeof(w_base_t::uint8_t);
+	break;
+
     default:
     case test_i1:
         // info.type = key_info_t::t_int;
@@ -2589,6 +2891,12 @@ t_sort_file(Tcl_Interp* ip, int ac, char* av[])
 	info.len = sizeof(int4_t);
 	break;
 
+    case test_i8:
+        // info.type = key_info_t::t_int;
+        info.type = sortorder::kt_i8;
+	info.len = sizeof(w_base_t::int8_t);
+	break;
+
     case test_f4:
         // info.type = key_info_t::t_float;
         info.type = sortorder::kt_f4;
@@ -2605,31 +2913,38 @@ t_sort_file(Tcl_Interp* ip, int ac, char* av[])
         // info.type = key_info_t::t_spatial;
         info.type = sortorder::kt_spatial;
 
-	w_assert3(ac > universe_arg);
-	bbox.put(av[universe_arg]);
+	if(ac > universe_arg) {
+	    bbox.put(av[universe_arg]);
+	}
 	info.universe = bbox;
 	info.len = bbox.klen();
 	break;
     }
+    info.est_reclen = MIN(info.len, 4);
 
     if (use_logical_id(ip)) {
 	lstid_t in_fid;
-	GNUG_BUG_12(istrstream(av[fid_arg], strlen(av[fid_arg])) ) >> in_fid;
+	istrstream anon(VCPP_BUG_1 av[fid_arg], strlen(av[fid_arg])); anon >> in_fid;
 	lstid_t out_fid;
-	GNUG_BUG_12(istrstream(av[vid_arg], strlen(av[vid_arg])) ) 
-		>> out_fid.lvid;
+	istrstream anon2(VCPP_BUG_1 av[vid_arg], strlen(av[vid_arg])); 
+		anon2 >> out_fid.lvid;
 
-	DO( sm->sort_file(in_fid.lvid, in_fid.serial, out_fid.lvid,
-			  out_fid.serial, property, info, 
-			  atoi(av[runsize_arg]), unique, destruct) );
+	DO( sm->sort_file(in_fid.lvid, in_fid.serial, 
+		    out_fid.lvid, out_fid.serial, property, info, 
+		    atoi(av[runsize_arg]), true, unique, destruct,
+		    newsort) );
 	tclout.seekp(ios::beg);
 	tclout << out_fid << ends;
     } else {
 	stid_t in_fid;
-	GNUG_BUG_12(istrstream(av[fid_arg], strlen(av[fid_arg])) ) >> in_fid;
+	istrstream anon(VCPP_BUG_1 av[fid_arg], strlen(av[fid_arg])); 
+		anon >> in_fid;
 	stid_t out_fid;
-	DO( sm->sort_file(in_fid, atoi(av[vid_arg]), out_fid, property,
-			  info, atoi(av[runsize_arg]), unique, destruct) );
+
+	DO( sm->sort_file(in_fid, 
+	      atoi(av[vid_arg]), out_fid, property,
+	      info, atoi(av[runsize_arg]), true, unique, destruct,
+	      serial_t::null, newsort) );
 	tclout.seekp(ios::beg);
 	tclout << out_fid << ends;
     }
@@ -2657,9 +2972,11 @@ t_compare_typed(Tcl_Interp* ip, int ac, char* av[])
 	if (ac == 5) {
 	    nbox_t u(av[4]);
 	    hval1 = box1.hvalue(u);
+    cerr << __LINE__ << " " << "put hvalue " << hval1 <<endl;
     	    d1.put(&hval1, sizeof(hval1));
 
 	    hval2 = box2.hvalue(u);
+    cerr << __LINE__ << " " << "put hvalue " << hval2 <<endl;
     	    d2.put(&hval2, sizeof(hval2));
 	} else {
     	    d1.put(box1.kval(), box1.klen());
@@ -2695,7 +3012,8 @@ t_find_assoc_typed(Tcl_Interp* ip, int ac, char* av[])
 	// use md_index functions
 	W_FATAL(ss_m::eNOTIMPLEMENTED);
     } else if(t == test_bv) {
-	key.put(av[2], strlen(av[2]));
+	// include null terminator for printing purposes
+	key.put(av[2], strlen(av[2])+1);
     } else {
 	cvt2typed_value(t, av[2], v1);
 	key.put(&v1._u, v1._length);
@@ -2711,11 +3029,11 @@ t_find_assoc_typed(Tcl_Interp* ip, int ac, char* av[])
 
     if (use_logical_id(ip)) {
 	lstid_t stid;
-	GNUG_BUG_12(istrstream(av[1], strlen(av[1])) ) >> stid;
+	istrstream anon(VCPP_BUG_1 av[1], strlen(av[1])); anon >> stid;
 	___rc = sm->find_assoc(stid.lvid, stid.serial, key, el, elen, found);
     } else {
 	stid_t stid;
-	GNUG_BUG_12(istrstream(av[1], strlen(av[1])) ) >> stid;
+	istrstream anon(VCPP_BUG_1 av[1], strlen(av[1])); anon >> stid;
 	___rc = sm->find_assoc(stid, key, el, elen, found);
     }
     if (___rc)  {
@@ -2733,7 +3051,63 @@ t_find_assoc_typed(Tcl_Interp* ip, int ac, char* av[])
 	return TCL_OK;
     } 
 
-    Tcl_AppendElement(ip, "not found");
+    Tcl_AppendElement(ip, TCL_CVBUG "not found");
     delete[] el;
     return TCL_ERROR;
+}
+
+static struct name2type_t {
+    const char* 		name;
+    typed_btree_test 	type;
+} name2type[] = {
+    { "i1",	test_i1 },
+    { "I1",	test_i1 },
+    { "u1",	test_u1 },
+    { "U1",	test_u1 },
+
+    { "i2",	test_i2 },
+    { "I2",	test_i2 },
+    { "u2",	test_u2 },
+    { "U2",	test_u2 },
+
+    { "i4", test_i4 },
+    { "I4", test_i4 },
+    { "u4", test_u4 },
+    { "U4", test_u4 },
+
+    { "i8", test_i8 },
+    { "I8", test_i8 },
+    { "u8", test_u8 },
+    { "U8", test_u8 },
+
+    { "f4",	test_f4 },
+    { "F4",	test_f4 },
+    { "f8",	test_f8 },
+    { "F8",	test_f8 },
+
+    { "b1",	test_b1 },
+    { "B1",	test_b1 },
+    { "b23",test_b23 },
+    { "B23",test_b23 },
+
+    { "blarge",test_blarge },
+    { "Blarge",test_blarge },
+
+
+    { "b*1000",test_bv },
+    { "B*1000",test_bv },
+
+/* for rtree ssh scripts */
+    { "spatial",  test_spatial },
+
+    { 0,	test_nosuch }
+};
+
+typed_btree_test
+cvt2type(const char* s)
+{
+    for (name2type_t* p = name2type; p->name; p++)  {
+	if (streq((char *)s, p->name))  return p->type;
+    }
+    return test_nosuch;
 }

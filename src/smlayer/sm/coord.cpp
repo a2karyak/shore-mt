@@ -1,21 +1,49 @@
-/* --------------------------------------------------------------- */
-/* -- Copyright (c) 1994,5,6,7 Computer Sciences Department,    -- */
-/* -- University of Wisconsin-Madison, subject to the terms     -- */
-/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
-/* -- Reserved.                                                 -- */
-/* --------------------------------------------------------------- */
+/*<std-header orig-src='shore'>
 
-/*
- *  $Id: coord.cc,v 1.31 1997/06/15 03:12:49 solomon Exp $
- */
+ $Id: coord.cpp,v 1.48 1999/07/21 21:27:19 bolo Exp $
+
+SHORE -- Scalable Heterogeneous Object REpository
+
+Copyright (c) 1994-99 Computer Sciences Department, University of
+                      Wisconsin -- Madison
+All Rights Reserved.
+
+Permission to use, copy, modify and distribute this software and its
+documentation is hereby granted, provided that both the copyright
+notice and this permission notice appear in all copies of the
+software, derivative works or modified versions, and any portions
+thereof, and that both notices appear in supporting documentation.
+
+THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+"AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+This software was developed with support by the Advanced Research
+Project Agency, ARPA order number 018 (formerly 8230), monitored by
+the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+Further funding for this work was provided by DARPA through
+Rome Research Laboratory Contract No. F30602-97-2-0247.
+
+*/
+
+#include "w_defines.h"
+
+/*  -- do not edit anything above this line --   </std-header>*/
 
 #define SM_SOURCE
 #define COORD_C
 
 #include <sm_int_4.h>
+#ifdef USE_COORD
 #include <coord.h>
 #include <coord_log.h>
 #include <sm.h>
+
+// we're making this fastnew for now ONLY for stats-gathering
+// purposes; TODO: make it use a pool that doesn't call the
+// constructor and destructor
+W_FASTNEW_STATIC_DECL(coord_thread_t, 1);  // 65 K each!
 
 const char*	coordinator::_key_descr = "b*1024";
 
@@ -25,24 +53,19 @@ gtid_t	    coordinator::_dkeyspace;
 vec_t 	    coordinator::_dkey;
 #define COORD_DSTRING "_last_tid_used_\0"
 const char *coordinator::_dkeystring = COORD_DSTRING;
-#ifdef DEBUG
+#ifdef W_DEBUG
 extern const char *coordinator___dkeystring;
 const char *coordinator___dkeystring = COORD_DSTRING;
-#endif
+#endif /* W_DEBUG */
 
-#ifdef CHEAP_RC
-
-/* delegate not used for DO_GOTO; have to delete the _err */
-#define RETURN_RC( _err) \
-    { 	w_rc_t rc = rc_t(_err); if(_err) delete _err; return  rc; }
-
-#else
 
 /* delegate is used in debug case */
 #define RETURN_RC( _err) \
-    { 	w_rc_t rc = rc_t(_err); return  rc; }
+    do { 	w_rc_t rc = rc_t(_err); return  rc; } while (0)
 
-#endif
+/* Seconds -> milliseconds converter for timeouts. */
+#define	SECONDS(n)	((n) * 1000)
+
 
 /*****************************************************************************
 * COORDINATOR
@@ -140,9 +163,11 @@ coordinator::action(coord_thread_t *t, server_state ss)
        res = PNaction_table[ss][st]; 
    }
    if(res == ca_fatal) {
+	/* XXX upgrade numeric output for state to have an
+	   operator<< for the enum */
 	ss_m::errlog->clog <<error_prio
-	    << "fatal action: coord state=" << st
-	    << " server state= " << ss <<flushl;
+	    << "fatal action: coord state=" << unsigned(st)
+	    << " server state= " << unsigned(ss) <<flushl;
 	W_FATAL(ePROTOCOL);
    }
    return res;
@@ -324,7 +349,7 @@ coordinator::commit(const gtid_t& tid,
     if(_error) return _error;
 
 
-    INCRSTAT(c_coordinated);
+    INC_2PCSTAT(c_coordinated);
     /*
      * TODO: keep a set of coord_commit_handler threads 
      * to avoid the expensive construction/destruction of
@@ -379,8 +404,8 @@ coordinator::commit(const gtid_t& tid,
  */
 
 rc_t
-coordinator::received(Buffer& b, EndpointBox &sentbox, 
-	EndpointBox &mebox)
+coordinator::received(Buffer& b, EndpointBox &sentbox,
+		      const EndpointBox &mebox)
 {
     return /*participant::*/receive( 
 	coord_message_handler, b, sentbox,  mebox );
@@ -431,15 +456,15 @@ coordinator::handle_message(
     Buffer& 		buf, 
     Endpoint&		sender, 
     server_handle_t&    srvaddr,
-    EndpointBox& 	mebox // might be different from this->box() 
+    const EndpointBox& 	mebox // might be different from this->box() 
 )  
 {
     FUNC(coordinator::handle_message);
     rc_t    		rc;
-    struct message_t* 	mp;
+    message_t* 	mp;
 
-    mp = (struct message_t *)buf.start();
-    struct message_t 	&m=*mp;
+    mp = (message_t *)buf.start();
+    message_t 	&m=*mp;
 
     w_assert3(mp!=0);
 
@@ -451,8 +476,8 @@ coordinator::handle_message(
 	w_assert3(t);
 	if(t->error()) {
 	    if(t->error().err_num() == fcNOTFOUND) {
-		if(m.typ == sreply_status || 
-		  (m.typ == sreply_vote && m._u.vote == vote_commit)) {
+		if(m.type() == sreply_status || 
+		  (m.type() == sreply_vote && m._u.vote == vote_commit)) {
 		    w_assert3(_proto == presumed_abort);
 		    // We have to return an "abort" message: the
 		    // subordinate has a prepared xct.
@@ -464,7 +489,7 @@ coordinator::handle_message(
 		    // are not ack-ed in PA, we didn't retransmit the
 		    // abort, so we'll send on in response to the vote.
 
-		    m.typ = smsg_abort;
+		    m.setType(smsg_abort);
 		    // send a reply -- it's ok if it's not sent
 		    // ON the same endpoint on which we received
 
@@ -481,7 +506,7 @@ coordinator::handle_message(
 	    return rc;
 	}
     }
-    switch(m.typ) {
+    switch(m.type()) {
     case sreply_status:
 	t->got_vote(m, srvaddr);
 	break;
@@ -494,7 +519,7 @@ coordinator::handle_message(
 	{
 	    if(m.error()) {
 		/* consider it a retransmission */
-		INCRSTAT(c_replies_dropped);
+		INC_TSTAT(c_replies_dropped);
 		w_assert3(m.sequence > 0);
 		break;
 	    } 
@@ -506,7 +531,7 @@ coordinator::handle_message(
 	break;
 
     default:
-	INCRSTAT(c_replies_dropped);
+	INC_TSTAT(c_replies_dropped);
 	W_FATAL(ePROTOCOL);
     }
     return RCOK;
@@ -520,11 +545,11 @@ coordinator::coordinator(
 	lvid_t&  vid,
 	int to
 	) :
+    participant(p,0,0,f),
     _vid(vid),
     // _stid(vid,0),
     // _last_used_tid
-    _timeout(to),
-    participant(p,0,0,f)
+    _timeout(to)
 { // CASE1
     _me = ep;
     W_COERCE(f->endpoint2name(_me, _myname));//startup
@@ -542,11 +567,11 @@ coordinator::coordinator(
 	lvid_t&  vid,
 	int to
 	) :
+    participant(p,c,ns,f),
     _vid(vid),
     // _stid(vid,0),
     // _last_used_tid
-    _timeout(to),
-    participant(p,c,ns,f)
+    _timeout(to)
 { // CASE2: not tested
     _mutex.rename("coord");
 
@@ -585,7 +610,7 @@ coordinator::_init(bool fork_listener)
 	/*
 	 * set up the key for last tid used
 	 */
-#ifdef PURIFY
+#ifdef PURIFY_ZERO
 	_dkeyspace.zero();
 #endif
 	_dkeyspace = _dkeystring;
@@ -807,7 +832,7 @@ coordinator::end_transaction(bool commit, const gtid_t& tid)
 rc_t
 coordinator::_retry(const gtid_t& tid, participant::coord_thread_kind kind)
 {
-    INCRSTAT(c_coordinated);
+    INC_2PCSTAT(c_coordinated);
     coord_thread_t *w = fork_resolver(tid, kind);
     if(!w) {
 	W_FATAL(eOUTOFMEMORY);
@@ -888,3 +913,23 @@ coordinator::dump(ostream &o) const
 	W_COERCE(xct_auto.commit());   // end the short transaction
     }
 }
+
+
+ostream &operator<<(ostream &o, const message_type_t mt)
+{
+	/* XXX depends upon enum values */
+	static const char *names[] = {
+		"smsg_bad", "smsg_prepare", "smsg_abort", "smsg_commit",
+		"sreply_ack", "sreply_vote", "sreply_status"
+	};
+
+	if (mt < 0 || mt > sreply_status)
+		o << "<unknown message_type " << (int)mt << ">";
+	else
+		o << names[(int)mt];
+	return o;
+}
+
+
+#endif
+

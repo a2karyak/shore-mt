@@ -1,40 +1,57 @@
-/* --------------------------------------------------------------- */
-/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
-/* -- University of Wisconsin-Madison, subject to the terms     -- */
-/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
-/* -- Reserved.                                                 -- */
-/* --------------------------------------------------------------- */
+/*<std-header orig-src='shore'>
 
-/*
- *  $Id: logrec.cc,v 1.111 1997/06/15 03:13:24 solomon Exp $
- */
+ $Id: logrec.cpp,v 1.139 1999/06/15 15:11:53 nhall Exp $
+
+SHORE -- Scalable Heterogeneous Object REpository
+
+Copyright (c) 1994-99 Computer Sciences Department, University of
+                      Wisconsin -- Madison
+All Rights Reserved.
+
+Permission to use, copy, modify and distribute this software and its
+documentation is hereby granted, provided that both the copyright
+notice and this permission notice appear in all copies of the
+software, derivative works or modified versions, and any portions
+thereof, and that both notices appear in supporting documentation.
+
+THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+"AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+This software was developed with support by the Advanced Research
+Project Agency, ARPA order number 018 (formerly 8230), monitored by
+the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+Further funding for this work was provided by DARPA through
+Rome Research Laboratory Contract No. F30602-97-2-0247.
+
+*/
+
+#include "w_defines.h"
+
+/*  -- do not edit anything above this line --   </std-header>*/
+
 #define SM_SOURCE
 #define LOGREC_C
 #ifdef __GNUG__
 #   pragma implementation
 #endif
 #include "sm_int_2.h"
-#ifdef __GNUG__
-#    include <iomanip.h>
-#endif
-#include "logdef.i"
-#include "vol.h"
+#include "logdef_gen.cpp"
+// include extent.h JUST to get stnode_p::max
+#include "extent.h" 
+// include histo.h JUST to get histoid_t::destroyed_store declaration
+#include "histo.h"
 
-#ifdef USE_OLD_BTREE_IMPL
-#include "btree_p.old.h"
-#else
 #include "btree_p.h"
-#endif
-
-#include <rtree_p.h>
-#ifdef USE_RDTREE
-#include <rdtree_p.h>
-#endif /* USE_RDTREE */
+#include "rtree_p.h"
 
 enum { 	eINTERNAL = smlevel_0::eINTERNAL,
 	eOUTOFMEMORY = smlevel_0::eOUTOFMEMORY
 	};
 
+
+W_FASTNEW_STATIC_DECL(logrec_t, 8);  // 3 pages each!
 
 /*********************************************************************
  *
@@ -83,14 +100,14 @@ logrec_t::cat_str() const
     case t_undo | t_logical : 
 	return "l-u-";
 
-#ifdef DEBUG
+#ifdef W_DEBUG
     case t_bad_cat:
 	// for debugging only
 	return "BAD-";
-#endif /* DEBUG */
+#endif /* W_DEBUG */
 
     }
-#ifdef DEBUG
+#ifdef W_DEBUG
     cerr << "unexpected log record flags: ";
 	if( _cat & t_undo ) cerr << "t_undo ";
 	if( _cat & t_redo ) cerr << "t_redo ";
@@ -98,7 +115,7 @@ logrec_t::cat_str() const
 	if( _cat & t_cpsn ) cerr << "t_cpsn ";
 	if( _cat & t_status ) cerr << "t_status ";
 	cerr << endl;
-#endif /* DEBUG */
+#endif /* W_DEBUG */
 	
     W_FATAL(smlevel_0::eINTERNAL);
     return "????";
@@ -116,7 +133,7 @@ const char*
 logrec_t::type_str() const
 {
     switch (_type)  {
-#	include <logstr.i>
+#	include "logstr_gen.cpp"
     }
 
     /*
@@ -137,21 +154,22 @@ logrec_t::type_str() const
  *
  *********************************************************************/
 void
-logrec_t::fill(const lpid_t* p, uint2 tag, smsize_t l)
+logrec_t::fill(const lpid_t* p, uint2_t tag, smsize_t l)
 {
     w_assert3(hdr_sz == _data - (char*) this);
     w_assert3(w_base_t::is_aligned(_data));
 
-    _pid = lpid_t::null;
+    set_pid(lpid_t::null);
     _prev = lsn_t::null;
     _page_tag = tag;
-    if (p) _pid = *p;
+    if (p) set_pid(*p);
     if (l != align(l)) {
 	// zero out extra space to keep purify happy
 	memset(_data+l, 0, align(l)-l);
     }
-    _len = align(l) + hdr_sz + sizeof(lsn_t);
-    w_assert1(_len <= max_sz);
+    unsigned int tmp = align(l) + hdr_sz + sizeof(lsn_t);
+    w_assert1(tmp <= max_sz);
+    _len = tmp;
     if(type() != t_skip) {
 	DBG( << "Creat log rec: " << *this 
 		<< " size: " << _len << " prevlsn: " << _prev );
@@ -186,7 +204,7 @@ bool
 logrec_t::valid_header(const lsn_t & lsn) const
 {
     if (_len < hdr_sz || _type > 100 || _cat == t_bad_cat || 
-	lsn != lsn_ck()) {
+	lsn != *_lsn_ck()) {
 	return false;
     }
     return true;
@@ -206,13 +224,13 @@ void logrec_t::redo(page_p* page)
     DBG( << "Redo  log rec: " << *this 
 	<< " size: " << _len << " prevlsn: " << _prev );
     switch (_type)  {
-#include <redo.i>
+#include "redo_gen.cpp"
     }
     
     /*
      *  Page is dirty after redo.
      *  (not all redone log records have a page)
-     *  NB: the page lsn in set by the caller (in restart.c)
+     *  NB: the page lsn in set by the caller (in restart.cpp)
      *  This is ok in recovery because in this phase, there
      *  is not a bf_cleaner thread running. (that thread asserts
      *  that if the page is dirty, its lsn is non-null, and we
@@ -239,7 +257,7 @@ logrec_t::undo(page_p* page)
     DBG( << "Undo  log rec: " << *this 
 	<< " size: " << _len  << " prevlsn: " << _prev);
     switch (_type) {
-#include <undo.i>
+#include "undo_gen.cpp"
     }
     xct()->compensate_undo(_prev);
 }
@@ -362,7 +380,7 @@ xct_prepare_alk_log::redo(page_p *)
     const prepare_all_lock_t* 	pt = (prepare_all_lock_t*) _data;
     xct_t *			xd = xct_t::look_up(_tid);
     me()->attach_xct(xd);
-    uint4 i;
+    uint4_t i;
     for (i=0; i<pt->num_locks; i++) {
 	W_COERCE(xd->obtain_one_lock(pt->pair[i].mode, pt->pair[i].name));
     }
@@ -411,7 +429,7 @@ xct_prepare_stores_log::redo(page_p *)
     xct_t*	xd = xct_t::look_up(_tid);
     const prepare_stores_to_free_t* info = (prepare_stores_to_free_t*)_data;
     me()->attach_xct(xd);
-    for (uint4 i = 0; i < info->num; i++)  {
+    for (uint4_t i = 0; i < info->num; i++)  {
         xd->AddStoreToFree(info->stids[i]);
     }
     me()->detach_xct(xd);
@@ -434,24 +452,16 @@ comment_log::comment_log(const char *msg)
     fill(0, 0, strlen(msg)+1);
 }
 
-#ifndef W_DEBUG
-#define page /* page not used */
-#endif
 void 
-comment_log::redo(page_p *page)
-#undef page
+comment_log::redo(page_p * W_IFDEBUG(page))
 {
     w_assert3(page == 0);
     DBG(<<"comment_log: R: " << (const char *)_data);
     ; // just for the purpose of setting breakpoints
 }
 
-#ifndef W_DEBUG
-#define page /* page not used */
-#endif
 void 
-comment_log::undo(page_p *page)
-#undef page
+comment_log::undo(page_p * W_IFDEBUG(page))
 {
     w_assert3(page == 0);
     DBG(<<"comment_log: U: " << (const char *)_data);
@@ -610,7 +620,7 @@ chkpt_xct_tab_log::chkpt_xct_tab_log(
  *********************************************************************/
 chkpt_dev_tab_t::chkpt_dev_tab_t(
     int 		cnt,
-    const char 		dev[][smlevel_0::max_devname+1],
+    const char 		**dev,
     const vid_t* 	vid)
     : count(cnt)
 {
@@ -626,7 +636,7 @@ chkpt_dev_tab_t::chkpt_dev_tab_t(
 
 chkpt_dev_tab_log::chkpt_dev_tab_log(
     int 		cnt,
-    const char 		dev[][smlevel_0::max_devname+1],
+    const char 		**dev,
     const vid_t* 	vid)
 {
     fill(0, 0, (new (_data) chkpt_dev_tab_t(cnt, dev, vid))->size());
@@ -644,20 +654,15 @@ mount_vol_log::mount_vol_log(
     const char* 	dev,
     const vid_t& 	vid)
 {
-    char		devArray[1][smlevel_0::max_devname+1];
+    const char		*devArray[1];
 
-    /* this copy could be avoided by use of a cast, but this is safer */
-    strncpy(devArray[0], dev, sizeof(devArray[0]));
+    devArray[0] = dev;
     DBG(<< "mount_vol_log dev_name=" << devArray[0] << " volid =" << vid);
     fill(0, 0, (new (_data) chkpt_dev_tab_t(1, devArray, &vid))->size());
 }
 
 
-#ifndef W_DEBUG
-#define page /* page not used */
-#endif
-void mount_vol_log::redo(page_p* page)
-#undef page
+void mount_vol_log::redo(page_p* W_IFDEBUG(page))
 {
     w_assert3(page == 0);
     chkpt_dev_tab_t* dp = (chkpt_dev_tab_t*) _data;
@@ -682,20 +687,15 @@ dismount_vol_log::dismount_vol_log(
     const char*		dev,
     const vid_t& 	vid)
 {
-    char		devArray[1][smlevel_0::max_devname+1];
+    const char		*devArray[1];
 
-    /* this copy could be avoided by use of a cast, but this is safer */
-    strncpy(devArray[0], dev, sizeof(devArray[0]));
+    devArray[0] = dev;
     DBG(<< "dismount_vol_log dev_name=" << devArray[0] << " volid =" << vid);
     fill(0, 0, (new (_data) chkpt_dev_tab_t(1, devArray, &vid))->size());
 }
 
 
-#ifndef W_DEBUG
-#define page /* page not used */
-#endif
-void dismount_vol_log::redo(page_p* page)
-#undef page
+void dismount_vol_log::redo(page_p* W_IFDEBUG(page))
 {
     w_assert3(page == 0);
     chkpt_dev_tab_t* dp = (chkpt_dev_tab_t*) _data;
@@ -716,13 +716,15 @@ void dismount_vol_log::redo(page_p* page)
  *  Log page initialization.
  *
  *********************************************************************/
-struct page_init_t {
-    uint2	tag;
+class page_init_t {
+public:
+    uint2_t	tag;
     fill2	filler;
-    uint4	flags;
+    uint4_t	flags;
     
-    page_init_t(uint2 t, uint4 f): tag(t), flags(f) {};
-    size()  { return sizeof(*this); }
+    page_init_t(uint2_t t, uint4_t f): 
+	tag(t), flags(f) {};
+    int size()  { return sizeof(*this); }
     void redo(page_p *p, const lpid_t& pid);
     // no undo
 };
@@ -730,14 +732,19 @@ struct page_init_t {
 void 
 page_init_t::redo(page_p* page, const lpid_t& pid)
 {
-    W_COERCE( page->format(pid, (page_p::tag_t) tag, flags) );
+    // BUGBUG: 
+    // NB: if we ever resurrect page_init_t, we need to add the store
+    // flags to the format info instead of st_regular here
+    W_COERCE( page->format(pid, (page_p::tag_t) tag, flags, 
+    smlevel_0::st_regular) );
 }
 
 page_init_log::page_init_log(const page_p& p)
 {
     w_assert3(p.pid() != lpid_t::null); // TODO: ever legit?
 
-    fill(&p.pid(), p.tag(), (new (_data) page_init_t(p.tag(), p.page_flags()))->size());
+    fill(&p.pid(), p.tag(), (new (_data) 
+	page_init_t(p.tag(), p.page_flags()))->size());
 }
 
 
@@ -764,7 +771,7 @@ struct page_link_t {
     page_link_t(shpid_t op, shpid_t on, shpid_t np, shpid_t nn)  
     : old_prev(op), old_next(on), new_prev(np), new_next(nn)   {};
 
-    size()	{ return sizeof(*this); }
+    int size()	{ return sizeof(*this); }
 };
 
 page_link_log::page_link_log(
@@ -805,18 +812,19 @@ page_link_log::undo(page_p* p)
  *  Log insert of a record into a page.
  *
  *********************************************************************/
-struct page_insert_t {
-    int2	idx;
-    int2	cnt;
-    enum { max = ((logrec_t::data_sz - 2*sizeof(uint2)) - sizeof(page_init_t)) };
+class page_insert_t {
+public:
+    int2_t	idx;
+    int2_t	cnt;
+    enum { max = ((logrec_t::data_sz - 2*sizeof(uint2_t)) - sizeof(page_init_t)) };
 
-    // array of int2 len[cnt], char data[]
+    // array of int2_t len[cnt], char data[]
     char	data[max]; 
 
     page_insert_t(const page_p& page, int idx, int cnt);
     page_insert_t(int idx, int cnt, const cvec_t* vec);
     cvec_t* unflatten(int cnt, cvec_t vec[]);
-    size();
+    int size();
     void redo(page_p* page);
     void undo(page_p* page);
 };
@@ -825,15 +833,18 @@ page_insert_t::page_insert_t(const page_p& page, int i, int c)
     : idx(i), cnt(c)
 {
     if(cnt) {
-	w_assert1(cnt * sizeof(int2) < sizeof(data));
-	int2* lenp = (int2*) data;
+	w_assert1(cnt * sizeof(int2_t) < sizeof(data));
+	int2_t* lenp = (int2_t*) data;
 	int total = 0;
 	for (i = 0; i < cnt; total += lenp[i++])  {
-	    lenp[i] = page.tuple_size(idx + i);
+	    // tuple_size yields smsize_t (for large objects)
+	    // but the slots on a small page can be at most
+	    // 65K long, so the slots contain shorts for the lengths.
+	    lenp[i] = (int2_t) page.tuple_size(idx + i);
 	}
-	w_assert1(total + cnt * sizeof(int2) < sizeof(data));
+	w_assert1(total + cnt * sizeof(int2_t) < sizeof(data));
 
-	char* p = data + sizeof(int2) * cnt;
+	char* p = data + sizeof(int2_t) * cnt;
 	for (i = 0; i < c; i++)  {
 	    memcpy(p, page.tuple_addr(idx + i), lenp[i]);
 	    p += lenp[i];
@@ -846,31 +857,27 @@ page_insert_t::page_insert_t(int i, int c, const cvec_t* v)
     : idx(i), cnt(c)
 {
     if(cnt) {
-	w_assert1(cnt * sizeof(int2) < sizeof(data));
-	int2* lenp = (int2*) data;
+	w_assert1(cnt * sizeof(int2_t) < sizeof(data));
+	int2_t* lenp = (int2_t*) data;
 	int total = 0;
 	for (i = 0; i < cnt; total += lenp[i++])  {
 	    lenp[i] = v[i].size();
 	}
-	w_assert1(total + cnt * sizeof(int2) < sizeof(data));
+	w_assert1(total + cnt * sizeof(int2_t) < sizeof(data));
 
-	char* p = data + sizeof(int2) * cnt;
+	char* p = data + sizeof(int2_t) * cnt;
 	for (i = 0; i < c; i++)  {
 	    p += v[i].copy_to(p);
 	}
-	w_assert1((uint)(p - data) == total + cnt * sizeof(int2));
+	w_assert1((uint)(p - data) == total + cnt * sizeof(int2_t));
     }
 }
 
-#ifndef W_DEBUG
-#define c /* c not used */
-#endif
-cvec_t* page_insert_t::unflatten(int c, cvec_t vec[])
-#undef c
+cvec_t* page_insert_t::unflatten(int W_IFDEBUG(c), cvec_t vec[])
 {
     w_assert3(c == cnt);
-    int2* lenp = (int2*) data;
-    char* p = data + sizeof(int2) * cnt;
+    int2_t* lenp = (int2_t*) data;
+    char* p = data + sizeof(int2_t) * cnt;
     for (int i = 0; i < cnt; i++)  {
 	vec[i].put(p, lenp[i]);
 	p += lenp[i];
@@ -881,8 +888,8 @@ cvec_t* page_insert_t::unflatten(int c, cvec_t vec[])
 int
 page_insert_t::size()
 {
-    int2* lenp = (int2*) data;
-    char* p = data + sizeof(int2) * cnt;
+    int2_t* lenp = (int2_t*) data;
+    char* p = data + sizeof(int2_t) * cnt;
     for (int i = 0; i < cnt; i++) p += lenp[i];
     return p - (char*) this;
 }
@@ -905,15 +912,15 @@ void
 page_insert_t::undo(page_p* page)
 {
      if(cnt) {
-#ifdef DEBUG
-	uint2* lenp = (uint2*) data;
-	char* p = data + sizeof(int2) * cnt;
+#ifdef W_DEBUG
+	uint2_t* lenp = (uint2_t*) data;
+	char* p = data + sizeof(int2_t) * cnt;
 	for (int i = 0; i < cnt; i++)  {
 	    w_assert1(lenp[i] == page->tuple_size(i + idx));
 	    w_assert1(memcmp(p, page->tuple_addr(i + idx), lenp[i]) == 0);
 	    p += lenp[i];
 	}
-#endif /*DEBUG*/
+#endif /*W_DEBUG*/
 	W_COERCE(page->remove_compress(idx, cnt));
     }
 }
@@ -985,24 +992,25 @@ void page_remove_log::undo(page_p* page)
  *  marked as removed.
  *
  *********************************************************************/
-struct page_mark_t {
-    int2 idx;
-    uint2 len;
+class page_mark_t {
+public:
+    int2_t idx;
+    uint2_t len;
 
-    enum { max = ((logrec_t::data_sz - 2*sizeof(uint2)) - sizeof(page_init_t)) };
+    enum { max = ((logrec_t::data_sz - 2*sizeof(uint2_t)) - sizeof(page_init_t)) };
     char data[max];
 
-    page_mark_t(int i, smsize_t l, const void* d) : idx(i), len(l) {
+    page_mark_t(int i, smsize_t l, const void* d) : idx(i), len((uint2_t)l) {
 	w_assert1(l <= sizeof(data));
 	memcpy(data, d, l);
     }
-    page_mark_t(int i, const cvec_t& v) : idx(i), len(v.size()) {
+    page_mark_t(int i, const cvec_t& v) : idx(i), len((uint2_t)v.size()) {
 	w_assert1(len <= sizeof(data));
 	if(len>0) {
 	    v.copy_to(data);
 	}
     }
-    size() {
+    int size() {
 	return data + len - (char*) this;
     }
     void redo(page_p* page);
@@ -1084,7 +1092,67 @@ page_reclaim_log::undo(page_p* page)
     dp->redo(page);
 }
 
+/*********************************************************************
+ *
+ *  page_shift_log
+ *
+ *  Log a shift from one slots to another in a page.
+ *
+ *********************************************************************/
+class page_shift_t {
+public:
+    typedef page_s::slot_length_t slot_length_t;
 
+    int2_t 		idx1;	// first slot affected
+    slot_length_t 	off1;	// 0->offset is from first slot, rest
+				// from second
+    slot_length_t 	len1;	
+    int2_t 		idx2;	// second slot affected
+    slot_length_t 	off2;	
+
+    NORET		page_shift_t(
+	int 		    i, 
+	slot_length_t 	    o1, 
+	slot_length_t 	    l1, 
+	int 		    j, 
+	slot_length_t	    o2 ) : idx1(i), off1(o1), len1(l1), 
+		idx2(j), off2(o2){};
+
+    int			size()  { return sizeof(*this); }
+};
+
+page_shift_log::page_shift_log(
+    const page_p& 	page,
+    int 		idx,
+    page_shift_t::slot_length_t		off1, 
+    page_shift_t::slot_length_t		len1, 
+    int 		idx2,
+    page_shift_t::slot_length_t		off2
+    )
+{
+    fill(&page.pid(), page.tag(),
+	 (new (_data) page_shift_t(idx, off1, len1,
+			idx2, off2))->size());
+}
+
+
+void 
+page_shift_log::redo(page_p* page)
+{
+    page_shift_t* dp = (page_shift_t*) _data;
+
+    W_COERCE(page->shift(dp->idx1, dp->off1, dp->len1, 
+	dp->idx2, dp->off2));
+}
+
+void
+page_shift_log::undo(page_p* page)
+{
+    page_shift_t* dp = (page_shift_t*) _data;
+
+    W_COERCE(page->shift(dp->idx2, dp->off2, dp->len1, 
+	dp->idx1, dp->off1));
+}
 
 
 /*********************************************************************
@@ -1095,12 +1163,12 @@ page_reclaim_log::undo(page_p* page)
  *
  *********************************************************************/
 struct page_splice_t {
-    int2 		idx;	// slot affected
-    uint2 		start;  // offset in the slot where the splice began
-    uint2 		old_len;// len of old data (# bytes removed or overwritten by
+    int2_t 		idx;	// slot affected
+    uint2_t 		start;  // offset in the slot where the splice began
+    uint2_t 		old_len;// len of old data (# bytes removed or overwritten by
 				// the splice operation
-    uint2 		new_len;// len of new data (# bytes inserted or written by the splice)
-    char 		data[logrec_t::data_sz - 4 * sizeof(int2)]; // old data & new data
+    uint2_t 		new_len;// len of new data (# bytes inserted or written by the splice)
+    char 		data[logrec_t::data_sz - 4 * sizeof(int2_t)]; // old data & new data
 
     NORET		page_splice_t(
 	int 		    i, 
@@ -1127,11 +1195,11 @@ page_splice_t::page_splice_t(
     w_assert1((size_t)(old_len + new_len) < sizeof(data));
     memcpy(old_image(), ((char*)tuple)+start, old_len);
     v.copy_to(new_image());
-#ifdef DEBUG
+#ifdef W_DEBUG
     // if(old_len > 0) {
 	// w_assert3(memcmp(old_image(), new_image(), old_len) != 0);
     // }
-#endif
+#endif /* W_DEBUG */
 }
 
 page_splice_log::page_splice_log(
@@ -1141,6 +1209,7 @@ page_splice_log::page_splice_log(
     int 		len,
     const cvec_t& 	v)
 {
+    w_assert3(len <= smlevel_0::page_sz);
     fill(&page.pid(), page.tag(),
 	 (new (_data) page_splice_t(idx, start, len,
 				    page.tuple_addr(idx), v))->size());
@@ -1150,10 +1219,10 @@ void
 page_splice_log::redo(page_p* page)
 {
     page_splice_t* dp = (page_splice_t*) _data;
-#ifdef DEBUG
+#ifdef W_DEBUG
     char* p = ((char*) page->tuple_addr(dp->idx)) + dp->start;
     w_assert1(memcmp(dp->old_image(), p, dp->old_len) == 0);
-#endif /*DEBUG*/
+#endif /*W_DEBUG*/
 
     W_COERCE(page->splice(dp->idx, dp->start, dp->old_len,
 			vec_t(dp->new_image(), dp->new_len)));
@@ -1163,7 +1232,7 @@ void
 page_splice_log::undo(page_p* page)
 {
     page_splice_t* dp = (page_splice_t*) _data;
-#ifdef DEBUG
+#ifdef W_DEBUG
     if (page->tag() != page_p::t_extlink_p)  {
 	/* do this only for vol map file. this is due to the fact
 	 * that page map resides in extlink.
@@ -1171,7 +1240,9 @@ page_splice_log::undo(page_p* page)
 	char* p = ((char*) page->tuple_addr(dp->idx)) + dp->start;
 	w_assert1(memcmp(dp->new_image(), p, dp->new_len) == 0);
     }
-#endif /*DEBUG*/
+    w_assert3(dp->new_len <= smlevel_0::page_sz);
+    w_assert3(dp->old_len <= smlevel_0::page_sz);
+#endif /*W_DEBUG*/
 
     W_COERCE(page->splice(dp->idx, dp->start, dp->new_len,
 			vec_t(dp->old_image(), dp->old_len)));
@@ -1188,14 +1259,14 @@ page_splice_log::undo(page_p* page)
 
 
 struct page_splicez_t {
-    int2 		idx;	// slot affected
-    uint2 		start;  // offset in the slot where the splice began
-    uint2 		old_len;// len of old data (# bytes removed or overwritten by
+    int2_t 		idx;	// slot affected
+    uint2_t 		start;  // offset in the slot where the splice began
+    uint2_t 		old_len;// len of old data (# bytes removed or overwritten by
 				// the splice operation
-    uint2 		olen;   // len of old data stored in _data[]
-    uint2 		new_len;// len of new data (# bytes inserted or written by the splice)
-    uint2 		nlen;   // len of new data stroed in _data[]
-    char 		data[logrec_t::data_sz - 6 * sizeof(int2)]; // old data & new data
+    uint2_t 		olen;   // len of old data stored in _data[]
+    uint2_t 		new_len;// len of new data (# bytes inserted or written by the splice)
+    uint2_t 		nlen;   // len of new data stroed in _data[]
+    char 		data[logrec_t::data_sz - 6 * sizeof(int2_t)]; // old data & new data
 
     NORET		page_splicez_t(
 	int 		    i, 
@@ -1263,7 +1334,7 @@ page_splicez_log::redo(page_p* page)
 {
     page_splicez_t* dp = (page_splicez_t*) _data;
 
-#ifdef DEBUG
+#ifdef W_DEBUG
     {
 	char* p = ((char*) page->tuple_addr(dp->idx)) + dp->start;
 
@@ -1292,7 +1363,7 @@ page_splicez_log::redo(page_p* page)
 	    }
 	} // else nothing to compare, since old len is 0 (it was an insert)
     }
-#endif /*DEBUG*/
+#endif /*W_DEBUG*/
     vec_t z;
 
     if(dp->nlen == 0) {
@@ -1308,7 +1379,7 @@ void
 page_splicez_log::undo(page_p* page)
 {
     page_splicez_t* dp = (page_splicez_t*) _data;
-#ifdef DEBUG
+#ifdef W_DEBUG
     if (page->tag() != page_p::t_extlink_p)  {
 	/* do this only for vol map file. this is due to the fact
 	 * that page map resides in extlink.
@@ -1335,7 +1406,7 @@ page_splicez_log::undo(page_p* page)
 	    w_assert1(memcmp(dp->new_image(), p, dp->new_len) == 0);
 	}
     }
-#endif /*DEBUG*/
+#endif /*W_DEBUG*/
     DBG(<<"splicez undo: "
 	<< " olen (stored) : " << dp->olen
 	<< " old_len (orig): " << dp->old_len
@@ -1362,10 +1433,10 @@ page_splicez_log::undo(page_p* page)
  *
  *********************************************************************/
 struct page_set_bit_t {
-    uint2 	idx;
+    uint2_t 	idx;
     fill2	filler;
     int		bit;
-    NORET	page_set_bit_t(uint2 i, int b) : idx(i), bit(b)  {};
+    NORET	page_set_bit_t(uint2_t i, int b) : idx(i), bit(b)  {};
     int		size()   { return sizeof(*this); }
 };
 
@@ -1397,12 +1468,12 @@ page_set_bit_log::undo(page_p* page)
  *
  *********************************************************************/
 struct page_set_byte_t {
-    uint2 	idx;
+    uint2_t 	idx;
     fill2	filler;
     u_char	old_value;
     u_char	bits;
     int		operation;
-    NORET	page_set_byte_t(uint2 i, u_char old, u_char oper, int op) : 
+    NORET	page_set_byte_t(uint2_t i, u_char old, u_char oper, int op) : 
 	idx(i), old_value(old), bits(oper), operation(op) {};
     int		size()   { return sizeof(*this); }
 };
@@ -1473,7 +1544,7 @@ struct page_image_t {
     page_image_t(const page_p& page)  {
 	memcpy(image, &page.persistent_part_const(), sizeof(image));
     }
-    size()	{ return sizeof(*this); }
+    int size()	{ return sizeof(*this); }
 };
 
 page_image_log::page_image_log(const page_p& page)
@@ -1492,59 +1563,6 @@ page_image_log::redo(page_p* page)
 
 /*********************************************************************
  *
- *  btree_latch_log
- *
- *  Log a tree latch
- *
- *********************************************************************/
-struct btree_latch_t {
-    lpid_t	root;
-    bool        unlatch;
-    btree_latch_t(const lpid_t& pid, bool _un) : 
-	root(pid), unlatch(_un) { };
-    size()	{ return sizeof(*this); }
-};
-
-btree_latch_log::btree_latch_log(const page_p& page, bool unlatch)
-{
-    fill(&page.pid(), page.tag(),
-		(new (_data) btree_latch_t(page.pid(), unlatch))->size());
-}
-
-
-void 
-btree_latch_log::undo(page_p* 
-#ifdef DEBUG
-    page
-#endif
-)
-{
-    btree_latch_t* 	dp = (btree_latch_t*) _data;
-    xct_t *		xd = xct_t::look_up(_tid);
-    if(xd) {
-	w_assert3(page->pid() == dp->root);
-	W_COERCE(xd->recover_latch(dp->root, ! dp->unlatch));
-    }
-}
-
-void 
-btree_latch_log::redo(page_p* 
-#ifdef DEBUG
-    page
-#endif
-)
-{
-    btree_latch_t* 	dp = (btree_latch_t*) _data;
-    xct_t *		xd = xct_t::look_up(_tid);
-    if(xd) {
-	w_assert3(page->pid() == dp->root);
-	W_COERCE(xd->recover_latch(dp->root, dp->unlatch));
-    }
-}
-
-
-/*********************************************************************
- *
  *  btree_purge_log
  *
  *  Log a logical purge operation for btree.
@@ -1553,7 +1571,7 @@ btree_latch_log::redo(page_p*
 struct btree_purge_t {
     lpid_t	root;
     btree_purge_t(const lpid_t& pid) : root(pid) {};
-    size()	{ return sizeof(*this); }
+    int size()	{ return sizeof(*this); }
 };
 
 
@@ -1569,17 +1587,43 @@ btree_purge_log::undo(page_p* page)
 {
     // keep compiler quiet about unused parameter
     if (page) {}
+
+    /* This might seem weird, to undo a purge by purging...
+     * but this is used only by bulk-loading, and this
+     * turns out to be a no-op, I think.   Probably we should
+     * just make this a no-undo record, since we compensate around
+     * the freeing of pages anyway; all this is doing is re-setting
+     * the hdr.
+     */
     btree_purge_t* dp = (btree_purge_t*) _data;
-    W_COERCE( smlevel_2::bt->purge(dp->root, false));
+    W_COERCE( smlevel_2::bt->purge(dp->root, false, false));
 }
 
 
 void
 btree_purge_log::redo(page_p* page)
 {
+    /*
+     * The freeing-of-pages part was redone by the
+     * log records for those operations.  All we have
+     * to redo is the change to the root page and the
+     * store flags 
+     */
     btree_p* bp = (btree_p*) page;
     btree_purge_t* dp = (btree_purge_t*) _data;
-    W_COERCE( bp->set_hdr(dp->root.page, 1, 0, 0) );
+    W_COERCE( bp->set_hdr(dp->root.page, 1, 0, 
+	(uint2_t)(bp->is_compressed()? 
+	btree_p::t_compressed: btree_p::t_none)) );
+
+    /*
+     *  Xct for which this is done could have finished,
+     *  but that's ok.  In recovery, we don't need to 
+     *  attach the xct because there will be log records
+     *  (to be redone) that re-set the store flags as
+     *  required.
+     */
+    W_COERCE( smlevel_0::io->set_store_flags(dp->root.stid(), 
+	btree_m::bulk_loaded_store_type) );
 }
 
 
@@ -1594,15 +1638,15 @@ btree_purge_log::redo(page_p* page)
  *********************************************************************/
 struct btree_insert_t {
     lpid_t	root;
-    int2	idx;
-    uint2	klen;
-    uint2	elen;
-    int2	unique;
-    char	data[logrec_t::data_sz - sizeof(lpid_t) - 4*sizeof(int2)];
+    int2_t	idx;
+    uint2_t	klen;
+    uint2_t	elen;
+    int2_t	unique;
+    char	data[logrec_t::data_sz - sizeof(lpid_t) - 4*sizeof(int2_t)];
 
     btree_insert_t(const btree_p& page, int idx, const cvec_t& key,
 		   const cvec_t& el, bool unique);
-    size()	{ return data + klen + elen - (char*) this; }
+    int size()	{ return data + klen + elen - (char*) this; }
 };
 
 btree_insert_t::btree_insert_t(
@@ -1614,7 +1658,6 @@ btree_insert_t::btree_insert_t(
     : idx(_idx), klen(key.size()), elen(el.size()), unique(uni)
 {
     root = _page.root();
-    w_assert1(key.size() > 0);
     w_assert1((size_t)(klen + elen) < sizeof(data));
     key.copy_to(data);
     el.copy_to(data + klen);
@@ -1632,12 +1675,8 @@ btree_insert_log::btree_insert_log(
 	 (new (_data) btree_insert_t(bp, idx, key, el, unique))->size());
 }
 
-#ifndef W_DEBUG
-#define page /* page not used */
-#endif
 void 
-btree_insert_log::undo(page_p* page)
-#undef page
+btree_insert_log::undo(page_p* W_IFDEBUG(page))
 {
     w_assert3(page == 0);
     btree_insert_t* dp = (btree_insert_t*) _data;
@@ -1648,7 +1687,7 @@ btree_insert_log::undo(page_p* page)
 
     // ***LOGICAL*** don't grab locks during undo
     rc_t rc;
-    rc = smlevel_2::bt->_remove(dp->root, dp->unique, 
+    rc = smlevel_2::bt->_remove(dp->root, (dp->unique != 0), 
 				     smlevel_0::t_cc_none, key, el); 
     if(rc) {
 	smlevel_2::bt->print(dp->root);
@@ -1670,7 +1709,15 @@ btree_insert_log::redo(page_p* page)
     el.put(dp->data + dp->klen, dp->elen);
 
     // ***PHYSICAL***
+    /* for debugging, removed macro
     W_COERCE( bp->insert(key, el, dp->idx) ); 
+    */
+    w_rc_t rc;
+    rc =  bp->insert(key, el, dp->idx);
+    if(rc) {
+	// btree_m::print_key_str(dp->root,false);
+	w_assert1(0);
+    }
 }
 
 
@@ -1696,12 +1743,8 @@ btree_remove_log::btree_remove_log(
 	 (new (_data) btree_remove_t(bp, idx, key, el, unique))->size());
 }
 
-#ifndef W_DEBUG
-#define page /* page not used */
-#endif
 void
-btree_remove_log::undo(page_p* page)
-#undef page
+btree_remove_log::undo(page_p* W_IFDEBUG(page))
 {
     w_assert3(page == 0);
     btree_remove_t* dp = (btree_remove_t*) _data;
@@ -1719,7 +1762,7 @@ btree_remove_log::undo(page_p* page)
      */
     // ***LOGICAL*** Don't grab locks during undo
     rc_t rc;
-    rc = smlevel_2::bt->_insert(dp->root, dp->unique, 
+    rc = smlevel_2::bt->_insert(dp->root, (dp->unique != 0), 
 				     smlevel_0::t_cc_none, key, el); 
     if(rc) {
 	smlevel_2::bt->print(dp->root);
@@ -1737,7 +1780,7 @@ btree_remove_log::redo(page_p* page)
     btree_p* bp = (btree_p*) page;
     btree_remove_t* dp = (btree_remove_t*) _data;
 
-#ifdef DEBUG
+#ifdef W_DEBUG
     cvec_t key, el;
     key.put(dp->data, dp->klen);
     el.put(dp->data + dp->klen, dp->elen);
@@ -1745,9 +1788,17 @@ btree_remove_log::redo(page_p* page)
     btrec_t r(*bp, dp->idx);
     w_assert3(el == r.elem());
     w_assert3(key == r.key());
-#endif /*DEBUG*/
+#endif /*W_DEBUG*/
 
-    W_COERCE( bp->remove(dp->idx) ); // ***PHYSICAL***
+    /* for debugging, removed macro
+    W_COERCE( bp->remove(dp->idx, bp->is_compressed()) ); // ***PHYSICAL***
+    */
+    w_rc_t rc;
+    rc =  bp->remove(dp->idx, bp->is_compressed()); 
+    if(rc) {
+	// btree_m::print_key_str(dp->root,false);
+	w_assert1(0);
+    }
 }
 
 
@@ -1759,14 +1810,14 @@ btree_remove_log::redo(page_p* page)
  *********************************************************************/
 struct rtree_insert_t {
     lpid_t	root;
-    int2	idx;
-    uint2	klen;
-    uint2	elen;
-    char	data[logrec_t::data_sz - sizeof(lpid_t) - 3*sizeof(int2)];
+    int2_t	idx;
+    uint2_t	klen;
+    uint2_t	elen;
+    char	data[logrec_t::data_sz - sizeof(lpid_t) - 3*sizeof(int2_t)];
 
     rtree_insert_t(const rtree_p& page, int idx, const nbox_t& key,
 		   const cvec_t& el);
-    size()	{ return data + klen + elen - (char*) this; }
+    int size()	{ return data + klen + elen - (char*) this; }
 };
 
 rtree_insert_t::rtree_insert_t(const rtree_p& _page, int _idx,
@@ -1787,12 +1838,8 @@ rtree_insert_log::rtree_insert_log(const page_p& page, int idx,
 	 (new (_data) rtree_insert_t(rp, idx, key, el))->size());
 }
 
-#ifndef W_DEBUG
-#define page /* page not used */
-#endif
 void
-rtree_insert_log::undo(page_p* page)
-#undef page
+rtree_insert_log::undo(page_p* W_IFDEBUG(page))
 {
     w_assert3(page == 0);
     rtree_insert_t* dp = (rtree_insert_t*) _data;
@@ -1833,12 +1880,8 @@ rtree_remove_log::rtree_remove_log(const page_p& page, int idx,
 	 (new (_data) rtree_remove_t(rp, idx, key, el))->size());
 }
 
-#ifndef W_DEBUG
-#define page /* page not used */
-#endif
 void
-rtree_remove_log::undo(page_p* page)
-#undef page
+rtree_remove_log::undo(page_p* W_IFDEBUG(page))
 {
     w_assert3(page == 0);
     rtree_remove_t* dp = (rtree_remove_t*) _data;
@@ -1855,134 +1898,17 @@ rtree_remove_log::redo(page_p* page)
     rtree_p* rp = (rtree_p*) page;
     rtree_remove_t* dp = (rtree_remove_t*) _data;
 
-#ifdef DEBUG
+#ifdef W_DEBUG
     nbox_t key(dp->data, dp->klen);
     cvec_t el;
     el.put(dp->data + dp->klen, dp->elen);
     w_assert3(el.cmp(rp->rec(dp->idx).elem(), rp->rec(dp->idx).elen()) == 0);
     w_assert3(memcmp(key.kval(), rp->rec(dp->idx).key(),
 				rp->rec(dp->idx).klen()) == 0);
-#endif /*DEBUG*/
+#endif /*W_DEBUG*/
 
     W_COERCE( rp->remove(dp->idx) ); // ***PHYSICAL***
 }
-
-
-
-#ifdef USE_RDTREE
-/*********************************************************************
- *
- *   rdtree_insert_log
- *
- *********************************************************************/
-struct rdtree_insert_t {
-    lpid_t	root;
-    int2	idx;
-    int2	klen;
-    int2	elen;
-    char	data[logrec_t::data_sz - sizeof(lpid_t) - 3*sizeof(int2)];
-
-    rdtree_insert_t(const rdtree_p& page, int idx, const rangeset_t& key,
-		   const cvec_t& el);
-    size()	{ return data + klen + elen - (char*) this; }
-};
-
-rdtree_insert_t::rdtree_insert_t(const rdtree_p& _page, int _idx,
-				 const rangeset_t& key, const cvec_t& el)
-: idx(_idx), klen(key.klen()), elen(el.size())
-{
-    _page.root(root);
-    w_assert1(klen + elen < sizeof(data));
-    memcpy(data, key.kval(), key.hdrlen());
-    memcpy(data + key.hdrlen(), key.dataaddr(), key.datalen());
-    el.copy_to(data + klen);
-}
-
-rdtree_insert_log::rdtree_insert_log(const page_p& page, int idx, 
-				   const rangeset_t& key, const cvec_t& el)
-{
-    const rdtree_p& rp = * (rdtree_p*) &page;
-    fill(&page.pid(), page.tag(),
-	 (new (_data) rdtree_insert_t(rp, idx, key, el))->size());
-}
-
-void
-rdtree_insert_log::undo(page_p* page)
-{
-    w_assert3(page == 0);
-    rdtree_insert_t* dp = (rdtree_insert_t*) _data;
-
-    rangeset_t key(dp->data, (int)dp->klen);
-    cvec_t el;
-    el.put(dp->data + dp->klen, dp->elen);
-    W_COERCE( smlevel_2::rdt->remove(dp->root, key, el) ); // ***LOGICAL***
-}
-
-void
-rdtree_insert_log::redo(page_p* page)
-{
-    rdtree_p* rp = (rdtree_p*) page;
-    rdtree_insert_t* dp = (rdtree_insert_t*) _data;
-    
-    rangeset_t key(dp->data, (int) dp->klen);
-    cvec_t el;
-    el.put(dp->data + dp->klen, dp->elen);
-
-    W_COERCE( rp->insert(key, el) ); // ***PHYSICAL***
-}
-
-
-/*********************************************************************
- *
- *   rdtree_remove_log
- *
- *********************************************************************/
-typedef rdtree_insert_t rdtree_remove_t;
-
-rdtree_remove_log::rdtree_remove_log(const page_p& page, int idx,
-				   const rangeset_t& key, const cvec_t& el)
-{
-    const rdtree_p& rp = * (rdtree_p*) &page;
-    fill(&page.pid(), page.tag(),
-	 (new (_data) rdtree_remove_t(rp, idx, key, el))->size());
-}
-
-void
-rdtree_remove_log::undo(page_p* page)
-{
-    w_assert3(page == 0);
-    rdtree_remove_t* dp = (rdtree_remove_t*) _data;
-
-    rangeset_t key(dp->data, (int) dp->klen);
-    cvec_t el;
-    el.put(dp->data + dp->klen, dp->elen);
-    W_COERCE( smlevel_2::rdt->insert(dp->root, key, el) ); // ***LOGICAL***
-}
-
-
-void
-rdtree_remove_log::redo(page_p* page)
-{
-    rdtree_p* rp = (rdtree_p*) page;
-    rdtree_remove_t* dp = (rdtree_remove_t*) _data;
-
-#ifdef DEBUG
-    rangeset_t key(dp->data, (int) dp->klen);
-    cvec_t el;
-    el.put(dp->data + dp->klen, dp->elen);
-    w_assert3(el.cmp(rp->rec(dp->idx).elem(), rp->rec(dp->idx).elen()) == 0);
-    w_assert3(memcmp(key.kval(), rp->rec(dp->idx).key(),
-				key.hdrlen()) == 0);
-    w_assert3(memcmp(key.dataaddr(), rp->rec(dp->idx).key() + key.hdrlen(),
-		   rp->rec(dp->idx).klen() - key.hdrlen()) == 0);
-#endif /*DEBUG*/
-
-    W_COERCE( rp->remove(dp->idx) ); // ***PHYSICAL***
-}
-#endif /* USE_RDTREE */
-
-
-
 
 /*********************************************************************
  *
@@ -1995,7 +1921,9 @@ rdtree_remove_log::redo(page_p* page)
 
 struct pages_in_ext_t  {
     extnum_t		ext;
-    Pmap_Align2		pmap;
+    Pmap_Align4		pmap; // grot: for purify -because
+			      // with 4-byte extnum_t, gcc keeps
+			      // the struct 4-byte aligned
 
     pages_in_ext_t(extnum_t theExt, const Pmap& thePmap);
     int size() const  { return sizeof(*this); }
@@ -2020,14 +1948,14 @@ alloc_pages_in_ext_log::alloc_pages_in_ext_log(const page_p& page, extnum_t ext,
 void alloc_pages_in_ext_log::redo(page_p* /*page*/)
 {
     pages_in_ext_t* thePages = (pages_in_ext_t*)_data;
-    W_COERCE( smlevel_0::io->_recover_pages_in_ext(pid().vol(), thePages->ext, thePages->pmap, true) );
+    W_COERCE( smlevel_0::io->_recover_pages_in_ext(vid(), thePages->ext, thePages->pmap, true) );
 }
 
 
 void alloc_pages_in_ext_log::undo(page_p* /*page*/)
 {
     pages_in_ext_t* thePages = (pages_in_ext_t*)_data;
-    W_COERCE( smlevel_0::io->recover_pages_in_ext(pid().vol(), thePages->ext, thePages->pmap, false) );
+    W_COERCE( smlevel_0::io->recover_pages_in_ext(vid(), thePages->ext, thePages->pmap, false) );
 }
 
 
@@ -2040,14 +1968,14 @@ free_pages_in_ext_log::free_pages_in_ext_log(const page_p& page, extnum_t ext, c
 void free_pages_in_ext_log::redo(page_p* /*page*/)
 {
     pages_in_ext_t* thePages = (pages_in_ext_t*)_data;
-    W_COERCE( smlevel_0::io->_recover_pages_in_ext(pid().vol(), thePages->ext, thePages->pmap, false) );
+    W_COERCE( smlevel_0::io->_recover_pages_in_ext(vid(), thePages->ext, thePages->pmap, false) );
 }
 
 
 void free_pages_in_ext_log::undo(page_p* /*page*/)
 {
     pages_in_ext_t* thePages = (pages_in_ext_t*)_data;
-    W_COERCE( smlevel_0::io->recover_pages_in_ext(pid().vol(), thePages->ext, thePages->pmap, true) );
+    W_COERCE( smlevel_0::io->recover_pages_in_ext(vid(), thePages->ext, thePages->pmap, true) );
 }
 
 
@@ -2066,7 +1994,7 @@ struct free_ext_list_t  {
     extnum_t	head;
     extnum_t	count;
 
-    free_ext_list_t::free_ext_list_t(const stid_t& theStid, extnum_t theHead, extnum_t theCount)
+    free_ext_list_t(const stid_t& theStid, extnum_t theHead, extnum_t theCount)
 	: stid(theStid), head(theHead), count(theCount)
 	{}
     int size()
@@ -2098,7 +2026,7 @@ struct set_ext_next_t  {
     extnum_t	ext;
     extnum_t	new_next;
 
-    set_ext_next_t::set_ext_next_t(extnum_t theExt, extnum_t theNew_next)
+    set_ext_next_t(extnum_t theExt, extnum_t theNew_next)
 	: ext(theExt), new_next(theNew_next)
 	{}
     int size()
@@ -2116,7 +2044,7 @@ set_ext_next_log::set_ext_next_log(const page_p& page,
 void set_ext_next_log::redo(page_p* /*page*/)
 {
     set_ext_next_t* info = (set_ext_next_t*)_data;
-    W_COERCE( smlevel_0::io->set_ext_next(pid().vol(), 
+    W_COERCE( smlevel_0::io->set_ext_next(vid(), 
 	info->ext, info->new_next) );
 }
 
@@ -2131,11 +2059,12 @@ void set_ext_next_log::redo(page_p* /*page*/)
  *********************************************************************/
 
 struct create_ext_list_t  {
-    stid_t		    stid;
+    /* NB: Do NOT put these on the stack -- must be allocated via new */
+    stid_t	    stid;
     extnum_t	    prev;
     extnum_t	    next;
     extnum_t	    count;
-    extnum_t		list[stnode_p::max];
+    extnum_t	    list[stnode_p::max];
 
     create_ext_list_t(const stid_t& theStid, extnum_t thePrev, extnum_t theNext, extnum_t theCount, const extnum_t* theList)
 	: stid(theStid), prev(thePrev), next(theNext), count(theCount)
@@ -2145,7 +2074,7 @@ struct create_ext_list_t  {
 		list[theCount] = theList[theCount];
 	}
     int size()
-	{ return ((char*)&this->list[count+1] - (char*)this); }
+	{ return ((char*)&this->list[count] - (char*)this); }
 };
 
 create_ext_list_log::create_ext_list_log(
@@ -2184,13 +2113,13 @@ void store_operation_log::redo(page_p* /*page*/)
     store_operation_param& param = *(store_operation_param*)_data;
     DBG( << "store_operation_log::redo(page=" << pid() 
 	<< ", param=" << param << ")" );
-    W_COERCE( smlevel_0::io->store_operation(pid().vol(), param) );
+    W_COERCE( smlevel_0::io->store_operation(vid(), param) );
 }
 
 void store_operation_log::undo(page_p* /*page*/)
 {
     store_operation_param& param = *(store_operation_param*)_data;
-    DBG( << "store_operation_log::undo(page=" << pid() << ", param=" << param << ")" );
+    DBG( << "store_operation_log::undo(page=" << shpid() << ", param=" << param << ")" );
 
     switch (param.op())  {
 	case smlevel_0::t_delete_store:
@@ -2198,7 +2127,8 @@ void store_operation_log::undo(page_p* /*page*/)
 	    break;
 	case smlevel_0::t_create_store:
 	    {
-		stid_t stid(pid().vol(), param.snum());
+		stid_t stid(vid(), param.snum());
+		histoid_t::destroyed_store(stid, 0);
 		W_COERCE( smlevel_0::io->destroy_store(stid) );
 	    }
 	    break;
@@ -2211,7 +2141,7 @@ void store_operation_log::undo(page_p* /*page*/)
 				smlevel_0::t_set_deleting,
 				param.old_deleting_value(), 
 				param.new_deleting_value());
-			W_COERCE( smlevel_0::io->store_operation(pid().vol(), 
+			W_COERCE( smlevel_0::io->store_operation(vid(), 
 				new_param) );
 		    }
 		    break;
@@ -2228,7 +2158,7 @@ void store_operation_log::undo(page_p* /*page*/)
 		store_operation_param new_param(param.snum(), 
 			smlevel_0::t_set_store_flags,
 			param.old_store_flags(), param.new_store_flags());
-		W_COERCE( smlevel_0::io->store_operation(pid().vol(), 
+		W_COERCE( smlevel_0::io->store_operation(vid(), 
 			new_param) );
 	    }
 	    break;
@@ -2240,6 +2170,7 @@ void store_operation_log::undo(page_p* /*page*/)
 
 
 
+
 /*********************************************************************
  *
  *  operator<<(ostream, logrec)
@@ -2247,23 +2178,18 @@ void store_operation_log::undo(page_p* /*page*/)
  *  Pretty print a log record to ostream.
  *
  *********************************************************************/
-#include <logtype.i>
+#include "logtype_gen.h"
 ostream& 
 operator<<(ostream& o, const logrec_t& l)
 {
     long f = o.flags();
     o.setf(ios::left, ios::left);
 
-    o << l._tid << ' ' << setw(19) << l.type_str() 
-      << setw(5) << l.cat_str() << "  " << l._pid;
+    o << l._tid << ' ';
+    W_FORM(o)("%19s%5s", l.type_str(), l.cat_str());
+    o << "  " << l.pid();
 
     switch(l.type()) {
-	case t_btree_latch:
-		{
-		    const btree_latch_t *lt = (const btree_latch_t *)l._data;
-		    o << "unlatch=" << lt->unlatch << " root=" << lt->root;
-		} 
-		break;
 	case t_comment : 
 		{
 		    o << (const char *)l._data;
@@ -2302,7 +2228,7 @@ operator<<(ostream& o, const logrec_t& l)
 		      << " next=" << info->next
 		      << " count=" << info->count
 		      << " list=[";
-		    for (int i = 0; i < info->count; i++)
+		    for (unsigned int i = 0; i < info->count; i++)
 			o << ' ' << info->list[i];
 		    o << " ]";
 		}
@@ -2342,26 +2268,27 @@ operator<<(ostream& o, const logrec_t& l)
  *                    we combine the two to reduce logging and page-fixes
  *
  ********************************************************************/
-struct page_format_t {
-    struct page_init_t   _init;
-    struct page_init_t*   init() { return &_init; }
+class page_format_t {
+public:
+    page_init_t   _init;
+    page_init_t*   init() { return &_init; }
 
     enum { max = (logrec_t::data_sz - sizeof(page_init_t)) };
 
     char	data[max]; 
 
-    struct page_insert_t*   insert() { return (page_insert_t *)data; }
-    struct page_reclaim_t*   reclaim() { return (page_reclaim_t *)&data; }
+    page_insert_t*   insert() { return (page_insert_t *)data; }
+    page_reclaim_t*   reclaim() { return (page_reclaim_t *)&data; }
 
     // version for init/insert_expand:
-    page_format_t(  uint2 tag, uint4 flag,
+    page_format_t(  uint2_t tag, uint4_t flag, 
 		    int idx, int cnt, const cvec_t* vec) : _init(tag, flag) {
 	   w_assert3(tag != page_p::t_file_p);
 	   new (data) page_insert_t(idx, cnt, vec);
        }
 
     // version for init/reclaim (file_p):
-    page_format_t(  uint2 tag, uint4 flag,
+    page_format_t(  uint2_t tag, uint4_t flag,
 		    int idx,  const cvec_t* vec) : _init(tag, flag) {
 	   w_assert3(tag == page_p::t_file_p);
 	   zvec_t zv;
@@ -2369,7 +2296,7 @@ struct page_format_t {
 	   new (data) page_reclaim_t(idx, *vec);
        }
 
-    size()  { return _init.size() + 
+    int size()  { return _init.size() + 
 	((_init.tag == page_p::t_file_p)? reclaim()->size() : insert()->size());
 	}
 };
@@ -2469,4 +2396,3 @@ page_format_log::undo(page_p* page)
 	df->insert()->undo(page);
     }
 }
-

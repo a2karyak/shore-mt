@@ -1,15 +1,38 @@
-/* --------------------------------------------------------------- */
-/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
-/* -- University of Wisconsin-Madison, subject to the terms     -- */
-/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
-/* -- Reserved.                                                 -- */
-/* --------------------------------------------------------------- */
+/*<std-header orig-src='shore' incl-file-exclusion='LATCH_H'>
 
-/*
- *  $Id: latch.h,v 1.22 1997/05/19 19:41:03 nhall Exp $
- */
+ $Id: latch.h,v 1.30 1999/06/07 19:02:26 kupsch Exp $
+
+SHORE -- Scalable Heterogeneous Object REpository
+
+Copyright (c) 1994-99 Computer Sciences Department, University of
+                      Wisconsin -- Madison
+All Rights Reserved.
+
+Permission to use, copy, modify and distribute this software and its
+documentation is hereby granted, provided that both the copyright
+notice and this permission notice appear in all copies of the
+software, derivative works or modified versions, and any portions
+thereof, and that both notices appear in supporting documentation.
+
+THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+"AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+This software was developed with support by the Advanced Research
+Project Agency, ARPA order number 018 (formerly 8230), monitored by
+the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+Further funding for this work was provided by DARPA through
+Rome Research Laboratory Contract No. F30602-97-2-0247.
+
+*/
+
 #ifndef LATCH_H
 #define LATCH_H
+
+#include "w_defines.h"
+
+/*  -- do not edit anything above this line --   </std-header>*/
 
 #ifndef STHREAD_H
 #include <sthread.h>
@@ -48,21 +71,21 @@ enum latch_mode_t { LATCH_NL = 0, LATCH_SH = 1, LATCH_EX = 2 };
    release(share)
 */   
 
+class ostream;
+
 class latch_t : public sthread_named_base_t {
 
 public:
     NORET			latch_t(const char* const desc = 0);
-    NORET			~latch_t()	{};
-#ifdef DEBUG
+    NORET			~latch_t();
+
     ostream			&print(ostream &) const;
-    friend ostream& operator<<(ostream&, const latch_t& l);
-#endif
 
     inline const void *		id() const { return &_waiters; } // id used for resource tracing
     inline void 		setname(const char *const desc);
     w_rc_t			acquire(
 	latch_mode_t 		    m, 
-	int 			    timeout = sthread_base_t::WAIT_FOREVER);
+	sthread_t::timeout_in_ms    timeout = sthread_base_t::WAIT_FOREVER);
     w_rc_t			upgrade_if_not_block(
 	bool& 			    would_block);
     void   			release();
@@ -76,7 +99,12 @@ public:
 
     const sthread_t * 		holder() const;
 
-    enum { max_sh = 4 }; // max threads that can hold a share latch
+    /* Maximum number of threads that can hold a share latch */
+#ifdef SM_LATCH_SHARE_MAX
+    enum { max_sh = SM_LATCH_SHARE_MAX };
+#else
+    enum { max_sh = 4 };
+#endif
 
     static const char* const    latch_mode_str[3];
 
@@ -105,12 +133,14 @@ private:
     latch_t&   			operator=(const latch_t&);
 };
 
+extern ostream &operator<<(ostream &, const latch_t &);
+
 inline void
 latch_t::setname(const char* const desc)
 {
-    rename(desc?"l:":0, desc);
-    _mutex.rename(desc?"l:m:":0, desc);
-    _waiters.rename(desc?"l:c:":0, desc);
+    rename("l:", desc);
+    _mutex.rename("l:m:", desc);
+    _waiters.rename("l:c:", desc);
 }
 
 inline bool
@@ -145,4 +175,7 @@ latch_t::mode() const
 {
     return _mode;
 }
-#endif /*LATCH_H*/
+
+/*<std-footer incl-file-exclusion='LATCH_H'>  -- do not edit anything below this line -- */
+
+#endif          /*</std-footer>*/

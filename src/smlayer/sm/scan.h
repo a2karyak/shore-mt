@@ -1,20 +1,46 @@
-/* --------------------------------------------------------------- */
-/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
-/* -- University of Wisconsin-Madison, subject to the terms     -- */
-/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
-/* -- Reserved.                                                 -- */
-/* --------------------------------------------------------------- */
+/*<std-header orig-src='shore' incl-file-exclusion='SCAN_H'>
 
-/*
- *  $Id: scan.h,v 1.72 1997/05/27 13:09:51 kupsch Exp $
- */
+ $Id: scan.h,v 1.86 1999/06/07 19:04:27 kupsch Exp $
+
+SHORE -- Scalable Heterogeneous Object REpository
+
+Copyright (c) 1994-99 Computer Sciences Department, University of
+                      Wisconsin -- Madison
+All Rights Reserved.
+
+Permission to use, copy, modify and distribute this software and its
+documentation is hereby granted, provided that both the copyright
+notice and this permission notice appear in all copies of the
+software, derivative works or modified versions, and any portions
+thereof, and that both notices appear in supporting documentation.
+
+THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+"AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+This software was developed with support by the Advanced Research
+Project Agency, ARPA order number 018 (formerly 8230), monitored by
+the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+Further funding for this work was provided by DARPA through
+Rome Research Laboratory Contract No. F30602-97-2-0247.
+
+*/
+
 #ifndef SCAN_H
 #define SCAN_H
+
+#include "w_defines.h"
+
+/*  -- do not edit anything above this line --   </std-header>*/
 
 #ifdef __GNUG__
 #pragma interface
 #endif
 
+#ifndef XCT_DEPENDENT_H
+#include <xct_dependent.h>
+#endif /* XCT_DEPENDENT_H */
 /*
 
     Scans can be performed on B+tree and R-tree indexes and on files
@@ -39,7 +65,7 @@
 	The scan destructor free's and un-fixes (un-pins) all resources
 	used by the scan.
 
-        The finish() function free's (and un-fixes) resources used
+        The finish() function frees (and un-fixes) resources used
 	by the scan.  finish() is automatically call by the destructor,
 	but it is sometimes useful to call it early for scan objects
 	on the stack when the destructor might not be called until
@@ -74,6 +100,7 @@ public:
 	const cvec_t& 		    bound1, 
 	cmp_t 			    c2,
 	const cvec_t& 		    bound2,
+	bool			    include_nulls = false,
 	concurrency_t		    cc = t_cc_kvl);
     NORET			scan_index_i(
 	const lvid_t& 		    lvid,
@@ -82,8 +109,11 @@ public:
 	const cvec_t& 		    bound1,
 	cmp_t 			    c2,
 	const cvec_t& 		    bound2,
+	bool			    include_nulls = false,
 	concurrency_t		    cc = t_cc_kvl);
-    NORET			~scan_index_i() { finish(); }
+    NORET			~scan_index_i();
+
+    NORET			W_FASTNEW_CLASS_DECL(scan_index_i);
 
     rc_t			curr(
 	vec_t* 			    key, 
@@ -119,6 +149,7 @@ private:
     rc_t			_error_occurred;
     bt_cursor_t* 		_btcursor;
     bool			_finished;
+    bool			_skip_nulls;
     concurrency_t		_cc;
 
     rc_t			_fetch(
@@ -145,7 +176,7 @@ private:
 
 
 // R-Tree Scanning
-struct rt_cursor_t;
+class rt_cursor_t;
 class scan_rt_i : public smlevel_top, public xct_dependent_t {
 public:
 
@@ -159,14 +190,16 @@ public:
 	const stid_t& 		    stid, 
 	nbox_t::sob_cmp_t 	    c,
 	const nbox_t& 		    box,
+	bool			    include_nulls = false,
 	concurrency_t		    cc = t_cc_page);
     NORET			scan_rt_i(
 	const lvid_t& 		    lvid, 
 	const serial_t& 	    stid,
 	nbox_t::sob_cmp_t 	    c,
 	const nbox_t& 		    box,
+	bool			    include_nulls = false,
 	concurrency_t		    cc = t_cc_page);
-    NORET			~scan_rt_i() { finish(); }
+    NORET			~scan_rt_i();
     
     rc_t			next(
 	nbox_t& 		    key,
@@ -181,7 +214,7 @@ public:
 	return _fetch(key, el, elen, eof, false);
     }
 */
-    void	finish();
+    void			finish();
     
     bool			eof()	{ return _eof; }
     w_rc_t			error_code(){ return _error_occurred; }
@@ -190,6 +223,7 @@ private:
     rc_t			_error_occurred;
     rt_cursor_t* 		_cursor;
     bool			_finished;
+    bool			_skip_nulls;
     concurrency_t		_cc;
 
     rc_t			_fetch(
@@ -210,78 +244,6 @@ private:
     NORET			scan_rt_i(const scan_rt_i&);
     scan_rt_i&			operator=(const scan_rt_i&);
 };
-
-#ifdef USE_RDTREE
-// RD-Tree Scanning
-struct rdt_cursor_t;
-class scan_rdt_i : public smlevel_top, public xct_dependent_t {
-public:
-
-    stid_t			stid;
-    tid_t			tid;
-    ndx_t 			ntype;
-    serial_t			serial; 
-    // serial number if store has a logical ID
-    
-    NORET			scan_rdt_i(
-	const stid_t& 		    stid, 
-	nbox_t::sob_cmp_t 	    c,
-	const rangeset_t& 	    set,
-	concurrency_t		    cc = t_cc_page);
-    NORET			scan_rdt_i(
-	const lvid_t& 		    lvid,
-	const serial_t& 	    stid,
-	nbox_t::sob_cmp_t 	    c,
-	const rangeset_t& 	    set,
-	concurrency_t		    cc = t_cc_page);
-
-    NORET			~scan_rdt_i() { finish(); }
-    
-    rc_t			next(
-	rangeset_t& 		    key,
-	void* 			    el, 
-	smsize_t& 			    elen,
-	bool& 		    eof) {
-
-	return _fetch(key, el, elen, eof, true);
-    }
-
-/*
-    curr(rangeset_t& key, void* el, smsize_t& elen, bool& eof) {
-	return _fetch(key, el, elen, eof, false);
-    }
-*/
-    void			finish();
-    
-    bool			eof()	{ return _eof; }
-    w_rc_t			error_code(){ return _error_occurred; }
-private:
-    bool			_eof;
-    rc_t			_error_occurred;
-    rdt_cursor_t* 		_cursor;
-    bool			_finished;
-    concurrency_t		_cc;
-
-    rc_t			_fetch(
-	rangeset_t& 		    key, 
-	void* 			    el,
-	smsize_t&		    elen,
-	bool& 		    eof,
-	bool 			    skip);
-    void 			_init(
-	nbox_t::sob_cmp_t 	    c,
-	const rangeset_t& 	    qset);
-
-    void			xct_state_changed(
-	xct_state_t		    old_state,
-	xct_state_t		    new_state);
-
-    // disabled
-    NORET			scan_rdt_i(const scan_rdt_i&);
-    scan_rdt_i&			operator=(const scan_rdt_i&);
-};
-#endif /* USE_RDTREE */
-
 
 /*
  * Scanning a File
@@ -317,7 +279,8 @@ public:
 	const serial_t& 	    start_rid,
 	concurrency_t		    cc = t_cc_file,
 	bool			    prefetch=false);
-    NORET			~scan_file_i() { finish(); }
+    NORET			~scan_file_i();
+    NORET			W_FASTNEW_CLASS_DECL(scan_file_i);
     
     /* needed for tcl scripts */
     void			cursor(
@@ -348,7 +311,7 @@ public:
    
     void			finish();
     bool			eof()		{ return _eof; }
-    bool			is_logical() const{ return _lfid!=serial_t::null; }
+    bool			is_logical() const{ return (_lfid != serial_t::null); }
     w_rc_t			error_code(){ return _error_occurred; }
     tid_t			xid() const { return tid; }
 
@@ -424,8 +387,10 @@ private:
     // file_p		        page;
     inline 
     file_p&     		_page() { return *(file_p*) _page_alias;}
-    char        		_page_alias[20];
+    char        		_page_alias[24];
     sdesc_t			_cached_sdesc;
 };
 
-#endif /*SCAN_H*/
+/*<std-footer incl-file-exclusion='SCAN_H'>  -- do not edit anything below this line -- */
+
+#endif          /*</std-footer>*/

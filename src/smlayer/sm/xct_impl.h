@@ -1,15 +1,38 @@
-/* --------------------------------------------------------------- */
-/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
-/* -- University of Wisconsin-Madison, subject to the terms     -- */
-/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
-/* -- Reserved.                                                 -- */
-/* --------------------------------------------------------------- */
+/*<std-header orig-src='shore' incl-file-exclusion='XCT_IMPL_H'>
 
-/*
- *  $Id: xct_impl.h,v 1.7 1997/05/27 13:10:12 kupsch Exp $
- */
+ $Id: xct_impl.h,v 1.23 1999/06/07 19:04:51 kupsch Exp $
+
+SHORE -- Scalable Heterogeneous Object REpository
+
+Copyright (c) 1994-99 Computer Sciences Department, University of
+                      Wisconsin -- Madison
+All Rights Reserved.
+
+Permission to use, copy, modify and distribute this software and its
+documentation is hereby granted, provided that both the copyright
+notice and this permission notice appear in all copies of the
+software, derivative works or modified versions, and any portions
+thereof, and that both notices appear in supporting documentation.
+
+THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+"AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+This software was developed with support by the Advanced Research
+Project Agency, ARPA order number 018 (formerly 8230), monitored by
+the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+Further funding for this work was provided by DARPA through
+Rome Research Laboratory Contract No. F30602-97-2-0247.
+
+*/
+
 #ifndef XCT_IMPL_H
 #define XCT_IMPL_H
+
+#include "w_defines.h"
+
+/*  -- do not edit anything above this line --   </std-header>*/
 
 #ifdef __GNUG__
 #pragma interface
@@ -28,12 +51,12 @@ class stid_list_elem_t  {
 		if (_link.member_of() != NULL)
 		    _link.detach();
 	    }
-	static uint4	link_offset()
+	static uint4_t	link_offset()
 	    {
 		return offsetof(stid_list_elem_t, _link);
 	    }
 	
-	W_FASTNEW_CLASS_DECL;
+	W_FASTNEW_CLASS_DECL(stid_list_elem_t);
 };
 
 class xct_impl : public smlevel_1 
@@ -98,13 +121,11 @@ protected:
     // for xct_log_switch_t:
     switch_t 			set_log_state(switch_t s, bool &nested);
     void 			restore_log_state(switch_t s, bool nested);
-    rc_t			recover_latch(lpid_t& root, bool unlatch);
-    int				recovery_latches()const { return 
-					_latch_held.page? 1 : 0;
-				}
 
 private:
     bool			one_thread_attached() const;   // assertion
+    // helper function for compensate() and compensate_undo()
+    void 			_compensate(const lsn_t&, bool undoable = false);
 
 protected:
     int 			detach_thread() ;
@@ -116,22 +137,22 @@ public:
     void 			compensate(const lsn_t&, bool undoable = false);
     void 			compensate_undo(const lsn_t&);
 
-    NORET			operator const void*() const;
+    NORET			operator bool() const;
 
     /*
-     *	logging functions -- used in logstub.i
+     *	logging functions -- used in logstub_gen.cpp
      */
     rc_t			get_logbuf(logrec_t*&);
     void			give_logbuf(logrec_t*, const page_p *p = 0);
  private: // disabled for now
     // void			invalidate_logbuf();
 
-    int4			escalationThresholds[lockid_t::NUMLEVELS-1];
+    int4_t			escalationThresholds[lockid_t::NUMLEVELS-1];
  public:
-    void			SetEscalationThresholds(int4 toPage, int4 toStore, int4 toVolume);
+    void			SetEscalationThresholds(int4_t toPage, int4_t toStore, int4_t toVolume);
     void			SetDefaultEscalationThresholds();
-    void			GetEscalationThresholds(int4 &toPage, int4 &toStore, int4 &toVolume);
-    const int4*			GetEscalationThresholdsArray();
+    void			GetEscalationThresholds(int4_t &toPage, int4_t &toStore, int4_t &toVolume);
+    const int4_t*			GetEscalationThresholdsArray();
     void			AddStoreToFree(const stid_t& stid);
     void			AddLoadStore(const stid_t& stid);
     
@@ -143,6 +164,8 @@ public:
     rc_t			ConvertAllLoadStoresToRegularStores();
     void			ClearAllLoadStores();
 
+    void 			num_extents_marked_for_deletion(
+					base_stat_t &num);
 
  public:
     void			flush_logbuf();
@@ -160,23 +183,20 @@ private:
     /////////////////////////////////////////////////////////////////
     // non-const because it acquires mutex:
     // removed, now that the lock mgrs use the const,inline-d form
-    // long			timeout(); 
+    // timeout_in_ms		timeout(); 
 
     // does not acquire the mutex :
     inline
-    long			timeout_c() const { 
+    timeout_in_ms		timeout_c() const { 
 				    return  _that->_timeout; 
 				}
     // not used
-    // void			set_timeout(long t) ;
+    // void			set_timeout(timeout_in_ms t) ;
 
 
     /////////////////////////////////////////////////////////////////
     // use faster new/delete
-    NORET			W_FASTNEW_CLASS_DECL;
-    void*			operator new(size_t, void* p)  {
-	return p;
-    }
+    NORET			W_FASTNEW_CLASS_DECL(xct_impl);
 
     rc_t			_commit(uint4_t flags);
     static void 		xct_stats(
@@ -209,7 +229,7 @@ public:
 public:
 
     // NB: TO BE USED ONLY BY LOCK MANAGER 
-    w_rc_t			lockblock(long timeout);// await other thread's wake-up in lm
+    w_rc_t			lockblock(timeout_in_ms timeout);// await other thread's wake-up in lm
     void			lockunblock(); 	 // inform other waiters
     int				num_threads(); 	 // 
 
@@ -221,7 +241,7 @@ private: // all data members private
     int				_threads_attached; 
     scond_t			_waiters; // for preserving deadlock detector's assumptions
 					
-    long			_timeout; // default timeout value for lock reqs
+    timeout_in_ms		_timeout; // default timeout value for lock reqs
 					  // duplicated in xct_t : TODO remove from xct_impl
 
     // the 1thread_xct mutex is used to ensure that only one thread
@@ -307,21 +327,6 @@ private: // all data members private
      time_t			_last_heard_from_coord;
 
 private:
-    lpid_t 			_latch_held; // latched page 
-				// held for restart-redo-undo
-
-    /*
-     * Transaction stats
-     */
-    static void 		incr_begin_cnt()   {
-	smlevel_0::stats.begin_xct_cnt++;
-    }
-    static void 		incr_commit_cnt()   {
-	smlevel_0::stats.commit_xct_cnt++;
-    }
-    static void 		incr_abort_cnt()   {
-	smlevel_0::stats.abort_xct_cnt++;
-    }
 
     // disabled
     NORET			xct_impl(const xct_impl&);
@@ -341,11 +346,11 @@ inline
 bool
 operator>(const xct_t& x1, const xct_t& x2)
 {
-    return x1.tid() > x2.tid();
+    return (x1.tid() > x2.tid());
 }
 
 inline void
-xct_impl::SetEscalationThresholds(int4 toPage, int4 toStore, int4 toVolume)
+xct_impl::SetEscalationThresholds(int4_t toPage, int4_t toStore, int4_t toVolume)
 {
     if (toPage != dontModifyThreshold)
 	escalationThresholds[2] = toPage;
@@ -366,14 +371,14 @@ xct_impl::SetDefaultEscalationThresholds()
 }
 
 inline void
-xct_impl::GetEscalationThresholds(int4 &toPage, int4 &toStore, int4 &toVolume)
+xct_impl::GetEscalationThresholds(int4_t &toPage, int4_t &toStore, int4_t &toVolume)
 {
     toPage = escalationThresholds[2];
     toStore = escalationThresholds[1];
     toVolume = escalationThresholds[0];
 }
 
-inline const int4 *
+inline const int4_t *
 xct_impl::GetEscalationThresholdsArray()
 {
     return escalationThresholds;
@@ -450,9 +455,9 @@ xct_impl::last_log() const
 }
 
 inline
-xct_impl::operator const void*() const
+xct_impl::operator bool() const
 {
-    return _state == xct_stale ? 0 : (void*) this;
+    return _state != xct_stale && this != 0;
 }
 
 inline
@@ -510,4 +515,6 @@ xct_impl::gtid() const
     return _global_tid;
 }
 
-#endif /* XCT_IMPL_H */
+/*<std-footer incl-file-exclusion='XCT_IMPL_H'>  -- do not edit anything below this line -- */
+
+#endif          /*</std-footer>*/

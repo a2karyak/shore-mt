@@ -1,15 +1,38 @@
-/* --------------------------------------------------------------- */
-/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
-/* -- University of Wisconsin-Madison, subject to the terms     -- */
-/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
-/* -- Reserved.                                                 -- */
-/* --------------------------------------------------------------- */
+/*<std-header orig-src='shore'>
+
+ $Id: lock.cpp,v 1.144 1999/06/07 19:04:09 kupsch Exp $
+
+SHORE -- Scalable Heterogeneous Object REpository
+
+Copyright (c) 1994-99 Computer Sciences Department, University of
+                      Wisconsin -- Madison
+All Rights Reserved.
+
+Permission to use, copy, modify and distribute this software and its
+documentation is hereby granted, provided that both the copyright
+notice and this permission notice appear in all copies of the
+software, derivative works or modified versions, and any portions
+thereof, and that both notices appear in supporting documentation.
+
+THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+"AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+This software was developed with support by the Advanced Research
+Project Agency, ARPA order number 018 (formerly 8230), monitored by
+the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+Further funding for this work was provided by DARPA through
+Rome Research Laboratory Contract No. F30602-97-2-0247.
+
+*/
+
+#include "w_defines.h"
+
+/*  -- do not edit anything above this line --   </std-header>*/
 
 #undef TURN_OFF_LOCKING
 
-/*
- *  $Id: lock.cc,v 1.125 1997/09/30 21:38:02 solomon Exp $
- */
 #define SM_SOURCE
 #define LOCK_C
 
@@ -23,7 +46,7 @@
 
 #define W_VOID(x) x
 
-#ifdef __GNUG__
+#ifdef EXPLICIT_TEMPLATE
 template class w_list_i<lock_request_t>;
 template class w_list_t<lock_request_t>;
 template class w_list_i<lock_head_t>;
@@ -37,9 +60,9 @@ template class w_list_i<XctWaitsForLockElem>;
 #endif
 
 W_FASTNEW_STATIC_DECL(XctWaitsForLockElem, 16);
+W_FASTNEW_STATIC_DECL(lockid_t, 100);
 
 
-#define DBGTHRD(arg) DBG(<<" th."<<me()->id << " " arg)
 
 lock_m::lock_m(int sz)
 {
@@ -54,47 +77,77 @@ lock_m::~lock_m()
 }
 
 
-void lock_m::dump()
+void lock_m::dump(ostream &o)
 {
-    _core->dump();
+    _core->dump(o);
 }
 
-inline
 bool 
 lock_m::get_parent(const lockid_t& c, lockid_t& p)
 {
-    //
-    // optimized for speed ... assumed byte order
-    // 	0-1: volume id
-    // 	0-4: store id
-    //	0-8: page id 
-    //
     switch (c.lspace()) {
         case lockid_t::t_vol:
+	    // no parent
         case lockid_t::t_extent:
 	    // no parent
-            p.zero();
-            p.set_lspace(lockid_t::t_bad);
+            p.zero(); // sets type to t_bad
 	    break;
         case lockid_t::t_store:
 	    // parent of store is volume
-	    new (&p) lockid_t(*(vid_t*)c.name());
+	    new (&p) lockid_t(c.vid());
 	    break;
-        case lockid_t::t_page:
+        case lockid_t::t_page: {
 	    // parent of page is store
-	    new (&p) lockid_t(*(stid_t*)c.name());
+	    stid_t s;
+	    c.extract_stid(s);
+	    new (&p) lockid_t(s);
+	    }
 	    break;
-        case lockid_t::t_kvl:
+        case lockid_t::t_kvl: {
 	    // parent of kvl is store?
-	    new (&p) lockid_t(*(stid_t*)c.name());
+	    stid_t s;
+	    c.extract_stid(s);
+	    new (&p) lockid_t(s);
+	    }
 	    break;
-        case lockid_t::t_record:
+        case lockid_t::t_record: {
 	    // parent of record is page
-	    new (&p) lockid_t(*(lpid_t*)c.name());
+	    lpid_t pg;
+	    c.extract_lpid(pg);
+	    new (&p) lockid_t(pg);
+	    }
+	    break;
+	case lockid_t::t_user1:
+	    // no parent
+	    p.zero();
+	    break;
+	case lockid_t::t_user2: {
+	    lockid_t::user1_t u;
+	    c.extract_user1(u);
+	    new (&p) lockid_t(u);
+	    }
+	    break;
+	case lockid_t::t_user3:  {
+	    lockid_t::user2_t u;
+	    c.extract_user2(u);
+	    new (&p) lockid_t(u);
+	    }
+	    break;
+	case lockid_t::t_user4:  {
+	    lockid_t::user3_t u;
+	    c.extract_user3(u);
+	    new (&p) lockid_t(u);
+	    }
 	    break;
         default:
 	    W_FATAL(eINTERNAL);
     }
+    DBGTHRD(<< "child:" << c << "  parent: " << p );
+#ifdef W_TRACE
+    bool b =  p.lspace() != lockid_t::t_bad;
+    DBGTHRD(<< "get_parent returns " << b
+	<< " for parent type " << int(p.lspace()) );
+#endif
     return p.lspace() != lockid_t::t_bad;
 }
 
@@ -116,10 +169,11 @@ rc_t lock_m::query(
     }
     /* do usual thing for extents and volumes */
 #endif
+    DBGTHRD(<<"lock_m::query for lock " << n);
     xct_t *	xd = xct();
     w_assert3(!implicit || tid != tid_t::null);
 
-    smlevel_0::stats.lock_query_cnt++;
+    INC_TSTAT(lock_query_cnt);
     if (!implicit) {
 	m = NL;
 
@@ -182,10 +236,14 @@ rc_t lock_m::_query_implicit(
     bool 	SIX_found = false;
     int 	pathlen = 1;
 
+    DBGTHRD(<<"lock_m::_query_implicit for lock " << n);
+
     path[0] = n;
 
-    while (pathlen < lockid_t::NUMLEVELS && get_parent(path[pathlen-1], path[pathlen]))
+    while (pathlen < lockid_t::NUMLEVELS && 
+	get_parent(path[pathlen-1], path[pathlen])) {
 	pathlen++;
+    }
 
     // search the cache first, if you can
 
@@ -231,7 +289,11 @@ rc_t lock_m::_query_implicit(
 
     for (int curr = pathlen-1; curr >= 0; curr--) {
 	if (lock_head_t* lock = _core->find_lock(path[curr], false))  {
+	    w_assert3(lock);
+	    DBGTHRD(<<" lock " << lock << "=" << *lock);
 	    if (lock_request_t* req = _core->find_req(lock->queue, tid))  {
+		w_assert3(req);
+		DBGTHRD(<<" req " << req << "=" << *req);
 	        if (curr == 0) {
 		    w_assert3(path[curr] == n);
 		    if (SIX_found)
@@ -311,7 +373,7 @@ lock_m::_lock(
     mode_t&		prev_mode,
     mode_t&		prev_pgmode,
     duration_t 		duration,
-    long 		timeout, 
+    timeout_in_ms	timeout, 
     bool 		force,
     lockid_t**		nameInLockHead)
 {
@@ -323,9 +385,10 @@ lock_m::_lock(
     lock_request_t*	theLastLockReq = 0;
     lockid_t 		n = _n;
 
-    smlevel_0::stats.lock_request_cnt++;
+    INC_TSTAT(lock_request_cnt);
 
-    DBGTHRD(<< "lock " << n << " mode=" << m << " duration=" << duration 
+    DBGTHRD(<< "lock " << n 
+        << " mode=" << int(m) << " duration=" << int(duration) 
 	<< " timeout=" << timeout << " force=" << force );
     if (xd)  {
 	DBGTHRD( << " xct=" << *xd );
@@ -363,7 +426,8 @@ lock_m::_lock(
 
 	if(n.lspace() >= theLockInfo->lock_level && 
 		n.lspace() != lockid_t::t_extent && 
-		n.lspace() != lockid_t::t_kvl) {
+		n.lspace() != lockid_t::t_kvl &&
+		!n.IsUserLock()) {
 	    n.truncate(theLockInfo->lock_level);
 	}
 
@@ -380,7 +444,7 @@ lock_m::_lock(
 		        prev_pgmode = cm;
 		    }
 		    theLastLockReq = e->req;
-		    smlevel_0::stats.lock_cache_hit_cnt++;
+		    INC_TSTAT(lock_cache_hit_cnt);
 		    goto done; // release mutex
 		}
 	    }
@@ -398,11 +462,12 @@ lock_m::_lock(
 	// h[i] will be the name of the nearest ancestor held in the correct mode on exit.
 	// as a side effect h[] will be initialized with the names of the ancestors.
 	int i = 1;
-	if (xd->lock_cache_enabled()) {
+	if (xd->lock_cache_enabled() && !n.IsUserLock()) {
 	    for (i = 1; i < lockid_t::NUMLEVELS; i++)  {
 
 	        if (!get_parent(h[i-1], h[i]))
 		    break;
+		DBGTHRD(<< "  get_parent true" << h[i-1] << " " << h[i])
 
 		hmode[i] = 0;
 		lock_cache_t<xct_lock_info_t::lock_cache_size>* cache = 0;
@@ -415,9 +480,11 @@ lock_m::_lock(
 
 		    if (hmode[i] && supr[*hmode[i]][pmode] == *hmode[i])  {
 		        // cache hit
-			DBGTHRD(<< "  " << h[i] << "(mode=" << *hmode[i] << ") cache hit")
+			DBGTHRD(<< "  " 
+			<< h[i] 
+			<< "(mode=" << int(*hmode[i]) << ") cache hit")
 			theLastLockReq = e->req;
-		        smlevel_0::stats.lock_cache_hit_cnt++;
+			INC_TSTAT(lock_cache_hit_cnt);
     
 		        if (h[i].lspace() == lockid_t::t_page)
 			    prev_pgmode = *hmode[i];
@@ -433,7 +500,10 @@ lock_m::_lock(
 
 				    W_DO( _query_implicit(n, prev_mode, xd->tid()) );
 				    if (n.lspace() == lockid_t::t_record && h[i].lspace() < lockid_t::t_page)  {
-				        W_DO( _query_implicit(*(lpid_t*)n.name(), prev_pgmode, xd->tid()) );
+					lpid_t	tmp_lpid;
+					n.extract_lpid(tmp_lpid);
+					lockid_t tmp_lockid(tmp_lpid);
+				        W_DO( _query_implicit(tmp_lockid, prev_pgmode, xd->tid()) );
 				    }  else  {
 				        prev_pgmode = prev_mode;
 				    }
@@ -446,13 +516,16 @@ lock_m::_lock(
 		        }
 		        break;
 		    }
-#ifdef DEBUG
+#ifdef W_DEBUG
 		    else if (hmode[i])  {
-		        DBGTHRD(<< "  " << h[i] << "(mode=" << *hmode[i] << ") cache hit/wrong mode")
+		        DBGTHRD(<< "  " 
+			<< h[i] 
+			<< "(mode=" << int(*hmode[i]) 
+			<< ") cache hit/wrong mode")
 		    }  else  {
 			DBGTHRD(<< "  " << h[i] << " cache miss")
 		    }
-#endif
+#endif /* W_DEBUG */
 		}
 	    }
 	}  else  {
@@ -460,11 +533,12 @@ lock_m::_lock(
 	    for (i = 1; i < lockid_t::NUMLEVELS; i++)  {
 		if (!get_parent(h[i-1], h[i]))
 		    break;
+		DBGTHRD(<< "  get_parent true" << h[i-1] << " " << h[i])
 	    }
 	}
 
 	w_assert3(i < lockid_t::NUMLEVELS || (i == lockid_t::NUMLEVELS && 
-		 h[i-1].lspace() == lockid_t::t_vol));
+		 (h[i-1].lspace() == lockid_t::t_vol || h[i-1].lspace() == lockid_t::t_user1)));
 	
 	// If the transaction is running during a quark, the
 	// locks should be short duration so that the quark can
@@ -501,7 +575,7 @@ lock_m::_lock(
 	    if (duration == t_instant) {
 		W_COERCE( _core->release(xd, h[j], 0, 0, false) );
 
-	    } else if (duration >= t_long && xd->lock_cache_enabled())  {
+	    } else if (duration >= t_long && xd->lock_cache_enabled() && !n.IsUserLock())  {
 		if (hmode[j])
 		    *hmode[j] = ret;
 		else if (h[j].lspace() <= lockid_t::t_page)  {
@@ -519,7 +593,7 @@ lock_m::_lock(
 		        if (prev_mode == NL)
 			    ++theLastLockReq->numChildren;
 
-			int4 threshold = xd->GetEscalationThresholdsArray()[h[j + 1].lspace()];
+			int4_t threshold = xd->GetEscalationThresholdsArray()[h[j + 1].lspace()];
 		        if (threshold < dontEscalate && theLastLockReq->numChildren >= threshold)  {
 			    // time to escalate, get the parent in the proper explicit mode
 			    // do it by adjusting the pmode and j, and continuing.
@@ -531,8 +605,14 @@ lock_m::_lock(
 				// in the correct mode, this can only happen when force=true
 
 
-			        DBG( << "escalating from " << n << "(mode=" << m << ") to " << h[j+1] << "(mode="
-				     << *hmode[j+1] << "->" << new_pmode << ")");
+			        DBG( 
+					<< "escalating from " << n 
+					<< "(mode=" << int(m) 
+					<< ") to " << h[j+1] 
+					<< "(mode="
+					 << int(*hmode[j+1]) 
+					 << "->" 
+					 << int(new_pmode) << ")");
 
 				rc_t		    escalate_rc;
 				lock_request_t*	    escalate_req = 0;
@@ -555,13 +635,13 @@ lock_m::_lock(
 
 				    switch (h[j + 1].lspace())  {
 					case lockid_t::t_page:
-					    smlevel_0::stats.lock_esc_to_page++;
+					    INC_TSTAT(lock_esc_to_page);
 					    break;
 					case lockid_t::t_store:
-					    smlevel_0::stats.lock_esc_to_store++;
+					    INC_TSTAT(lock_esc_to_store);
 					    break;
 					case lockid_t::t_vol:
-					    smlevel_0::stats.lock_esc_to_volume++;
+					    INC_TSTAT(lock_esc_to_volume);
 					    break;
 					default:
 					    // shouldn't get here
@@ -597,11 +677,11 @@ lock_m::_lock(
 
 	/* (neh) to expound on the above comment...
 	 * There is an implicit layering in the sm, below which
-	 * locks are not (in most cases) acquired.  Take file.c for
+	 * locks are not (in most cases) acquired.  Take file.cpp for
 	 * example: when entering from the ss_m api, the procedure
 	 * prologue at the ss_m layer checks for a running transaction
 	 * where necessary.   All locks are acquired in the top half of
-	 * the file.c code or above that.  Once you get down to file_p
+	 * the file.cpp code or above that.  Once you get down to file_p
 	 * code, it is assumed that all needed locks are already had,
 	 * and only latches, page updates, and logging are performed.
 	 * On rollback and redo, only the file_p half of the file code is 
@@ -620,11 +700,16 @@ lock_m::_lock(
 done:
     if (acquired)  {
 	w_assert3(xd != 0);
-	w_assert3(theLockInfo != 0)
+	w_assert3(theLockInfo != 0);
 	W_VOID(theLockInfo->mutex.release());
 
-	if (nameInLockHead)  {
+	if (rc == RCOK && nameInLockHead)  {
+#if 1
+	    /* XXX This is a problem, it happens! */
+	    w_assert1(theLastLockReq);
+#else
 	    w_assert3(theLastLockReq);
+#endif
 	    *nameInLockHead = &theLastLockReq->get_lock_head()->name;
 	}
     }
@@ -653,6 +738,7 @@ lock_m::unlock(const lockid_t& n)
 	int c = 0;
 	h[c] = n;
 	do {
+	    DBGTHRD(<< "  while get_parent true" << h[1-c] << " " << h[c])
 	    c = 1 - c;
 	    rc = _core->release(xd, h[1-c], 0, 0, false);
 	    if (rc)
@@ -661,7 +747,7 @@ lock_m::unlock(const lockid_t& n)
 	W_VOID(xd->lock_info()->mutex.release());
     }
 
-    smlevel_0::stats.unlock_request_cnt++;
+    INC_TSTAT(unlock_request_cnt);
     return rc;
 }
 
@@ -676,7 +762,7 @@ rc_t lock_m::unlock_duration(
 #endif
     FUNC(lock_m::unlock_duration);
     DBGTHRD(<< "lock_m::unlock_duration" 
-	<< " duration=" << duration 
+	<< " duration=" << int(duration)
 	<< " all_less_than=" << all_less_than 
     );
     xct_t* 	xd = xct();
@@ -724,6 +810,7 @@ rc_t lock_m::dont_escalate(const lockid_t& n, bool passOnToDescendants)
 }
 
 
+#ifdef EXPENSIVE_LOCK_STATS
 void			
 lock_m::stats(
     u_long & buckets_used,
@@ -741,20 +828,21 @@ lock_m::stats(
 		avg_bucket_len, var_bucket_len, std_bucket_len
 		);
 }
+#endif
 
 rc_t
 lock_m::lock(
     const lockid_t&	n, 
     mode_t 		m,
     duration_t 		duration,
-    long 		timeout,
+    timeout_in_ms	timeout,
     mode_t*		prev_mode,
     mode_t*             prev_pgmode,
     lockid_t**		nameInLockHead)
 {
-#ifdef DEBUG
+#ifdef W_DEBUG
     w_assert3 (n.lspace() != lockid_t::t_bad);
-#endif
+#endif /* W_DEBUG */
 
 #ifdef TURN_OFF_LOCKING
     if (n.lspace() != lockid_t::t_extent && n.lspace() != lockid_t::t_vol) {
@@ -784,7 +872,7 @@ lock_m::lock_force(
     const lockid_t&	n, 
     mode_t 		m,
     duration_t 		duration,
-    long 		timeout,
+    timeout_in_ms	timeout,
     mode_t*		prev_mode,
     mode_t*             prev_pgmode,
     lockid_t**		nameInLockHead)
@@ -810,3 +898,10 @@ lock_m::lock_force(
 	*prev_pgmode = _prev_pgmode;
     return rc;
 }
+
+int 		
+lock_m::collect( vtable_info_array_t & res) 
+{
+    return _core->collect(res);
+}
+

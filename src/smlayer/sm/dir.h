@@ -1,15 +1,38 @@
-/* --------------------------------------------------------------- */
-/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
-/* -- University of Wisconsin-Madison, subject to the terms     -- */
-/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
-/* -- Reserved.                                                 -- */
-/* --------------------------------------------------------------- */
+/*<std-header orig-src='shore' incl-file-exclusion='DIR_H'>
 
-/*
- *  $Id: dir.h,v 1.34 1997/05/27 13:09:26 kupsch Exp $
- */
+ $Id: dir.h,v 1.41 1999/06/07 19:04:01 kupsch Exp $
+
+SHORE -- Scalable Heterogeneous Object REpository
+
+Copyright (c) 1994-99 Computer Sciences Department, University of
+                      Wisconsin -- Madison
+All Rights Reserved.
+
+Permission to use, copy, modify and distribute this software and its
+documentation is hereby granted, provided that both the copyright
+notice and this permission notice appear in all copies of the
+software, derivative works or modified versions, and any portions
+thereof, and that both notices appear in supporting documentation.
+
+THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+"AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+This software was developed with support by the Advanced Research
+Project Agency, ARPA order number 018 (formerly 8230), monitored by
+the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+Further funding for this work was provided by DARPA through
+Rome Research Laboratory Contract No. F30602-97-2-0247.
+
+*/
+
 #ifndef DIR_H
 #define DIR_H
+
+#include "w_defines.h"
+
+/*  -- do not edit anything above this line --   </std-header>*/
 
 #ifdef __GNUG__
 #pragma interface
@@ -42,7 +65,7 @@ public:
     {
 	// everything must already be dismounted
 	for (int i = 0; i < max; i++)  {
-	    w_assert1(_root[i] == NULL);
+	    w_assert1(!_root[i]);
 	}
     }
 
@@ -56,8 +79,8 @@ public:
     rc_t		access(const stpgid_t& stpgid, sinfo_s& si);
     rc_t		modify(
 	const stpgid_t& 	    stpgid,
-	uint4 			    dpages,
-	uint4 			    dcard,
+	uint4_t 		    dpages,
+	uint4_t 		    dcard,
 	const lpid_t& 		    root);
     rc_t		catalog(vid_t vid);
 
@@ -77,8 +100,8 @@ private:
     rc_t		_insert(const stpgid_t& stpgid, const sinfo_s& sd);
     rc_t		_remove(const stpgid_t& stpgid);
     rc_t		_access(const stpgid_t& stpgid, sinfo_s& sd);
-    // return i in _root[i], -1 == not found
-    int 		_find_root(vid_t vid);
+
+    rc_t 		_find_root(vid_t vid, int &i);
     static sm_store_property_t	_make_store_property(store_flag_t flag);
 
     // disabled
@@ -115,7 +138,7 @@ public:
 	const stid_t&		    old_stid, 
 	const stid_t&		    new_stid);
 
-    //modify(const stid_t& stid, uint4 dpages, uint4 dcard, const lpid_t& root);
+    //modify(const stid_t& stid, uint4_t dpages, uint4_t dcard, const lpid_t& root);
     //catalog(vid_t vid);
 private:
     dir_vol_m		_dir;
@@ -219,5 +242,6 @@ dir_m::~dir_m()
     //W_COERCE( dismount_all() );
 }
 
-#endif /* DIR_H */
+/*<std-footer incl-file-exclusion='DIR_H'>  -- do not edit anything below this line -- */
 
+#endif          /*</std-footer>*/

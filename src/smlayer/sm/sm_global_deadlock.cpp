@@ -1,218 +1,70 @@
-/* --------------------------------------------------------------- */
-/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
-/* -- University of Wisconsin-Madison, subject to the terms     -- */
-/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
-/* -- Reserved.                                                 -- */
-/* --------------------------------------------------------------- */
+/*<std-header orig-src='shore'>
 
-/*
- *  $Id: sm_global_deadlock.cc,v 1.18 1997/06/15 03:14:18 solomon Exp $
- */
+ $Id: sm_global_deadlock.cpp,v 1.45 1999/08/06 15:22:54 bolo Exp $
+
+SHORE -- Scalable Heterogeneous Object REpository
+
+Copyright (c) 1994-99 Computer Sciences Department, University of
+                      Wisconsin -- Madison
+All Rights Reserved.
+
+Permission to use, copy, modify and distribute this software and its
+documentation is hereby granted, provided that both the copyright
+notice and this permission notice appear in all copies of the
+software, derivative works or modified versions, and any portions
+thereof, and that both notices appear in supporting documentation.
+
+THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+"AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+This software was developed with support by the Advanced Research
+Project Agency, ARPA order number 018 (formerly 8230), monitored by
+the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+Further funding for this work was provided by DARPA through
+Rome Research Laboratory Contract No. F30602-97-2-0247.
+
+*/
+
+#include "w_defines.h"
+
+/*  -- do not edit anything above this line --   </std-header>*/
 
 #define SM_SOURCE
 #define SM_GLOBAL_DEADLOCK_C
-
-
-#define DBGTHRD(arg) DBG(<<" th."<<me()->id << " " arg)
 
 #ifdef __GNUG__
 #pragma implementation "global_deadlock.h"
 #pragma implementation "sm_global_deadlock.h"
 #endif
 
-#include <st_error.h>
+#include <st_error_enum_gen.h>
 #include <sm_int_1.h>
+#ifdef USE_COORD
 #include <sm_global_deadlock.h>
 #include <lock_s.h>
 
 
+#ifdef EXPLICIT_TEMPLATE
 template class w_list_t<BlockedElem>;
 template class w_list_i<BlockedElem>;
 template class w_list_t<WaitForElem>;
 template class w_list_i<WaitForElem>;
 template class w_list_t<WaitPtrForPtrElem>;
-template class w_list_t<GtidIndexElem>;
-template class w_list_i<GtidIndexElem>;
+template class w_list_t<IdElem>;
+template class w_list_i<IdElem>;
 template class w_hash_t<GtidTableElem, const gtid_t>;
 template class w_hash_i<GtidTableElem, const gtid_t>;
 template class w_list_t<GtidTableElem>;
 template class w_list_i<GtidTableElem>;
+#endif
 
 W_FASTNEW_STATIC_DECL(BlockedElem, 64);
 W_FASTNEW_STATIC_DECL(WaitForElem , 64);
 W_FASTNEW_STATIC_DECL(WaitPtrForPtrElem , 64);
-W_FASTNEW_STATIC_DECL(GtidIndexElem , 64);
-W_FASTNEW_STATIC_DECL(BitMapVector, 64);
+W_FASTNEW_STATIC_DECL(IdElem , 64);
 W_FASTNEW_STATIC_DECL(GtidTableElem , 64);
-
-
-/***************************************************************************
- *                                                                         *
- * BitMapVector class                                                      *
- *                                                                         *
- ***************************************************************************/
-
-BitMapVector::BitMapVector(uint4 numberOfBits)
-:   size(0),
-    vector(0)
-{
-    size = (numberOfBits + BitsPerWord - 1) / BitsPerWord;
-    vector = new uint4[size];
-    ClearAll();
-
-    w_assert3(numberOfBits <= size * BitsPerWord);
-    w_assert3(numberOfBits > (size - 1) * BitsPerWord);
-}
-
-
-BitMapVector::BitMapVector(const BitMapVector& v)
-{
-    size = v.size;
-    vector = new uint4[size];
-    for (uint4 i = 0; i < size; i++)
-	vector[i] = v.vector[i];
-}
-
-
-void BitMapVector::Resize(uint4 numberOfWords)
-{
-    w_assert3(numberOfWords > size);
-
-    uint4*	newVector = new uint4[numberOfWords];
-
-    uint4 i=0;
-    for (i = 0; i < size; i++)
-	newVector[i] = vector[i];
-    
-    for (i = size; i < numberOfWords; i++)
-	newVector[i] = 0;
-    
-    delete [] vector;
-    vector = newVector;
-    size = numberOfWords;
-}
-
-
-BitMapVector& BitMapVector::operator=(const BitMapVector& v)
-{
-    if (this != &v)  {
-	if (v.size > size)
-	    Resize(v.size);
-
-	uint4 i=0;
-	for (i = 0; i < v.size; i++)
-	    vector[i] = v.vector[i];
-	
-	for (i = v.size; i < size; i++)
-	    vector[i] = 0;
-    }
-    return *this;
-}
-
-
-bool BitMapVector::operator==(const BitMapVector& v)
-{
-	for (uint4 i = 0; i < size; i++)
-		if (vector[i] != v.vector[i])
-			return false;
-	
-	return true;
-}
-
-
-BitMapVector::~BitMapVector()
-{
-    delete [] vector;
-}
-
-
-void BitMapVector::ClearAll()
-{
-    for (uint4 i = 0; i < size; i++)
-	vector[i] = 0;
-}
-
-
-int4 BitMapVector::FirstSetOnOrAfter(uint4 index) const
-{
-    uint4	wordIndex = index / BitsPerWord;
-    uint4	mask = (1 << (index % BitsPerWord));
-
-    while (wordIndex < size)  {
-	if (vector[wordIndex] & mask)
-	    return index;
-	
-	index++;
-	mask <<= 1;
-	if (mask == 0)  {
-	    wordIndex++;
-	    mask = 1;
-	}
-    }
-
-    return -1;
-}
-
-
-int4 BitMapVector::FirstClearOnOrAfter(uint4 index) const
-{
-    uint4	wordIndex = index / BitsPerWord;
-    uint4	mask = (1 << (index % BitsPerWord));
-
-    while (wordIndex < size)  {
-	if (!(vector[wordIndex] & mask))
-	    return index;
-	
-	index++;
-	mask <<= 1;
-	if (mask == 0)  {
-	    wordIndex++;
-	    mask = 1;
-	}
-    }
-
-    return index;
-}
-
-
-void BitMapVector::SetBit(uint4 index)
-{
-    if (index / BitsPerWord >= size)  {
-	Resize((index + BitsPerWord) / BitsPerWord);
-	w_assert3(index / BitsPerWord < size);
-    }
-
-    vector[index / BitsPerWord] |= (1 << (index % BitsPerWord));
-}
-
-
-void BitMapVector::ClearBit(uint4 index)
-{
-    if (index / BitsPerWord < size)  {
-	vector[index / BitsPerWord] &= ~(1 << (index % BitsPerWord));
-    }
-}
-
-
-bool BitMapVector::IsBitSet(uint4 index) const
-{
-    if (index / BitsPerWord >= size)
-	return false;
-    else
-	return vector[index / BitsPerWord] & (1 << (index % BitsPerWord));
-}
-
-
-void BitMapVector::OrInBitVector(const BitMapVector& v, bool& changed)
-{
-    if (size < v.size)
-	Resize(v.size);
-    
-    for (uint4 i = 0; i < v.size; i++)  {
-	changed |= (~vector[i] & v.vector[i]);
-	vector[i] |= v.vector[i];
-    }
-}
 
 
 /***************************************************************************
@@ -222,10 +74,10 @@ void BitMapVector::OrInBitVector(const BitMapVector& v, bool& changed)
  ***************************************************************************/
 
 const char* DeadlockMsg::msgNameStrings[] = {
+	"msgInvalidType",
 	"msgVictimizerEndpoint",
 	"msgRequestClientId",
 	"msgAssignClientId",
-	"msgClientDied",
 	"msgRequestDeadlockCheck",
 	"msgRequestWaitFors",
 	"msgWaitForList",
@@ -239,21 +91,59 @@ const char* DeadlockMsg::msgNameStrings[] = {
 };
 
 
+
 ostream& operator<<(ostream& o, const DeadlockMsg& msg)
 {
-    o <<     "  msgType:  " << DeadlockMsg::msgNameStrings[msg.header.msgType] << endl
-      << "      clientId: " << msg.header.clientId << endl
-      << "      complete: " << (bool)msg.header.complete << endl
-      << "      count:    " << msg.header.count << endl
-      << "      gtids:    [";
+	o <<     "  msgType:  " << DeadlockMsg::msgNameStrings[msg.MsgType()] << endl;
 
-    for (uint4 i = 0; i < msg.header.count; i++)  {
-	o << ' ' << msg.gtids[i];
-    }
+	o << "      clientId: ";
+	if (msg.ClientId() == DeadlockMsgHeader::noId)
+		o << "noId";
+	else
+		o << msg.ClientId();
 
-    o << " ]" << endl;
+	o << endl
+	  << "      complete: " << (msg.IsComplete() ? "yes" : "no") << endl
+	  << "      count:    " << msg.GtidCount() << endl
+	  << "      gtids:    [";
 
-    return o;
+	for (uint4_t i = 0; i < msg.GtidCount(); i++)  {
+		o << ' ' << i << ":" << msg.gtids[i];
+	}
+	
+	o << " ]" << endl;
+
+	return o;
+}
+
+void	DeadlockMsgHeader::hton()
+{
+	clientId = htonl(clientId);
+	count = htons(count);
+}
+
+void	DeadlockMsgHeader::ntoh()
+{
+	clientId = ntohl(clientId);
+	count = ntohs(count);
+}
+
+void	DeadlockMsg::hton()
+{
+	for (int i = 0; i < header.count; i++)
+		gtids[i].hton();
+	header.hton();
+}
+
+void	DeadlockMsg::ntoh()
+{
+	header.ntoh();
+
+	/* Make sure we don't believe a trashed message and trash memory */
+	w_assert1(header.count <= MaxNumGtidsPerMsg);
+
+	for (int i = 0; i < header.count; i++)
+		gtids[i].ntoh();
 }
 
 
@@ -307,7 +197,7 @@ DeadlockClientCommunicator::DeadlockClientCommunicator(
 :   deadlockClient(0),
     serverHandle(theServerHandle),
     endpointMap(ep_map),
-    myId(0xFFFFFFFF),
+    myId(noId),
     sendBuffer(sizeof(DeadlockMsg)),
     rcvBuffer(sizeof(DeadlockMsg)),
     serverEndpointDiedBuffer(sizeof(DeadlockMsgHeader)),
@@ -317,17 +207,11 @@ DeadlockClientCommunicator::DeadlockClientCommunicator(
     done(false),
     serverEndpointValid(false)
 {
-    DeadlockMsgHeader* serverDiedMsg = (DeadlockMsgHeader*)serverEndpointDiedBuffer.start();
-    serverDiedMsg->msgType = msgServerEndpointDied;
-    serverDiedMsg->clientId = 0;
-    serverDiedMsg->complete = true;
-    serverDiedMsg->count = 0;
+    DeadlockMsgHeader* serverDiedMsg = new (serverEndpointDiedBuffer.start()) DeadlockMsgHeader(msgServerEndpointDied);
     serverDiedMsg->hton();
 
-    sendMsg = (DeadlockMsg*)sendBuffer.start();
-    memset(sendMsg, 0, sizeof(DeadlockMsg));
-    rcvMsg = (DeadlockMsg*)rcvBuffer.start();
-    memset(rcvMsg, 0, sizeof(DeadlockMsg));
+    sendMsg = new (sendBuffer.start()) DeadlockMsg;
+    rcvMsg = new (rcvBuffer.start()) DeadlockMsg;
 
     W_COERCE( comm.make_endpoint(myEndpoint) );
     W_COERCE( endpointMap->name2endpoint(serverHandle, serverEndpoint) );
@@ -351,16 +235,17 @@ DeadlockClientCommunicator::~DeadlockClientCommunicator()
 
 rc_t DeadlockClientCommunicator::SendRequestClientId()
 {
-    sendMsg->header.msgType = msgRequestClientId;
+    new (sendMsg) DeadlockMsg(msgRequestClientId);
     W_DO( SendMsg() );
     
     return RCOK;
 }
 
 
-rc_t DeadlockClientCommunicator::ReceivedAssignClientId(uint4 clientId)
+rc_t DeadlockClientCommunicator::ReceivedAssignClientId(uint4_t clientId)
 {
     myId = clientId;
+    w_assert3(myId != noId);
     W_DO( deadlockClient->AssignClientId() );
     
     return RCOK;
@@ -369,9 +254,10 @@ rc_t DeadlockClientCommunicator::ReceivedAssignClientId(uint4 clientId)
 
 rc_t DeadlockClientCommunicator::SendRequestDeadlockCheck()
 {
-    sendMsg->header.msgType = msgRequestDeadlockCheck;
-    sendMsg->header.count = 0;
-    W_DO( SendMsg() );
+    Buffer buffer(sizeof(DeadlockMsg));
+    DeadlockMsg *msg = new (buffer.start()) DeadlockMsg(msgRequestDeadlockCheck, myId);
+
+    W_DO( SendMsg( *msg, buffer ) );
     
     return RCOK;
 }
@@ -379,21 +265,20 @@ rc_t DeadlockClientCommunicator::SendRequestDeadlockCheck()
 
 rc_t DeadlockClientCommunicator::SendWaitForList(WaitForList& waitForList)
 {
-    sendMsg->header.msgType = msgWaitForList;
+    new (sendMsg) DeadlockMsg(msgWaitForList, myId);
     
-    sendMsg->header.count = 0;
     if (waitForList.is_empty())  {
-        sendMsg->header.complete = true;
         W_DO( SendMsg() );
     }  else  {
-    	while (WaitForElem* waitForElem = waitForList.pop())  {
-    	    sendMsg->gtids[sendMsg->header.count++] = waitForElem->waitGtid;
-    	    sendMsg->gtids[sendMsg->header.count++] = waitForElem->forGtid;
+	WaitForElem* waitForElem;
+    	while ((waitForElem = waitForList.pop()))  {
+    	    sendMsg->AddGtid(waitForElem->waitGtid);
+    	    sendMsg->AddGtid(waitForElem->forGtid);
     	    delete waitForElem;
-    	    if (sendMsg->header.count >= DeadlockMsg::MaxNumGtidsPerMsg - 1 || waitForList.is_empty())  {
-    	        sendMsg->header.complete = waitForList.is_empty();
+    	    if (sendMsg->GtidCount() >= sendMsg->MaxGtidCount() - 1 || waitForList.is_empty())  {
+    	        sendMsg->SetComplete(waitForList.is_empty());
     	        W_DO( SendMsg() );
-    	        sendMsg->header.count = 0;
+    	        sendMsg->ResetCount();
     	    }
     	}
     }
@@ -419,12 +304,7 @@ rc_t DeadlockClientCommunicator::ReceivedKillGtid(const gtid_t& gtid)
 rc_t DeadlockClientCommunicator::SendQuit()
 {
     Buffer		buffer(sizeof(DeadlockMsg));
-    DeadlockMsg*	msg = (DeadlockMsg*)buffer.start();
-
-    msg->header.msgType = msgQuit;
-    msg->header.complete = true;
-    msg->header.count = 0;
-    msg->header.clientId = sendMsg->header.clientId;
+    DeadlockMsg		*msg = new (buffer.start()) DeadlockMsg(msgQuit, myId);
 
     DBGTHRD( << "Deadlock client sending message:" << endl << " C->" << *msg );
     msg->hton();
@@ -437,8 +317,7 @@ rc_t DeadlockClientCommunicator::SendQuit()
 
 rc_t DeadlockClientCommunicator::SendClientEndpointDied()
 {
-    sendMsg->header.msgType = msgClientEndpointDied;
-    sendMsg->header.count = 0;
+    new (sendMsg) DeadlockMsg(msgClientEndpointDied, myId);
     W_DO( SendMsg() );
 
     return RCOK;
@@ -463,15 +342,24 @@ rc_t DeadlockClientCommunicator::ReceivedServerEndpointDied(Endpoint& theServerE
 
 rc_t DeadlockClientCommunicator::SendMsg()
 {
+    return SendMsg(*sendMsg, sendBuffer);
+}
+
+
+rc_t DeadlockClientCommunicator::SendMsg(DeadlockMsg &msg, Buffer &buffer)
+{
     if (serverEndpointValid)  {
-	sendMsg->header.clientId = myId;
+	msg.SetClientId(myId);
 	DBGTHRD( << "Deadlock client sending message:" << endl << " C->" << *sendMsg );
-	sendMsg->hton();
+	w_rc_t			e;
 	EndpointBox		box;
-	if (sendMsg->header.msgType == msgRequestClientId || sendMsg->header.msgType == msgClientEndpointDied)  {
+	if (sendMsg->MsgType() == msgRequestClientId || sendMsg->MsgType() == msgClientEndpointDied)  {
 	    W_DO( box.set(0, myEndpoint) );
 	}
-	W_DO( IgnoreScDEAD( serverEndpoint.send(sendBuffer, box) ) );
+	msg.hton();
+	e = IgnoreScDEAD( serverEndpoint.send(buffer, box) );
+	msg.ntoh();
+	W_DO(e);
     }
     return RCOK;
 }
@@ -490,9 +378,9 @@ rc_t DeadlockClientCommunicator::RcvAndDispatchMsg()
     W_DO( myEndpoint.receive(rcvBuffer, box) );
     rcvMsg->ntoh();
     DBGTHRD( << "Deadlock client received message:" << endl << " ->C" << *rcvMsg );
-    switch ((DeadlockMsgType)rcvMsg->header.msgType)  {
+    switch (rcvMsg->MsgType())  {
 	case msgAssignClientId:
-	    W_DO( ReceivedAssignClientId(rcvMsg->header.clientId) );
+	    W_DO( ReceivedAssignClientId(rcvMsg->ClientId()) );
 	    break;
 	case msgRequestWaitFors:
 	    W_DO( ReceivedRequestWaitForList() );
@@ -548,23 +436,13 @@ DeadlockServerCommunicator::DeadlockServerCommunicator(
     remoteVictimizer(false),
     done(false)
 {
-    sendMsg = (DeadlockMsg*)sendBuffer.start();
-    memset(sendMsg, 0, sizeof(DeadlockMsg));
-    rcvMsg = (DeadlockMsg*)rcvBuffer.start();
-    memset(rcvMsg, 0, sizeof(DeadlockMsg));
+    sendMsg = new (sendBuffer.start()) DeadlockMsg;
+    rcvMsg = new (rcvBuffer.start()) DeadlockMsg;
 
-    DeadlockMsgHeader* clientDiedMsg = (DeadlockMsgHeader*)clientEndpointDiedBuffer.start();
-    clientDiedMsg->msgType = msgClientEndpointDied;
-    clientDiedMsg->clientId = 0;
-    clientDiedMsg->complete = true;
-    clientDiedMsg->count = 0;
+    DeadlockMsgHeader* clientDiedMsg = new (clientEndpointDiedBuffer.start()) DeadlockMsgHeader(msgClientEndpointDied);
     clientDiedMsg->hton();
 
-    DeadlockMsgHeader* victimizerDiedMsg = (DeadlockMsgHeader*)victimizerEndpointDiedBuffer.start();
-    victimizerDiedMsg->msgType = msgClientEndpointDied;
-    victimizerDiedMsg->clientId = 0;
-    victimizerDiedMsg->complete = true;
-    victimizerDiedMsg->count = 0;
+    DeadlockMsgHeader* victimizerDiedMsg = new (victimizerEndpointDiedBuffer.start()) DeadlockMsgHeader(msgVictimizerEndpointDied);
     victimizerDiedMsg->hton();
 
     clientEndpoints = new Endpoint[InitialNumberOfEndpoints];
@@ -579,7 +457,7 @@ DeadlockServerCommunicator::~DeadlockServerCommunicator()
 {
     W_COERCE( BroadcastServerEndpointDied() );
 
-    int4 i = 0;
+    int4_t i = 0;
     while ((i = activeClientIds.FirstSetOnOrAfter(i)) != -1)  {
     	W_COERCE( IgnoreScDEAD( clientEndpoints[i].stop_notify(myEndpoint) ) );
 	W_COERCE( clientEndpoints[i].release() );
@@ -608,7 +486,8 @@ rc_t DeadlockServerCommunicator::ReceivedVictimizerEndpoint(Endpoint& ep)
 
 rc_t DeadlockServerCommunicator::ReceivedRequestClientId(Endpoint& ep)
 {
-    uint4 clientId = activeClientIds.FirstClearOnOrAfter(0);
+    uint4_t clientId = activeClientIds.FirstClearOnOrAfter(0);
+    DBG(<<"ReceivedRequestClientId : new clientID is " << clientId);
     activeClientIds.SetBit(clientId);
     W_DO( deadlockServer->AddClient(clientId) );
     SetClientEndpoint(clientId, ep);
@@ -618,10 +497,9 @@ rc_t DeadlockServerCommunicator::ReceivedRequestClientId(Endpoint& ep)
 }
 
 
-rc_t DeadlockServerCommunicator::SendAssignClientId(uint4 clientId)
+rc_t DeadlockServerCommunicator::SendAssignClientId(uint4_t clientId)
 {
-    sendMsg->header.msgType = msgAssignClientId;
-    sendMsg->header.clientId = clientId;
+    new (sendMsg) DeadlockMsg(msgAssignClientId, clientId);
     W_DO( SendMsg() );
     
     return RCOK;
@@ -637,13 +515,10 @@ rc_t DeadlockServerCommunicator::ReceivedRequestDeadlockCheck()
 
 rc_t DeadlockServerCommunicator::BroadcastRequestWaitForList()
 {
-    sendMsg->header.msgType = msgRequestWaitFors;
-    
-    uint4 i = 0;
-    int4 clientId;
+    uint4_t i = 0;
+    int4_t clientId;
     while ((clientId = activeClientIds.FirstSetOnOrAfter(i)) != -1)  {
-	sendMsg->header.clientId = clientId;
-        W_DO( SendMsg() );
+        W_DO( SendRequestWaitForList(clientId) );
         i++;
     }
     
@@ -651,20 +526,19 @@ rc_t DeadlockServerCommunicator::BroadcastRequestWaitForList()
 }
 
 
-rc_t DeadlockServerCommunicator::SendRequestWaitForList(uint4 clientId)
+rc_t DeadlockServerCommunicator::SendRequestWaitForList(uint4_t clientId)
 {
-    sendMsg->header.msgType = msgRequestWaitFors;
-    sendMsg->header.clientId = clientId;
+    new (sendMsg) DeadlockMsg(msgRequestWaitFors, clientId);
     W_DO( SendMsg() );
     
     return RCOK;
 }
 
 
-rc_t DeadlockServerCommunicator::ReceivedWaitForList(uint4 clientId, uint2 count, const gtid_t* gtids, bool complete)
+rc_t DeadlockServerCommunicator::ReceivedWaitForList(uint4_t clientId, uint2_t count, const gtid_t* gtids, bool complete)
 {
     WaitPtrForPtrList waitPtrForPtrList(WaitPtrForPtrElem::link_offset());
-    uint4 i = 0;
+    uint4_t i = 0;
     while (i < count)  {
         const gtid_t* waitPtr = &gtids[i++];
         const gtid_t* forPtr = &gtids[i++];
@@ -677,45 +551,51 @@ rc_t DeadlockServerCommunicator::ReceivedWaitForList(uint4 clientId, uint2 count
 }
 
 
-rc_t DeadlockServerCommunicator::SendSelectVictim(GtidIndexList& deadlockList)
+rc_t DeadlockServerCommunicator::SendSelectVictim(IdList& deadlockList)
 {
     w_assert3(!deadlockList.is_empty());
 
     if (smlevel_0::deadlockEventCallback)  {
 	GtidList gtidList(GtidElem::link_offset());
-	GtidIndexListIter iter(deadlockList);
-	while (GtidIndexElem* gtidIndexElem = iter.next())  {
-	    gtidList.push(new GtidElem(deadlockServer->GtidIndexToGtid(gtidIndexElem->index)));
+	IdListIter iter(deadlockList);
+	IdElem* idElem;
+	while ((idElem = iter.next()))  {
+	    gtidList.push(new GtidElem(deadlockServer->IdToGtid(idElem->id)));
 	}
 	smlevel_0::deadlockEventCallback->GlobalDeadlockDetected(gtidList);
-	while (GtidElem* elem = gtidList.pop())  {
+	GtidElem* elem;
+	while ((elem = gtidList.pop()))  {
 	    delete elem;
 	}
     }
 
     if (remoteVictimizer)  {
-	sendMsg->header.msgType = msgSelectVictim;
-	while (GtidIndexElem* gtidIndexElem = deadlockList.pop())  {
-	    sendMsg->gtids[sendMsg->header.count++] = deadlockServer->GtidIndexToGtid(gtidIndexElem->index);
-	    delete gtidIndexElem;
-	    if (sendMsg->header.count >= DeadlockMsg::MaxNumGtidsPerMsg || deadlockList.is_empty())  {
-		sendMsg->header.complete = deadlockList.is_empty();
+	new (sendMsg) DeadlockMsg(msgSelectVictim);
+
+	IdElem* idElem;
+	while ((idElem = deadlockList.pop()))  {
+	    sendMsg->AddGtid(deadlockServer->IdToGtid(idElem->id));
+	    delete idElem;
+	    if (sendMsg->GtidCount() >= sendMsg->MaxGtidCount() || deadlockList.is_empty())  {
+		sendMsg->SetComplete(deadlockList.is_empty());
 		W_DO( SendMsg(toVictimizer) );
-		sendMsg->header.count = 0;
+		sendMsg->ResetCount();
 	    }
 	}
     }  else  {
 	GtidList gtidList(GtidElem::link_offset());
-	while (GtidIndexElem* gtidIndexElem = deadlockList.pop())  {
-	    gtidList.push(new GtidElem(deadlockServer->GtidIndexToGtid(gtidIndexElem->index)));
-	    delete gtidIndexElem;
+	IdElem* idElem;
+	while ((idElem = deadlockList.pop()))  {
+	    gtidList.push(new GtidElem(deadlockServer->IdToGtid(idElem->id)));
+	    delete idElem;
 	}
 	gtid_t gtid = selectVictim(gtidList);
 	if (smlevel_0::deadlockEventCallback)  {
 	    smlevel_0::deadlockEventCallback->GlobalDeadlockVictimSelected(gtid);
 	}
 	W_DO( deadlockServer->VictimSelected(gtid) );
-	while (GtidElem* gtidElem = gtidList.pop())  {
+	GtidElem* gtidElem;
+	while ((gtidElem = gtidList.pop()))  {
 	    delete gtidElem;
 	}
     }
@@ -735,12 +615,10 @@ rc_t DeadlockServerCommunicator::ReceivedVictimSelected(const gtid_t gtid)
 }
 
 
-rc_t DeadlockServerCommunicator::SendKillGtid(uint4 clientId, const gtid_t gtid)
+rc_t DeadlockServerCommunicator::SendKillGtid(uint4_t clientId, const gtid_t &gtid)
 {
-    sendMsg->header.msgType = msgKillGtid;
-    sendMsg->header.clientId = clientId;
-    sendMsg->header.count = 1;
-    sendMsg->gtids[0] = gtid;
+    new (sendMsg) DeadlockMsg(msgKillGtid, clientId);
+    sendMsg->AddGtid(gtid);
     W_DO( SendMsg() );
     
     return RCOK;
@@ -750,12 +628,7 @@ rc_t DeadlockServerCommunicator::SendKillGtid(uint4 clientId, const gtid_t gtid)
 rc_t DeadlockServerCommunicator::SendQuit()
 {
     Buffer		buffer(sizeof(DeadlockMsg));
-    DeadlockMsg*	msg = (DeadlockMsg*)buffer.start();
-
-    msg->header.msgType = msgQuit;
-    msg->header.complete = true;
-    msg->header.count = 0;
-    msg->header.clientId = 0;
+    DeadlockMsg*	msg = new (buffer.start()) DeadlockMsg(msgQuit);
 
     DBGTHRD( << "Deadlock server sending message:" << endl << " S->" << *msg );
     msg->hton();
@@ -768,15 +641,14 @@ rc_t DeadlockServerCommunicator::SendQuit()
 
 rc_t DeadlockServerCommunicator::BroadcastServerEndpointDied()
 {
-    sendMsg->header.msgType = msgServerEndpointDied;
-    sendMsg->header.count = 0;
+    new (sendBuffer.start()) DeadlockMsg(msgServerEndpointDied);
     if (remoteVictimizer)  {
 	W_DO( SendMsg(toVictimizer) );
     }
     
-    int4 clientId = 0;
+    int4_t clientId = 0;
     while ((clientId = activeClientIds.FirstSetOnOrAfter(clientId)) != -1)  {
-	sendMsg->header.clientId = clientId;
+	sendMsg->SetClientId(clientId);
         W_DO( SendMsg() );
         clientId++;
     }
@@ -787,7 +659,7 @@ rc_t DeadlockServerCommunicator::BroadcastServerEndpointDied()
 
 rc_t DeadlockServerCommunicator::ReceivedClientEndpointDied(Endpoint& theClientEndpoint)
 {
-    int4 clientId = 0;
+    int4_t clientId = 0;
     while ((clientId = activeClientIds.FirstSetOnOrAfter(clientId)) != -1)  {
 	if (theClientEndpoint == clientEndpoints[clientId])  {
 	    w_assert3(activeClientIds.IsBitSet(clientId));
@@ -825,20 +697,29 @@ void DeadlockServerCommunicator::SetDeadlockServer(CentralizedGlobalDeadlockServ
 rc_t DeadlockServerCommunicator::SendMsg(MsgDestination destination)
 {
     DBGTHRD( << "Deadlock server sending message:" << endl << " S->" << *sendMsg );
-    uint4 clientId = sendMsg->header.clientId;
-    sendMsg->hton();
+    uint4_t clientId = sendMsg->ClientId();
+    w_rc_t		e;
     EndpointBox		box;
-    if (sendMsg->header.msgType == msgServerEndpointDied)  {
+    if (sendMsg->MsgType() == msgServerEndpointDied)  {
 	W_COERCE( box.set(0, myEndpoint) );
     }
-    if (destination == toVictimizer)  {
-	W_DO( IgnoreScDEAD( victimizerEndpoint.send(sendBuffer, box) ) );
-    }  else if (destination == toClient)  {
+    sendMsg->hton();
+    switch (destination) {
+    case toVictimizer:
+	e = IgnoreScDEAD( victimizerEndpoint.send(sendBuffer, box) );
+	break;
+    case toClient:
 	w_assert3(activeClientIds.IsBitSet(clientId));
-	W_DO( IgnoreScDEAD( clientEndpoints[clientId].send(sendBuffer, box) ) );
+	e =  IgnoreScDEAD( clientEndpoints[clientId].send(sendBuffer, box) );
+        break;
+    default:
+	cerr << "Unexpected MsgDestination == " << (int)destination << endl;
+	e = RCOK;
+	break;
     }
+    sendMsg->ntoh();
 
-    return RCOK;
+    return e;
 }
 
 
@@ -848,7 +729,7 @@ rc_t DeadlockServerCommunicator::RcvAndDispatchMsg()
     W_DO( myEndpoint.receive(rcvBuffer, box) );
     rcvMsg->ntoh();
     DBGTHRD( << "Deadlock server received message:" << endl << " ->S" << *rcvMsg );
-    switch ((DeadlockMsgType)rcvMsg->header.msgType)  {
+    switch (rcvMsg->MsgType())  {
 	case msgVictimizerEndpoint:
 	    {
 		Endpoint ep;
@@ -867,7 +748,7 @@ rc_t DeadlockServerCommunicator::RcvAndDispatchMsg()
 	    W_DO( ReceivedRequestDeadlockCheck() );
 	    break;
 	case msgWaitForList:
-	    W_DO( ReceivedWaitForList(rcvMsg->header.clientId, rcvMsg->header.count, rcvMsg->gtids, rcvMsg->header.complete) );
+	    W_DO( ReceivedWaitForList(rcvMsg->ClientId(), rcvMsg->GtidCount(), rcvMsg->gtids, rcvMsg->IsComplete()) );
 	    break;
 	case msgVictimSelected:
 	    W_DO( ReceivedVictimSelected(rcvMsg->gtids[0]) );
@@ -896,7 +777,7 @@ rc_t DeadlockServerCommunicator::RcvAndDispatchMsg()
 }
 
 
-void DeadlockServerCommunicator::SetClientEndpoint(uint4 clientId, Endpoint& ep)
+void DeadlockServerCommunicator::SetClientEndpoint(uint4_t clientId, Endpoint& ep)
 {
     if (clientId >= clientEndpointsSize)  {
 	ResizeClientEndpointsArray(clientEndpointsSize * 2);
@@ -906,11 +787,11 @@ void DeadlockServerCommunicator::SetClientEndpoint(uint4 clientId, Endpoint& ep)
 }
 
 
-void DeadlockServerCommunicator::ResizeClientEndpointsArray(uint4 newSize)
+void DeadlockServerCommunicator::ResizeClientEndpointsArray(uint4_t newSize)
 {
     w_assert3(newSize > 0);
     Endpoint* newClientEndpoints = new Endpoint[newSize];
-    for (uint4 i = 0; i < clientEndpointsSize; i++)  {
+    for (uint4_t i = 0; i < clientEndpointsSize; i++)  {
 	newClientEndpoints[i] = clientEndpoints[i];
     }
 
@@ -943,17 +824,11 @@ DeadlockVictimizerCommunicator::DeadlockVictimizerCommunicator(
     done(false),
     serverEndpointValid(false)
 {
-    DeadlockMsgHeader* serverDiedMsg = (DeadlockMsgHeader*)serverEndpointDiedBuffer.start();
-    serverDiedMsg->msgType = msgServerEndpointDied;
-    serverDiedMsg->clientId = 0;
-    serverDiedMsg->complete = true;
-    serverDiedMsg->count = 0;
+    DeadlockMsgHeader* serverDiedMsg = new (serverEndpointDiedBuffer.start()) DeadlockMsgHeader(msgServerEndpointDied);
     serverDiedMsg->hton();
 
-    sendMsg = (DeadlockMsg*)sendBuffer.start();
-    memset(sendMsg, 0, sizeof(DeadlockMsg));
-    rcvMsg = (DeadlockMsg*)rcvBuffer.start();
-    memset(rcvMsg, 0, sizeof(DeadlockMsg));
+    sendMsg = new (sendBuffer.start()) DeadlockMsg;
+    rcvMsg = new (rcvBuffer.start()) DeadlockMsg;
 
     W_COERCE( commSystem.make_endpoint(myEndpoint) );
     W_COERCE( endpointMap->name2endpoint(serverHandle, serverEndpoint) );
@@ -970,14 +845,15 @@ DeadlockVictimizerCommunicator::~DeadlockVictimizerCommunicator()
     
     W_COERCE( myEndpoint.release() );
     
-    while (GtidElem* elem = gtidList.pop())
+    GtidElem* elem;
+    while ((elem = gtidList.pop()))
 	delete elem;
 }
 
 
-rc_t DeadlockVictimizerCommunicator::ReceivedSelectVictim(uint2 count, gtid_t* gtids, bool complete)
+rc_t DeadlockVictimizerCommunicator::ReceivedSelectVictim(uint2_t count, gtid_t* gtids, bool complete)
 {
-    for (uint4 i = 0; i < count; i++)  {
+    for (uint4_t i = 0; i < count; i++)  {
 	gtidList.push(new GtidElem(gtids[i]));
     }
 
@@ -986,7 +862,8 @@ rc_t DeadlockVictimizerCommunicator::ReceivedSelectVictim(uint2 count, gtid_t* g
 
 	W_DO( SendVictimSelected(gtid) );
 
-	while (GtidElem* gtidElem = gtidList.pop())  {
+	GtidElem* gtidElem;
+	while ((gtidElem = gtidList.pop()))  {
 	    delete gtidElem;
 	}
 	w_assert3(gtidList.is_empty());
@@ -998,7 +875,7 @@ rc_t DeadlockVictimizerCommunicator::ReceivedSelectVictim(uint2 count, gtid_t* g
 
 rc_t DeadlockVictimizerCommunicator::SendVictimizerEndpoint()
 {
-    sendMsg->header.msgType = msgVictimizerEndpoint;
+    new (sendMsg) DeadlockMsg(msgVictimizerEndpoint);
     W_DO( SendMsg() );
     
     return RCOK;
@@ -1007,9 +884,8 @@ rc_t DeadlockVictimizerCommunicator::SendVictimizerEndpoint()
 
 rc_t DeadlockVictimizerCommunicator::SendVictimSelected(const gtid_t& gtid)
 {
-    sendMsg->header.msgType = msgVictimSelected;
-    sendMsg->header.count = 1;
-    sendMsg->gtids[0] = gtid;
+    new (sendMsg) DeadlockMsg(msgVictimSelected);
+    sendMsg->AddGtid(gtid);
     W_DO( SendMsg() );
 
     return RCOK;
@@ -1032,9 +908,10 @@ rc_t DeadlockVictimizerCommunicator::SendMsg()
 {
     DBGTHRD( << "Deadlock victimizer sending message:" << endl << " V->" << *sendMsg );
     sendMsg->hton();
-    EndpointBox emptybox;
-    W_DO( IgnoreScDEAD( serverEndpoint.send(sendBuffer, emptyBox) ) );
-    return RCOK;
+    EndpointBox emptyBox;
+    rc_t e = IgnoreScDEAD( serverEndpoint.send(sendBuffer, emptyBox) );
+    sendMsg->ntoh();
+    return e;
 }
 
 
@@ -1044,9 +921,9 @@ rc_t DeadlockVictimizerCommunicator::RcvAndDispatchMsg()
     W_DO( myEndpoint.receive(rcvBuffer, box) );
     rcvMsg->ntoh();
     DBGTHRD( << "Deadlock victimizer received message:" << endl << " ->V" << *rcvMsg );
-    switch ((DeadlockMsgType)rcvMsg->header.msgType)  {
+    switch (rcvMsg->MsgType())  {
 	case msgSelectVictim:
-	    W_DO( ReceivedSelectVictim(rcvMsg->header.count, rcvMsg->gtids, rcvMsg->header.complete) );
+	    W_DO( ReceivedSelectVictim(rcvMsg->GtidCount(), rcvMsg->gtids, rcvMsg->IsComplete()) );
 	    break;
 	case msgQuit:
 	    done = true;
@@ -1072,18 +949,18 @@ rc_t DeadlockVictimizerCommunicator::RcvAndDispatchMsg()
  ***************************************************************************/
 
 CentralizedGlobalDeadlockClient::CentralizedGlobalDeadlockClient(
-	int4				initial,
-	int4				subsequent,
+	int4_t				initial,
+	int4_t				subsequent,
 	DeadlockClientCommunicator*	clientCommunicator
 )
 :   initialTimeout(initial),
     subsequentTimeout(subsequent),
     communicator(clientCommunicator),
-    thread(this),
     blockedListMutex("globalDeadlockClient"),
     blockedList(BlockedElem::link_offset()),
     isClientIdAssigned(false)
 {
+    thread.set(this);
     w_assert3(communicator);
     communicator->SetDeadlockClient(this);
     W_COERCE( thread.Start() );
@@ -1095,7 +972,8 @@ CentralizedGlobalDeadlockClient::~CentralizedGlobalDeadlockClient()
     thread.retire();
     W_COERCE( blockedListMutex.acquire() );
 
-    while (BlockedElem* blockedElem = blockedList.pop())  {
+    BlockedElem* blockedElem;
+    while ((blockedElem = blockedList.pop()))  {
 	delete blockedElem;
     }
 
@@ -1122,13 +1000,18 @@ rc_t CentralizedGlobalDeadlockClient::AssignClientId()
 
 rc_t CentralizedGlobalDeadlockClient::GlobalXctLockWait(lock_request_t* req, const char * blockname)
 {
-    int4    timeout = initialTimeout;
+    timeout_in_ms    timeout = initialTimeout;
     rc_t    rc;
 
     W_DO( blockedListMutex.acquire() );
     BlockedElem* blockedElem = new BlockedElem(req);
     blockedList.push(blockedElem);
     blockedListMutex.release();
+
+    /* Even though we block/ multiple times, the ONE prepare_to_block()
+       that occurs in the lock manager is the one we care about.  If any
+       one tries to loose us in the meantime, that release will remain
+       until we notice it, or don't care */
 
     do  {
 	DBGTHRD( << "waiting for global deadlock detection or lock, timeout=" << timeout );
@@ -1137,6 +1020,7 @@ rc_t CentralizedGlobalDeadlockClient::GlobalXctLockWait(lock_request_t* req, con
 	    if (blockedElem->collected || !isClientIdAssigned)  {
 		timeout = WAIT_FOREVER;
 	    }  else  {
+	    	/* XXX does this leak elements from the list? */
 		W_DO( communicator->SendRequestDeadlockCheck() );
 		timeout = subsequentTimeout;
 	    }
@@ -1144,10 +1028,14 @@ rc_t CentralizedGlobalDeadlockClient::GlobalXctLockWait(lock_request_t* req, con
     }  while (rc.err_num() == stTIMEOUT);
 
     if (rc)  {
-	blockedElem->req->status(lock_m::t_aborted);
+	if (blockedElem->req->status() != lock_m::t_converting)  {
+	    blockedElem->req->status(lock_m::t_aborted);
+	}  else  {
+	    blockedElem->req->status(lock_m::t_aborted_convert);
+	}
     }
 
-    W_DO( blockedListMutex.acquire() );
+    W_COERCE( blockedListMutex.acquire() );
     delete blockedElem;
     blockedListMutex.release();
 
@@ -1160,7 +1048,8 @@ rc_t CentralizedGlobalDeadlockClient::UnblockGlobalXct(const gtid_t& gtid)
     W_COERCE( blockedListMutex.acquire() );
 
     BlockedListIter iter(blockedList);
-    while (BlockedElem* blockedElem = iter.next())  {
+    BlockedElem* blockedElem;
+    while ((blockedElem = iter.next()))  {
 	if (blockedElem->req->xd->gtid() && *blockedElem->req->xd->gtid() == gtid)  {
 	    if (smlevel_0::deadlockEventCallback)  {
 		smlevel_0::deadlockEventCallback->KillingGlobalXct(blockedElem->req->xd, blockedElem->req->get_lock_head()->name);
@@ -1182,7 +1071,8 @@ rc_t CentralizedGlobalDeadlockClient::SendWaitForGraph()
     W_DO( blockedListMutex.acquire() );
 
     BlockedListIter iter(blockedList);
-    while (BlockedElem* blockedElem = iter.next())  {
+    BlockedElem* blockedElem;
+    while ((blockedElem = iter.next()))  {
 	blockedElem->collected = true;
 	W_DO( AddToWaitForList(waitForList, blockedElem->req, *blockedElem->req->xd->gtid()) );
     }
@@ -1250,7 +1140,8 @@ rc_t CentralizedGlobalDeadlockClient::AddToWaitForList(
 
     if (req->status() == lock_m::t_waiting)  {
         mode_t req_mode = req->mode;
-	while (lock_request_t* other = iter.next())  {
+	lock_request_t* other;
+	while ((other = iter.next()))  {
 	    if (other->xd == xd)
 		break;
 	    if (other->status() == lock_m::t_aborted)
@@ -1266,7 +1157,8 @@ rc_t CentralizedGlobalDeadlockClient::AddToWaitForList(
 	}
     }  else  {		// req->status() == lock_m::t_converting
         mode_t req_mode = xd->lock_info()->wait->convert_mode;
-	while (lock_request_t* other = iter.next())  {
+	lock_request_t* other;
+	while ((other = iter.next()))  {
             if (other->xd == xd || other->status() == lock_m::t_aborted)
                 continue;
             if (other->status() == lock_m::t_waiting)
@@ -1293,11 +1185,17 @@ rc_t CentralizedGlobalDeadlockClient::AddToWaitForList(
  ***************************************************************************/
 
 NORET
-CentralizedGlobalDeadlockClient::ReceiverThread::ReceiverThread(CentralizedGlobalDeadlockClient* client)
-:   deadlockClient(client),
-    smthread_t(t_regular, false, false, "DeadlockClient")
+CentralizedGlobalDeadlockClient::ReceiverThread::ReceiverThread()
+:   
+    smthread_t(t_regular, false, false, "DeadlockClient"),
+    deadlockClient(0)
 {
-    w_assert3(deadlockClient);
+}
+
+void
+CentralizedGlobalDeadlockClient::ReceiverThread::set(CentralizedGlobalDeadlockClient* client)
+{
+    deadlockClient = client;
 }
 
 
@@ -1336,26 +1234,26 @@ void CentralizedGlobalDeadlockClient::ReceiverThread::retire()
  *                                                                         *
  ***************************************************************************/
 
-DeadlockGraph::DeadlockGraph(uint4 initialNumberOfXcts)
-:   maxGtidIndex(0),
-    maxUsedGtidIndex(0),
+DeadlockGraph::DeadlockGraph(uint4_t initialNumberOfXcts)
+:   maxId(0),
+    maxUsedId(0),
     original(0),
     closure(0)
 {
     w_assert1(initialNumberOfXcts % BitsPerWord == 0);
     w_assert1(initialNumberOfXcts > 0);
 
-    maxGtidIndex = initialNumberOfXcts;
+    maxId = initialNumberOfXcts;
 
-    BitMapVector** newBitMap = new BitMapVector*[maxGtidIndex];
-    uint4 i=0;
-    for (i = 0; i < maxGtidIndex; i++)  {
+    BitMapVector** newBitMap = new BitMapVector*[maxId];
+    uint4_t i=0;
+    for (i = 0; i < maxId; i++)  {
 	newBitMap[i] = new BitMapVector(initialNumberOfXcts);
     }
     original = newBitMap;
 
-    newBitMap = new BitMapVector*[maxGtidIndex];
-    for (i = 0; i < maxGtidIndex; i++)  {
+    newBitMap = new BitMapVector*[maxId];
+    for (i = 0; i < maxId; i++)  {
 	newBitMap[i] = new BitMapVector(initialNumberOfXcts);
     }
     closure = newBitMap;
@@ -1364,16 +1262,16 @@ DeadlockGraph::DeadlockGraph(uint4 initialNumberOfXcts)
 
 DeadlockGraph::~DeadlockGraph()
 {
-    uint4 i;
+    uint4_t i;
     if (original)  {
-	for (i = 0; i < maxGtidIndex; i++)
+	for (i = 0; i < maxId; i++)
 	    delete original[i];
 	
 	delete [] original;
     }
 
     if (closure)  {
-	for (i = 0; i < maxGtidIndex; i++)
+	for (i = 0; i < maxId; i++)
 	    delete closure[i];
 	
 	delete [] closure;
@@ -1383,28 +1281,28 @@ DeadlockGraph::~DeadlockGraph()
 
 void DeadlockGraph::ClearGraph()
 {
-    uint4 i;
-    for (i = 0; i < maxGtidIndex; i++)  {
+    uint4_t i;
+    for (i = 0; i < maxId; i++)  {
 	original[i]->ClearAll();
 	closure[i]->ClearAll();
     }
-    maxUsedGtidIndex = 0;
+    maxUsedId = 0;
 }
 
 
-void DeadlockGraph::Resize(uint4 newSize)
+void DeadlockGraph::Resize(uint4_t newSize)
 {
-    uint4 i=0;
-    if (newSize >= maxGtidIndex)  {
+    uint4_t i=0;
+    if (newSize >= maxId)  {
 	newSize = (newSize + BitsPerWord) / BitsPerWord * BitsPerWord;
 
 	BitMapVector** newOriginal = new BitMapVector*[newSize];
 	BitMapVector** newClosure = new BitMapVector*[newSize];
-	for (i = 0; i < maxGtidIndex; i++)  {
+	for (i = 0; i < maxId; i++)  {
 	    newOriginal[i] = original[i];
 	    newClosure[i] = closure[i];
 	}
-	for (i = maxGtidIndex; i < newSize; i++)  {
+	for (i = maxId; i < newSize; i++)  {
 	    newOriginal[i] = new BitMapVector(newSize);
 	    newClosure[i] = new BitMapVector(newSize);
 	}
@@ -1414,41 +1312,41 @@ void DeadlockGraph::Resize(uint4 newSize)
 
 	original = newOriginal;
 	closure = newClosure;
-	maxGtidIndex = newSize;
+	maxId = newSize;
     }  else  {
 	w_assert3(0);
     }
 }
 
 
-void DeadlockGraph::AddEdge(uint4 waitGtidIndex, uint4 forGtidIndex)
+void DeadlockGraph::AddEdge(uint4_t waitId, uint4_t forId)
 {
-    if (waitGtidIndex >= maxGtidIndex)  {
-	Resize(waitGtidIndex);
-	w_assert3(waitGtidIndex < maxGtidIndex);
+    if (waitId >= maxId)  {
+	Resize(waitId);
+	w_assert3(waitId < maxId);
     }
 
-    if (waitGtidIndex > maxUsedGtidIndex)
-	maxUsedGtidIndex = waitGtidIndex;
+    if (waitId > maxUsedId)
+	maxUsedId = waitId;
     
-    if (forGtidIndex > maxUsedGtidIndex)
-	maxUsedGtidIndex = forGtidIndex;
+    if (forId > maxUsedId)
+	maxUsedId = forId;
 
-    original[waitGtidIndex]->SetBit(forGtidIndex);
+    original[waitId]->SetBit(forId);
 }
 
 
-void DeadlockGraph::ComputeTransitiveClosure(GtidIndexList& cycleParticipantsList)
+void DeadlockGraph::ComputeTransitiveClosure(IdList& cycleParticipantsList)
 {
-    uint4 i;
-    for (i = 0; i <= maxUsedGtidIndex; i++)
+    uint4_t i;
+    for (i = 0; i <= maxUsedId; i++)
 	*closure[i] = *original[i];
     
     bool changed;
     do  {
 	changed = false;
-	for (uint4 waitIndex = 0; waitIndex <= maxUsedGtidIndex; waitIndex++)  {
-	    int4 forIndex = 0;
+	for (uint4_t waitIndex = 0; waitIndex <= maxUsedId; waitIndex++)  {
+	    int4_t forIndex = 0;
 	    while ((forIndex = closure[waitIndex]->FirstSetOnOrAfter(forIndex)) != -1)  {
 		closure[waitIndex]->OrInBitVector(*closure[forIndex], changed);
 		forIndex++;
@@ -1456,24 +1354,24 @@ void DeadlockGraph::ComputeTransitiveClosure(GtidIndexList& cycleParticipantsLis
 	}
     }  while (changed);
 
-    for (i = 0; i <= maxUsedGtidIndex; i++)  {
+    for (i = 0; i <= maxUsedId; i++)  {
 	if (QueryWaitsFor(i, i))
-	    cycleParticipantsList.push(new GtidIndexElem(i));
+	    cycleParticipantsList.push(new IdElem(i));
     }
 }
 
 
-void DeadlockGraph::KillGtidIndex(uint4 gtidIndex)
+void DeadlockGraph::KillId(uint4_t id)
 {
-    if (gtidIndex < maxGtidIndex)
-        original[gtidIndex]->ClearAll();
+    if (id < maxId)
+        original[id]->ClearAll();
 }
 
 
-bool DeadlockGraph::QueryWaitsFor(uint4 waitGtidIndex, uint4 forGtidIndex)
+bool DeadlockGraph::QueryWaitsFor(uint4_t waitId, uint4_t forId)
 {
-    if (waitGtidIndex < maxGtidIndex)
-        return closure[waitGtidIndex]->IsBitSet(forGtidIndex);
+    if (waitId < maxId)
+        return closure[waitId]->IsBitSet(forId);
     else
 	return false;
 }
@@ -1487,7 +1385,6 @@ bool DeadlockGraph::QueryWaitsFor(uint4 waitGtidIndex, uint4 forGtidIndex)
 
 CentralizedGlobalDeadlockServer::CentralizedGlobalDeadlockServer(DeadlockServerCommunicator* serverCommunicator)
 :   communicator(serverCommunicator),
-    thread(this),
     state(IdleState),
     checkRequested(false),
     numGtids(0),
@@ -1495,6 +1392,7 @@ CentralizedGlobalDeadlockServer::CentralizedGlobalDeadlockServer(DeadlockServerC
     idToGtid(0),
     idToGtidSize(0)
 {
+    thread.set(this);
     w_assert3(communicator);
     communicator->SetDeadlockServer(this);
     idToGtidSize = 32;
@@ -1512,7 +1410,8 @@ CentralizedGlobalDeadlockServer::~CentralizedGlobalDeadlockServer()
     delete communicator;
     delete [] idToGtid;
     GtidTableIter iter(gtidTable);
-    while (GtidTableElem* tableElem = iter.next())  {
+    GtidTableElem* tableElem;
+    while ((tableElem = iter.next()))  {
 	gtidTable.remove(tableElem);
 	delete tableElem;
     }
@@ -1537,11 +1436,12 @@ rc_t CentralizedGlobalDeadlockServer::SendQuit()
 }
 
 
-rc_t CentralizedGlobalDeadlockServer::AddClient(uint4 id)
+rc_t CentralizedGlobalDeadlockServer::AddClient(uint4_t id)
 {
-    w_assert3(!activeIds.IsBitSet(id));
     w_assert3(!collectedIds.IsBitSet(id));
-    activeIds.SetBit(id);
+    w_assert3(!activeIds.IsBitSet(id));
+
+    activeIds.SetBit(id); 
     if (state == CollectingState)  {
 	W_DO( SendRequestWaitForList(id) );
     }
@@ -1550,14 +1450,15 @@ rc_t CentralizedGlobalDeadlockServer::AddClient(uint4 id)
 }
 
 
-rc_t CentralizedGlobalDeadlockServer::RemoveClient(uint4 id)
+rc_t CentralizedGlobalDeadlockServer::RemoveClient(uint4_t id)
 {
     w_assert3(activeIds.IsBitSet(id));
     activeIds.ClearBit(id);
     collectedIds.ClearBit(id);
 
     GtidTableIter iter(gtidTable);
-    while (GtidTableElem* tableElem = iter.next())  {
+    GtidTableElem* tableElem;
+    while ((tableElem = iter.next()))  {
 	tableElem->nodeIds.ClearBit(id);
     }
     
@@ -1569,7 +1470,7 @@ rc_t CentralizedGlobalDeadlockServer::RemoveClient(uint4 id)
 }
 
 
-rc_t CentralizedGlobalDeadlockServer::KillGtid(uint4 clientId, const gtid_t& gtid)
+rc_t CentralizedGlobalDeadlockServer::KillGtid(uint4_t clientId, const gtid_t& gtid)
 {
     W_DO( communicator->SendKillGtid(clientId, gtid) );
 
@@ -1600,22 +1501,23 @@ rc_t CentralizedGlobalDeadlockServer::BroadcastRequestWaitForList()
 }
 
 
-rc_t CentralizedGlobalDeadlockServer::SendRequestWaitForList(uint4 id)
+rc_t CentralizedGlobalDeadlockServer::SendRequestWaitForList(uint4_t id)
 {
     W_DO( communicator->SendRequestWaitForList(id) );
     return RCOK;
 }
 
 
-rc_t CentralizedGlobalDeadlockServer::AddWaitFors(uint4 clientId, WaitPtrForPtrList& waitForList, bool complete)
+rc_t CentralizedGlobalDeadlockServer::AddWaitFors(uint4_t clientId, WaitPtrForPtrList& waitForList, bool complete)
 {
     w_assert3(state == CollectingState);
     w_assert3(activeIds.IsBitSet(clientId));
     w_assert3(!collectedIds.IsBitSet(clientId));
 
-    while (WaitPtrForPtrElem* elem = waitForList.pop())  {
-	uint4 waitId;
-	uint4 forId;
+    WaitPtrForPtrElem* elem;
+    while ((elem = waitForList.pop()))  {
+	uint4_t waitId;
+	uint4_t forId;
 
 	GtidTableElem* gtidTableElem = GetGtidTableElem(*elem->waitGtid);
 	gtidTableElem->nodeIds.SetBit(clientId);
@@ -1641,7 +1543,7 @@ rc_t CentralizedGlobalDeadlockServer::AddWaitFors(uint4 clientId, WaitPtrForPtrL
 }
 
 
-rc_t CentralizedGlobalDeadlockServer::SelectVictim(GtidIndexList& deadlockedList)
+rc_t CentralizedGlobalDeadlockServer::SelectVictim(IdList& deadlockedList)
 {
     W_DO( communicator->SendSelectVictim(deadlockedList) );
     return RCOK;
@@ -1653,13 +1555,13 @@ rc_t CentralizedGlobalDeadlockServer::VictimSelected(const gtid_t& gtid)
     GtidTableElem* tableElem = gtidTable.lookup(gtid);
     w_assert1(tableElem);
 
-    int4 i = 0;
+    int4_t i = 0;
     while ((i = tableElem->nodeIds.FirstSetOnOrAfter(i)) != -1)  {
 	KillGtid(i, gtid);
 	i++;
     }
 
-    deadlockGraph.KillGtidIndex(tableElem->id);
+    deadlockGraph.KillId(tableElem->id);
 
     W_DO( CheckDeadlock() );
 	
@@ -1669,7 +1571,7 @@ rc_t CentralizedGlobalDeadlockServer::VictimSelected(const gtid_t& gtid)
 rc_t CentralizedGlobalDeadlockServer::CheckDeadlock()
 {
     w_assert3(state == SelectingVictimState);
-    GtidIndexList cycleParticipantList(GtidIndexElem::link_offset());
+    IdList cycleParticipantList(IdElem::link_offset());
     deadlockGraph.ComputeTransitiveClosure(cycleParticipantList);
 
     if (cycleParticipantList.is_empty())  {
@@ -1693,7 +1595,8 @@ rc_t CentralizedGlobalDeadlockServer::ResetServer()
 
     numGtids = 0;
     GtidTableIter iter(gtidTable);
-    while (GtidTableElem* tableElem = iter.next())  {
+    GtidTableElem* tableElem;
+    while ((tableElem = iter.next()))  {
 	gtidTable.remove(tableElem);
 	delete tableElem;
     }
@@ -1711,7 +1614,7 @@ rc_t CentralizedGlobalDeadlockServer::ResetServer()
 GtidTableElem* CentralizedGlobalDeadlockServer::GetGtidTableElem(const gtid_t& gtid)
 {
     GtidTableElem* gtidTableElem = gtidTable.lookup(gtid);
-    uint4 i=0;
+    uint4_t i=0;
 
     if (gtidTableElem == 0)  {
 	gtidTableElem = new GtidTableElem(gtid, numGtids);
@@ -1721,7 +1624,7 @@ GtidTableElem* CentralizedGlobalDeadlockServer::GetGtidTableElem(const gtid_t& g
     }
 
     if (numGtids >= idToGtidSize)  {
-	uint4 newIdToGtidSize = 2 * idToGtidSize;
+	uint4_t newIdToGtidSize = 2 * idToGtidSize;
 	gtid_t** newIdToGtid = new gtid_t*[newIdToGtidSize];
 	w_assert1(newIdToGtid);
 	for (i = 0; i < idToGtidSize; i++)
@@ -1742,10 +1645,10 @@ GtidTableElem* CentralizedGlobalDeadlockServer::GetGtidTableElem(const gtid_t& g
 }
 
 
-const gtid_t& CentralizedGlobalDeadlockServer::GtidIndexToGtid(uint4 index)
+const gtid_t& CentralizedGlobalDeadlockServer::IdToGtid(uint4_t id)
 {
-    w_assert3(index < idToGtidSize);
-    return *idToGtid[index];
+    w_assert3(id < idToGtidSize);
+    return *idToGtid[id];
 }
 
 
@@ -1756,10 +1659,16 @@ const gtid_t& CentralizedGlobalDeadlockServer::GtidIndexToGtid(uint4 index)
  ***************************************************************************/
 
 NORET
-CentralizedGlobalDeadlockServer::ReceiverThread::ReceiverThread(CentralizedGlobalDeadlockServer* Server)
-:   deadlockServer(Server),
+CentralizedGlobalDeadlockServer::ReceiverThread::ReceiverThread()
+:   
     smthread_t(t_regular, false, false, "DeadlockServer")
 {
+}
+
+void
+CentralizedGlobalDeadlockServer::ReceiverThread::set(CentralizedGlobalDeadlockServer* Server)
+{
+    deadlockServer = Server;
     w_assert3(deadlockServer);
 }
 
@@ -1790,3 +1699,5 @@ void CentralizedGlobalDeadlockServer::ReceiverThread::retire()
     W_COERCE( deadlockServer->SendQuit() );
     this->wait();
 }
+#endif /* USE_COORD */
+

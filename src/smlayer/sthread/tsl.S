@@ -1,13 +1,43 @@
-/* --------------------------------------------------------------- */
-/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
-/* -- University of Wisconsin-Madison, subject to the terms     -- */
-/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
-/* -- Reserved.                                                 -- */
-/* --------------------------------------------------------------- */
+/*<std-header style='asm' orig-src='shore'>
+
+ $Id: tsl.S,v 1.21 1999/06/07 19:06:17 kupsch Exp $
+
+SHORE -- Scalable Heterogeneous Object REpository
+
+Copyright (c) 1994-99 Computer Sciences Department, University of
+                      Wisconsin -- Madison
+All Rights Reserved.
+
+Permission to use, copy, modify and distribute this software and its
+documentation is hereby granted, provided that both the copyright
+notice and this permission notice appear in all copies of the
+software, derivative works or modified versions, and any portions
+thereof, and that both notices appear in supporting documentation.
+
+THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+"AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+This software was developed with support by the Advanced Research
+Project Agency, ARPA order number 018 (formerly 8230), monitored by
+the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+Further funding for this work was provided by DARPA through
+Rome Research Laboratory Contract No. F30602-97-2-0247.
+
+  -- do not edit anything above this line --   </std-header>*/
 
 /*
- *  $Header: /p/shore/shore_cvs/src/sthread/tsl.S,v 1.14 1997/09/14 11:53:25 solomon Exp $	
+ * The Testandset package is Copyright 1993, 1994, 1995, 1997 by:
+ *
+ *	Josef Burger	<bolo@cs.wisc.edu>
+ *
+ * All rights reserved.
+ *
+ * The Testandset package may be freely used as long as credit is given
+ * to the author and the above copyright is maintained. 
  */
+
 /*
  * unsigned
  * tsl(addr, value)
@@ -86,7 +116,7 @@ PROC(tsl_init)
 PROC(tsl_examine)
 	retl
 	ldub	[%o0],%o0
-#endif /* sparc */
+#endif
 
 #if defined(mc68000) || defined(mc68010) || defined(mc68020) || defined(mc68030) || defined(mc68040)
 
@@ -123,7 +153,7 @@ PROC(_tsl_examine)
 	clrl	d0
 	movb	a0@,d0
 	rts
-#endif /* mc 68000 */
+#endif
 
 #if defined(vax)
 
@@ -156,7 +186,7 @@ PROC(_tsl_examine)
 	movb	*4(ap),r0	/* get the lock */
 	bicl2	$0xfe,r0	/* and clear all unused bits */
 	ret
-#endif /* vax */
+#endif
 
 #if defined(i386)
 /*
@@ -169,6 +199,10 @@ PROC(_tsl_examine)
  */
 
 #define	PROC(x)	.text ; .align 2 ; .globl x ; x:
+
+#if defined(linux) && !defined(SYSV)
+#define	SYSV
+#endif
 
 #ifdef SYSV
 PROC(tsl)
@@ -219,7 +253,7 @@ PROC(_tsl_examine)
 	movb	(%ecx),%al
 	leave
 	ret
-#endif /* i386 */
+#endif
 
 #if defined(mips) && !defined(Irix) 
 /*
@@ -234,7 +268,7 @@ PROC(_tsl_examine)
  * They are the same machines that require a dedicated 
  * tsl_release() to release the lock.
  */
-#endif /* mips && !Irix */
+#endif
 
 #if defined(Mips) && defined(Irix)
 
@@ -349,7 +383,7 @@ $L4:
 	j	$31
 	.end	tsl_release
 
-#endif /* mips && Irix */
+#endif
 
 #if defined(hppa) || defined(hp800)
 	 /* 	
@@ -591,3 +625,4 @@ FUNC(tsl_examine)
 
 	
 #endif /* rs6000 */	
+

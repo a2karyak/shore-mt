@@ -1,54 +1,60 @@
-/* --------------------------------------------------------------- */
-/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
-/* -- University of Wisconsin-Madison, subject to the terms     -- */
-/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
-/* -- Reserved.                                                 -- */
-/* --------------------------------------------------------------- */
+/*<std-header orig-src='shore' incl-file-exclusion='W_H'>
 
-/*
- *  $Id: w.h,v 1.14 1997/05/19 19:39:24 nhall Exp $
- */
+ $Id: w.h,v 1.19 1999/06/07 19:02:49 kupsch Exp $
+
+SHORE -- Scalable Heterogeneous Object REpository
+
+Copyright (c) 1994-99 Computer Sciences Department, University of
+                      Wisconsin -- Madison
+All Rights Reserved.
+
+Permission to use, copy, modify and distribute this software and its
+documentation is hereby granted, provided that both the copyright
+notice and this permission notice appear in all copies of the
+software, derivative works or modified versions, and any portions
+thereof, and that both notices appear in supporting documentation.
+
+THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+"AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+This software was developed with support by the Advanced Research
+Project Agency, ARPA order number 018 (formerly 8230), monitored by
+the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+Further funding for this work was provided by DARPA through
+Rome Research Laboratory Contract No. F30602-97-2-0247.
+
+*/
+
 #ifndef W_H
 #define W_H
 
-#ifndef W_BASE_H
+#include "w_defines.h"
+
+/*  -- do not edit anything above this line --   </std-header>*/
+
 #include <w_base.h>
-#endif
-
-#ifndef W_MINMAX_H
 #include <w_minmax.h>
-#endif
-
-#ifndef W_LIST_H
 #include <w_list.h>
-#endif
-
-#ifndef W_HASH_H
 #include <w_hash.h>
-#endif
 
 #ifdef W_INCL_SHMEM
-#ifndef SHMEM_H
 #include <w_shmem.h>
-#endif
 #endif
 
 #ifdef W_INCL_CIRCULAR_QUEUE
-#ifndef W_CIRQUEUE_H
 #include <w_cirqueue.h>
-#endif
 #endif
 
 #ifdef W_INCL_TIMER
-#ifndef W_TIMER_H
 #include <w_timer.h>
-#endif
 #endif
 
 #ifdef W_INCL_BITMAP
-#ifndef W_BITMAP_H
 #include <w_bitmap.h>
 #endif
-#endif
 
-#endif /*W_H*/
+/*<std-footer incl-file-exclusion='W_H'>  -- do not edit anything below this line -- */
+
+#endif          /*</std-footer>*/

@@ -1,13 +1,35 @@
-/* --------------------------------------------------------------- */
-/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
-/* -- University of Wisconsin-Madison, subject to the terms     -- */
-/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
-/* -- Reserved.                                                 -- */
-/* --------------------------------------------------------------- */
+/*<std-header orig-src='shore'>
 
-/*
- *  $Id: bf_prefetch.cc,v 1.12 1997/06/15 03:14:19 solomon Exp $
- */
+ $Id: bf_prefetch.cpp,v 1.21 1999/06/07 19:03:50 kupsch Exp $
+
+SHORE -- Scalable Heterogeneous Object REpository
+
+Copyright (c) 1994-99 Computer Sciences Department, University of
+                      Wisconsin -- Madison
+All Rights Reserved.
+
+Permission to use, copy, modify and distribute this software and its
+documentation is hereby granted, provided that both the copyright
+notice and this permission notice appear in all copies of the
+software, derivative works or modified versions, and any portions
+thereof, and that both notices appear in supporting documentation.
+
+THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+"AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+This software was developed with support by the Advanced Research
+Project Agency, ARPA order number 018 (formerly 8230), monitored by
+the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+Further funding for this work was provided by DARPA through
+Rome Research Laboratory Contract No. F30602-97-2-0247.
+
+*/
+
+#include "w_defines.h"
+
+/*  -- do not edit anything above this line --   </std-header>*/
 
 #define SM_SOURCE
 // yes -- let it be continuation of BF_C
@@ -20,8 +42,13 @@
 #include <sm_int_0.h>
 #include <bf_prefetch.h>
 
-#define DBGTHRD(arg) DBG(<<" th."<<me()->id << " " arg)
 
+/*
+ * This is a hack to see if it's WORTH it to put prefetching
+ * into the SM properly, which would involve some 
+ * changes to the bf/io interface and maybe some serious
+ * reorganization.  
+ */
 
 bf_prefetch_thread_t::prefetch_status_t	
 bf_prefetch_thread_t::_table[
@@ -70,6 +97,10 @@ bf_prefetch_thread_t::_table[
 #undef FTL 
 #undef LST 
 
+W_FASTNEW_STATIC_DECL(bf_prefetch_thread_t, 32); // TODO: change to use 
+	// a factory that avoids constructor/destructor calls
+	
+
 NORET			
 bf_prefetch_thread_t::bf_prefetch_thread_t(int i) 
 : smthread_t(t_regular, false, false, "prefetch"),
@@ -99,13 +130,13 @@ bf_prefetch_thread_t::new_state(int i, prefetch_event_t e)
     bf_prefetch_thread_t::frame_info &inf = _info[i];
     old = inf._status;
     if( (nw = _table[old][e]) == pf_fatal) {
-	cerr << "Bad transition for state " << old
-		<< " and event " << e
+	cerr << "Bad transition for state " << int(old)
+		<< " and event " << int(e)
 		<<endl;
 	W_FATAL(fcINTERNAL);
     }
-    DBGTHRD(<< " change : _table[" << old << "," << e
-	<< "] ->" << nw);
+    DBGTHRD(<< " change : _table[" << int(old) << "," << int(e)
+	<< "] ->" << int(nw));
 
     inf._status = nw;
     if(old != nw) {
@@ -142,7 +173,7 @@ bf_prefetch_thread_t::_init(int i)
 { 
     FUNC(bf_prefetch_thread_t::init);
     DBGTHRD("initializing ");
-    _info = new struct frame_info[i];
+    _info = new struct frame_info[i]; // deleted in ~bf_prefetch_thread_t
 }
 
 NORET			
@@ -220,15 +251,15 @@ bf_prefetch_thread_t::request(
 
     DBGTHRD(<<"request! i=" << i
 	<< " pid " << pid
-	<< " mode " << mode
-	<< " old status " << inf._status
+	<< " mode " << int(mode)
+	<< " old status " << int(inf._status)
     );
 
     w_assert3(inf._status == pf_init);
     // There should always be one available -- at least
     // when used with scan TODO -- make more general
 
-    smlevel_0::stats.bf_prefetch_requests++;
+    INC_STAT(bf_prefetch_requests);
 
     /*  Assert that we haven't got a frame read from disk
      *  and never used (fetched)
@@ -301,7 +332,8 @@ bf_prefetch_thread_t::fetch(
 
 	DBGTHRD(<<"did not get -- fixing page...");
 	smlevel_0::store_flag_t store_flags = smlevel_0::st_bad;
-	if(rc = page.fix(pid, page_p::t_any_p, mode, 0, store_flags)) {
+	rc = page.fix(pid, page_p::t_any_p, mode, 0, store_flags);
+	if(rc) {
 	    W_COERCE(_mutex.acquire());
 	    _fix_error = rc;
 	    new_state(i, pf_error);
@@ -338,15 +370,15 @@ bf_prefetch_thread_t::run()
 	    new_state(i, pf_start_fix);
 	    _mutex.release();
 	    DBGTHRD(<< " pid " << newpid
-		<< " mode " << mode
-		<< " old status " << status
-		<< " new status " << inf._status
+		<< " mode " << int(mode)
+		<< " old status " << int(status)
+		<< " new status " << int(inf._status)
 	    );
 
 	    // I shouldn't get kicked if this is the case:
 	    w_assert3(inf._status != pf_init);
 
-	    smlevel_0::stats.bf_prefetches++;
+	    INC_STAT(bf_prefetches);
 
 	    if(status == pf_requested) {
 		// fix (might await latch)
@@ -369,3 +401,4 @@ bf_prefetch_thread_t::run()
     } /* while */
     _mutex.release();
 }
+

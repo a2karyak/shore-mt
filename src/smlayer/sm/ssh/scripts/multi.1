@@ -1,0 +1,120 @@
+# <std-header style='tcl' orig-src='shore'>
+#
+#  $Id: multi.1,v 1.14 1999/06/07 19:05:38 kupsch Exp $
+#
+# SHORE -- Scalable Heterogeneous Object REpository
+#
+# Copyright (c) 1994-99 Computer Sciences Department, University of
+#                       Wisconsin -- Madison
+# All Rights Reserved.
+#
+# Permission to use, copy, modify and distribute this software and its
+# documentation is hereby granted, provided that both the copyright
+# notice and this permission notice appear in all copies of the
+# software, derivative works or modified versions, and any portions
+# thereof, and that both notices appear in supporting documentation.
+#
+# THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+# OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+# "AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+# FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+#
+# This software was developed with support by the Advanced Research
+# Project Agency, ARPA order number 018 (formerly 8230), monitored by
+# the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+# Further funding for this work was provided by DARPA through
+# Rome Research Laboratory Contract No. F30602-97-2-0247.
+#
+#   -- do not edit anything above this line --   </std-header>
+
+#  Testing the following multi-thread-per-tx scenarios
+#
+#  scenario 1
+#  thread 1: EX lock o1,o2,o3
+#  thread 2-a: SH lock o1 blocks in lock manager
+#  thread 2-b: SH lock o1 blocks on cond variable
+#  thread 2-c: SH lock o2 blocks on cond variable
+#  thread 2-d: SH lock o3 blocks on cond variable
+#  thread 1: commits, other 4 threads wake up
+#
+set_config_info
+
+# source $script_dir/vol.init
+
+if {$multi_threaded_xct == 0 } {
+	echo "Not configured for multi-threaded xcts"
+} else {
+set sp [sm preemption_simulated]
+sm simulate_preemption off
+
+set o1			"k(s(10.0).100.200)"
+set o2			"k(s(10.0).100.340)"
+set o3			"k(s(10.0).300.999)"
+
+proc t1 {} {
+    global volid o1 o2 o3
+    sm begin_xct
+	set x [sm xct]
+	verbose TX $x sync
+sync
+	verbose TX start tid = $x
+	sm lock $o1 EX LONG
+	sm lock $o2 EX LONG
+	sm lock $o3 EX LONG
+	verbose TX $x sync
+sync
+	verbose TX $x committing
+    sm commit_xct
+	verbose TX $x committed
+}
+proc t2 {x o} {
+    sm attach_xct $x
+	verbose TX $x sync
+sync
+	verbose TX $x.$o locking
+	sm lock $o SH LONG
+	verbose TX $x.$o acquired, sync
+sync
+	verbose TX $x.$o done
+    sm detach_xct $x
+	verbose detach done
+}
+
+##########  main  ##########
+
+	sm begin_xct
+
+	set tx [sm xct]
+	verbose started TX $tx
+    set y1 [fork_thread t2 {$tx $o1}]
+    set y2 [fork_thread t2 {$tx $o2}]
+    set y3 [fork_thread t2 {$tx $o3}]
+	verbose started 3 threads for t2
+	sm detach_xct $tx
+
+    set x [fork_thread t1 {}]
+
+    verbose sync_thread $x $y1 $y2 $y3
+    sync_thread $x $y1 $y2 $y3
+
+    verbose sync_thread  $x $y1 $y2 $y3
+    sync_thread $x $y1 $y2 $y3
+
+    verbose join_thread $x $y1 $y2 $y3
+    join_thread $x $y1 $y2 $y3
+
+	verbose WARNING sm state_xct is fragile
+	set s [sm state_xct $tx]
+	if {$s == "xct_active"} {
+		sm attach_xct $tx
+		sm commit_xct
+	}
+sm simulate_preemption $sp
+verbose "SUCCESS"
+unset tx o1 o2 o3  s
+unset y1 y2 y3 x sp
+}
+
+sm dump_xcts
+sm dump_locks
+

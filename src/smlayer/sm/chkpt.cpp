@@ -1,13 +1,36 @@
-/* --------------------------------------------------------------- */
-/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
-/* -- University of Wisconsin-Madison, subject to the terms     -- */
-/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
-/* -- Reserved.                                                 -- */
-/* --------------------------------------------------------------- */
+/*<std-header orig-src='shore'>
 
-/*
- *  $Id: chkpt.cc,v 1.59 1997/06/15 03:12:52 solomon Exp $
- */
+ $Id: chkpt.cpp,v 1.70 1999/06/07 19:03:57 kupsch Exp $
+
+SHORE -- Scalable Heterogeneous Object REpository
+
+Copyright (c) 1994-99 Computer Sciences Department, University of
+                      Wisconsin -- Madison
+All Rights Reserved.
+
+Permission to use, copy, modify and distribute this software and its
+documentation is hereby granted, provided that both the copyright
+notice and this permission notice appear in all copies of the
+software, derivative works or modified versions, and any portions
+thereof, and that both notices appear in supporting documentation.
+
+THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+"AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+This software was developed with support by the Advanced Research
+Project Agency, ARPA order number 018 (formerly 8230), monitored by
+the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+Further funding for this work was provided by DARPA through
+Rome Research Laboratory Contract No. F30602-97-2-0247.
+
+*/
+
+#include "w_defines.h"
+
+/*  -- do not edit anything above this line --   </std-header>*/
+
 
 #define SM_SOURCE
 #define CHKPT_C
@@ -19,18 +42,14 @@
 #include "sm_int_1.h"
 #include "chkpt_serial.h"
 #include "chkpt.h"
-#include "logdef.i"
+#include "logdef_gen.cpp"
 
-#ifdef __GNUG__
-template class w_auto_delete_t<logrec_t>;
+#ifdef EXPLICIT_TEMPLATE
 template class w_auto_delete_array_t<lsn_t>;
 template class w_auto_delete_array_t<tid_t>;
 template class w_auto_delete_array_t<smlevel_1::xct_state_t>;
 #endif
 
-#if !defined(DBGTHRD)
-#define DBGTHRD(arg) DBG(<<" th."<<me()->id << " " arg)
-#endif
 
 
 
@@ -144,16 +163,17 @@ chkpt_m::wakeup_and_take()
  *  chkpt_m::take()
  *
  *  Take a checkpoint. A Checkpoint consists of:
- *	1. Checkpoint Begin Log
- *	2. Checkpoint Device Table Log(s)
+ *	1. Checkpoint Begin Log	(chkpt_begin)
+ *	2. Checkpoint Device Table Log(s) (chkpt_dev_tab)
  *		-- all mounted devices
- *	3. Checkpoint Buffer Table Log(s)
+ *	3. Checkpoint Buffer Table Log(s)  (chkpt_bf_tab)
  *		-- dirty page entries in bf and their recovery lsn
- *	4. Checkpoint Transaction Table Log(s)
+ *	4. Checkpoint Transaction Table Log(s) (chkpt_xct_tab)
  *		-- active transactions and their first lsn
  *	5. Checkpoint Prepared Transactions (optional)
  *		-- prepared transactions and their locks
- *	6. Checkpoint End Log
+ * 		(using the same log records that prepare does)
+ *	6. Checkpoint End Log (chkpt_end)
  *
  *********************************************************************/
 void chkpt_m::take()
@@ -165,7 +185,7 @@ void chkpt_m::take()
 	 */
 	return;
     }
-    smlevel_0::stats.log_chkpt_cnt++;
+    INC_STAT(log_chkpt_cnt);
     
     /*
      *  Allocate a buffer for storing log records
@@ -196,22 +216,29 @@ void chkpt_m::take()
      */
     {
 	/*
-	 *  Define chunk with max_vols rather than
-	 *  chkpt_dev_tab_t::max since chkpt_dev_tab_t::max can
-	 *  be too large for the devs[] array below
+	 *  Log the mount table in "max loggable size" chunks.
 	 */
-	const chunk = max_vols/2;
-	w_assert3(chunk <= chkpt_dev_tab_t::max);
+	// XXX casts due to enums
+	const int chunk = (int)max_vols > (int)chkpt_dev_tab_t::max 
+		? (int)chkpt_dev_tab_t::max : (int)max_vols;
 	int dev_cnt = io->num_vols();
 
-	// make sure devs is not too big for stack
-	typedef	char	devs_type[chunk][max_devname+1];
-	w_assert1(sizeof(devs_type) < (size_t)smthread_t::me()->stack_size()/4);
+	int	i;
+	char		**devs;
+	devs = new char *[chunk];
+	if (!devs)
+		W_FATAL(fcOUTOFMEMORY);
+	for (i = 0; i < chunk; i++) {
+		devs[i] = new char[max_devname+1];
+		if (!devs[i])
+			W_FATAL(fcOUTOFMEMORY);
+	}
+	vid_t		*vids;
+	vids = new vid_t[chunk];
+	if (!vids)
+		W_FATAL(fcOUTOFMEMORY);
 
-	devs_type	devs;
-	vid_t		vids[chunk];
-
-	for (int i = 0; i < dev_cnt; i += chunk)  {
+	for (i = 0; i < dev_cnt; i += chunk)  {
 	    
 	    int ret;
 	    W_COERCE( io->get_vols(i, MIN(dev_cnt - i, chunk),
@@ -220,10 +247,15 @@ void chkpt_m::take()
 		/*
 		 *  Write a Checkpoint Device Table Log
 		 */
-		new (logrec) chkpt_dev_tab_log(ret, devs, vids);
+		// XXX The bogus 'const char **' cast is for visual c++
+		new (logrec) chkpt_dev_tab_log(ret, (const char **) devs, vids);
 		W_COERCE( log->insert(*logrec, 0) );
 	    }
 	}
+	delete [] vids;
+	for (i = 0; i < chunk; i++)
+		delete [] devs[i];
+	delete [] devs;
     }
 
     /*
@@ -233,7 +265,7 @@ void chkpt_m::take()
     lsn_t min_rec_lsn = lsn_t::max;
     {
 	int 	bfsz = bf->npages();
-	const 	chunk = chkpt_bf_tab_t::max;
+	const 	int chunk = chkpt_bf_tab_t::max;
 
 	lpid_t* pid = new lpid_t[chunk];
 	w_auto_delete_array_t<lpid_t> auto_del_pid(pid);
@@ -273,7 +305,7 @@ void chkpt_m::take()
      */
     lsn_t min_xct_lsn = lsn_t::max;
     {
-	const 		chunk = chkpt_xct_tab_t::max;
+	const int	chunk = chkpt_xct_tab_t::max;
 	tid_t		youngest = xct_t::youngest_tid();
 	tid_t* 		tid = new tid_t[chunk];
 	w_auto_delete_array_t<tid_t> auto_del_tid(tid);
@@ -356,7 +388,7 @@ void chkpt_m::take()
 		DBG(<< xd->tid() << "LOG PREPARED ");
 		//
 		// To write tx-related log records for a tx,
-		// logstub.i functions expect the tx to be attached.
+		// logstub_gen.cpp functions expect the tx to be attached.
 		// NB: we might be playing with fire by attaching
 		// two threads to the tx.  NOT PREEMPTIVE-SAFE!!!!
 		//
@@ -495,3 +527,4 @@ chkpt_thread_t::awaken()
 {
     W_IGNORE( _wakeup.post() );
 }
+

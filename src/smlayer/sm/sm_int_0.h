@@ -1,52 +1,79 @@
-/* --------------------------------------------------------------- */
-/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
-/* -- University of Wisconsin-Madison, subject to the terms     -- */
-/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
-/* -- Reserved.                                                 -- */
-/* --------------------------------------------------------------- */
+/*<std-header orig-src='shore' incl-file-exclusion='SM_INT_0_H'>
+
+ $Id: sm_int_0.h,v 1.14 1999/06/07 19:04:36 kupsch Exp $
+
+SHORE -- Scalable Heterogeneous Object REpository
+
+Copyright (c) 1994-99 Computer Sciences Department, University of
+                      Wisconsin -- Madison
+All Rights Reserved.
+
+Permission to use, copy, modify and distribute this software and its
+documentation is hereby granted, provided that both the copyright
+notice and this permission notice appear in all copies of the
+software, derivative works or modified versions, and any portions
+thereof, and that both notices appear in supporting documentation.
+
+THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+"AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+This software was developed with support by the Advanced Research
+Project Agency, ARPA order number 018 (formerly 8230), monitored by
+the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+Further funding for this work was provided by DARPA through
+Rome Research Laboratory Contract No. F30602-97-2-0247.
+
+*/
 
 #ifndef SM_INT_0_H
 #define SM_INT_0_H
+
+#include "w_defines.h"
+
+/*  -- do not edit anything above this line --   </std-header>*/
 
 #if defined(SM_SOURCE) && !defined(SM_LEVEL)
 #    define SM_LEVEL 0
 #endif
 
+#include <w_debug.h>
 #include <sysdefs.h>
 #include <basics.h>
-#include <debug.h>
+
 #include <sthread.h>
 #include <vec_t.h>
 #include <zvec_t.h>
 #include <latch.h>
-#include <rsrc.h>
 
 #include <lid_t.h>
+#if defined(SM_SOURCE)
+/* Do not force this on VASs */
 #include "sm_s.h"
-#include "sm_base.h"
+#endif /* SM_SOURCE */
+
+
 #include "smthread.h"
+
 #include <tid_t.h>
 #include "smstats.h"
 
 
-#if (SM_LEVEL >= 0) 
+#if defined(SM_SOURCE) && (SM_LEVEL >= 0) 
 #    include <bf.h>
 #    include <page.h>
 #    include <pmap.h>
-#    include <io.h>
+#    include <sm_io.h>
 #    include <log.h>
 
-#ifdef MULTI_SERVER
-#    include <srvid_t.h>
-#    include <comm.h>
 #endif
 
-#endif
-
-#ifdef DEBUG
+#ifdef W_DEBUG
 #define SMSCRIPT(x) 
 #define RES_SMSCRIPT(x)
-/*
+
+/* REMOVED FOR THE TIME BEING
 #define SMSCRIPT(x) \
 	scriptlog->clog << info_prio << "sm " x << flushl;
 #define RES_SMSCRIPT(x)\
@@ -56,7 +83,8 @@
 #else
 #define SMSCRIPT(x) 
 #define RES_SMSCRIPT(x) 
-#endif
+#endif /* W_DEBUG */
 
-#endif /*SM_INT_0_H*/
+/*<std-footer incl-file-exclusion='SM_INT_0_H'>  -- do not edit anything below this line -- */
 
+#endif          /*</std-footer>*/

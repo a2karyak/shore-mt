@@ -1,13 +1,36 @@
-/* --------------------------------------------------------------- */
-/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
-/* -- University of Wisconsin-Madison, subject to the terms     -- */
-/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
-/* -- Reserved.                                                 -- */
-/* --------------------------------------------------------------- */
+/*<std-header orig-src='shore'>
 
-/*
- *  $Id: btree.cc,v 1.259 1997/06/16 21:36:01 solomon Exp $
- */
+ $Id: btree.cpp,v 1.276 1999/06/07 19:03:51 kupsch Exp $
+
+SHORE -- Scalable Heterogeneous Object REpository
+
+Copyright (c) 1994-99 Computer Sciences Department, University of
+                      Wisconsin -- Madison
+All Rights Reserved.
+
+Permission to use, copy, modify and distribute this software and its
+documentation is hereby granted, provided that both the copyright
+notice and this permission notice appear in all copies of the
+software, derivative works or modified versions, and any portions
+thereof, and that both notices appear in supporting documentation.
+
+THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+"AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+This software was developed with support by the Advanced Research
+Project Agency, ARPA order number 018 (formerly 8230), monitored by
+the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+Further funding for this work was provided by DARPA through
+Rome Research Laboratory Contract No. F30602-97-2-0247.
+
+*/
+
+#include "w_defines.h"
+
+/*  -- do not edit anything above this line --   </std-header>*/
+
 #define SM_SOURCE
 #define BTREE_C
 
@@ -18,20 +41,13 @@
 
 #include "sm_int_2.h"
 
-#if defined(USE_OLD_BTREE_IMPL)
-#include "btree.old.cc"
-#else
-
-
 #include "btree_p.h"
 #include "btree_impl.h"
 #include "btcursor.h"
 #include "lexify.h"
 #include "sm_du_stats.h"
-#include <debug.h>
 #include <crash.h>
 
-#define DBGTHRD(arg) DBG(<<" th."<<me()->id << " " arg)
 
 static 
 rc_t badcc() {
@@ -61,7 +77,8 @@ btree_m::max_entry_size() {
 rc_t
 btree_m::create(
     stpgid_t 		stpgid,		// I-  store id of new btree
-    lpid_t& 		root
+    lpid_t& 		root,
+    bool                compressed
     )		// O-  root of new btree
 {
     get_latches(___s,___e); 
@@ -77,7 +94,13 @@ btree_m::create(
      *  we need to allocate a root.
      */
     if (stpgid.is_stid()) {
-	X_DO( io->alloc_pages(stpgid.stid(), lpid_t::eof, 1, &root), anchor );
+	X_DO( io->alloc_pages(stpgid.stid(), 
+		lpid_t::eof,  // hint
+		1, &root,	// npages, array for output pids
+		false,	// may_realloc
+		NL,	// ignored
+		true	// search file
+		), anchor );
     } else {
 	root = stpgid.lpid;
     }
@@ -87,7 +110,15 @@ btree_m::create(
 	btree_p page;
 	/* Format/init the page: */
 	X_DO( page.fix(root, LATCH_EX, page.t_virgin), anchor );
-	X_DO( page.set_hdr(root.page, 1, 0, 0), anchor );
+
+	btree_p::flag_t f = compressed? btree_p::t_compressed: btree_p::t_none;
+	X_DO( page.set_hdr(root.page, 1, 0, f), anchor );
+
+#ifdef W_DEBUG
+	if(compressed) {
+	    w_assert3(page.is_compressed());
+	}
+#endif /* W_DEBUG */
     } // page is unfixed
 
     
@@ -100,6 +131,7 @@ btree_m::create(
     W_DO(is_empty(root,empty)); 
     check_latches(___s,___e, ___s+___e); 
     if(!empty) {
+         DBG(<<"eNDXNOTEMPTY");
 	 return RC(eNDXNOTEMPTY);
     }
     return RCOK;
@@ -121,11 +153,14 @@ btree_m::is_empty(
     check_latches(___s,___e, ___s+___e); 
 
     key_type_s kc(key_type_s::b, 0, 4);
-    cursor_t cursor;
+    cursor_t cursor(true);
     W_DO( fetch_init(cursor, root, 1, &kc, false, t_cc_none,
-		     cvec_t::neg_inf, cvec_t::neg_inf,
-		     ge,
-		     le, cvec_t::pos_inf));
+		     cvec_t::neg_inf, // bound1
+		     cvec_t::neg_inf, // elem of bound1
+		     ge,		// cond1
+		     le, 	     // cond2
+		     cvec_t::pos_inf // bound2
+		     ));
     check_latches(___s,___e, ___s+___e); 
 
     W_DO( fetch(cursor) );
@@ -171,15 +206,17 @@ btree_m::insert(
 	 * since they get the sinfo_s stuffed into slot 0
 	 * until they run out of space on the page.
 	 */
-	DBG(<<"RECWONTFIT");
+	DBG(<<"RECWONTFIT: key.size=" << key.size() 
+		<< " el.size=" << el.size());
 	return RC(eRECWONTFIT);
     }
+    rc_t rc;
+
     cvec_t* real_key;
     DBG(<<"");
     W_DO(_scramble_key(real_key, key, nkc, kc));
-
     DBG(<<"");
-    rc_t rc = btree_impl::_insert(root, unique, cc, *real_key, el, split_factor);
+    rc = btree_impl::_insert(root, unique, cc, *real_key, el, split_factor);
     if(rc) {
 	DBG(<<"rc=" << rc);
     }
@@ -223,7 +260,7 @@ btree_m::remove_key(
 	/*
 	 *  scan for key
 	 */
-	cursor_t cursor;
+	cursor_t cursor(true);
 	W_DO( fetch_init(cursor, root, nkc, kc, 
 		     unique, cc, key, cvec_t::neg_inf,
 		     ge, 
@@ -349,7 +386,7 @@ btree_m::lookup_prev(
     // bt->print(root, sortorder::kt_b);
 
     /* set up a backward scan from the keyp */
-    bt_cursor_t * _btcursor = new bt_cursor_t;
+    bt_cursor_t * _btcursor = new bt_cursor_t(true);
     if (! _btcursor) {
 	W_FATAL(eOUTOFMEMORY);
     }
@@ -414,7 +451,7 @@ btree_m::fetch_init(
     get_latches(___s,___e); 
     check_latches(___s,___e, ___s+___e); 
 
-    smlevel_0::stats.bt_scan_cnt++;
+    INC_TSTAT(bt_scan_cnt);
 
     /*
      *  Initialize constant parts of the cursor
@@ -433,9 +470,9 @@ btree_m::fetch_init(
 
     /*
      * GROT: For scans: TODO
-     * To handle backward scans from scan.c, we have to
+     * To handle backward scans from scan.cpp, we have to
      * reverse the elem in the backward case: replace it with
-	elem = &(inclusive ? cvec_t::posinf : cvec_t::neg_inf);
+	elem = &(inclusive ? cvec_t::pos_inf : cvec_t::neg_inf);
      */
 
     cursor.first_time = true;
@@ -447,7 +484,7 @@ btree_m::fetch_init(
          * this is a unique index.
          */
         if(cond1 != eq || cond2 != eq) {
-            return RC(eBADCMPOP);
+            return RC(eBADSCAN);
         }
         lockid_t k;
         btree_impl::mk_kvl(cc, k, root.stid(), true, *key);
@@ -571,7 +608,7 @@ btree_m::fetch(cursor_t& cursor)
     DBGTHRD(<<"fetch.again is_valid=" << cursor.is_valid());
     {
 	btree_p p1, p2;
-	w_assert3(!p2);
+	w_assert3(!p2.is_fixed());
 	check_latches(___s,___e, ___s+___e); 
 
 	while (cursor.is_valid()) {
@@ -629,7 +666,7 @@ btree_m::fetch(cursor_t& cursor)
 		W_DO(fetch_reinit(cursor)); // re-traverses the tree
 		cursor.first_time = false;
 		DBGTHRD(<<"-->again TREE LATCH MODE "
-			    << tree_root.latch_mode()
+			    << int(tree_root.latch_mode())
 			    );
 		goto again;
 
@@ -683,8 +720,8 @@ btree_m::fetch(cursor_t& cursor)
 		    btrec_t r(*child, slot);
 		    btree_impl::mk_kvl(cursor.cc(), kvl, stid, cursor.unique(), r);
 		}
-	
-		if (rc = lm->lock(kvl, SH, t_long, WAIT_IMMEDIATE))  {
+		rc = lm->lock(kvl, SH, t_long, WAIT_IMMEDIATE);
+		if (rc)  {
 		    DBG(<<"rc=" << rc);
 		    w_assert3((rc.err_num() == eLOCKTIMEOUT) || (rc.err_num() == eDEADLOCK));
 
@@ -777,7 +814,7 @@ btree_m::get_du_statistics(
 	// "following" a link here means fixing the page,
 	// which we'll do on the next loop through, if pid.page
 	// is non-zero
-	smlevel_0::stats.bt_links++;
+	INC_TSTAT(bt_links);
     } while (pid.page);
 
     // count unallocated pages
@@ -873,7 +910,9 @@ btree_m::copy_1_page_tree(const lpid_t& old_root, const lpid_t& new_root)
  *  btree_m::_scramble_key(ret, key, nkc, kc)
  *  btree_m::_unscramble_key(ret, key, nkc, kc)
  *
- *  These functions put a key into lexicographic order.
+ *  These functions put/pull a key into/from lexicographic order.
+ *  _scramble checks for some legitimacy of the values, too, namely
+ *  length.
  *
  *********************************************************************/
 rc_t
@@ -886,18 +925,32 @@ btree_m::_scramble_key(
     FUNC(btree_m::_scramble_key);
     DBGTHRD(<<" SCrambling " << key );
     w_assert1(kc && nkc > 0);
+
     if (&key == &key.neg_inf || &key == &key.pos_inf)  {
 	ret = (cvec_t*) &key;
 	return RCOK;
     }
+    if(key.size() == 0) {
+	// do nothing
+	ret = (cvec_t*) &key;
+	return RCOK;
+    }
+
+
     ret = &me()->kc_vec();
     ret->reset();
 
     char* p = 0;
     for (int i = 0; i < nkc; i++)  {
 	key_type_s::type_t t = (key_type_s::type_t) kc[i].type;
-	if (t == key_type_s::i || t == key_type_s::u ||
-	    t == key_type_s::f ) {
+	if (
+	    t == key_type_s::i || 
+	    t == key_type_s::I || 
+	    t == key_type_s::u ||
+	    t == key_type_s::U ||
+	    t == key_type_s::f ||
+	    t == key_type_s::F 
+	    ) {
 	    p = me()->kc_buf();
 	    break;
 	}
@@ -922,9 +975,17 @@ btree_m::_scramble_key(
 	    src= (char *)(v->ptr(0));
 	}
 	char* s = p;
+
+	int   key_remaining = key.size();
 	for (int i = 0; i < nkc; i++)  {
 	    DBGTHRD(<<"len " << kc[i].length);
-	    if(! kc[i].variable) {
+	    if(!kc[i].variable) {
+		key_remaining -= kc[i].length;
+		if(key_remaining <0) {
+		    if(malloced) delete[] malloced;
+		    return RC(eBADKEY);
+		}
+
 		// Can't check and don't care for variable-length
 		// stuff:
 		if( (char *)(alignon(((uint4_t)src), (kc[i].length))) != src) {
@@ -932,6 +993,7 @@ btree_m::_scramble_key(
 		    // aligned on some machines.  TODO (correctness): figure out
 		    // which allow this and which, if any, don't.
 		    if(kc[i].length <= 4) {
+			if(malloced) delete[] malloced;
 			return RC(eALIGNPARM);
 		    }
 		}
@@ -951,7 +1013,10 @@ btree_m::_scramble_key(
 	}
 	if(malloced) delete[] malloced;
 	src = 0;
-	DBGTHRD(<<" ret->put(" << p << "," << (int)(s-p) << ")");
+	if(nkc == 1 && kc[0].type == key_type_s::b) {
+	    // prints bogosities if type isn't a string
+	    DBGTHRD(<<" ret->put(" << p << "," << (int)(s-p) << ")");
+	}
 	ret->put(p, s - p);
     }
     DBGTHRD(<<" SCrambled " << key << " into " << *ret);
@@ -973,15 +1038,21 @@ btree_m::_unscramble_key(
     ret->reset();
     char* p = 0;
     int i;
-#ifdef DEBUG
+#ifdef W_DEBUG
     for (i = 0; i < nkc; i++)  {
 	DBGTHRD(<<"key type is " << kc[i].type);
     }
-#endif
+#endif /* W_DEBUG */
     for (i = 0; i < nkc; i++)  {
 	key_type_s::type_t t = (key_type_s::type_t) kc[i].type;
-	if (t == key_type_s::i || t == key_type_s::u
-		|| t == key_type_s::f)  {
+	if (
+		t == key_type_s::i || 
+		t == key_type_s::I || 
+		t == key_type_s::U ||
+		t == key_type_s::u ||
+		t == key_type_s::f ||
+		t == key_type_s::F 
+		)  {
 	    p = me()->kc_buf();
 	    break;
 	}
@@ -1003,7 +1074,7 @@ btree_m::_unscramble_key(
 	    src= (char *)v->ptr(0);
 	}
 	char* s = p;
-	for (i = 0; i < nkc; i++)  {
+	if(src) for (i = 0; i < nkc; i++)  {
 	    if(! kc[i].variable) {
 		// Can't check and don't care for variable-length
 		// stuff:
@@ -1029,14 +1100,14 @@ btree_m::_unscramble_key(
 	}
 	if(malloced) delete[] malloced;
 	src = 0;
-	DBGTHRD(<<" ret->put(" << p << "," << (int)(s-p) << ")");
+	if(nkc == 1 && kc[0].type == key_type_s::b) {
+	    DBGTHRD(<<" ret->put(" << p << "," << (int)(s-p) << ")");
+	}
 	ret->put(p, s - p);
     }
     DBGTHRD(<<" UNscrambled " << key << " into " << *ret);
     return RCOK;
 }
-
-#endif /* USE_OLD_BTREE_IMPL */
 
 /*********************************************************************
  *
@@ -1113,3 +1184,4 @@ btree_m::_remove(
 {
     return btree_impl::_remove(root,unique,cc, key, elem);
 }
+

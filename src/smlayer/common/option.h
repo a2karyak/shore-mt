@@ -1,18 +1,40 @@
-/* --------------------------------------------------------------- */
-/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
-/* -- University of Wisconsin-Madison, subject to the terms     -- */
-/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
-/* -- Reserved.                                                 -- */
-/* --------------------------------------------------------------- */
+/*<std-header orig-src='shore' incl-file-exclusion='OPTION_H'>
 
-/*
- *  $Id: option.h,v 1.17 1997/05/19 19:41:06 nhall Exp $
- */
+ $Id: option.h,v 1.29 1999/06/07 19:02:27 kupsch Exp $
+
+SHORE -- Scalable Heterogeneous Object REpository
+
+Copyright (c) 1994-99 Computer Sciences Department, University of
+                      Wisconsin -- Madison
+All Rights Reserved.
+
+Permission to use, copy, modify and distribute this software and its
+documentation is hereby granted, provided that both the copyright
+notice and this permission notice appear in all copies of the
+software, derivative works or modified versions, and any portions
+thereof, and that both notices appear in supporting documentation.
+
+THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+"AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+This software was developed with support by the Advanced Research
+Project Agency, ARPA order number 018 (formerly 8230), monitored by
+the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+Further funding for this work was provided by DARPA through
+Rome Research Laboratory Contract No. F30602-97-2-0247.
+
+*/
+
 #ifndef OPTION_H
 #define OPTION_H
 
-#include <fstream.h>
-#include <strstream.h>
+#include "w_defines.h"
+
+/*  -- do not edit anything above this line --   </std-header>*/
+
+#include <w_stream.h>
 
 #ifdef __GNUG__
 #pragma interface
@@ -29,8 +51,8 @@ of options.  An option_file_scan_t is used to parse a file
 containing option configuration information.
 */
 
-#ifndef __opt_error_def_h__
-#include "opt_error_def.h"
+#ifndef __opt_error_def_gen_h__
+#include "opt_error_def_gen.h"
 #endif
 
 class option_group_t;
@@ -87,8 +109,13 @@ public:
 
     // Standard call back functions for basic types
     static w_rc_t set_value_bool(option_t* opt, const char* value, ostream* err_stream);
-    static w_rc_t set_value_long(option_t* opt, const char* value, ostream* err_stream);
+    static w_rc_t set_value_int4(option_t* opt, const char* value, ostream* err_stream);
+    static w_rc_t set_value_int8(option_t* opt, const char* value, ostream* err_stream);
     static w_rc_t set_value_charstr(option_t* opt, const char* value, ostream* err_stream);
+
+    /* Backwards compatability */
+    static w_rc_t set_value_long(option_t* opt, const char* value, ostream* err_stream);
+    static w_rc_t set_value_long_long(option_t* opt, const char* value, ostream* err_stream);
 
     // function to convert a string to a bool (similar to strtol()).
     // first character is checked for t,T,y,Y for true
@@ -105,7 +132,8 @@ private:
     		// initialize an option_t object
     w_rc_t	init(const char* name, const char* newPoss,
 		     const char* default_value, const char* description,
-		     bool required, OptionSetFunc callBack);
+		     bool required, OptionSetFunc callBack,
+		     ostream *err_stream);
 
     const char*	_name;			// name of the option
     const char*	_possible_values;	// example possible values
@@ -159,7 +187,9 @@ public:
 		       const char* default_value,
 		       const char* description, bool required,
 		       option_t::OptionSetFunc set_func,
-		       option_t*& new_opt);
+		       option_t*& new_opt,
+		       ostream *err_stream = &cerr
+		       );
 
     // lookup and option by name.  abbreviations are allowed if
     // they are unique and if exact is false
@@ -196,7 +226,7 @@ public:
     // and are only recognized if they are longer than min_len since
     // options may be abbreviated).  Any options found are
     // removed from argv and argc is adjusted accordingly.
-    w_rc_t 	parse_command_line(char** argv, int& argc, size_t min_len, ostream* error_stream);
+    w_rc_t 	parse_command_line(const char** argv, int& argc, size_t min_len, ostream* error_stream);
 
     // use this for scanning the list of options
     w_list_t<option_t>& option_list() {return _options;}
@@ -216,6 +246,36 @@ private:
 
 	// disable copy operator
 	NORET option_group_t(option_group_t const &); 
+};
+
+class option_stream_scan_t : public w_base_t {
+	istream		&_input;
+	option_group_t	*_optList;
+	char		*_line;
+	const char	*_label;
+	int		_lineNum;
+
+	enum { _maxLineLen = 2000 };
+
+	static const char *default_label;
+
+public:
+	option_stream_scan_t(istream &is, option_group_t *option_group);
+	~option_stream_scan_t();
+
+	// allow a label to be associated with the stream
+	void	setLabel(const char *label);
+
+	/*
+	 * Scan the options file reporting errors to err_stream.
+	 * If over_ride is false, new values of options will be ignored
+	 * if the option value has already been set.
+	 * The exact parameter means that mispellings or abbreviations
+	 * of option names will result in an error.
+	 */
+	w_rc_t 	scan(bool over_ride, ostream& err_stream, 
+		     bool exact=false, bool mismatch_ok=false);
+
 };
 
 /*
@@ -251,12 +311,10 @@ public:
 	bool exact=false, bool mismatch_ok=false);
 
 protected:
-    option_group_t*	_optList;
     const char*		_fileName;
-    istream*		_input;
-    int			_lineNum;
-    char*		_line;
-    size_t		_maxLineLen;
+    option_group_t	*_optList;
 };
 
-#endif /* OPTION_H */
+/*<std-footer incl-file-exclusion='OPTION_H'>  -- do not edit anything below this line -- */
+
+#endif          /*</std-footer>*/

@@ -1,2 +1,0 @@
-s/^\(#define VAS2VASVERS\) .*$/\1 ((u_long) _TESTRPC)/
-s/^\(#define CLI2VASVERS\) .*$/\1 ((u_long) _TESTRPC)/

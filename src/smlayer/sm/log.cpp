@@ -1,13 +1,36 @@
-/* --------------------------------------------------------------- */
-/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
-/* -- University of Wisconsin-Madison, subject to the terms     -- */
-/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
-/* -- Reserved.                                                 -- */
-/* --------------------------------------------------------------- */
+/*<std-header orig-src='shore'>
 
-/*
- *  $Id: log.cc,v 1.104 1997/06/15 03:13:20 solomon Exp $
- */
+ $Id: log.cpp,v 1.124 1999/08/06 19:53:45 bolo Exp $
+
+SHORE -- Scalable Heterogeneous Object REpository
+
+Copyright (c) 1994-99 Computer Sciences Department, University of
+                      Wisconsin -- Madison
+All Rights Reserved.
+
+Permission to use, copy, modify and distribute this software and its
+documentation is hereby granted, provided that both the copyright
+notice and this permission notice appear in all copies of the
+software, derivative works or modified versions, and any portions
+thereof, and that both notices appear in supporting documentation.
+
+THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+"AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+This software was developed with support by the Advanced Research
+Project Agency, ARPA order number 018 (formerly 8230), monitored by
+the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+Further funding for this work was provided by DARPA through
+Rome Research Laboratory Contract No. F30602-97-2-0247.
+
+*/
+
+#include "w_defines.h"
+
+/*  -- do not edit anything above this line --   </std-header>*/
+
 #define SM_SOURCE
 #define LOG_C
 #ifdef __GNUG__
@@ -16,15 +39,34 @@
 
 #include <sm_int_1.h>
 #include <srv_log.h>
-#include <logdef.i>
-#include <crash.h>
+#include "logdef_gen.cpp"
+#include "crash.h"
 
-#define DBGTHRD(arg) DBG(<<" th."<<me()->id << " " arg)
+
+rc_t	log_m::new_log_m(log_m	*&the_log,
+			 const char *path,
+			 fileoff_t max_logsz,
+			 int rdbufsize,
+			 int wrbufsize,
+			 char  *shmbase,
+			 bool  reformat)
+{
+	log_m	*log;
+
+	log = new log_m(path, max_logsz, rdbufsize, wrbufsize,
+			shmbase, reformat);
+	if (!log)
+		return RC(fcOUTOFMEMORY);
+
+	the_log = log;
+	return RCOK;
+}
+
 
 NORET
 log_m::log_m(
 	const char *path,
-	uint4 max_logsz,
+	fileoff_t max_logsz,
 	int   rdbufsize,
 	int   wrbufsize,
 	char  *shmbase,
@@ -51,7 +93,7 @@ log_m::log_m(
     _shared->_master_lsn =
     _shared->_old_master_lsn = lsn_t::null;
 
-    lsn_t	starting(1,0);
+    lsn_t	starting = srv_log::first_lsn(1);
     _shared->_min_chkpt_rec_lsn = starting;
 
     DBGTHRD(<< "_shared->_min_chkpt_rec_lsn = " 
@@ -82,14 +124,19 @@ log_m::log_m(
 	<<  _shared->_min_chkpt_rec_lsn);
 
     //_peer = srv_log::new_log_m(s1.str(), s2.str(), reformat);
-    _peer = srv_log::new_log_m(s1.str(),  
-	rdbufsize, wrbufsize, shmbase,
-	reformat);
+    w_rc_t	e;
+    srv_log	*slog;
+    e = srv_log::new_log_m(slog, s1.str(),  
+			   rdbufsize, wrbufsize, shmbase,
+			   reformat);
 
+    if (e == RCOK)
+	    _peer = slog;
+    
     DBGTHRD(<< "_shared->_min_chkpt_rec_lsn = " 
 	<<  _shared->_min_chkpt_rec_lsn << "\0" );
 
-    w_assert1(_peer);
+    W_COERCE(e);
     w_assert3(curr_lsn() != lsn_t::null);
 }
 
@@ -113,7 +160,7 @@ log_m::~log_m()
  *
  *********************************************************************/
 rc_t
-log_m::wait(uint4_t nbytes, sevsem_t& sem, int4_t timeout)
+log_m::wait(fileoff_t nbytes, sevsem_t& sem, timeout_in_ms timeout)
 {
     // checkpoint could have been taken by explicit command
     // (e.g. sm checkpoint) before the countdown expired,
@@ -127,34 +174,6 @@ log_m::wait(uint4_t nbytes, sevsem_t& sem, int4_t timeout)
     _countdown = nbytes;
     _countdown_expired = &sem;
     return _countdown_expired->wait(timeout);
-}
-
-/*********************************************************************
- *
- *  log_m::incr_log_sync_cnt(numbytes, numrecs)
- *  log_m::incr_log_byte_cnt(n) -- inline
- *  log_m::incr_log_rec_cnt() -- inline
- *
- *  update global stats during a sync
- *
- *********************************************************************/
-void 		
-log_m::incr_log_sync_cnt(unsigned int bytecnt, unsigned int reccnt) 
-{
-    smlevel_0::stats.log_sync_cnt ++;
-
-    if(reccnt == 0) {
-	smlevel_0::stats.log_dup_sync_cnt ++;
-    } else {
-	w_assert1(reccnt > 0); // fatal if < 0
-
-	if(smlevel_0::stats.log_sync_nrec_max < reccnt)
-	    smlevel_0::stats.log_sync_nrec_max  = reccnt;
-
-	if(smlevel_0::stats.log_sync_nbytes_max < bytecnt)
-	    smlevel_0::stats.log_sync_nbytes_max = bytecnt;
-
-    }
 }
 
 /**********************************************************************
@@ -174,7 +193,7 @@ log_m::acquire_var_mutex()
 {
 #ifndef NOT_PREEMPTIVE
     if(_var_mutex.is_locked() && !_var_mutex.is_mine()) {
-	smlevel_0::stats.await_log_monitor_var++;
+	INC_TSTAT(await_log_monitor_var);
     }
     W_COERCE(_var_mutex.acquire());
 #endif
@@ -184,7 +203,7 @@ void
 log_m::acquire_mutex()
 {
     if(_mutex.is_locked() && !_mutex.is_mine()) {
-	smlevel_0::stats.await_log_monitor++;
+	INC_TSTAT(await_log_monitor);
     }
     W_COERCE(_mutex.acquire());
 }
@@ -206,7 +225,7 @@ log_m::insert(logrec_t& r, lsn_t* ret)
 {
     w_assert1(_peer);
 
-    w_assert1(!smlevel_0::in_analysis);
+    w_assert1(smlevel_0::operating_mode != smlevel_0::t_in_analysis);
 
     FUNC(log_m::insert)
     if (r.length() > sizeof(r)) {
@@ -222,7 +241,7 @@ log_m::insert(logrec_t& r, lsn_t* ret)
 	/*
 	 *  some thread asked for countdown
 	 */
-	if (_countdown > r.length()) {
+	if (_countdown > (int) r.length()) {
 	    _countdown -= r.length();
 	} else  {
 	    W_IGNORE( _countdown_expired->post() );
@@ -237,12 +256,32 @@ log_m::insert(logrec_t& r, lsn_t* ret)
 
     acquire_mutex();
     rc_t rc = _peer->insert(r, ret);
+    // RC could be eOUTOFLOGSPACE
     _mutex.release();
 
-    acquire_var_mutex();
-    incr_log_rec_cnt();
-    incr_log_byte_cnt(r.length());
-    release_var_mutex();
+    if(!rc) {
+	acquire_var_mutex();
+
+	if(xct()) {
+	    INC_TSTAT(xlog_records_generated);
+	    ADD_TSTAT(xlog_bytes_generated, r.length());
+#ifdef W_TRACE
+	    base_stat_t tmp = GET_STAT(log_bytes_active);
+	    tmp += r.length();
+	    DBGTHRD(<<"log_bytes_active is now " << tmp
+		<< " after adding " << r.length()
+		<< " for xct " << xct()->tid()
+		);
+#endif
+
+	    ADD_STAT(log_bytes_active, r.length());
+
+	} else {
+	    INC_STAT(log_records_generated);
+	    ADD_STAT(log_bytes_generated, r.length());
+	}
+	release_var_mutex();
+    }
     return rc;
 }
 
@@ -252,7 +291,7 @@ log_m::compensate(const lsn_t& rec, const lsn_t& undo)
 {
     w_assert1(_peer);
 
-    w_assert1(!smlevel_0::in_analysis);
+    w_assert1(smlevel_0::operating_mode != smlevel_0::t_in_analysis);
 
     FUNC(log_m::compensate)
     DBGTHRD( << 
@@ -288,15 +327,6 @@ log_m::release()
     _mutex.release();
 }
 
-static u_long nrecs_at_last_sync = 0;
-static u_long nbytes_at_last_sync = 0;
-void 
-log_m::reset_stats()
-{
-    nrecs_at_last_sync = 0;
-    nbytes_at_last_sync = 0;
-}
-
 rc_t                
 log_m::flush(const lsn_t& lsn)
 {
@@ -308,19 +338,13 @@ log_m::flush(const lsn_t& lsn)
     rc_t rc;
 
     if(lsn >= _shared->_durable_lsn) {
-	incr_log_sync_cnt(
-		smlevel_0::stats.log_bytes_generated - nbytes_at_last_sync,
-		smlevel_0::stats.log_records_generated - nrecs_at_last_sync);
-
-        nrecs_at_last_sync =  smlevel_0::stats.log_records_generated;
-        nbytes_at_last_sync =  smlevel_0::stats.log_bytes_generated;
-
+	INC_STAT(log_sync_cnt);
 	release_var_mutex();
 	acquire_mutex();
 	rc =  _peer->flush(lsn);
 	_mutex.release();
     } else {
-	incr_log_sync_cnt(0,0);
+	INC_STAT(log_dup_sync_cnt);
 	release_var_mutex();
     }
     return rc;
@@ -353,6 +377,13 @@ int
 log_m::shm_needed(int n)
 {
     return (int) (n * 2) + CHKPT_META_BUF;
+}
+
+log_m::fileoff_t log_m::limit() const
+{
+	/* XXX this is a truly disgusting cast.  The log stuff just
+	   isn't put together well enough to do it right. */
+	return ((srv_log*)_peer)->limit();
 }
 
 void 		        

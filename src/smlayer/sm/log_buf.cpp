@@ -1,13 +1,36 @@
-/* --------------------------------------------------------------- */
-/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
-/* -- University of Wisconsin-Madison, subject to the terms     -- */
-/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
-/* -- Reserved.                                                 -- */
-/* --------------------------------------------------------------- */
+/*<std-header orig-src='shore'>
 
-/*
- *  $Id: log_buf.cc,v 1.4 1997/06/15 03:14:16 solomon Exp $
- */
+ $Id: log_buf.cpp,v 1.25 1999/06/22 20:02:37 nhall Exp $
+
+SHORE -- Scalable Heterogeneous Object REpository
+
+Copyright (c) 1994-99 Computer Sciences Department, University of
+                      Wisconsin -- Madison
+All Rights Reserved.
+
+Permission to use, copy, modify and distribute this software and its
+documentation is hereby granted, provided that both the copyright
+notice and this permission notice appear in all copies of the
+software, derivative works or modified versions, and any portions
+thereof, and that both notices appear in supporting documentation.
+
+THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+"AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+This software was developed with support by the Advanced Research
+Project Agency, ARPA order number 018 (formerly 8230), monitored by
+the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+Further funding for this work was provided by DARPA through
+Rome Research Laboratory Contract No. F30602-97-2-0247.
+
+*/
+
+#include "w_defines.h"
+
+/*  -- do not edit anything above this line --   </std-header>*/
+
 #define SM_SOURCE
 #define LOG_C
 
@@ -17,11 +40,11 @@
 #pragma implementation "log_buf.h"
 #endif
 #include "log_buf.h"
-#include "logdef.i"
+#include "logdef_gen.cpp"
 #include "crash.h"
 
+log_stats_t log_m::stats;
 
-#define DBGTHRD(arg) DBG(<<" th."<<me()->id << " " arg)
 
 /*********************************************************************
  * class log_buf
@@ -40,10 +63,11 @@ log_buf::compensate(const lsn_t &rec, const lsn_t &undo_lsn)
 	(lastrec() > undo_lsn)
 	) {
 	w_assert3(rec.hi() == firstbyte().hi());
-	int offset = rec.lo() - firstbyte().lo();
+
+	fileoff_t offset = rec.lo() - firstbyte().lo();
 
 	logrec_t *s = (logrec_t *)(this->buf + offset);
-	w_assert3(s->prev() == lsn_t::null ||
+	w_assert1(s->prev() == lsn_t::null ||
 	    s->prev() >= undo_lsn);
 
 	if( ! s->is_undoable_clr() ) {
@@ -60,7 +84,10 @@ bool
 log_buf::fits(const logrec_t &r) const
 {
     w_assert3(len() <= bufsize());
-    w_assert3(nextrec().lo() - firstbyte().lo() == (unsigned long)len());
+    // If r.length() > bufsize(), we've configured with
+    // a logbuf too small for the page size
+    w_assert1((int)r.length() <= bufsize());
+    w_assert3(nextrec().lo() - firstbyte().lo() == len());
 
     const skip_log *s = new (__skip_log) skip_log;
     if(len() + r.length() > 
@@ -80,8 +107,8 @@ log_buf::init(const lsn_t &f, const lsn_t &n,
     _written = is_written;
     _lsn_lastrec = lsn_t::null;
     _lsn_firstbyte = f;
-	_lsn_flushed = 
-	_lsn_nextrec = n;
+    _lsn_flushed = _lsn_nextrec = n;
+
     _len = nextrec().lo() - firstbyte().lo();
 }
 
@@ -101,7 +128,7 @@ log_buf::insert(const logrec_t &r)
     _durable = false;
     _written = false;
 
-    w_assert3(nextrec().lo() - firstbyte().lo() == (unsigned long)len());
+    w_assert3(nextrec().lo() - firstbyte().lo() == len());
 #ifdef NOTDEF
     // still room for skiplog
     const skip_log *s = new (__skip_log) skip_log;
@@ -146,8 +173,8 @@ log_buf::write_to(int fd)
     // metadata in writebuf.
     //
     const skip_log *s = new (__skip_log) skip_log;
-    int skiploglen = s->length();
-    int writelen = len() + skiploglen;
+    fileoff_t skiploglen = s->length();
+    fileoff_t writelen = len() + skiploglen;
 
     for( b = 0, xfersize = 0; writelen > xfersize; b++) xfersize += XFERSIZE;
 
@@ -160,9 +187,9 @@ log_buf::write_to(int fd)
     DBGTHRD(<<"we'll write " << b << " blocks, or " << xfersize
 	<< " bytes" );
 
-#ifdef DEBUG
+#ifdef W_DEBUG
     DBGTHRD(<<" MIDDLE write_to" << *this);
-#endif
+#endif /* W_DEBUG */
 
     w_rc_t e = me()->write(fd, buf, xfersize);
     if (e) {
@@ -174,6 +201,28 @@ log_buf::write_to(int fd)
 	  << flushl;
 	W_COERCE(e);
     }
+
+#ifdef W_DEBUG
+    {
+    //  nextrec() should always be the start of the last
+    //  durable skip record.
+    w_assert3(firstbyte().hi() == nextrec().hi());
+    lsn_t off = nextrec();
+    // nextrec() - firstbyte() == offset
+    off.advance(-firstbyte().lo());
+    int f = off.lo();
+    logrec_t *l = (logrec_t *)(buf + f);
+    w_assert3(l->type() == s->type());
+    lsn_t ck =  l->get_lsn_ck();
+    w_assert3(ck == nextrec());
+    w_assert3((int)l->length() == skiploglen );
+    }
+#endif
+
+    // jiebing: collect global log io statistics
+    log_m::stats.log_writes ++;
+    log_m::stats.log_bytes_written += xfersize;
+
 
     // nb: this touches _lsn_flushed, but it immediately gets overwritten:
     w_assert3(_lsn_flushed.advance(xfersize) >= nextrec());
@@ -196,7 +245,7 @@ log_buf::write_to(int fd)
 	// we have to save block n-1, not block n. 
 	// Figure out if this is the case:
 
-	int i = writelen % XFERSIZE;
+	fileoff_t i = writelen % XFERSIZE;
 	DBGTHRD(<<"i=" << i << " writlen=" << writelen);
 	if ( i > 0 && i < skiploglen ) {
 	   DBGTHRD(<<"skip rec spans boundary -- copy block " << b-1);
@@ -235,12 +284,14 @@ log_buf::write_to(int fd)
 	    w_assert3(((xfersize / XFERSIZE) * XFERSIZE) == xfersize);
 
 	    if (xfersize>0) {
-		w_assert3(len() > (uint4)xfersize);
+		w_assert3(len() > xfersize);
 		// copy starting at the end of the prior block
 		// (xfersize has been reduced by 1 block)
 
 		// don't bother copying the skip log
-		memcpy(buf, buf+xfersize, len() - xfersize); 
+                /* XXX Possible loss of bits in cast */
+		w_assert1(len() - xfersize < fileoff_t(w_base_t::int4_max));
+		memcpy(buf, buf+xfersize, int(len() - xfersize)); 
 
 		_len -= xfersize;
 
@@ -253,12 +304,11 @@ log_buf::write_to(int fd)
     }
     w_assert3(flushed() <= nextrec());
     w_assert3(firstbyte() <= flushed());
-    w_assert3(nextrec().lo() - firstbyte().lo() == (unsigned long)len());
+    w_assert3(nextrec().lo() - firstbyte().lo() == len());
     DBGTHRD(<<" AFTER write_to" << *this);
 }
 
-
-log_buf::log_buf(char *b, int sz)
+log_buf::log_buf(char *b, fileoff_t sz)
     : 
     _lsn_firstbyte(lsn_t::null),
     _lsn_flushed(lsn_t::null),
@@ -284,7 +334,11 @@ log_buf::log_buf(char *b, int sz)
 	w_assert3(is_aligned(__skip_log));
 
 	w_assert1(is_aligned(b));
-	buf =  new(b) char[sz];
+
+	/* XXX Possible loss of bits in cast */
+	w_assert1(sz < fileoff_t(w_base_t::int4_max));
+	buf =  new(b) char[int(sz)];
+
 }
 
 log_buf::~log_buf()
@@ -298,19 +352,21 @@ log_buf::~log_buf()
 }
 
 void 		
-log_buf::prime(int fd, off_t offset, const lsn_t &next)
+log_buf::prime(int fd, fileoff_t offset, const lsn_t &next)
 {
     FUNC(log_buf::prime);
-    // we are about to write a record with the given
-    // lsn.  But if this is start-up and we've initialized
+    // we are about to write a record for a certain lsn,
+    // which maps to the given offset.
+    //  But if this is start-up and we've initialized
     // with a partial partition, we have to prime the
     // buf with the last block in the partition
-    uint4 b = (next.lo() / XFERSIZE) * XFERSIZE;
+
+    fileoff_t b = (next.lo() / XFERSIZE) * XFERSIZE;
 
     DBGTHRD(<<" BEFORE prime" << *this);
 
     DBG(<<"firstbyte()=" << firstbyte() << " next = " << next);
-#ifdef DEBUG
+#ifdef W_DEBUG
     if( firstbyte().hi() == next.hi() ) {
 	// same partition
 	// it never makes sense to prime or to have primed
@@ -326,15 +382,15 @@ log_buf::prime(int fd, off_t offset, const lsn_t &next)
 	    w_assert3(b <= nextrec().lo());
 	}
     }
-#endif
+#endif /* W_DEBUG */
 
     if( firstbyte().hi() != next.hi() ||
         (
 	// implied: firstbyte().hi() == next.hi() &&
-	b < firstbyte().lo() ) 
+	   b < firstbyte().lo() ) 
 	) {
 
-#ifdef DEBUG
+#ifdef W_DEBUG
 	if(durable()) {
 	    w_assert3(flushed().lo() == nextrec().lo());
 	} else {
@@ -346,7 +402,7 @@ log_buf::prime(int fd, off_t offset, const lsn_t &next)
 	w_assert3(written());
 	// i.e., it's durable and it's
 	// ok to lose the data here
-#endif
+#endif /* W_DEBUG */
 
 	//
 	// this should happen only when we've just got
@@ -358,12 +414,12 @@ log_buf::prime(int fd, off_t offset, const lsn_t &next)
 
 
 	//
-	lsn_t first = lsn_t(uint4(next.hi()), uint4(b));
+	lsn_t first = lsn_t(uint4_t(next.hi()), sm_diskaddr_t(b));
 
 	offset += first.lo();
 
 	DBG(<<" seeking to " << offset << " on fd " << fd );
-	w_rc_t e = me()->lseek(fd, offset, SEEK_SET);
+	w_rc_t e = me()->lseek(fd, offset, sthread_t::SEEK_AT_SET);
 	if (e) {
 	    smlevel_0::errlog->clog << error_prio 
 		<< "ERROR: could not seek to "
@@ -373,7 +429,7 @@ log_buf::prime(int fd, off_t offset, const lsn_t &next)
 	    W_COERCE(e);
 	}
 
-	DBG(<<" reading " << XFERSIZE << " on fd " << fd );
+	DBG(<<" reading " << int(XFERSIZE) << " on fd " << fd );
 	int n = 0;
 	e = me()->read(fd, buf, XFERSIZE);
 	if (e) {
@@ -385,6 +441,10 @@ log_buf::prime(int fd, off_t offset, const lsn_t &next)
 		<< "read() returns " << n << flushl;
 	    W_COERCE(e);
 	}
+
+    	// jiebing: collect global log io statistics
+    	log_m::stats.log_reads ++;
+    	log_m::stats.log_bytes_read += XFERSIZE;
 
 	// set durable because what we have is what
 	// we just read from the file.
@@ -409,7 +469,7 @@ operator<<(ostream &o, const log_buf &l)
         <<" len()=" << l.len() ;
 
 #ifdef SERIOUS_DEBUG
-    if(l.firstbyte().hi() > 0 && l.firstbyte().lo() == 0) {
+    if(l.firstbyte().hi() > 0 && l.firstbyte().lo() == srv_log::zero) {
 	// go forward
 	_debug.clog << "FORWARD:" <<  flushl;
 	int 	  i=0;
@@ -429,7 +489,7 @@ operator<<(ostream &o, const log_buf &l)
     } else if(l.lastrec() != lsn_t::null) {
         _debug.clog << "BACKWARD: " << flushl;
 
-	char      *b = l.buf + l.len() - (int)sizeof(lsn_t); 
+	char      *b = l.buf + l.len() - (int)sizeof(lsn_t);
 	lsn_t 	  pos =  *(lsn_t *)b;
 	lsn_t 	  lsn_ck;
 
@@ -441,7 +501,10 @@ operator<<(ostream &o, const log_buf &l)
 	    w_assert3(pos.hi() == l.firstbyte().hi());
 	    b = l.buf + (pos.lo() - l.firstbyte().lo());
 	    r = (logrec_t *)b;
-	    lsn_ck = *((lsn_t *)((char *)r + (r->length() - sizeof(lsn_t))));
+
+	    // lsn_ck = *((lsn_t *)((char *)r + (r->length() - sizeof(lsn_t))));
+	    memcpy(&lsn_ck, ((char *)r + (r->length() - sizeof(lsn_t))),
+				sizeof(lsn_ck));
 
 	    w_assert3(lsn_ck == pos || r->type() == logrec_t::t_skip);
 
@@ -455,3 +518,4 @@ operator<<(ostream &o, const log_buf &l)
 
     return o;
 }
+

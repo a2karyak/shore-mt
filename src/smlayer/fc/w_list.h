@@ -1,15 +1,38 @@
-/* --------------------------------------------------------------- */
-/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
-/* -- University of Wisconsin-Madison, subject to the terms     -- */
-/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
-/* -- Reserved.                                                 -- */
-/* --------------------------------------------------------------- */
+/*<std-header orig-src='shore' incl-file-exclusion='W_LIST_H'>
 
-/*
- *  $Id: w_list.h,v 1.35 1997/06/16 21:35:55 solomon Exp $
- */
+ $Id: w_list.h,v 1.45 1999/06/07 19:02:54 kupsch Exp $
+
+SHORE -- Scalable Heterogeneous Object REpository
+
+Copyright (c) 1994-99 Computer Sciences Department, University of
+                      Wisconsin -- Madison
+All Rights Reserved.
+
+Permission to use, copy, modify and distribute this software and its
+documentation is hereby granted, provided that both the copyright
+notice and this permission notice appear in all copies of the
+software, derivative works or modified versions, and any portions
+thereof, and that both notices appear in supporting documentation.
+
+THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+"AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+This software was developed with support by the Advanced Research
+Project Agency, ARPA order number 018 (formerly 8230), monitored by
+the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+Further funding for this work was provided by DARPA through
+Rome Research Laboratory Contract No. F30602-97-2-0247.
+
+*/
+
 #ifndef W_LIST_H
 #define W_LIST_H
+
+#include "w_defines.h"
+
+/*  -- do not edit anything above this line --   </std-header>*/
 
 #ifndef W_BASE_H
 #include <w_base.h>
@@ -30,6 +53,9 @@ public:
     w_link_t& 			operator=(const w_link_t&);
 
     void			attach(w_link_t* prev_link);
+    void			check() {
+				    w_assert3(_prev == this && _next == this); // not in a list
+				}
     w_link_t* 			detach();
     w_list_base_t* 		member_of() const;
 
@@ -77,9 +103,11 @@ template <class T> class w_list_t;
 
 inline NORET
 w_link_t::w_link_t()
-    : _list(0), _next(this), _prev(this)
+    : _list(0) 
 {
-    /* empty body */
+    _next = this;
+	_prev = this;
+	/* empty body */
 }
 
 inline NORET
@@ -127,6 +155,7 @@ w_list_base_t::w_list_base_t()
 				// errors
 {
     _tail._list = 0;
+    w_assert3(_tail._next == &_tail && _tail._prev == &_tail);
 }
 
 inline NORET
@@ -134,6 +163,7 @@ w_list_base_t::w_list_base_t(uint4_t offset)
     : _cnt(0), _adj(offset)
 {
     _tail._list = this;
+    w_assert3(_tail._next == &_tail && _tail._prev == &_tail);
 }
 
 inline void 
@@ -162,10 +192,15 @@ w_list_base_t::num_members() const
     return _cnt;
 }
 
+template <class T> class w_list_t;
+
+
     
 /*--------------------------------------------------------------*
  *  w_list_t							*
  *--------------------------------------------------------------*/
+BIND_FRIEND_OPERATOR_PART_1(T,w_list_t<T>);
+
 template <class T>
 class w_list_t : public w_list_base_t {
 protected:
@@ -241,17 +276,24 @@ public:
         return _cnt ? base_of(_tail.prev()) : 0;
     }
 
-    friend ostream&		operator<<(
+    friend ostream&		operator<< BIND_FRIEND_OPERATOR_PART_2(T) (
 	ostream& 		    o,
 	const w_list_t<T>& 	    l);
 
 private:
     // disabled
-    NORET			w_list_t(const w_list_t<T>&x);
+    NORET			w_list_t(const w_list_t<T>&x)
+#ifdef _MSC_VER
+      {w_assert1(0);}
+#endif
+    ;
 
-private:
     // disabled
-    w_list_t<T>&		operator=(const w_list_t<T>&);
+    w_list_t<T>&		operator=(const w_list_t<T>&)
+#ifdef _MSC_VER
+      {w_assert1(0); return *this;}
+#endif
+    ;
     
     friend class w_list_i<T>;
 };
@@ -299,8 +341,16 @@ private:
     bool			_backwards;
 
     // disabled
-    NORET			w_list_i(w_list_i<T>&);
-    w_list_i<T>&		operator=(w_list_i<T>&);
+    NORET			w_list_i(w_list_i<T>&)
+#ifdef _MSC_VER
+      {w_assert1(0);}
+#endif
+    ;
+    w_list_i<T>&		operator=(w_list_i<T>&)
+#ifdef _MSC_VER
+      {w_assert1(0); return *this;}
+#endif
+    ;
 };
 
 template <class T>
@@ -402,11 +452,125 @@ private:
 				const w_descend_list_t<T,K>&); // disabled
 };
 
-#ifdef __GNUC__
-#if defined(IMPLEMENTATION_W_LIST_H) || !defined(EXTERNAL_TEMPLATES)
-#include <w_list.cc>
-#endif
-#endif
 
-    
-#endif /* W_LIST_H */
+
+template <class T>
+ostream&
+operator<<(
+    ostream&			o,
+    const w_list_t<T>&		l)
+{
+    const w_link_t* p = l._tail.next();
+
+    cout << "cnt = " << l.num_members();
+
+    while (p != &l._tail)  {
+	const T* t = l.base_of(p);
+	if (! (o << endl << '\t' << *t))  break;
+	p = p->next();
+    }
+    return o;
+}
+
+
+template <class T, class K>
+NORET
+w_keyed_list_t<T, K>::w_keyed_list_t(
+    w_base_t::uint4_t	    key_offset,
+    w_base_t::uint4_t 	    link_offset)
+    : w_list_t<T>(link_offset), _key_offset(key_offset)    
+{
+#ifdef __GNUC__
+#else
+    w_assert3(key_offset + sizeof(K) <= sizeof(T));
+#endif
+}
+
+template <class T, class K>
+NORET
+w_keyed_list_t<T, K>::w_keyed_list_t()
+    : _key_offset(0)
+{
+}
+
+template <class T, class K>
+void
+w_keyed_list_t<T, K>::set_offset(
+    w_base_t::uint4_t		key_offset,
+    w_base_t::uint4_t		link_offset)
+{
+    w_assert3(_key_offset == 0);
+    w_list_t<T>::set_offset(link_offset);
+    _key_offset = key_offset;
+}
+
+template <class T, class K>
+T*
+w_keyed_list_t<T, K>::search(const K& k)
+{
+    register w_link_t* p;
+    for (p = _tail.next();
+	 p != &_tail && (key_of(*base_of(p)) != k);
+	 p = p->next());
+    return (p && (p!=&_tail)) ? base_of(p) : 0;
+}
+
+template <class T, class K>
+T*
+w_ascend_list_t<T, K>::search(const K& k)
+{
+    register w_link_t* p;
+    for (p = _tail.next();
+	 p != &_tail && (key_of(*base_of(p)) < k);
+	 p = p->next());
+
+    return p ? base_of(p) : 0;
+}
+
+template <class T, class K>
+void
+w_ascend_list_t<T, K>::put_in_order(T* t)
+{
+    register w_link_t* p;
+    for (p = _tail.next();
+	 p != &_tail && (key_of(*base_of(p)) <= key_of(*t));
+	 p = p->next());
+
+    if (p)  {
+	link_of(t)->attach(p->prev());
+    } else {
+        link_of(t)->attach(_tail.prev());
+    }
+}
+
+template <class T, class K>
+T*
+w_descend_list_t<T, K>::search(const K& k)
+{
+    register w_link_t* p;
+    for (p = _tail.next();
+	 p != &_tail && (key_of(*base_of(p)) > k);
+	 p = p->next());
+
+    return p ? base_of(p) : 0;
+}
+
+template <class T, class K>
+void
+w_descend_list_t<T, K>::put_in_order(T* t)
+{
+    register w_link_t* p;
+    for (p = _tail.next();
+	 p != &_tail && (key_of(*base_of(p)) >= key_of(*t));
+	 p = p->next());
+
+    if (p)  {
+	link_of(t)->attach(p->prev());
+    } else {
+        link_of(t)->attach(_tail.prev());
+    }
+}
+
+/*<std-footer incl-file-exclusion='W_LIST_H'>  -- do not edit anything below this line -- */
+
+#endif          /*</std-footer>*/

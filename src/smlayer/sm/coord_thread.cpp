@@ -1,19 +1,46 @@
-/* --------------------------------------------------------------- */
-/* -- Copyright (c) 1994,5,6,7 Computer Sciences Department,    -- */
-/* -- University of Wisconsin-Madison, subject to the terms     -- */
-/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
-/* -- Reserved.                                                 -- */
-/* --------------------------------------------------------------- */
+/*<std-header orig-src='shore'>
 
-/*
- *  $Id: coord_thread.cc,v 1.29 1997/06/15 03:12:59 solomon Exp $
- */
+ $Id: coord_thread.cpp,v 1.54 1999/08/06 15:35:41 bolo Exp $
+
+SHORE -- Scalable Heterogeneous Object REpository
+
+Copyright (c) 1994-99 Computer Sciences Department, University of
+                      Wisconsin -- Madison
+All Rights Reserved.
+
+Permission to use, copy, modify and distribute this software and its
+documentation is hereby granted, provided that both the copyright
+notice and this permission notice appear in all copies of the
+software, derivative works or modified versions, and any portions
+thereof, and that both notices appear in supporting documentation.
+
+THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+"AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+This software was developed with support by the Advanced Research
+Project Agency, ARPA order number 018 (formerly 8230), monitored by
+the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+Further funding for this work was provided by DARPA through
+Rome Research Laboratory Contract No. F30602-97-2-0247.
+
+*/
+
+#include "w_defines.h"
+
+/*  -- do not edit anything above this line --   </std-header>*/
 
 #define SM_SOURCE
 #define COORD_C
 
 #include <sm_int_0.h>
+#ifdef USE_COORD
 #include <coord.h>
+
+
+/* Seconds -> milliseconds converter for timeouts. */
+#define	SECONDS(n)	((n) * 1000)
 
 
 /*
@@ -25,18 +52,18 @@ coord_thread_t::coord_thread_t(
 	coordinator *c,
 	coord_thread_kind k
 ) :
+    twopc_thread_t(c,k, false),
     _coord(c),
     // tid
     _sequence(0),
     _entry(0),
     _awaiting(0),
     _died(0),
-    _recovered(0),
-    twopc_thread_t(c,k, false)
+    _recovered(0)
 {
     FUNC(coord_thread_t::coord_thread_t);
 
-    DBG(<<"kind=" << k);
+    DBG(<<"kind=" << int(k));
 
     switch(k) {
     case participant::coord_message_handler:
@@ -63,18 +90,18 @@ coord_thread_t::coord_thread_t(coordinator *c,
 	    const gtid_t &tid,
 	    bool otf
 	    ) :
+    twopc_thread_t(c,k, otf),
     _coord(c),
     // tid
     _sequence(0),
     _entry(0),
     _awaiting(0),
     _died(0),
-    _recovered(0),
-    twopc_thread_t(c,k, otf)
+    _recovered(0)
 {
     FUNC(coord_thread_t::coord_thread_t);
 
-    DBG(<<"kind=" << k
+    DBG(<<"kind=" << int(k)
 	<< " timeout= " << _timeout
 	);
 
@@ -108,6 +135,7 @@ coord_thread_t::coord_thread_t(coordinator *c,
 	int timeout,
 	bool prepare_only // = false
 	) :
+    twopc_thread_t(c, k, false),
     _coord(c),
     _tid(tid),
     _sequence(0),
@@ -115,8 +143,7 @@ coord_thread_t::coord_thread_t(coordinator *c,
     _awaiting(0),
     _died(0),
     _recovered(0),
-    _stop_when_prepared(prepare_only),
-    twopc_thread_t(c, k, false)
+    _stop_when_prepared(prepare_only)
 {
     FUNC(coord_thread_t::coord_thread_t);
     w_assert3(_entry == 0);
@@ -194,7 +221,7 @@ coord_thread_t::run()
 	    _coord->gtid2thread_insert(this);
 	    // coord_thread_t::resolve() checks _retire
 	    _error = resolve(_tid, 
-		_purpose == participant::coord_abort_handler? true : false);
+		_purpose == participant::coord_abort_handler);
 	    if(_error) {
 		smlevel_0::errlog->clog <<error_prio
 		    << "Resolve failed: " << _error <<flushl;
@@ -288,7 +315,7 @@ coord_thread_t::set_coord_state(int threadnum, int sequence)
 	if( sequence == 0) {
 	    smlevel_0::errlog->clog <<error_prio
 		<< "bad state transition for sequence #0 " 
-		<< ss << "," << state() << "->" << s << flushl;
+		<< int(ss) << "," << int(state()) << "->" << int(s) << flushl;
 	    W_FATAL(smlevel_0::ePROTOCOL);
 	} 
 	// else we ignore it -- it's now dropped
@@ -297,13 +324,13 @@ coord_thread_t::set_coord_state(int threadnum, int sequence)
    if(s == cs_fatal) {
 	smlevel_0::errlog->clog <<error_prio
 		<< "bad state transition: " 
-		<< ss << "," << state() << "->" << s << flushl;
+		<< int(ss) << "," << int(state()) << "->" << int(s) << flushl;
 	W_FATAL(smlevel_0::ePROTOCOL);
    }
-   DBGTHRD(<<"set_coord_state() old state: " << state() 
+   DBGTHRD(<<"set_coord_state() old state: " << int(state())
 	<< " threadnum " << threadnum
-	<< " server state: " << ss
-	<< " new state: " << s
+	<< " server state: " << int(ss)
+	<< " new state: " << int(s)
 	<< " reset seq(# " << _sequence << ")"
 	);
 
@@ -322,7 +349,7 @@ coord_thread_t::set_coord_state(int threadnum, int sequence)
 }
 
 void 
-coord_thread_t::got_vote(struct message_t &m,
+coord_thread_t::got_vote(message_t &m,
 	server_handle_t &srvaddr)
 {
     VOIDSSMTEST("co.got.vote");
@@ -344,7 +371,7 @@ coord_thread_t::got_vote(struct message_t &m,
 	// treat as "not found"
 	// log this stray message and drop it
 	smlevel_0::errlog->clog <<error_prio
-		<< "stray message type " << m.typ
+		<< "stray message type " << m.type()
 		<< " sequence " << m.sequence
 	    // << " from " << (char *)&srvaddr._opaque[0]
 		<< " from " << srvaddr
@@ -363,7 +390,7 @@ coord_thread_t::got_vote(struct message_t &m,
 	    l.record_server_vote(threadnum, vote_abort, m.sequence);
 	} else {
 	    // consider it a retransmission
-	    INCRSTAT(c_replies_dropped);
+	    INC_TSTAT(c_replies_dropped);
 	    w_assert3(m.sequence > 0);
 	}
     } else {
@@ -375,7 +402,7 @@ coord_thread_t::got_vote(struct message_t &m,
 }
 
 void 
-coord_thread_t::got_ack(struct message_t &m, server_handle_t &srvaddr)
+coord_thread_t::got_ack(message_t &m, server_handle_t &srvaddr)
 {
     VOIDSSMTEST("co.got.ack");
 
@@ -391,9 +418,8 @@ coord_thread_t::got_ack(struct message_t &m, server_handle_t &srvaddr)
 	// treat as "not found"
 	// log this stray message and drop it
 	smlevel_0::errlog->clog <<error_prio
-		<< "stray message type " << m.typ
+		<< "stray message type " << m.type()
 		<< " sequence " << m.sequence
-	    // << " from " << (char *)&srvaddr._opaque[0]
 	        << " from " << srvaddr
 		<< " is not participating in 2pc for this gtid "
 		<< flushl;
@@ -414,13 +440,14 @@ coord_thread_t::resolve(const gtid_t& tid, bool abort_it)
     rc_t rc;
     DBG(<<"trying to resolve " << tid);
     if(_error) return _error;
-    INCRSTAT(c_resolved);
+    INC_MY2PCSTAT(c_resolved);
 
     w_assert3(_entry);
     w_assert3(_entry->store() == _coord->_stid);
 
     log_entry &l = *_entry;
-    if(rc = l.error()) {
+    rc = l.error();
+    if(rc) {
 	DBG(<<"failed to resolve " << tid << " because " << rc);
 	W_COERCE(l.remove());
 	return rc;
@@ -448,9 +475,8 @@ coord_thread_t::resolve(const gtid_t& tid, bool abort_it)
 	 * loop through servers, sending a command that's
 	 * a function server's state and coordinator's state
 	 */
-	struct message_t m; 
-	AlignedBuffer	abuf((void *)&m, sizeof(m)); // maximum size
-	Buffer &buf = abuf.buf;
+	message_t m; 
+	Buffer	buf(&m, sizeof(m)); // maximum size
 
 	m.clear();
 	m.put_tid(tid);
@@ -487,15 +513,15 @@ coord_thread_t::resolve(const gtid_t& tid, bool abort_it)
 		W_COERCE(_mutex.acquire());
 		DBGTHRD(<<"thread: " << i
 		    << " replies_needed: " << replies_needed
-		    << " coord_state: " << state()
-		    << " server_state: " << l.state(i)
+		    << " coord_state: " << int(state())
+		    << " server_state: " << int(l.state(i))
 		    );
 		switch(_coord->action(this, l.state(i))) {
 
 		case ca_prepare: 
 		    DBGTHRD(<<"action is prepare");
 		    SSMTEST("co.before.prepare");
-		    m.typ = smsg_prepare;
+		    m.setType(smsg_prepare);
 		    sendit = true;
 		    break;
 
@@ -507,14 +533,14 @@ coord_thread_t::resolve(const gtid_t& tid, bool abort_it)
 		case ca_commit:
 		    DBGTHRD(<<"action is commit");
 		    SSMTEST("co.before.resolve");
-		    m.typ = smsg_commit;
+		    m.setType(smsg_commit);
 		    sendit = true;
 		    break;
 
 		case ca_abort:
 		    DBGTHRD(<<"action is abort");
 		    SSMTEST("co.before.resolve");
-		    m.typ = smsg_abort;
+		    m.setType(smsg_abort);
 		    sendit = true;
 		    break;
 
@@ -527,12 +553,12 @@ coord_thread_t::resolve(const gtid_t& tid, bool abort_it)
 		if(sendit) {
 		    Endpoint destination;
 		    if( (m.sequence = _sequence) > 0) {
-			INCRSTAT(c_retrans);
+			INC_MY2PCSTAT(c_retrans);
 		    }
 		    // TODO: remove this print as char *
-		    DBGTHRD(<< "sending request " << m.typ 
+		    DBGTHRD(<< "sending request " << m.type()
 			<< " seq " << m.sequence
-			<< " error " << m.error()
+			<< " error " << int(m.error())
 			<< l.addr(i)
 			);
 
@@ -567,8 +593,8 @@ coord_thread_t::resolve(const gtid_t& tid, bool abort_it)
 
 		    W_COERCE(_mutex.acquire());
 		}
-#ifdef DEBUG
-		switch(m.typ) {
+#ifdef W_DEBUG
+		switch(m.type()) {
 		case smsg_prepare:
 		    SSMTEST("co.after.prepare");
 		    break;
@@ -579,19 +605,19 @@ coord_thread_t::resolve(const gtid_t& tid, bool abort_it)
 		default:
 		    break;
 		}
-#endif
+#endif /* W_DEBUG */
 		if(_coord->_proto == smlevel_0::presumed_abort 
 			&& state()==cs_aborting) {
 		    // With presumed_abort, we don't await acks
 		    // to abort messages, so just do the update explicitly
 		    if(sendit) {
-			w_assert3(m.typ == smsg_abort);
+			w_assert3(m.type() == smsg_abort);
 			l.set_server_acked(i, smsg_abort);
 			set_coord_state(i, _sequence);
 		    }
 
 		    if(l.persistent()) {
-			INCRSTAT(c_resolved_abort);
+			INC_MY2PCSTAT(c_resolved_abort);
 			W_COERCE(l.remove());
 		    }
 		}
@@ -610,7 +636,9 @@ coord_thread_t::resolve(const gtid_t& tid, bool abort_it)
 	    // wait. (this can happen if, say, all threads
 	    // voted abort immediately, or all voted readonly in PA)
 	    coord_state old_state = state();
+#ifdef W_TRACE
 	    int         old_awaiting = awaiting();
+#endif
 	    int         old_recovered = recovered();
 	    int         old_died = died();
 	    while(
@@ -623,11 +651,11 @@ coord_thread_t::resolve(const gtid_t& tid, bool abort_it)
 		) {
 
 		DBGTHRD(
-			<<" old_state = " << old_state
+			<<" old_state = " << int(old_state)
 			<<" old_died = " << old_died
 			<<" old_recovered = " << old_recovered
 			<<" old_awaiting = " << old_awaiting
-		    <<" state() = " << state()
+		    <<" state() = " << int(state())
 		    <<" died() = " << died()
 		    <<" recovered() = " << recovered()
 		    <<" awaiting() = " << awaiting()
@@ -663,7 +691,7 @@ coord_thread_t::resolve(const gtid_t& tid, bool abort_it)
 		);
 
 	    smlevel_0::errlog->clog <<error_prio 
-		<< time(0) << ":" 
+		<< stime_t::now().secs() << ":" 
 		<< "resolve timed out" 
 		<< l.tid()
 		<< flushl;
@@ -674,14 +702,14 @@ coord_thread_t::resolve(const gtid_t& tid, bool abort_it)
 
 	DBGTHRD( <<
 	(const char *)((replies_needed > 0)?"interrupted": "finished")
-		<< " a phase, now in state " << state()
+		<< " a phase, now in state " << int(state())
 		<< " replies_needed = " << replies_needed
 		);
 	switch(state()) {
 	case cs_voting: {
 		// assert for each server that it's 
 		// prepared or committed as a readonly tx
-#ifdef DEBUG
+#ifdef W_DEBUG
 		if(! l.is_one_of(ss_prepared, ss_readonly, ss_committed)) {
 		    // If the coordinator crashed, we could
 		    // find ourselves with a committed server at
@@ -689,7 +717,7 @@ coord_thread_t::resolve(const gtid_t& tid, bool abort_it)
 		    // crashed.
 		    W_FATAL(smlevel_0::ePROTOCOL); 
 		}
-#endif /* DEBUG */
+#endif /* W_DEBUG */
 
 		if(_coord->_proto==smlevel_0::presumed_abort 
 			&& !l.is_only(ss_readonly)) {
@@ -717,11 +745,11 @@ coord_thread_t::resolve(const gtid_t& tid, bool abort_it)
 	case cs_aborting: {
 		// assert for each server that it's already aborted 
 		// (or readonly)
-#ifdef DEBUG
+#ifdef W_DEBUG
 		if(! l.is_either(ss_aborted,ss_readonly)) { 
 		    W_FATAL(smlevel_0::ePROTOCOL); 
 		}
-#endif /* DEBUG */
+#endif /* W_DEBUG */
 		_error = RC(smlevel_0::eVOTENO);
 		set_state(cs_done, false); // and reinitialize sequence #
 		_mutex.release();
@@ -731,11 +759,11 @@ coord_thread_t::resolve(const gtid_t& tid, bool abort_it)
 	    break;
 	
 	case cs_committing: {
-#ifdef DEBUG
+#ifdef W_DEBUG
 		if(! l.is_either(ss_committed, ss_readonly)) {
 		    W_FATAL(smlevel_0::ePROTOCOL); 
 		}
-#endif /* DEBUG */
+#endif /* W_DEBUG */
 		set_state(cs_done, false); // and reinit sequence #
 		time_spent = 0;
 	    }  
@@ -744,20 +772,20 @@ coord_thread_t::resolve(const gtid_t& tid, bool abort_it)
 	default: 
 	    w_assert3(state() == cs_done);
 	    // assert for each server that it's finished 
-#ifdef DEBUG
+#ifdef W_DEBUG
 	    if(!l.is_either(ss_committed, ss_readonly) && 
 		!l.is_either(ss_aborted, ss_readonly) ) { 
 		W_FATAL(smlevel_0::ePROTOCOL); 
 	    }
-#endif /* DEBUG */
+#endif /* W_DEBUG */
 	    break;
 	}
 
 	if(l.persistent()) {
 	    if( l.is_either(ss_committed, ss_readonly)) { 	
-		INCRSTAT(c_resolved_commit);
+		INC_MY2PCSTAT(c_resolved_commit);
 	    } else {
-		INCRSTAT(c_resolved_abort);
+		INC_MY2PCSTAT(c_resolved_abort);
 		w_assert3(_coord->_proto == smlevel_0::presumed_nothing);
 	    }
 	    W_COERCE(l.remove());
@@ -773,7 +801,7 @@ coord_thread_t::resolve(const gtid_t& tid, bool abort_it)
 handle_error:
     DBGTHRD(<< "quitting prematurely error is " << error());
     W_COERCE(_mutex.acquire());
-    INCRSTAT(c_resolved_abort);
+    INC_MY2PCSTAT(c_resolved_abort);
     if(l.persistent()) {
 	W_COERCE(l.remove());
     }
@@ -830,8 +858,8 @@ coord_thread_t::recovered(server_handle_t &s)
     rc = l.locate(s, threadnum); // threadnum is output
     DBG(<<"rc=" << rc << " threadnum=" << threadnum
 	<< " _awaiting=" << _awaiting
-	<< " state()= " << state()
-	<< " l.state(i)= " << l.state(threadnum)
+	<< " state()= " << int(state())
+	<< " l.state(i)= " << int(l.state(threadnum))
 	);
     if(!rc) {
 	if(l.state(threadnum) == ss_died) {
@@ -866,7 +894,7 @@ coord_thread_t::recovered(server_handle_t &s)
 		W_FATAL(smlevel_0::eINTERNAL);
 		break;
 	    }
-	    DBG(<<"changing state to " << ss);
+	    DBG(<<"changing state to " << int(ss));
 	    W_DO(l.record_server_recovered(threadnum, ss));
 
 	    // NB: Won't change state:
@@ -881,3 +909,57 @@ coord_thread_t::recovered(server_handle_t &s)
 
     return rc;
 }
+
+#include <vtable_info.h>
+#include <vtable_enum.h>
+
+void		
+coord_thread_t::vtable_collect(vtable_info_t& t) 
+{
+    twopc_thread_t::vtable_collect(t);
+
+    if(_entry) {
+	if(_mutex.acquire(smthread_t::WAIT_IMMEDIATE) == RCOK) {
+	    coord_state c = state();
+	    _mutex.release();
+	    const char *p = 0;
+	    switch(c) {
+		case cs_done:
+		    p = "done";
+		    break;
+		case cs_voting:
+		    p = "voting";
+		    break;
+		case cs_aborting:
+		    p = "aborting";
+		    break;
+		case cs_committing:
+		    p = "committing";
+		    break;
+		case cs_awaiting:
+		    p = "awaiting";
+		    break;
+		default:
+		    p = "bad" ;
+		    break;
+	    }
+	    t.set_string(coord_thread_state_attr, p);
+	}
+    } else {
+	t.set_string(coord_thread_state_attr, "none");
+    }
+    {
+	char *p = t[coord_thread_gtid_attr];
+	ostrstream o(p, vtable_info_t::vtable_value_size);
+	o << _tid <<ends;
+    }
+    t.set_int(coord_thread_awaiting_attr, awaiting());
+    t.set_int(coord_thread_died_attr, died());
+    if(_entry) {
+	t.set_int(coord_thread_entry_numthreads_attr, _entry->numthreads());
+    } else {
+	t.set_int(coord_thread_entry_numthreads_attr, 0);
+    }
+}
+#endif /* USE_COORD */
+

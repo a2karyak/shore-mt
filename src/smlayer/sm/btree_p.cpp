@@ -1,31 +1,48 @@
-/* --------------------------------------------------------------- */
-/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
-/* -- University of Wisconsin-Madison, subject to the terms     -- */
-/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
-/* -- Reserved.                                                 -- */
-/* --------------------------------------------------------------- */
+/*<std-header orig-src='shore'>
 
-/*
- *  $Id: btree_p.cc,v 1.9 1997/06/16 21:36:03 solomon Exp $
- */
+ $Id: btree_p.cpp,v 1.32 1999/06/22 20:02:37 nhall Exp $
+
+SHORE -- Scalable Heterogeneous Object REpository
+
+Copyright (c) 1994-99 Computer Sciences Department, University of
+                      Wisconsin -- Madison
+All Rights Reserved.
+
+Permission to use, copy, modify and distribute this software and its
+documentation is hereby granted, provided that both the copyright
+notice and this permission notice appear in all copies of the
+software, derivative works or modified versions, and any portions
+thereof, and that both notices appear in supporting documentation.
+
+THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+"AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+This software was developed with support by the Advanced Research
+Project Agency, ARPA order number 018 (formerly 8230), monitored by
+the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+Further funding for this work was provided by DARPA through
+Rome Research Laboratory Contract No. F30602-97-2-0247.
+
+*/
+
+#include "w_defines.h"
+
+/*  -- do not edit anything above this line --   </std-header>*/
+
 #define SM_SOURCE
 #define BTREE_C
 
 #ifdef __GNUG__
-# 	pragma implementation "btree_p.old.h"
 #   	pragma implementation "btree_p.h"
 #endif
 
 #include "sm_int_2.h"
 
-#ifdef USE_OLD_BTREE_IMPL
-#include "btree_p.old.cc"
-#else 
-
 #include "btree_p.h"
 #include "btree_impl.h"
 #include "sm_du_stats.h"
-#include <debug.h>
 #include <crash.h>
 
 
@@ -83,7 +100,7 @@ btree_p::distribute(
     addition += sizeof(page_s::slot_t);
     int orig = used_space();
     int ls = orig + addition;
-    const keep = factor * ls / 100; // nbytes to keep on left page
+    const int keep = factor * ls / 100; // nbytes to keep on left page
 
     int flag = 1;		// indicates if we have passed snum
 
@@ -125,7 +142,7 @@ btree_p::distribute(
      *  Compute left_heavy and new slot to insert additional bytes.
      */
     if (snum == nrecs())  {
-	left_heavy = flag;
+	left_heavy = flag != 0;
     } else {
 	left_heavy = (snum < nrecs());
     }
@@ -134,7 +151,7 @@ btree_p::distribute(
 	snum -= nrecs();
     }
 
-#ifdef DEBUG
+#ifdef W_DEBUG
     btree_p& p = (left_heavy ? *this : rsib);
     w_assert1(snum <= p.nrecs());
     w_assert1(p.usable_space() >= addition);
@@ -142,7 +159,7 @@ btree_p::distribute(
     DBG(<<"distribute: usable_space() : left=" << this->usable_space()
     << "; right=" << rsib. usable_space() );
 
-#endif /*DEBUG*/
+#endif /*W_DEBUG*/
     
     return RCOK;
 }
@@ -165,7 +182,7 @@ btree_p::_unlink(btree_p &rsib)
     );
     w_assert3(is_fixed());
     w_assert3(latch_mode() == LATCH_EX);
-    if(rsib) {
+    if(rsib.is_fixed()) {
 	// might not have a right sibling
 	w_assert3(rsib.is_fixed());
 	w_assert3(rsib.latch_mode() == LATCH_EX);
@@ -184,7 +201,7 @@ btree_p::_unlink(btree_p &rsib)
      * pointers on *this* page
      */
     {
-	if(rsib) {
+	if(rsib.is_fixed()) {
 	    W_DO( rsib.link_up(prev(), rsib.next()) );
 	    SSMTEST("btree.unlink.2");
 	    rsib.unfix();
@@ -193,7 +210,7 @@ btree_p::_unlink(btree_p &rsib)
 
 	btree_p lsib;
 	if(lsib_pid.page) {
-	    smlevel_0::stats.bt_links++;
+	    INC_TSTAT(bt_links);
 	    W_DO( lsib.fix(lsib_pid, LATCH_EX) ); 
 	    SSMTEST("btree.unlink.3");
 	    W_DO( lsib.link_up(lsib.prev(), rsib_page) );
@@ -215,9 +232,9 @@ btree_p::unlink_and_propagate(
     btree_p&		root
 )
 {
-#ifdef DEBUG
+#ifdef W_DEBUG
     W_DO(log_comment("start unlink_and_propagate"));
-#endif
+#endif /* W_DEBUG */
     w_assert3(this->is_fixed());
     w_assert3(rsib.is_fixed() || next() == 0);
     w_assert3(root.is_fixed());
@@ -225,7 +242,7 @@ btree_p::unlink_and_propagate(
     if(root.pid() == pid())  {
 	unfix();
     } else {
-	smlevel_0::stats.bt_cuts++;
+	INC_TSTAT(bt_cuts);
 	
 	lpid_t  child_pid = pid(); 
 	int 	  lev  = this->level();
@@ -283,9 +300,9 @@ btree_p::unlink_and_propagate(
 	SSMTEST("btree.propagate.d.3");
     }
     w_assert3( ! is_fixed());
-#ifdef DEBUG
+#ifdef W_DEBUG
     W_DO(log_comment("end propagate_split"));
-#endif
+#endif /* W_DEBUG */
     return RCOK;
 }
 
@@ -302,9 +319,9 @@ btree_p::unlink_and_propagate(
  *********************************************************************/
 rc_t
 btree_p::cut_page(lpid_t &
-#ifdef DEBUG
+#ifdef W_DEBUG
 	child_pid
-#endif
+#endif /* W_DEBUG */
 	, slotid_t slot)
 {
     // slot <0 means pid0
@@ -327,7 +344,7 @@ btree_p::cut_page(lpid_t &
      *  Remove the slot from the parent
      */
     if (slot >= 0)  {
-	W_DO( remove(slot) );
+	W_DO( remove(slot, this->is_compressed()) );
     } else {
 	/*
 	 *  Special case for removing pid0 of parent. 
@@ -336,7 +353,7 @@ btree_p::cut_page(lpid_t &
 	shpid_t pid0 = 0;
 	if (nrecs() > 0)   {
 	    pid0 = child(0);
-	    W_DO( remove(0) );
+	    W_DO( remove(0, this->is_compressed()) );
 	    SSMTEST("btree.propagate.d.4");
 	}
 	W_DO( set_pid0(pid0) );
@@ -361,7 +378,7 @@ btree_p::cut_page(lpid_t &
  *
  *********************************************************************/
 rc_t
-btree_p::set_hdr(shpid_t root, int l, shpid_t pid0, uint2 flags)
+btree_p::set_hdr(shpid_t root, int l, shpid_t pid0, uint2_t flags)
 {
     btctrl_t hdr;
     hdr.root = root;
@@ -405,7 +422,7 @@ rc_t
 btree_p::_set_flag( flag_t f, bool compensate)
 {
     FUNC(btree_p::set_flag);
-    DBG(<<"SET page is " << this->pid() << " flag is " << f);
+    DBG(<<"SET page is " << this->pid() << " flag is " << int(f));
 
     lsn_t anchor;
     xct_t* xd = xct();
@@ -414,7 +431,19 @@ btree_p::_set_flag( flag_t f, bool compensate)
     }
 
     const btctrl_t& tmp = _hdr();
-    W_DO( set_hdr(tmp.root, tmp.level, tmp.pid0, tmp.flags | f) );
+    // X_DO if compensate, W_DO if not.  Instead, we just 
+    // do what the macros do 
+    {
+	w_rc_t __e = set_hdr(tmp.root, tmp.level, tmp.pid0, 
+				(uint2_t)(tmp.flags | f));
+	if (__e) {
+	    if(xd && compensate) {
+		xd->rollback(anchor);
+		xd->release_anchor(true);
+	    }
+	    return RC_AUGMENT(__e);
+	}
+    }
 
     if(compensate) {
 	if (xd) xd->compensate(anchor);
@@ -435,7 +464,7 @@ rc_t
 btree_p::_clr_flag(flag_t f, bool compensate)
 {
     FUNC(btree_p::clr_flag);
-    DBG(<<"CLR page is " << this->pid() << " flag = " << f);
+    DBG(<<"CLR page is " << this->pid() << " flag = " << int(f));
 
     lsn_t anchor;
     xct_t* xd = xct();
@@ -444,7 +473,7 @@ btree_p::_clr_flag(flag_t f, bool compensate)
     }
 
     const btctrl_t& tmp = _hdr();
-    X_DO( set_hdr(tmp.root, tmp.level, tmp.pid0, tmp.flags & ~f), anchor );
+    X_DO( set_hdr(tmp.root, tmp.level, tmp.pid0, (uint2_t)(tmp.flags & ~f)), anchor );
 
     if(compensate) {
 	if (xd) xd->compensate(anchor);
@@ -455,7 +484,7 @@ btree_p::_clr_flag(flag_t f, bool compensate)
 
 /*********************************************************************
  *
- *  btree_p::format(pid, tag, page_flags)
+ *  btree_p::format(pid, tag, page_flags, store_flag_t store_flags)
  *
  *  Format the page.
  *
@@ -464,18 +493,21 @@ rc_t
 btree_p::format(
     const lpid_t& 	pid, 
     tag_t 		tag, 
-    uint4 		page_flags)
+    uint4_t 		page_flags,
+    store_flag_t	store_flags
+    )
     
 {
     btctrl_t ctrl;
-#ifdef PURIFY
     ctrl.root = 0;
-#endif
-    ctrl.level = 1, ctrl.flags = 0; ctrl.pid0 = 0; 
+    ctrl.level = 1;
+    ctrl.flags = 0;
+    ctrl.pid0 = 0; 
+
     vec_t vec;
     vec.put(&ctrl, sizeof(ctrl));
 
-    W_DO( zkeyed_p::format(pid, tag, page_flags, vec) );
+    W_DO( zkeyed_p::format(pid, tag, page_flags, store_flags, vec) );
     return RCOK;
 }
 
@@ -575,15 +607,15 @@ btree_p::search(
      * surrounding leaves, if a value were to belong between
      * leaf1.highest and leaf2.lowest.
      */ 
-#ifdef DEBUG
+#ifdef W_DEBUG
     w_assert3(ret_slot <= nrecs());
     if(ret_slot == nrecs() ) {
 	w_assert3(!found_key_elem);
 	// found_key could be true or false
     }
-#endif
     if(found_key) w_assert3(ret_slot <= nrecs());
     if(found_key_elem) w_assert3(ret_slot < nrecs());
+#endif /* W_DEBUG */
 
     DBG(<<" returning slot " << ret_slot
 	<<" found_key=" << found_key
@@ -596,8 +628,10 @@ btree_p::search(
  *
  *  btree_p::insert(key, el, slot, child)
  *
- *  For leaf page: insert <key, el> at "slot"
- *  For node page: insert <key, el, child> at "slot"
+ *  For leaf page: insert <K=key, E=el> at "slot"
+ *  For node page: insert <K=(key, el), E=(key.size(), child pid)> at "slot"
+ *  For both kinds of pages, an entry is:
+ * 	key len(/prefix)=4 bytes, K, E
  *
  *********************************************************************/
 rc_t
@@ -619,7 +653,7 @@ btree_p::insert(
 
     cvec_t sep(key, el);
     
-    int2 klen = key.size();
+    int2_t klen = key.size();
     cvec_t attr;
     attr.put(&klen, sizeof(klen));
     if (is_leaf()) {
@@ -630,7 +664,7 @@ btree_p::insert(
     }
     SSMTEST("btree.insert.1");
 
-    return  zkeyed_p::insert(sep, attr, slot, do_it);
+    return  zkeyed_p::insert(sep, attr, slot, do_it, do_it?this->is_compressed():false);
 }
 
 
@@ -654,11 +688,17 @@ btree_p::copy_to_new_page(btree_p& new_page)
      */
 
     int n = nrecs();
+
+    const int tmp_chunk_size = 20;	/* XXX magic number */
+    vec_t	*tp = new vec_t[tmp_chunk_size];
+    if (!tp)
+	return RC(fcOUTOFMEMORY);
+    w_auto_delete_array_t<vec_t> ad_tp(tp);
+
     for (int i = 0; i < n; ) {
-	vec_t tp[20];
 	int j;
-	for (j = 0; j < 20 && i < n; j++, i++)  {
-	    tp[j].put(page_p::tuple_addr(1 + i),
+	for (j = 0; j < tmp_chunk_size && i < n; j++, i++)  {
+	    tp[j].set(page_p::tuple_addr(1 + i),
 		      page_p::tuple_size(1 + i));
 	}
 	W_DO( new_page.insert_expand(1 + i - j, j, tp) );
@@ -710,13 +750,50 @@ btree_p::leaf_stats(btree_lf_stats_t& stats)
     for (int i = 0; i < n; i++)  {
 	rec[r].set(*this, i);
 	if (rec[r].key() != rec[1-r].key())  {
+	    /* BUG BUG : if r is the first record on the
+	     * page, we can't do this comparison, and we
+	     * don't know if the two are different.
+	     * so this count is rather meaningless
+	     */
 	    stats.unique_cnt++;
 	}
-	stats.key_bs += rec[r].klen();
-	stats.data_bs += rec[r].elen();
-	stats.entry_overhead_bs += (align(this->rec_size(i)) - 
-				       rec[r].klen() - rec[r].elen() + 
-				       sizeof(page_s::slot_t));
+
+	if( ! is_compressed()) {
+	    stats.key_bs += rec[r].klen();
+	    stats.data_bs += rec[r].elen();
+	    stats.entry_overhead_bs += (align(this->rec_size(i)) - 
+					   rec[r].klen() - rec[r].elen() + 
+					   sizeof(page_s::slot_t));
+	} else {
+	    /*
+	     * Prefix compression might have encompassed all of 
+	     * the key and part of the elem.  If the key is shorter
+	     * than the prefix, this is so, in which case, 
+	     * consider key space to be 0, and subtract the apropos
+	     * portion of the prefix from the element length.
+	     */
+	    stats.key_bs += (rec[r].klen() > rec[r].plen()) ?
+			    (rec[r].klen() - rec[r].plen()) : 0
+		    ;
+	    stats.data_bs += (rec[r].klen() > rec[r].plen()) ? 
+			     rec[r].elen() :
+			     rec[r].elen() - (rec[r].plen() - rec[r].klen())
+		     ; 
+
+	    DBG(<<"old entry_overhead_bs: " << stats.entry_overhead_bs);
+	    DBG(<<"entry_overhead_bs: slot:" << sizeof(page_s::slot_t)
+		    << " rec.aligned: " <<align(this->rec_size(i))
+		    << " klen: " <<rec[r].klen()
+		    << " elen: " <<rec[r].elen()
+		    << " plen: " <<rec[r].plen()
+		);
+
+	    stats.entry_overhead_bs += sizeof(page_s::slot_t) +
+					(align(this->rec_size(i)) - 
+					   ((rec[r].klen()+ rec[r].elen())
+					       - rec[r].plen())
+					);
+	}
 	r = 1 - r;
     }
     return RCOK;
@@ -743,8 +820,8 @@ btree_p::int_stats(btree_int_stats_t& stats)
 btrec_t& 
 btrec_t::set(const btree_p& page, slotid_t slot)
 {
+    FUNC(btrec_t::set);
     w_assert3(slot >= 0 && slot < page.nrecs());
-
     /*
      *  Invalidate old _key and _elem.
      */
@@ -752,27 +829,43 @@ btrec_t::set(const btree_p& page, slotid_t slot)
     _elem.reset();
 
     const char* aux;
-    int auxlen;
+    int 	auxlen;
+    vec_t 	sep;
+    //
+    // sep is the combined key-value pair
+    // aux/auxlen is the meta-data: for leaves, it's a 2-byte
+    // 		length indicating the length of the key within sep,
+    //          and for nodes, it's the above 2-byte value plus a 
+    //          page id.
+    //
+    /* OVERHEAD per-slot overhead includes 4-byte slot table entry */
     
-    vec_t sep;
-    W_COERCE( page.zkeyed_p::rec(slot, sep, aux, auxlen) );
+    if(page.is_compressed()) {
+	int pxp; // # parts to the prefix
+	W_COERCE( page.zkeyed_p::rec(slot, _prefix_bytes, pxp, sep, aux, auxlen) );
+	DBG(<<"slot " << slot << " has " << _prefix_bytes << " prefix bytes");
+    } else {
+	W_COERCE( page.zkeyed_p::rec(slot, sep, aux, auxlen) );
+    }
 
     if (page.is_leaf())  {
 	w_assert3(auxlen == 2);
     } else {
 	w_assert3(auxlen == 2 + sizeof(shpid_t));
     }
-    int2 k;
+
+    // materialize the key length
+    int2_t k;
     memcpy(&k, aux, sizeof(k));
     size_t klen = k;
 
-#ifdef  DEBUG
+#ifdef  W_DEBUG
     int elen_test = sep.size() - klen;
     w_assert3(elen_test >= 0);
-#endif
+#endif /* W_DEBUG */
 #ifdef W_DEBUG
     smsize_t elen = sep.size() - klen;
-#endif
+#endif /* W_DEBUG */
 
     sep.split(klen, _key, _elem);
     w_assert3(_key.size() == klen);
@@ -782,6 +875,7 @@ btrec_t::set(const btree_p& page, slotid_t slot)
 	w_assert3(auxlen == 2 + sizeof(shpid_t));
 	memcpy(&_child, aux + 2, sizeof(shpid_t));
     }
+    DBG(<<"slot " << slot << " has plen " << plen() );
 
     return *this;
 }
@@ -839,7 +933,6 @@ btree_p::clr_delete() {
 }
 
 MAKEPAGECODE(btree_p, zkeyed_p);
-#endif /*USE_OLD_BTREE_IMPL*/
 
 void
 btree_p::print(
@@ -852,7 +945,7 @@ btree_p::print(
     const int L = 3;
 
     for (i = 0; i < L - hdr.level; i++)  cout << '\t';
-    cout << pid() << "=";
+    cout << pid0() << "=" << pid0() << endl;
 
     for (i = 0; i < nrecs(); i++)  {
 	for (int j = 0; j < L - hdr.level; j++)  cout << '\t' ;
@@ -860,33 +953,51 @@ btree_p::print(
 	btrec_t r(*this, i);
 	cvec_t* real_key;
 
-	switch(kt) {
+	if(r.key().size() == 0) {
+	    // null
+	    cout << "<key = " << r.key() ;
+	} else switch(kt) {
 	case sortorder::kt_b: {
 		cout 	<< "<key = " << r.key() ;
 	    } break;
+	case sortorder::kt_i8: {
+		int8_t value;
+		key_type_s k(key_type_s::i, 0, 8);
+		W_COERCE(btree_m::_unscramble_key(real_key, r.key(), 1, &k));
+		real_key->copy_to(&value, sizeof(value));
+		cout 	<< "<key = " << value;
+	    }break;
+	case sortorder::kt_u8:{
+		uint4_t value;
+		key_type_s k(key_type_s::u, 0, 8);
+		W_COERCE(btree_m::_unscramble_key(real_key, r.key(), 1, &k));
+		real_key->copy_to(&value, sizeof(value));
+		cout 	<< "<key = " << value;
+	    } break;
+
 	case sortorder::kt_i4: {
-		int4 value;
+		int4_t value;
 		key_type_s k(key_type_s::i, 0, 4);
 		W_COERCE(btree_m::_unscramble_key(real_key, r.key(), 1, &k));
 		real_key->copy_to(&value, sizeof(value));
 		cout 	<< "<key = " << value;
 	    }break;
 	case sortorder::kt_u4:{
-		uint4 value;
+		uint4_t value;
 		key_type_s k(key_type_s::u, 0, 4);
 		W_COERCE(btree_m::_unscramble_key(real_key, r.key(), 1, &k));
 		real_key->copy_to(&value, sizeof(value));
 		cout 	<< "<key = " << value;
 	    } break;
 	case sortorder::kt_i2: {
-		int2 value;
+		int2_t value;
 		key_type_s k(key_type_s::i, 0, 2);
 		W_COERCE(btree_m::_unscramble_key(real_key, r.key(), 1, &k));
 		real_key->copy_to(&value, sizeof(value));
 		cout 	<< "<key = " << value;
 	    }break;
 	case sortorder::kt_u2: {
-		uint2 value;
+		uint2_t value;
 		key_type_s k(key_type_s::u, 0, 2);
 		W_COERCE(btree_m::_unscramble_key(real_key, r.key(), 1, &k));
 		real_key->copy_to(&value, sizeof(value));
@@ -900,7 +1011,7 @@ btree_p::print(
 		cout 	<< "<key = " << value;
 	    }break;
 	case sortorder::kt_u1: {
-		uint1 value;
+		uint1_t value;
 		key_type_s k(key_type_s::u, 0, 1);
 		W_COERCE(btree_m::_unscramble_key(real_key, r.key(), 1, &k));
 		real_key->copy_to(&value, sizeof(value));
@@ -939,3 +1050,4 @@ btree_p::print(
     for (i = 0; i < L - hdr.level; i++)  cout << '\t';
     cout << "]" << endl;
 }
+

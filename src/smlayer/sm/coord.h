@@ -1,16 +1,38 @@
-/* --------------------------------------------------------------- */
-/* -- Copyright (c) 1994,5,6,7 Computer Sciences Department,    -- */
-/* -- University of Wisconsin-Madison, subject to the terms     -- */
-/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
-/* -- Reserved.                                                 -- */
-/* --------------------------------------------------------------- */
+/*<std-header orig-src='shore' incl-file-exclusion='COORD_H'>
 
-/*
- *  $Id: coord.h,v 1.23 1997/05/19 19:47:01 nhall Exp $
- */
+ $Id: coord.h,v 1.41 1999/08/06 15:18:57 bolo Exp $
+
+SHORE -- Scalable Heterogeneous Object REpository
+
+Copyright (c) 1994-99 Computer Sciences Department, University of
+                      Wisconsin -- Madison
+All Rights Reserved.
+
+Permission to use, copy, modify and distribute this software and its
+documentation is hereby granted, provided that both the copyright
+notice and this permission notice appear in all copies of the
+software, derivative works or modified versions, and any portions
+thereof, and that both notices appear in supporting documentation.
+
+THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+"AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+This software was developed with support by the Advanced Research
+Project Agency, ARPA order number 018 (formerly 8230), monitored by
+the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+Further funding for this work was provided by DARPA through
+Rome Research Laboratory Contract No. F30602-97-2-0247.
+
+*/
 
 #ifndef COORD_H
 #define COORD_H
+
+#include "w_defines.h"
+
+/*  -- do not edit anything above this line --   </std-header>*/
 
 /*
  * This file describes three classes to be used by a
@@ -54,9 +76,6 @@
  *     use the methods so marked: For use by VAS 
  */
 
-#include <sys/types.h>
-#include <sys/time.h>
-
 #define VERSION_2
 /* VAS uses this: */
 enum	message_type_t { 
@@ -69,6 +88,9 @@ enum	message_type_t {
     sreply_status
 };
 
+extern ostream &operator<<(ostream &, const message_type_t);
+
+
 #ifndef COORD_LOG_H
 #include <coord_log.h>
 #endif
@@ -77,21 +99,13 @@ enum	message_type_t {
 #endif
 
 class  		coord_thread_t; // forward
-
-class AlignedBuffer {
-public:
-	NORET AlignedBuffer(void *b, unsigned int s)
-		: buf(b,s) {};
-	NORET ~AlignedBuffer(){};
-	unsigned int _dummy;
-	Buffer buf;
-};
-
+class		Buffer;
 
 // forward:
 class twopc_thread_t;
 class subord_thread_t;
 class coord_thread_t;
+class message_t;
 
 class participant : public smlevel_0 {
     friend class  	twopc_thread_t;
@@ -123,8 +137,8 @@ public:
 
 
     virtual rc_t	received(Buffer& what, 
-				EndpointBox &,  // sent with message
-				EndpointBox & 	// to be sent on replies
+				EndpointBox &,		// sent with message
+				const EndpointBox &	// sent with reply
 				)=0; 
 			// received() takes responsibility for releasing
 			// any endpoints in the first box
@@ -138,22 +152,22 @@ public:
 protected:
     rc_t		receive(coord_thread_kind __purpose,
 				Buffer&,
-				EndpointBox&,  // what sent
-				EndpointBox&  // what to send with response
+				EndpointBox&,		// what sent
+				const EndpointBox&	// sent with response
 				);
     rc_t		receive(coord_thread_kind __purpose,
 				Buffer&,
-				Endpoint&,     // where to listen
-				EndpointBox&  // what to send with response
+				Endpoint&,		// where to listen
+				const EndpointBox&	// sent with response
 				);
 
     // helper function:
     rc_t		__receive(coord_thread_kind __purpose,
 				Buffer&,
-				struct message_t &,
+				message_t &,
 				Endpoint&,     // where to listen
 				server_handle_t&,
-				EndpointBox&  // what to send with response
+				const EndpointBox&  // sent with response
 				);
 
 protected:
@@ -164,7 +178,7 @@ protected:
 				Buffer& 		buf, 
 				Endpoint& 		dest_ep,
 				server_handle_t& 	dest_name,
-				EndpointBox& 		mebox) ;
+				const EndpointBox&	mebox) ;
 
     // third argument is for case when VAS endpoints are used
     virtual rc_t	handle_message(
@@ -172,7 +186,7 @@ protected:
 				Buffer& 		buf, 
 				Endpoint&		sender_ep,
 				server_handle_t&	sender_name,
-				EndpointBox&		meBox)=0;
+				const EndpointBox&	meBox)=0;
 public:
 
     Endpoint&   	self() { return _me; }
@@ -266,7 +280,7 @@ public:
 				// Endpoint& sender, OLD
 				EndpointBox& came_with_endpoint, 
 				// EndpointBox& b // bx ctg destination ep
-				EndpointBox& what_to_send_with_response 
+				const EndpointBox& what_to_send_with_response 
 			    );
     rc_t		died(server_handle_t &); // got death notice
     rc_t		recovered(server_handle_t &); // came back up
@@ -279,7 +293,7 @@ public:
 			    Buffer&		buf, 
 			    Endpoint& 		sender,
 			    server_handle_t&    srvaddr,
-			    EndpointBox& 	mebox);
+			    const EndpointBox& 	mebox);
 
 protected:
     int			resolve(gtid_t &g);
@@ -352,7 +366,7 @@ public:
 				// Endpoint& sender, OLD
 				EndpointBox& came_with_endpoint, 
 				// EndpointBox& b // bx ctg destination ep
-				EndpointBox& what_to_send_with_response 
+				const EndpointBox& what_to_send_with_response 
 				); 
     rc_t		died(server_handle_t &); // got death notice, mapping may be invalid
     rc_t		recovered(server_handle_t &); // recovered, mapping is up-to-date
@@ -393,7 +407,7 @@ protected:
 				Buffer& 		buf, 
 				Endpoint& 		sender,
 				server_handle_t&    	srvaddr,
-				EndpointBox& 		meBox);
+				const EndpointBox&	meBox);
 private:
     rc_t		_init(bool);
     coord_action 	action(coord_thread_t *t, server_state ss);
@@ -423,7 +437,7 @@ private:
 
 class		message_t {
 public:
-    message_type_t	typ;
+    uint4_t		_typ;
     /*  VAS: the first part of every message must look like the above:
      *  all VAS messages must start with an enumerated  value that does
      *  not conflict with message_type_t. The rest of the message
@@ -432,9 +446,26 @@ public:
      *  enough to accommodate an entire message_t.
      */
 
-    unsigned int	error_num; /* 0 -> OK, else an rc code */ 
-    unsigned int	sequence; /* 0 for detecting retransmissions */
-    struct timeval 	tv;	  /* for debugging */
+    uint4_t	error_num; /* 0 -> OK, else an rc code */ 
+    uint4_t	sequence; /* 0 for detecting retransmissions */
+
+    struct stamp_t {
+	    unsigned	sec;		// seconds 
+	    unsigned	usec;		// microseconds
+
+	    stamp_t() : sec(0), usec(0) { };	    
+	    stamp_t(const stime_t &);
+	    
+	    stamp_t	&operator=(const stime_t &);
+	    ostream 	&print(ostream  &) const;
+
+	    void	clear() { sec = 0; usec = 0; }
+
+	    void	net_to_host();
+	    void	host_to_net();
+    };
+    stamp_t		stamp;	  /* for debugging */
+
     union {
 	/* smsg_bad */
 	/* smsg_prepare */
@@ -449,17 +480,19 @@ public:
 	    vote_t	vote;
     }_u;
 
-    const gtid_t &	tid() const { return *(gtid_t *)_data; }
+    message_type_t	type() const { return (message_type_t) _typ; }
+    void		setType(message_type_t t) { _typ = (uint4_t) t; }
+
+    const gtid_t &	tid() const { return _gtid; }
     void  		put_tid(const gtid_t &);
     const server_handle_t &sender() const;
     void  		put_sender(const server_handle_t &);
 
-    const message_t_size = sizeof(server_handle_t) + sizeof(gtid_t);
-
 protected:
-    char 		_data[message_t_size]; // must be at end 
-		 // it's really two variable length areas
-    gtid_t *	 	_settable_tid() { return (gtid_t *)_data; }
+    gtid_t		_gtid;
+    server_handle_t	_server_handle;
+
+    gtid_t *		_settable_tid() { return &_gtid; }
     server_handle_t *	_settable_sender();
     void 		_clear_sender();
 public:
@@ -467,54 +500,46 @@ public:
     NORET 	~message_t() {}
 
     void  	clear() {
+		    setType(smsg_bad);
+		    error_num = 0;
+		    sequence = 0;
+		    stamp.clear();
+		    _u.typ_acked = smsg_bad;
 		    w_assert3(_settable_tid());
 		    _settable_tid()->clear();
 		    _clear_sender();
-		    typ = smsg_bad;
-		    error_num = 0;
-		    sequence = 0;
-		    _u.typ_acked = smsg_bad;
 		}
 
     int 	error() const { return error_num; }
-    int 	minlength() const {
-		    return sizeof(typ) 
-			+ sizeof(error_num)
-			+ sizeof(sequence)
-			+ sizeof(tv)
-			+ sizeof(_u)
-			+ sizeof(tid().length()) // if it were 0
-			+ sizeof(sender().length()) // if it were 0
-			;
-		}
-    int 	wholelength() const {
-		    return sizeof(typ) 
-			+ sizeof(error_num)
-			+ sizeof(sequence)
-			+ sizeof(tv)
-			+ sizeof(_u)
-			+ tid().wholelength()
-			+ sender().wholelength()
-			;
-		}
+
+    int 	minlength() const { return sizeof(message_t); }
+    int 	wholelength() const { return sizeof(message_t); }
+
     void 	audit(bool audit_sender = true) const; 
     void 	hton(); 
     void 	ntoh(); 
 	
 };
 
+
+extern ostream &operator<<(ostream &, const message_t::stamp_t &);
+
+
 class twopc_thread_t : public smthread_t {
     friend class participant;
+
+public:
     typedef enum participant::coord_thread_kind coord_thread_kind;
     typedef smlevel_0::commit_protocol commit_protocol;
 
-public:
 
     // for per-gtx threads
     NORET 		twopc_thread_t(participant *p, 
 		    		coord_thread_kind,
 				bool otf
 			);
+    NORET 		~twopc_thread_t();
+    virtual void        vtable_collect(vtable_info_t& t);
 
     w_rc_t&		error() { return _error; }
     virtual void 	run()=0;
@@ -530,6 +555,33 @@ public:
 			}
     commit_protocol 	proto() { return _proto; }
 
+    inline sm2pc_stats_t&	
+				twopc_stats() { return *_2pcstats; }
+#ifdef NOTDEF
+
+#define GET_2PCSTAT(x) if(_message_handler) { _message_handler->twopc_stats().x } else { assert(0); }
+#define INC_2PCSTAT(x) if(_message_handler) { _message_handler->twopc_stats().x++; } else { assert(0); }
+#define ADD_2PCSTAT(x,y) if(_message_handler) { _message_handler->twopc_stats().x += (y); } else { assert(0); }
+#define SET_2PCSTAT(x,y) if(_message_handler) { _message_handler->twopc_stats().x = (y); } else { assert(0); }
+
+#define GET_MY2PCSTAT(x)  this->twopc_stats().x 
+#define INC_MY2PCSTAT(x)  this->twopc_stats().x++
+#define ADD_MY2PCSTAT(x,y) this->twopc_stats().x += (y)
+#define SET_MY2PCSTAT(x,y) this->twopc_stats().x = (y);
+
+#else
+
+#define GET_2PCSTAT(x) smlevel_0::stats.summary_2pc.x
+#define INC_2PCSTAT(x) smlevel_0::stats.summary_2pc.x++
+#define ADD_2PCSTAT(x,y) smlevel_0::stats.summary_2pc.x  += (y)
+#define SET_2PCSTAT(x,y) smlevel_0::stats.summary_2pc.x = (y)
+
+#define GET_MY2PCSTAT(x) smlevel_0::stats.summary_2pc.x
+#define INC_MY2PCSTAT(x) smlevel_0::stats.summary_2pc.x++
+#define ADD_MY2PCSTAT(x,y) smlevel_0::stats.summary_2pc.x  += (y)
+#define SET_MY2PCSTAT(x,y) smlevel_0::stats.summary_2pc.x = (y)
+#endif
+
 protected:
     void		handle_message(coord_thread_kind k);
     void 		set_thread_error(int) ;
@@ -542,6 +594,7 @@ protected:
     participant* 	_party;
     w_rc_t		_error;
     smutex_t		_mutex;
+    sm2pc_stats_t* 	_2pcstats;
 
     // for linking threads together in _threads list
     w_link_t		_list_link; 
@@ -571,6 +624,7 @@ class subord_thread_t : public twopc_thread_t {
 public:
     NORET 		subord_thread_t(subordinate *c, coord_thread_kind);
     NORET 		~subord_thread_t();
+    void       		vtable_collect(vtable_info_t& t) ;
     void 		run() ;
 
 protected:
@@ -616,7 +670,9 @@ public:
 	
     NORET 	~coord_thread_t();
 
+    NORET	W_FASTNEW_CLASS_DECL(coord_thread_t);
 	
+    void       	vtable_collect(vtable_info_t& t) ;
     void 	run() ;
 
 protected:
@@ -659,9 +715,6 @@ private:
 };
 
 
-#define SECONDS(n) (1000 * n) 
-#define DBGTHRD(arg) DBG(<<" th."<<me()->id << " " arg)
-#define INCRSTAT(x) smlevel_0::stats.x ++
+/*<std-footer incl-file-exclusion='COORD_H'>  -- do not edit anything below this line -- */
 
-
-#endif COORD_H
+#endif          /*</std-footer>*/

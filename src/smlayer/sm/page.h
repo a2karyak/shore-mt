@@ -1,15 +1,38 @@
-/* --------------------------------------------------------------- */
-/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
-/* -- University of Wisconsin-Madison, subject to the terms     -- */
-/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
-/* -- Reserved.                                                 -- */
-/* --------------------------------------------------------------- */
+/*<std-header orig-src='shore' incl-file-exclusion='PAGE_H'>
 
-/*
- *  $Id: page.h,v 1.96 1997/05/19 19:47:38 nhall Exp $
- */
+ $Id: page.h,v 1.110 1999/06/07 19:04:19 kupsch Exp $
+
+SHORE -- Scalable Heterogeneous Object REpository
+
+Copyright (c) 1994-99 Computer Sciences Department, University of
+                      Wisconsin -- Madison
+All Rights Reserved.
+
+Permission to use, copy, modify and distribute this software and its
+documentation is hereby granted, provided that both the copyright
+notice and this permission notice appear in all copies of the
+software, derivative works or modified versions, and any portions
+thereof, and that both notices appear in supporting documentation.
+
+THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+"AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+This software was developed with support by the Advanced Research
+Project Agency, ARPA order number 018 (formerly 8230), monitored by
+the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+Further funding for this work was provided by DARPA through
+Rome Research Laboratory Contract No. F30602-97-2-0247.
+
+*/
+
 #ifndef PAGE_H
 #define PAGE_H
+
+#include "w_defines.h"
+
+/*  -- do not edit anything above this line --   </std-header>*/
 
 class stnode_p;
 class extlink_p;
@@ -22,17 +45,23 @@ class keyed_p;
 #define TMP_VIRGIN   page_p::t_virgin
 #define TMP_NOFLAG   0
 
+typedef uint1_t	space_bucket_t;
+
 /*--------------------------------------------------------------*
  *  class page_p						*
  *  Basic page handle class. This class is used to fix a page	*
  *  and operate on it.						*
  *--------------------------------------------------------------*/
-class page_p : public smlevel_0 {
+class page_p : public smlevel_0 
+{
 
 friend class dir_vol_m;  // for access to page_p::splice();
 
 protected:
     typedef page_s::slot_t slot_t;
+    typedef page_s::slot_offset_t slot_offset_t;
+    typedef page_s::slot_length_t slot_length_t;
+
 public:
     enum {
 	data_sz = page_s::data_sz,
@@ -66,10 +95,44 @@ public:
 	t_virgin	= 0x02,	// newly allocated page
 	t_remote	= 0x04,	// comes from a remote server
 	t_written	= 0x08,	// read in from disk
-	t_netorder	= 0x10, // still in network order
+	t_netorder	= 0x10  // still in network order
     };
 
+    /* BEGIN handling of bucket-management for pages  with rsvd_mode() */
+protected:
+    class page_bucket_info_t : smlevel_0 {
+	enum { uninit = space_bucket_t(-1) };
+    public:
+	NORET	page_bucket_info_t() : _old(uninit), _checked(1) { }
+	NORET	~page_bucket_info_t() { w_assert3(_checked==1); }
+	bool	initialized() const {  return _old != uninit; }
+	void	init(space_bucket_t bucket) { 
+	    _old =  bucket;
+	    _checked = 0;
+	}
+	void	nochecknecessary() { _checked=1; }
+	space_bucket_t	old() const { return _old; }
+	    
+    private:
+	// keep track of old & new
+	space_bucket_t	_old;
+	unsigned char	_checked;
+    };
+    w_rc_t	update_bucket_info();
+    void	init_bucket_info(page_p::tag_t p, uint4_t page_flags);
+    void	init_bucket_info();
+
+public:
+    static space_bucket_t 	free_space2bucket(smsize_t free_space);
+                        // return max free space that could be on a page
+    static smsize_t 		bucket2free_space(space_bucket_t b);
+    space_bucket_t 		bucket() const;
+    smsize_t 			free_space4bucket() const;
+    /* END handling of bucket-management for pages  with rsvd_mode() */
+
+
     bool 			rsvd_mode() const;
+    static bool 		rsvd_mode(tag_t) ;
     static const char* const	tag_name(tag_t t);
     
     const lsn_t& 		lsn() const;
@@ -101,7 +164,6 @@ public:
     bool 			is_fixed() const;
     void 			set_dirty() const;
     bool 			is_dirty() const;
-    NORET			operator const void*() const;
 
     NORET			page_p() : _pp(0), _mode(LATCH_NL), _refbit(0) {};
     NORET			page_p(page_s* s, uint4_t store_flags,
@@ -109,7 +171,7 @@ public:
 	: _pp(s), _mode(LATCH_NL), _refbit(refbit)  {
 	    _pp->store_flags = store_flags; 
     }
-    NORET			page_p(const page_p& p);
+    NORET			page_p(const page_p& p) { W_COERCE(_copy(p)); }
     virtual NORET		~page_p();
     void			destructor();
     page_p& 			operator=(const page_p& p);
@@ -138,7 +200,6 @@ public:
 	store_flag_t&	            store_flags, // only used if virgin
 	bool			    ignore_store_id = false,
 	int			    refbit = 1);
-    rc_t 			refix(latch_mode_t	mode);
     void 			unfix();
     void 			discard();
     void 			unfix_dirty();
@@ -159,7 +220,9 @@ public:
     latch_mode_t 		latch_mode() const;
     void 			ntoh()		{};
 
-    static const smsize_t       _hdr_size = (page_sz - data_sz - 2 * sizeof (slot_t ));
+    enum { _hdr_size = (page_sz - data_sz - 2 * sizeof (slot_t )) };
+    // const smsize_t  _hdr_size = (page_sz - data_sz - 2 * sizeof (slot_t ));
+
     static smsize_t        	hdr_size() {
 	return _hdr_size;
     }
@@ -173,12 +236,38 @@ public:
 	tag_t& 			    t,
 	slotid_t& 		    no_used_slots);
 
+    rc_t 			split_slot(
+				    slotid_t idx, 
+				    slot_offset_t off, 
+				    const cvec_t& v1,
+				    const cvec_t& v2);
+    rc_t                        merge_slots(
+				    slotid_t idx, 
+				    slot_offset_t off1, 
+				    slot_offset_t off2);
+    rc_t                        shift(
+				    slotid_t idx2, 
+				    slot_offset_t off2, 
+				    slot_length_t len2, //from-slot
+				    slotid_t idx1,  
+				    slot_offset_t off1	// to-slot
+				);
+
     tag_t                       tag() const;
+
+private:
+    w_rc_t 			_copy(const page_p& p) ;
+    void                        _shift_compress(slotid_t from, 
+				    slot_offset_t     from_off, 
+				    slot_length_t     from_len,
+				    slotid_t          to, 
+				    slot_offset_t     to_off);
+
 
 protected:
     struct splice_info_t {
-	int start;
-	int len;
+	slot_length_t start; // offset INTO slot
+	slot_length_t len;
 	const vec_t& data;
 	
 	splice_info_t(int s, int l, const vec_t& d) : 
@@ -190,17 +279,22 @@ protected:
 	const lpid_t& 		    pid,
 	tag_t 			    tag,
 	uint4_t			    page_flags,
+        store_flag_t                store_flags, 
 	bool 			    log_it = true);
     rc_t			link_up(shpid_t prev, shpid_t next);
     
+    rc_t			next_slot(
+	uint4_t 		    space_needed, 
+	slotid_t& 		    idx
+	);
     rc_t			find_slot(
-	uint4 			    space_needed, 
+	uint4_t 		    space_needed, 
 	slotid_t& 		    idx,
 	slotid_t		    start_search = 0);
     rc_t			insert_expand(
 	slotid_t 		    idx,
 	int 			    cnt, 
-	const cvec_t 		    tp[], 
+	const cvec_t 		    *tp, 
 	bool                        log_it = true,
 	bool                        do_it = true
     );
@@ -219,23 +313,29 @@ protected:
     rc_t 			splice(slotid_t idx, int cnt, splice_info_t sp[]);
     rc_t			splice(
 	slotid_t 		    idx,
-	int 			    start,
-	int 			    len, 
+	slot_length_t 		    start,
+	slot_length_t 		    len, 
 	const cvec_t& 		    data);
 
     rc_t			overwrite(
 	slotid_t		    idx,
-	int 			    start,
+	slot_length_t		    start,
 	const cvec_t& 		    data);
 
-    rc_t			paste(slotid_t idx, int start, const cvec_t& data);
-    rc_t			cut(slotid_t idx, int start, int len);
+    rc_t			paste(slotid_t idx, 
+	slot_length_t 		     start, 
+	const cvec_t& 		     data);
+    rc_t			cut(slotid_t idx, slot_length_t start, slot_length_t len);
 
     bool 			fits() const;
 
+    /*  
+     * DATA 
+     */
     page_s*                     _pp;
     latch_mode_t                _mode;
     int                         _refbit;
+    page_bucket_info_t 		page_bucket_info;
 
 private:
 
@@ -286,11 +386,10 @@ rc_t conditional_fix(const lpid_t& pid, latch_mode_t mode,                    \
 	bool ignore_store_id = false,                                         \
 	int                      refbit = _refbit_);	                      \
 void destructor()  {base::destructor();}				      \
-rc_t format(const lpid_t& pid, tag_t tag, uint4_t page_flags); \
-x(const x& p) : base(p)							      \
-{									      \
-    /*assert3(tag() == t_ ## x)*/					      \
-}
+rc_t format(const lpid_t& pid, tag_t tag, uint4_t page_flags, store_flag_t store_flags); \
+x(const x&p) : base(p)                                                        \
+{ /* assert3(tag() == t_ ## x) */  } 
+
 
 #define MAKEPAGECODE(x, base)						      \
 rc_t x::fix(const lpid_t& pid, latch_mode_t mode,                             \
@@ -315,13 +414,26 @@ rc_t x::_fix(bool condl, const lpid_t& pid, latch_mode_t mode,		      \
 	    bool ignore_store_id,		  	                      \
 	    int refbit)                                                       \
 {									      \
+    store_flag_t store_flags_save = store_flags;                              \
     w_assert3((page_flags & ~t_virgin) == 0);				      \
-    W_DO( page_p::_fix(condl, pid, t_ ## x, mode, page_flags, store_flags, ignore_store_id,refbit))\
-    if (page_flags & t_virgin)   W_DO(format(pid, t_ ## x, page_flags));      \
+    W_DO( page_p::_fix(condl, pid, t_ ## x, mode, page_flags, store_flags, ignore_store_id,refbit));\
+    if (page_flags & t_virgin)   W_DO(format(pid, t_ ## x, page_flags, store_flags_save));      \
     if (page_flags & t_remote)   ntoh();				      \
     w_assert3(tag() == t_ ## x);					      \
     return RCOK;							      \
 } 
+
+inline smsize_t 
+page_p::free_space4bucket() const {
+    // Let the used space be the most liberal number
+    return (_pp->space.nfree() - _pp->space.nrsvd())
+			+ _pp->space.xct_rsvd();
+}
+
+inline space_bucket_t 
+page_p::bucket() const {
+    return free_space2bucket( free_space4bucket() );
+}
 
 inline shpid_t
 page_p::next() const 
@@ -376,7 +488,9 @@ page_p::tuple_addr(slotid_t idx) const
 inline bool
 page_p::is_tuple_valid(slotid_t idx) const
 {
-    return idx >= 0 && idx < _pp->nslots && _pp->slot[-idx].offset >=0;
+    return (idx >= 0) && 
+	(idx < _pp->nslots) && 
+	(_pp->slot[-idx].offset >=0);
 }
 
 inline w_base_t::uint4_t
@@ -409,12 +523,6 @@ page_p::is_fixed() const
     return _pp != 0;
 }
 
-inline NORET
-page_p::operator const void*() const
-{
-    return _pp;
-}
-
 inline latch_mode_t
 page_p::latch_mode() const
 {
@@ -426,6 +534,12 @@ page_p::tag() const
 {
     return (tag_t) _pp->tag;
 }
+
+inline void	
+page_p::init_bucket_info() { 
+    init_bucket_info(tag(), 0); 
+}
+
 
 /*--------------------------------------------------------------*
  *  page_p::nslots()						*
@@ -468,7 +582,7 @@ page_p::contig_space()
  *  page_p::paste()						*
  *--------------------------------------------------------------*/
 inline rc_t
-page_p::paste(slotid_t idx, int start, const cvec_t& data)
+page_p::paste(slotid_t idx, slot_length_t start, const cvec_t& data)
 {
     return splice(idx, start, 0, data);
 }
@@ -477,7 +591,7 @@ page_p::paste(slotid_t idx, int start, const cvec_t& data)
  *  page_p::cut()						*
  *--------------------------------------------------------------*/
 inline rc_t
-page_p::cut(slotid_t idx, int start, int len)
+page_p::cut(slotid_t idx, slot_length_t start, slot_length_t len)
 {
     cvec_t v;
     return splice(idx, start, len, v);
@@ -495,6 +609,30 @@ page_p::discard()
     _pp = 0;
 }
 
+/*********************************************************************
+ *
+ *  page_p::rsvd_mode()
+ *  page_p::rsvd_mode(tag_t)
+ *
+ *  Determine whether slots/space must be reserved in a page
+ *  For now, file and large object pages need this.
+ *
+ *********************************************************************/
+inline bool
+page_p::rsvd_mode(tag_t t) 
+{
+    if (t == t_file_p) {
+	return true;
+    }
+    return false;
+}
+
+inline bool
+page_p::rsvd_mode()  const
+{
+    return rsvd_mode(tag());
+}
+
 /*--------------------------------------------------------------*
  *  page_p::unfix()						*
  *--------------------------------------------------------------*/
@@ -502,7 +640,10 @@ inline void
 page_p::unfix()
 {
     w_assert3(!_pp || bf->is_bf_page(_pp));
-    if (_pp)  bf->unfix(_pp, false, _refbit);
+    if(_pp) {
+	W_COERCE(update_bucket_info());
+	bf->unfix(_pp, false, _refbit);
+    }
     _pp = 0;
 }
 
@@ -513,7 +654,10 @@ inline void
 page_p::unfix_dirty()
 {
     w_assert3(!_pp || bf->is_bf_page(_pp));
-    if (_pp)  bf->unfix(_pp, true, _refbit);
+    if (_pp)  {
+	W_COERCE(update_bucket_info());
+	bf->unfix(_pp, true, _refbit);
+    }
     _pp = 0;
 }
 
@@ -541,7 +685,7 @@ page_p::is_dirty() const
  *  page_p::overwrite()						*
  *--------------------------------------------------------------*/
 inline rc_t
-page_p::overwrite(slotid_t idx, int start, const cvec_t& data)
+page_p::overwrite(slotid_t idx, slot_length_t start, const cvec_t& data)
 {
     return splice(idx, start, data.size(), data);
 }
@@ -552,22 +696,10 @@ page_p::overwrite(slotid_t idx, int start, const cvec_t& data)
 inline void
 page_p::destructor()
 {
-    if (bf->is_bf_page(_pp))  bf->unfix(_pp, false, _refbit);
+    if (bf->is_bf_page(_pp))  unfix();
     _pp = 0;
 }
-    
 
-/*--------------------------------------------------------------*
- *  page_p::page_p()						*
- *--------------------------------------------------------------*/
-inline NORET
-page_p::page_p(const page_p& p)
-    : _pp(p._pp), _mode(p._mode), _refbit(p._refbit)
-{
-    // W_COERCE the following because we have no way to deal
-    // with an error in a constructor.
-    if (bf->is_bf_page(_pp))  W_COERCE(bf->refix(_pp, _mode));
-}
+/*<std-footer incl-file-exclusion='PAGE_H'>  -- do not edit anything below this line -- */
 
-#endif /* PAGE_H */
-
+#endif          /*</std-footer>*/

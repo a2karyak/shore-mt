@@ -1,9 +1,36 @@
-/* --------------------------------------------------------------- */
-/* -- Copyright (c) 1994,5, 6  Computer Sciences Department,    -- */
-/* -- University of Wisconsin-Madison, subject to the terms     -- */
-/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
-/* -- Reserved.                                                 -- */
-/* --------------------------------------------------------------- */
+/*<std-header orig-src='shore'>
+
+ $Id: stime.cpp,v 1.22 1999/06/07 19:02:46 kupsch Exp $
+
+SHORE -- Scalable Heterogeneous Object REpository
+
+Copyright (c) 1994-99 Computer Sciences Department, University of
+                      Wisconsin -- Madison
+All Rights Reserved.
+
+Permission to use, copy, modify and distribute this software and its
+documentation is hereby granted, provided that both the copyright
+notice and this permission notice appear in all copies of the
+software, derivative works or modified versions, and any portions
+thereof, and that both notices appear in supporting documentation.
+
+THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+"AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+This software was developed with support by the Advanced Research
+Project Agency, ARPA order number 018 (formerly 8230), monitored by
+the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+Further funding for this work was provided by DARPA through
+Rome Research Laboratory Contract No. F30602-97-2-0247.
+
+*/
+
+#include "w_defines.h"
+
+/*  -- do not edit anything above this line --   </std-header>*/
+
 /*
  * SGI machines differentiate between SysV and BSD
  * get time of day sys calls. Make sure it uses the
@@ -14,14 +41,12 @@
 #define _BSD_TIME
 #endif
 
-#include <sys/time.h>
-
 #include <time.h>
 #include <string.h>
 
 #include <w_base.h>
 #include <stime.h>
-#include <stream.h>
+#include <w_stream.h>
 
 /*
    All this magic is to allow either timevals or timespecs
@@ -74,6 +99,23 @@ stime_t::stime_t(time_t tod, long hires)
 }
 
 
+stime_t::stime_t(int secs)
+{
+	_time.st_tod = secs;
+	_time.st_hires = 0;
+
+	/* the conversion automagically normalizes */
+}
+
+stime_t::stime_t(long secs)
+{
+	_time.st_tod = secs;
+	_time.st_hires = 0;
+
+	/* the conversion automagically normalizes */
+}
+
+
 stime_t::stime_t(double secs)
 {
 	_time.st_tod = (long) secs;
@@ -103,14 +145,14 @@ stime_t::stime_t(const struct timespec &tv)
 #endif
 
 
-int	stime_t::operator==(const stime_t &r) const
+bool	stime_t::operator==(const stime_t &r) const
 {
 	return _time.st_tod == r._time.st_tod &&
 		_time.st_hires == r._time.st_hires;
 }
 
 
-int	stime_t::operator<(const stime_t &r) const
+bool	stime_t::operator<(const stime_t &r) const
 {
 	if (_time.st_tod == r._time.st_tod)
 		return _time.st_hires < r._time.st_hires;
@@ -118,7 +160,7 @@ int	stime_t::operator<(const stime_t &r) const
 }
 
 
-int	stime_t::operator<=(const stime_t &r) const
+bool	stime_t::operator<=(const stime_t &r) const
 {
 	return *this == r  ||  *this < r;
 }
@@ -131,7 +173,7 @@ static inline int sign(const int i)
 }
 
 
-#if !defined(HPUX8) && !defined(__xlC__)
+#if !defined(HPUX8) && !defined(__xlC__) && !defined(_WIN32)
 static inline int abs(const int i)
 {
 	return i >= 0 ? i : -i;
@@ -266,6 +308,28 @@ stime_t	stime_t::operator/(const double factor) const
 }
 
 
+/* The operator X and operator X= can be written in terms of each other */
+stime_t &stime_t::operator+=(const stime_t &r)
+{
+	_time.st_tod  += r._time.st_tod;
+	_time.st_hires += r._time.st_hires;
+
+	_normalize();
+	
+	return *this;
+}
+
+
+stime_t &stime_t::operator-=(const stime_t &r)
+{
+	_time.st_tod  -= r._time.st_tod;
+	_time.st_hires -= r._time.st_hires;
+
+	_normalize();
+	
+	return *this;
+}
+
 
 stime_t::operator double() const
 {
@@ -275,7 +339,8 @@ stime_t::operator double() const
 
 stime_t::operator float() const
 {
-	return (double) *this;
+	double res = (double) *this;
+	return (float)res;
 //	return _time.st_tod + _time.st_hires / (float) HR_SECOND;
 }
 
@@ -323,12 +388,28 @@ void	stime_t::gettime()
 
 ostream	&stime_t::print(ostream &s) const
 {
+	ctime(s);
+
+	if (_time.st_hires) {
+		stime_t	tod(_time.st_tod, 0);
+
+		s << " and " << sinterval_t(*this - tod);
+	}
+
+	return s;
+}
+
+
+ostream &stime_t::ctime(ostream &s) const
+{
 	struct	tm	*local;
 	char	*when;
 	char	*nl;
 
 	/* the second field of the time structs should be a time_t */
 	time_t	kludge = _time.st_tod;
+
+	/* XXX use a reentrant form if available */
 	local = localtime(&kludge);
 	when = asctime(local);
 
@@ -337,18 +418,15 @@ ostream	&stime_t::print(ostream &s) const
 	if (nl)
 		*nl = '\0';
 
-	stime_t	tod(_time.st_tod, 0);
-
-	s << when << " and " << sinterval_t(*this - tod);
-	return s;
+	return s << when;
 }
 
 
 static void factor_print(ostream &s, long what)
 {
-	struct factor {
-		char	*label;
-		int	factor;
+	struct {
+		const char	*label;
+		int		factor;
 	} factors[] = {
 		{"%02d:", 60*60},
 		{"%02d:", 60},
@@ -361,13 +439,13 @@ static void factor_print(ostream &s, long what)
 		mine = what / f->factor;
 		what = what % f->factor;
 		if (mine || printed) {
-			W_FORM(s)(f->label, mine);
+			W_FORM2(s,(f->label, mine));
 			printed = true;
 		}
 	}
 
 	/* always print a seconds field */
-	W_FORM(s)(printed ? "%02d" : "%d", what);
+	W_FORM2(s,(printed ? "%02d" : "%d", what));
 }
 
 
@@ -396,9 +474,9 @@ ostream	&sinterval_t::print(ostream &s) const
 #endif
 #else
 #ifdef USE_POSIX_TIME
-		W_FORM(s)(".%09ld", _time.st_hires);
+		W_FORM2(s, (".%09ld", _time.st_hires));
 #else
-		W_FORM(s)(".%06ld", _time.st_hires);
+		W_FORM2(s, (".%06ld", _time.st_hires));
 #endif
 #endif
 	}
@@ -508,7 +586,7 @@ stime_t	stime_t::now()
 /* roundup #seconds if hr_seconds >= this value */
 #define	HR_ROUNDUP	(HR_SECOND / 2)
 
-static	inline long to_linear(_stime_t &_time, int linear_secs)
+static	inline long to_linear(const _stime_t &_time, const int linear_secs)
 {
 	long	result;
 	int	factor;
@@ -528,7 +606,7 @@ static	inline long to_linear(_stime_t &_time, int linear_secs)
 }
 
 
-long	stime_t::secs()
+long	stime_t::secs() const
 {
 	long	result;
 
@@ -539,17 +617,18 @@ long	stime_t::secs()
 	return result;
 }
 
-long	stime_t::msecs()
+long	stime_t::msecs() const
 {
 	return to_linear(_time, MS_SECOND);
 }
 
-long	stime_t::usecs()
+long	stime_t::usecs() const
 {
 	return to_linear(_time, US_SECOND);
 }
 
-long	stime_t::nsecs()
+long	stime_t::nsecs() const
 {
 	return to_linear(_time, NS_SECOND);
 }
+

@@ -1,13 +1,35 @@
-/* --------------------------------------------------------------- */
-/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
-/* -- University of Wisconsin-Madison, subject to the terms     -- */
-/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
-/* -- Reserved.                                                 -- */
-/* --------------------------------------------------------------- */
+/*<std-header orig-src='shore'>
 
-/*
- *  $Header: /p/shore/shore_cvs/src/common/stid_t.cc,v 1.3 1997/06/15 02:36:14 solomon Exp $
- */
+ $Id: stid_t.cpp,v 1.11 1999/06/07 19:02:32 kupsch Exp $
+
+SHORE -- Scalable Heterogeneous Object REpository
+
+Copyright (c) 1994-99 Computer Sciences Department, University of
+                      Wisconsin -- Madison
+All Rights Reserved.
+
+Permission to use, copy, modify and distribute this software and its
+documentation is hereby granted, provided that both the copyright
+notice and this permission notice appear in all copies of the
+software, derivative works or modified versions, and any portions
+thereof, and that both notices appear in supporting documentation.
+
+THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+"AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+This software was developed with support by the Advanced Research
+Project Agency, ARPA order number 018 (formerly 8230), monitored by
+the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+Further funding for this work was provided by DARPA through
+Rome Research Laboratory Contract No. F30602-97-2-0247.
+
+*/
+
+#include "w_defines.h"
+
+/*  -- do not edit anything above this line --   </std-header>*/
 
 #ifdef __GNUC__
 #pragma implementation "stid_t.h"
@@ -16,9 +38,9 @@
 #define VEC_T_C
 #include <stdlib.h>
 #include <memory.h>
-#include <iostream.h>
-#include "w_base.h"
-#include "w_minmax.h"
+#include <w_stream.h>
+#include <w_base.h>
+#include <w_minmax.h>
 #include "basics.h"
 #include "dual_assert.h"
 #include "stid_t.h"
@@ -34,7 +56,17 @@ istream& operator>>(istream& i, stid_t& stid)
 {
     char c[5];
     memset(c, '\0', sizeof(c));
-    i >> c[0] >> c[1] >> stid.vol >> c[2] >> stid.store >> c[3];
+    i >> c[0];
+    if(i.good()) 
+	i >> c[1];
+    if(i.good()) 
+	i >> stid.vol;
+    if(i.good()) 
+	i >> c[2];
+    if(i.good()) 
+	i >> stid.store;
+    if(i.good()) 
+	i >> c[3];
     c[4] = '\0';
     if (i) {
         if (strcmp(c, "s(.)")) {
@@ -43,3 +75,4 @@ istream& operator>>(istream& i, stid_t& stid)
     }
     return i;
 }
+

@@ -1,12 +1,32 @@
-# --------------------------------------------------------------- #
-# -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- #
-# -- University of Wisconsin-Madison, subject to the terms     -- #
-# -- and conditions given in the file COPYRIGHT.  All Rights   -- #
-# -- Reserved.                                                 -- #
-# --------------------------------------------------------------- #
-
+# <std-header style='shell' orig-src='shore'>
 #
-# $Header: /p/shore/shore_cvs/src/sm/ssh/.shoreconfig.example,v 1.4 1997/05/27 13:04:09 kupsch Exp $
+#  $Id: .shoreconfig.example,v 1.15 1999/07/19 21:55:51 nhall Exp $
+#
+# SHORE -- Scalable Heterogeneous Object REpository
+#
+# Copyright (c) 1994-99 Computer Sciences Department, University of
+#                       Wisconsin -- Madison
+# All Rights Reserved.
+#
+# Permission to use, copy, modify and distribute this software and its
+# documentation is hereby granted, provided that both the copyright
+# notice and this permission notice appear in all copies of the
+# software, derivative works or modified versions, and any portions
+# thereof, and that both notices appear in supporting documentation.
+#
+# THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+# OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+# "AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+# FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+#
+# This software was developed with support by the Advanced Research
+# Project Agency, ARPA order number 018 (formerly 8230), monitored by
+# the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+# Further funding for this work was provided by DARPA through
+# Rome Research Laboratory Contract No. F30602-97-2-0247.
+#
+#   -- do not edit anything above this line --   </std-header>
+
 #
 # Example .shoreconfig file for ssh
 #
@@ -43,8 +63,8 @@
 # use sm_reformat_log to reinitialize a log that is a raw device
 *.server.*.sm_reformat_log: no
 
-*.server.*.sm_logsize: 20000
-*.server.*.sm_multiserver: no
+# Need 100000 to get through the scripts with 32KB pages
+*.server.*.sm_logsize: 100000
 
 # Specify the sm buffer pool size for any program
 # 400 pages, or 3.2 meg:
@@ -53,13 +73,17 @@
 # diskrw process ...
 # Making this relative assumes that we have a symbolic
 # link from . to wherever it's installed:
-*.server.*.sm_diskrw: ./diskrw
+*.server.*.sm_diskrw: ../../sthread/diskrw
+#
+# Warn VAS when log is this % full -- set low for testing purposes
+*.server.*.sm_log_warn: 45
 
 #
 # SSH OPTIONS
 #
 # This is the tcl library directory for ssh
-ssh.server.*.ssh_libdir: ../lib
+ssh.server.*.ssh_libdir: ./lib
 # location of the .sshrc file
-ssh.server.*.ssh_sshrc: ~/.sshrc
+ssh.server.*.ssh_sshrc: ./.sshrc
+
 

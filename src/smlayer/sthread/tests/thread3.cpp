@@ -1,25 +1,45 @@
-/* --------------------------------------------------------------- */
-/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
-/* -- University of Wisconsin-Madison, subject to the terms     -- */
-/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
-/* -- Reserved.                                                 -- */
-/* --------------------------------------------------------------- */
+/*<std-header orig-src='shore'>
 
-/*
- *  $Id: thread3.cc,v 1.16 1997/09/26 18:57:26 solomon Exp $
- */
+ $Id: thread3.cpp,v 1.24 1999/06/07 19:06:21 kupsch Exp $
+
+SHORE -- Scalable Heterogeneous Object REpository
+
+Copyright (c) 1994-99 Computer Sciences Department, University of
+                      Wisconsin -- Madison
+All Rights Reserved.
+
+Permission to use, copy, modify and distribute this software and its
+documentation is hereby granted, provided that both the copyright
+notice and this permission notice appear in all copies of the
+software, derivative works or modified versions, and any portions
+thereof, and that both notices appear in supporting documentation.
+
+THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+"AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+This software was developed with support by the Advanced Research
+Project Agency, ARPA order number 018 (formerly 8230), monitored by
+the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+Further funding for this work was provided by DARPA through
+Rome Research Laboratory Contract No. F30602-97-2-0247.
+
+*/
+
+#include "w_defines.h"
+
+/*  -- do not edit anything above this line --   </std-header>*/
 
 /*
  * If possible compile this _without_ optimization; so the 
  * register variables are really put in registers.
  */
 
-#include <iostream.h>
+#include <w_stream.h>
 #include <iomanip.h>
 #include <assert.h>
-#include <strstream.h>
 #include <memory.h>
-#include <minmax.h>
 #include <getopt.h>
 
 #include <w.h>
@@ -69,7 +89,8 @@ int_thread_t::int_thread_t(int fid)
 
 int	NumFloatThreads = 4;
 int	NumIntThreads = 4;
-int	mix_it_up = false;
+bool	mix_it_up = false;
+bool	verbose = false;
 
 int	parse_args(int, char **);
 
@@ -82,6 +103,9 @@ void harvest(int threads)
 
 	for(i=0; i < threads; ++i){
 		W_COERCE( worker[i]->wait() );
+		if (verbose)
+			cout << "Finished: " << endl << *worker[i] << endl;
+
 		w_assert1(ack[i]);
 		delete worker[i];
 	}
@@ -98,7 +122,8 @@ main(int argc, char **argv)
 	if (mix_it_up)
 		threads = NumFloatThreads + NumIntThreads;
 	else
-		threads = max(NumFloatThreads, NumIntThreads);
+		threads = NumFloatThreads > NumIntThreads ?
+			    NumFloatThreads : NumIntThreads;
 
 	ack = new int[threads];
 	if (!ack)
@@ -139,7 +164,7 @@ int	parse_args(int argc, char **argv)
 	int	c;
 	int	errors = 0;
 
-	while ((c = getopt(argc, argv, "i:f:m")) != EOF) {
+	while ((c = getopt(argc, argv, "i:f:mv")) != EOF) {
 		switch (c) {
 		case 'i':
 			NumIntThreads = atoi(optarg);
@@ -150,6 +175,9 @@ int	parse_args(int argc, char **argv)
 		case 'm':
 			mix_it_up = true;
 			break;
+		case 'v':
+			verbose = true;
+			break;
 		default:
 			errors++;
 			break;
@@ -159,7 +187,9 @@ int	parse_args(int argc, char **argv)
 		cerr << "usage: " << argv[0]
 			<< " [-i int_threads]"
 			<< " [-f float_threads]"
-			<< " [-m]" << endl;
+			<< " [-m]"
+			<< " [-v]"
+			<< endl;
 	}
 	return errors ? -1 : optind;
 }

@@ -1,20 +1,44 @@
-/* --------------------------------------------------------------- */
-/* -- Copyright (c) 1994,5,6,7 Computer Sciences Department,    -- */
-/* -- University of Wisconsin-Madison, subject to the terms     -- */
-/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
-/* -- Reserved.                                                 -- */
-/* --------------------------------------------------------------- */
+/*<std-header orig-src='shore'>
 
-/*
- *  $Id: subord.cc,v 1.24 1997/06/15 03:14:10 solomon Exp $
- */
+ $Id: subord.cpp,v 1.45 1999/08/06 15:35:43 bolo Exp $
+
+SHORE -- Scalable Heterogeneous Object REpository
+
+Copyright (c) 1994-99 Computer Sciences Department, University of
+                      Wisconsin -- Madison
+All Rights Reserved.
+
+Permission to use, copy, modify and distribute this software and its
+documentation is hereby granted, provided that both the copyright
+notice and this permission notice appear in all copies of the
+software, derivative works or modified versions, and any portions
+thereof, and that both notices appear in supporting documentation.
+
+THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+"AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+This software was developed with support by the Advanced Research
+Project Agency, ARPA order number 018 (formerly 8230), monitored by
+the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+Further funding for this work was provided by DARPA through
+Rome Research Laboratory Contract No. F30602-97-2-0247.
+
+*/
+
+#include "w_defines.h"
+
+/*  -- do not edit anything above this line --   </std-header>*/
 
 #define SM_SOURCE
 #define COORD_C /* yes - COORD_C */
 
 #include <sm_int_4.h>
+#ifdef USE_COORD
 #include <coord.h>
 #include <sm.h>
+#include <chkpt_serial.h>
 
 /*****************************************************************************
 * SUBORDINATE
@@ -29,12 +53,13 @@
  sub.after.ack: after acking
 */
 
+
 /*
  * received()
  * used when vas is doing the listen
  */
 rc_t
-subordinate::received(Buffer& b, EndpointBox &sentbox, EndpointBox &mebox)
+subordinate::received(Buffer& b, EndpointBox &sentbox, const EndpointBox &mebox)
 {
     DBGTHRD(<<"subordinate::received() ");
     rc_t rc =
@@ -79,7 +104,7 @@ subordinate::handle_message(
     Buffer& 		buf, 
     Endpoint&    	sender,
     server_handle_t&	srvaddr,
-    EndpointBox& 	mebox
+    const EndpointBox& 	mebox
 )
 {
     FUNC(subordinate::handle_message);
@@ -94,13 +119,13 @@ subordinate::handle_message(
      * set up a ref to the message sent in
      * the buffer 
      */
-    struct message_t* 	mp;
-    mp = (struct message_t *)buf.start();
+    class  message_t* 	mp;
+    mp = (class  message_t *)buf.start();
     w_assert3(mp!=0);
-    struct message_t 	&m=*mp;
+    class  message_t 	&m=*mp;
     w_assert3(m.error()==0);
 
-
+again: // must re-acquire mutex in retry case
     W_COERCE(_mutex.acquire());
     {
 	tid_t 	local_tid;
@@ -203,17 +228,24 @@ subordinate::handle_message(
 		 * comes in (another subordinate voted to abort).
 		 */
 		DBG(<<"num threads = " << x->num_threads()
-			<< " -- DETACHING, ignoring message" );
+			<< " -- DETACHING, delaying processing of message" );
 
-		if(smlevel_0::errlog->getloglevel() >= log_info) {
-		    smlevel_0::errlog->clog <<info_prio 
-			<< time(0) << " " << me()->id  << ":"
-			<< " ignoring msg t:" << m.typ << ", tx busy"
-			<< flushl;
-		}
+		smlevel_0::errlog->clog << info_prio 
+			<< stime_t::now().secs() << " " << me()->id  << ":"
+			<< " delay processing of msg t:" 
+			<< m.type() << ", tx busy" << flushl;
 
 		me()->detach_xct(x);
-		goto done;
+		/* 
+		 * await finish of any checkpoints -- checkpoint
+		 * attaches the xct in order to log it, so we could
+		 * be here due to a checkpoint in progress.
+		 */
+		_mutex.release();
+		chkpt_serial_m::chkpt_mutex_acquire();
+		chkpt_serial_m::chkpt_mutex_release();
+		// re-acquires at top of loop
+		goto retry;
 	    }
 
 	    w_assert3((x->state() == smlevel_1::xct_prepared)
@@ -224,7 +256,7 @@ subordinate::handle_message(
 	}
 
 	{
-	    switch(m.typ) {
+	    switch(m.type()) {
 
 	    case smsg_prepare: {
 		SSMTEST("sub.before.prepare");
@@ -232,7 +264,7 @@ subordinate::handle_message(
 		    // never heard of it
 		    m.error_num = fcNOTFOUND;
 		    v = vote_bad;
-		    INCRSTAT(s_no_such);
+		    INC_2PCSTAT(s_no_such);
 		} else if(finished_already) {
 		    // This should not happen unless we have a
 		    // retransmission.  If we assume that the
@@ -279,9 +311,9 @@ subordinate::handle_message(
 		    }
 		}
 		SSMTEST("sub.after.prepare"); // replied to prepare
-		m.typ = sreply_vote;
+		m.setType(sreply_vote);
 		m._u.vote = v;
-		DBG(<<"VOTING " << v);
+		DBG(<<"VOTING " << (int)v);
 		sendreply = true;
 		if(x) me()->detach_xct(x);
 		}
@@ -307,15 +339,15 @@ subordinate::handle_message(
 		    */
 
 		    v = vote_bad;
-		    INCRSTAT(s_no_such);
+		    INC_2PCSTAT(s_no_such);
 		    // For PA, we don't want to ack abort messages,
 		    //
 		    if (
-			(proto() == presumed_abort && m.typ == smsg_commit) ||
+			(proto() == presumed_abort && m.type() == smsg_commit) ||
 			(proto() == presumed_nothing)  ) {
 			sendreply = true;
-			m._u.typ_acked = m.typ;
-			m.typ = sreply_ack;
+			m._u.typ_acked = m.type();
+			m.setType(sreply_ack);
 		    }
 		    // We decided for now that this is not
 		    // an error.
@@ -324,7 +356,7 @@ subordinate::handle_message(
 		    w_assert3(!finished_already);
 		    DBG(<<"state " << x->state());
 		    w_assert3(x->state()==smlevel_1::xct_prepared);
-		    if(m.typ == smsg_commit) {
+		    if(m.type() == smsg_commit) {
 			rc = x->commit(false);
 			if(rc) {
 			  if(rc.err_num()==eTWOTHREAD) {
@@ -335,7 +367,7 @@ subordinate::handle_message(
 			      W_FATAL(rc.err_num());
 			  }
 			}
-			INCRSTAT(s_committed);
+			INC_2PCSTAT(s_committed);
 			m._u.typ_acked = smsg_commit;
 			sendreply = true;
 		    } else {
@@ -349,14 +381,14 @@ subordinate::handle_message(
 			      W_FATAL(rc.err_num());
 			  }
 			}
-			INCRSTAT(s_aborted);
+			INC_2PCSTAT(s_aborted);
 			m._u.typ_acked = smsg_abort;
-			sendreply = proto() ==presumed_nothing?true:false;
+			sendreply = proto() == presumed_nothing;
 		    }
 		    delete x;
 		    x=0;
 		    if(sendreply) {
-			m.typ = sreply_ack;
+			m.setType(sreply_ack);
 		    }
 		    W_COERCE(_tid_gtid_map->remove(m.tid(), local_tid));
 		}
@@ -378,7 +410,7 @@ subordinate::handle_message(
 	       // chance to crash:
 	    }
 
-	    if(m.typ == sreply_vote){
+	    if (m.type() == sreply_vote){
 		SSMTEST("sub.after.vote");
 	    } else {
 		SSMTEST("sub.after.ack");
@@ -387,8 +419,8 @@ subordinate::handle_message(
 		goto failure;
 	    }
 	} else {
-	    INCRSTAT(s_no_such);
-	    DBGTHRD(<< "dropping message " << m.typ 
+	    INC_2PCSTAT(s_no_such);
+	    DBGTHRD(<< "dropping message " << m.type()
 		    << " gtid " << m.tid()
 		    );
 	}
@@ -397,6 +429,9 @@ done:
     _mutex.release();
     return RCOK;
 
+retry:
+    goto again;
+	
 failure:
     _mutex.release();
     return rc;
@@ -409,9 +444,9 @@ subordinate::subordinate(
 	tid_gtid_map *g,
 	Endpoint    &subord_ep
 ) :
+    participant(p,0,0,f),
     _tid_gtid_map(g),
-    _cname(0),
-    participant(p,0,0,f)
+    _cname(0)
 { /* CASE1 */
     _me = subord_ep;
 
@@ -432,9 +467,9 @@ subordinate::subordinate(
 	const char *myname,
 	const char *cname
 ) :
+    participant(p,c,ns,f),
     _tid_gtid_map(g),
-    _cname(0),
-    participant(p,c,ns,f)
+    _cname(0)
 { /* CASE2 */
 #ifdef NOTDEF
     // Don't install this unless required; it's 
@@ -464,6 +499,10 @@ subordinate::~subordinate()
 	delete _recovery_handler;
 	_recovery_handler=0;
     }
+    if(_cname) {
+	delete[] _cname;
+	_cname = 0;
+    }
 }
 
 rc_t
@@ -474,7 +513,7 @@ subordinate::_init(bool fork_listener, const char *cname, bool wait4recov)
     _init_base();
     if(fork_listener) {
 	DBG(<< "FORK subord message handler thread ");
-	_message_handler = new subord_thread_t(
+	_message_handler = new subord_thread_t( // deleted in ~subordinate 
 		this, 
 		subord_message_handler);
 	W_COERCE(_message_handler->fork());
@@ -498,7 +537,7 @@ subordinate::_init(bool fork_listener, const char *cname, bool wait4recov)
     }
 
     DBG(<< "FORK subord recovery handler thread ");
-    _recovery_handler = new subord_thread_t(this, 
+    _recovery_handler = new subord_thread_t(this,  // deleted in ~subordinate
 			subord_recovery_handler);
     W_COERCE(_recovery_handler->fork());
     me()->yield();
@@ -542,7 +581,7 @@ subordinate::resolve(gtid_t &g)
 	}
 	if(smlevel_0::errlog->getloglevel() >= log_info) {
 	    smlevel_0::errlog->clog << info_prio 
-	    << time(0) << " " << g  << ":"
+	    << stime_t::now().secs() << " " << g  << ":"
 	    << " gtid already resolved (warning, not error) " << flushl;
 	}
 	return 0;
@@ -584,13 +623,12 @@ subordinate::resolve(xct_t *x)
 
 	DBG(<< "SENDING STATUS/VOTE to : " << co );
 
-	struct message_t m; 
-	AlignedBuffer	abuf((void *)&m, sizeof(m)); // maximum size
-	Buffer &buf = abuf.buf;
+	class  message_t m; 
+	Buffer	buf(&m, sizeof(m)); // maximum size
 
 	m.clear();
 	m.put_tid(*x->gtid());
-	m.typ = sreply_status;
+	m.setType(sreply_status);
 	m._u.vote = vote_commit;
 
 	// If it's dead, oh well.
@@ -623,13 +661,13 @@ NORET
 subord_thread_t::subord_thread_t(subordinate *s, 
 	coord_thread_kind k
 	) :
+    twopc_thread_t(s, k, false),
     _subord(s),
-    _coord_alive(true),
-    twopc_thread_t(s, k, false)
+    _coord_alive(true)
 {
     FUNC(subord_thread_t::subord_thread_t);
 
-    DBG(<<"kind=" << k);
+    DBG(<<"kind=" << (int)k);
 
     switch(k) {
     case participant::subord_recovery_handler:
@@ -652,6 +690,19 @@ subord_thread_t::subord_thread_t(subordinate *s,
 
 subord_thread_t::~subord_thread_t()
 {
+}
+
+#include <vtable_info.h>
+#include <vtable_enum.h>
+
+void		
+subord_thread_t::vtable_collect(vtable_info_t& t) 
+{
+    twopc_thread_t::vtable_collect(t);
+
+    t.set_string(subord_thread_coord_alive_attr, 
+	(const char *)(_coord_alive ? "true" :"false"));
+
 }
 
 void
@@ -699,7 +750,7 @@ subord_thread_t::resolve_all()
 	DBG(<<"");
 	{
 	    W_COERCE(xct_t::query_prepared(num_prepared));
-	    gtid_t*	many = 0;
+	    gtid_t*	many = 0; // deleted at close scope
 	    if(num_prepared >0) { 
 	    	many = new gtid_t[many_size = num_prepared];
 		if(!many) {
@@ -787,3 +838,5 @@ subord_thread_t::recovered(server_handle_t &s)
     }
     _condition.signal();
 }
+#endif
+

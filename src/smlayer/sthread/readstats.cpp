@@ -1,32 +1,55 @@
-/* --------------------------------------------------------------- */
-/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
-/* -- University of Wisconsin-Madison, subject to the terms     -- */
-/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
-/* -- Reserved.                                                 -- */
-/* --------------------------------------------------------------- */
+/*<std-header orig-src='shore'>
 
-/*
- *  $Id: readstats.cc,v 1.5 1997/06/15 02:26:22 solomon Exp $
- */
+ $Id: readstats.cpp,v 1.17 1999/06/07 19:06:01 kupsch Exp $
+
+SHORE -- Scalable Heterogeneous Object REpository
+
+Copyright (c) 1994-99 Computer Sciences Department, University of
+                      Wisconsin -- Madison
+All Rights Reserved.
+
+Permission to use, copy, modify and distribute this software and its
+documentation is hereby granted, provided that both the copyright
+notice and this permission notice appear in all copies of the
+software, derivative works or modified versions, and any portions
+thereof, and that both notices appear in supporting documentation.
+
+THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+"AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+This software was developed with support by the Advanced Research
+Project Agency, ARPA order number 018 (formerly 8230), monitored by
+the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+Further funding for this work was provided by DARPA through
+Rome Research Laboratory Contract No. F30602-97-2-0247.
+
+*/
+
+#include "w_defines.h"
+
+/*  -- do not edit anything above this line --   </std-header>*/
+
 #define DISKRW_C
 
-#include <copyright.h>
 #include <stdio.h>
-#include <iostream.h>
-#include <fstream.h>
+#include <w_stream.h>
 #include <w_statistics.h>
-#include <strstream.h>
 #include <w_signal.h>
 #include <stdlib.h>
-#include <fcntl.h>
-#include <sys/stat.h>
-#ifdef SOLARIS2
-#include <solaris_stats.h>
-#else
-#include <unix_stats.h>
-#endif
+#include <os_fcntl.h>
+#include <os_interface.h>
 
+#include <unix_stats.h>
+
+#ifdef _WINDOWS
+#include <io.h>
+#else
 #include <unistd.h>
+#endif
+#include <sys/stat.h>
+
 #if defined(Sparc) || defined(Mips) || defined(I860)
 	extern "C" int fsync(int);
 #endif
@@ -54,23 +77,26 @@ main(int argc, char *argv[])
     path = argv[1];
     // open & read it into s, u
     if(path) {
-	statfd = open(path, flags, mode);
+	statfd = os_open(path, flags, mode);
 	if(statfd<0) {
-		perror("open");
-		cerr << "path=" << path <<endl;
-		exit(1);
+		w_rc_t e = RC(fcOS);
+		cerr << "open(" << path << ") for stats:" << endl
+			<< e << endl;
+		return(1);
 	}
     }
 
     int cc;
-    if((cc = read(statfd, &s, sizeof s)) != sizeof s ) {
-	    perror("read s");
-	    exit(1);
+    if((cc = os_read(statfd, &s, sizeof s)) != sizeof s ) {
+	    w_rc_t e = RC(fcOS);
+	    cerr << "read stats: s:" << endl << e << endl;
+	    return(1);
     }
 
-    if((cc = read(statfd, &u, sizeof u)) != sizeof u ) {
-	    perror("read u");
-	    exit(1);
+    if((cc = os_read(statfd, &u, sizeof u)) != sizeof u ) {
+	    w_rc_t e = RC(fcOS);
+	    cerr << "read stats: u:" << endl << e << endl;
+	    return(1);
     }
 
     {
@@ -106,11 +132,17 @@ main(int argc, char *argv[])
 
 	r.copy(s.reads, u);
 	cout << "READ CALLS       : " << s.reads << endl;
-	cout << "READ CALLS/sec   : " << (float)s.reads/secs << endl;
+	if(secs != 0) {
+	    cout << "READ CALLS/sec   : " << (float)s.reads/secs << endl;
+	}
 	r.copy(s.bread, u);
 	cout << "BYTES READ       : " << s.bread << endl;
-	cout << "BYTES READ/sec   : "  << (float)s.bread/secs << endl;
-	cout << "BYTES/CALL avg   : " << (int)(s.bread/s.reads) << endl;
+	if(secs != 0) {
+	    cout << "BYTES READ/sec   : "  << (float)s.bread/secs << endl;
+	}
+	if(s.reads != 0) {
+	    cout << "BYTES/CALL avg   : " << (int)(s.bread/s.reads) << endl;
+	}
 	cout << endl;
 
 	r.copy(s.discards, u);
@@ -120,12 +152,18 @@ main(int argc, char *argv[])
 
 	r.copy(s.writes, u);
 	cout << "WRITE CALLS      : " << s.writes << endl;
-	cout << "WRITE CALLS/sec  : " << (float)s.writes/secs << endl;
+	if(secs != 0) {
+	    cout << "WRITE CALLS/sec  : " << (float)s.writes/secs << endl;
+	}
 
 	r.copy(s.bwritten, u);
 	cout << "BYTES WRITTEN    : " << s.bwritten << endl;
-	cout << "BYTES WRITTEN/sec: "  << (float)s.bwritten/secs << endl;
-	cout << "BYTES/CALL avg   : " << (int)(s.bwritten/s.writes) << endl;
+	if(secs != 0) {
+	    cout << "BYTES WRITTEN/sec: "  << (float)s.bwritten/secs << endl;
+	}
+	if(s.writes != 0) {
+	    cout << "BYTES/CALL avg   : " << (int)(s.bwritten/s.writes) << endl;
+	}
 	cout << endl;
 
 	r.copy(s.fsyncs, u);

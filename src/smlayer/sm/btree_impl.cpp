@@ -1,14 +1,36 @@
-/* --------------------------------------------------------------- */
-/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
-/* -- University of Wisconsin-Madison, subject to the terms     -- */
-/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
-/* -- Reserved.                                                 -- */
-/* --------------------------------------------------------------- */
+/*<std-header orig-src='shore'>
 
+ $Id: btree_impl.cpp,v 1.35 1999/06/22 20:02:37 nhall Exp $
 
-/*
- *  $Id: btree_impl.cc,v 1.9 1997/06/15 03:14:24 solomon Exp $
- */
+SHORE -- Scalable Heterogeneous Object REpository
+
+Copyright (c) 1994-99 Computer Sciences Department, University of
+                      Wisconsin -- Madison
+All Rights Reserved.
+
+Permission to use, copy, modify and distribute this software and its
+documentation is hereby granted, provided that both the copyright
+notice and this permission notice appear in all copies of the
+software, derivative works or modified versions, and any portions
+thereof, and that both notices appear in supporting documentation.
+
+THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+"AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+This software was developed with support by the Advanced Research
+Project Agency, ARPA order number 018 (formerly 8230), monitored by
+the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+Further funding for this work was provided by DARPA through
+Rome Research Laboratory Contract No. F30602-97-2-0247.
+
+*/
+
+#include "w_defines.h"
+
+/*  -- do not edit anything above this line --   </std-header>*/
+
 #define SM_SOURCE
 #define BTREE_C
 
@@ -23,12 +45,10 @@
 #include "btree_p.h"
 #include "btree_impl.h"
 #include "btcursor.h"
-#include <debug.h>
 #include <crash.h>
 
-#define DBGTHRD(arg) DBG(<<" th."<<me()->id << " " arg)
 
-#ifdef DEBUG
+#ifdef W_DEBUG
 /* change these at will */
 #	define print_sanity false
 #	define print_split false
@@ -47,10 +67,10 @@
 #	define print_remove false
 #	define print_propagate false
 
-#endif
+#endif /* W_DEBUG */
 
 
-#ifdef DEBUG
+#ifdef W_DEBUG
 
 void 
 _check_latches(int line, uint _nsh, uint _nex, uint _max)
@@ -60,7 +80,6 @@ _check_latches(int line, uint _nsh, uint _nex, uint _max)
     smlevel_0::bf->snapshot_me(nsh, nex, ndiff);
     if((nsh >_nsh) || (nex > _nex) ||
 	(nsh+nex>_max)) {
-#ifdef NOTDEF
 	cerr << line << __FILE__<< ": nsh=" << nsh 
 	<< "(" << _nsh << ")" 
 	<< " nex=" << nex 
@@ -68,8 +87,6 @@ _check_latches(int line, uint _nsh, uint _nex, uint _max)
 	<< " # diff pages =" << ndiff 
 	<< endl; 
 	dostop=true;
-#endif
-	dostop=false;
     } 
     if(dostop) bstop(); 
 }
@@ -83,7 +100,7 @@ void dumptree(const lpid_t &root)
     btree_m::print(root, sortorder::kt_b, true);
 }
 
-#endif
+#endif /* W_DEBUG */
 
 
 /*********************************************************************
@@ -112,12 +129,12 @@ btree_impl::mk_kvl(concurrency_t cc, lockid_t& kvl,
 	rid_t r;
 	el.copy_to(&r, sizeof(r));
 	kvl = r;
-#ifdef DEBUG
+#ifdef W_DEBUG
 	if(el.size() != sizeof(r)) {
 	    // This happens when we lock kvl_t::eof
 	    ;
 	}
-#endif
+#endif /* W_DEBUG */
     } else {
         w_assert3(cc == t_cc_kvl || cc == t_cc_modkvl);
 	kvl_t k;
@@ -132,6 +149,8 @@ btree_impl::mk_kvl(concurrency_t cc, lockid_t& kvl,
     }
 
 }
+
+
 
 /* 
  * tree_latch::_get(bool condl, mode, p1, p1mode, bool, p2, p2mode)
@@ -158,6 +177,11 @@ btree_impl::mk_kvl(concurrency_t cc, lockid_t& kvl,
  * prefetch the page w/o latching *!* so that we can avoid doing I/O while
  * the tree is latched.
  */
+tree_latch::tree_latch(const lpid_t pid) 
+    : _pid(pid), _mode(LATCH_NL)
+{
+}
+
 tree_latch::~tree_latch()
 {
     unfix();
@@ -171,8 +195,7 @@ tree_latch::unfix()
      * to latch the page.
      */
     if(_mode == LATCH_EX && _page.is_fixed()) {
-	w_assert3(_page.latch_mode() == _mode);
-	W_COERCE(log_btree_latch(_page, true));
+	w_assert3(_page.latch_mode() == _mode );
     }
     _page.unfix();
     /*
@@ -183,7 +206,7 @@ tree_latch::unfix()
      * when we call tree_latch::unfix() we expect it
      * to be unfixed.
      */
-    w_assert3(_page.latch_mode() == NL);
+    w_assert3(_page.latch_mode() == LATCH_NL );
 }
 
 rc_t
@@ -201,8 +224,7 @@ tree_latch::get(
 	    // exit with the same number of latches, +1
 
     rc_t 	rc;
-    bool	log_latch=false;
-    w_assert3(p1);
+    w_assert3(p1.is_fixed());
     lpid_t 	p1_pid = p1.pid();
     lsn_t  	p1_lsn = p1.lsn(); 
 
@@ -241,8 +263,7 @@ tree_latch::get(
 		    conditional = false; // try unconditional
 		} else {
 		    w_assert3(_page.is_fixed());
-		    w_assert3(_page.latch_mode() == LATCH_EX);
-		    log_latch = true;
+		    w_assert3(_page.latch_mode() == LATCH_EX );
 		}
 	    }
 
@@ -251,7 +272,6 @@ tree_latch::get(
 		if(p2) p2->unfix(); // unlatch p2 regardless of relatch_p2
 		_page.upgrade_latch(mode);
 		do_refix = true;
-		log_latch = true;
 	    }
 	}
 	// else ok, we're done
@@ -273,14 +293,6 @@ tree_latch::get(
 	    W_DO( _page.fix(_pid, mode) );
 	    do_refix = true;
 	}
-	log_latch = true;
-    }
-    /* 
-     * for special handling of restart-undo: tell recovery
-     * to latch the page.
-     */
-    if(log_latch && ((_mode = mode) == LATCH_EX) ) {
-	W_DO(log_btree_latch(_page, false));
     }
 
     if(do_refix) {
@@ -313,13 +325,14 @@ tree_latch::get(
 	}
     }
     check_latches(___s+1,___e+1, ___s+___e+1);
-    smlevel_0::stats.bt_posc++;
+    INC_TSTAT(bt_posc);
     return RCOK;
 }
 
 /*********************************************************************
  *
- *  btree_impl::_alloc_page(root, level, near, ret_page, pid0)
+ *  btree_impl::_alloc_page(root, level, near, ret_page, pid0,
+ *           		set_its_smo, compressed)
  *
  *  Allocate a page for btree rooted at root. Fix the page allocated
  *  and return it in ret_page.
@@ -337,32 +350,43 @@ tree_latch::get(
 rc_t
 btree_impl::_alloc_page(
     const lpid_t& root, 
-    int2 level,
-    const lpid_t& near,
+    int2_t level,
+    const lpid_t& near_p,
     btree_p& ret_page,
     shpid_t pid0, // = 0
-    bool set_its_smo // = false
+    bool set_its_smo, // = false
+    bool compressed,  // = false
+    store_flag_t stf  // = st_regular,
 )
 {
     FUNC(btree_impl::_alloc_page);
 
     lpid_t pid;
-    w_assert3(near != lpid_t::null);
+    w_assert3(near_p != lpid_t::null);
 
     // if this is a 1-page btree, return that it needs to grow
     if (root.store() == store_id_1page) {
 	return RC(e1PAGESTORELIMIT);
     }
+    // temporary btrees are not supported: use st_regular
+    // only way to exploit st_tmp here is through bulk-loading
+    W_DO(smlevel_0::io->alloc_pages(
+	root.stid(), 
+	near_p, 	// hint
+	1, &pid, 	// n pages, array for output pids
+	true, 	//  may_realloc 
+	NL,	//  ignored
+	true	// search file
+	)) ;
+    W_DO( ret_page.fix(pid, LATCH_EX, ret_page.t_virgin, stf) );
 
-    W_DO( io->alloc_pages(root.stid(), near, 1, &pid, false, true) );
-    W_DO( ret_page.fix(pid, LATCH_EX, ret_page.t_virgin, st_regular) );
-
-    btree_p::flag_t f = btree_p::t_none;
+    btree_p::flag_t f = compressed? btree_p::t_compressed : btree_p::t_none;
 
     if(set_its_smo) {
-	f = btree_p::t_smo;
+	f = (btree_p::flag_t)
+		(((unsigned int) f) | ((unsigned int) btree_p::t_smo));
     }
-    W_DO( ret_page.set_hdr(root.page, level, pid0, f) );
+    W_DO( ret_page.set_hdr(root.page, level, pid0, (uint2_t)f) );
 
 
     DBGTHRD(<<"allocated btree page " << pid << " at level " << level);
@@ -391,9 +415,10 @@ btree_impl::_insert(
     lsn_t  		search_start_lsn = lsn_t::null;
     stid_t 		stid = root.stid();
 
-    smlevel_0::stats.bt_insert_cnt++;
+    INC_TSTAT(bt_insert_cnt);
 
-    DBGTHRD(<<"_insert: unique = " << unique << " cc=" << cc << " key=" << key );
+    DBGTHRD(<<"_insert: unique = " << unique << " cc=" << int(cc)
+	<< " key=" << key );
     get_latches(___s,___e);
 
     {
@@ -406,8 +431,8 @@ again:
 	btree_p 	parent;
 	lsn_t   	parent_lsn;
 	lpid_t 		parent_pid;
-	bool 		found;
-	bool 		total_match;
+	bool 		found = false;
+	bool 		total_match = false;
 	rc_t 		rc;
 
 
@@ -486,7 +511,7 @@ again:
 		     * end up with eRETRY
 		     */
 		    DBGTHRD(<<"-->again TREE LATCH MODE "
-				<< tree_root.latch_mode()
+				<< int(tree_root.latch_mode())
 				);
 		    goto again;
 		}
@@ -525,9 +550,9 @@ again:
 	w_assert3(! leaf.is_smo());
 
 	w_assert3(!parent.is_fixed());
-	w_assert3(!tree_root.is_fixed());
+	w_assert3(!tree_root.is_fixed() );
 
-	w_assert3(leaf.nrecs() || leaf.pid() == root || smlevel_0::in_recovery);
+	w_assert3(leaf.nrecs() || leaf.pid() == root || smlevel_0::in_recovery());
 
 	/*
  	 * We know we're at the correct leaf now.
@@ -546,7 +571,12 @@ again:
 	    slotid_t slot = 0; // for this purpose, it doesn't much
 		      // matter *what* slot we use
 	    DBG(<<" page " << leaf.pid() << " nrecs()= " << leaf.nrecs() );
-	    if(rc = leaf.insert(key, el, slot, 0, false/*don't DO it*/)) {
+
+	    /*false -> don't DO it, just compute max space need */
+	    DBG(<<"Don't insert in leaf at slot " << slot
+		<< " just check for space");
+	    rc = leaf.insert(key, el, slot, 0, false);
+	    if(rc) {
 		DBG(<<" page " << leaf.pid() << " nrecs()= " << leaf.nrecs() 
 			<< " rc= " << rc
 		);
@@ -590,7 +620,7 @@ again:
 			    tree_root.unfix();
 			    leaf.unfix();
 			    DBGTHRD(<<"-->again TREE LATCH MODE "
-				<< tree_root.latch_mode()
+				<< int(tree_root.latch_mode())
 				);
 			    goto again;
 			}
@@ -689,7 +719,7 @@ again:
 		 * can't be the case during forward processing.
 		 * but during undo we can get here.
 		 */
-		w_assert3(smlevel_0::in_recovery);
+		w_assert3(smlevel_0::in_recovery());
 		w_assert3(leaf.next());
 		look_on_next_page = true;
 		break;
@@ -705,7 +735,7 @@ again:
 	     * This much is taken from the Fetch/lookup cases
 	     * since Mohan just says "in a manner similar to fetch"
 	     */
-	    w_assert3(leaf.nrecs() || leaf.pid() == root || smlevel_0::in_recovery);
+	    w_assert3(leaf.nrecs() || leaf.pid() == root || smlevel_0::in_recovery());
 	    /*
 	     * Mohan: unlatch the parent and latch the successor.
 	     * If the successor is empty or does not have a
@@ -719,7 +749,7 @@ again:
 	    p2_pid = root; // get volume, store part
 	    p2_pid.page = leaf.next();
 
-	    smlevel_0::stats.bt_links++;
+	    INC_TSTAT(bt_links);
 	    W_DO( p2.fix(p2_pid, LATCH_SH) );
 	    next_slot = 0; //first rec on next page
 
@@ -734,7 +764,9 @@ again:
 	 *  We need to use it in the determination (below)
 	 *  of lock/don't lock the next key-value
 	 */
+#ifdef W_DEBUG
 	if(p2_pid.page) w_assert3(p2.is_fixed());
+#endif
 
 	lockid_t kvl;
 	mk_kvl(cc, kvl, stid, unique, key, el);
@@ -785,7 +817,9 @@ again:
 	 */
 	if( (cc == t_cc_none) || (cc == t_cc_modkvl) ) lock_next = false;
 
+#ifdef W_DEBUG
 	if(p2_pid.page) w_assert3(p2.is_fixed());
+#endif
 
 	if(lock_next) {
 	    lockid_t nxt_kvl;
@@ -797,7 +831,8 @@ again:
 		btrec_t r(p2, next_slot); 
 		mk_kvl(cc, nxt_kvl, stid, unique, r);
 	    }
-	    if (rc = lm->lock(kvl, next_mode, next_duration, WAIT_IMMEDIATE))  {
+	    rc = lm->lock(nxt_kvl, next_mode, next_duration, WAIT_IMMEDIATE);
+	    if (rc)  {
 		DBG(<<"rc= " << rc);
 		w_assert3((rc.err_num() == eLOCKTIMEOUT) || (rc.err_num() == eDEADLOCK));
 
@@ -809,7 +844,7 @@ again:
 		    w_assert3(!p2_pid);
 		}
 		leaf.unfix();
-		W_DO(lm->lock(kvl, next_mode, next_duration));
+		W_DO(lm->lock(nxt_kvl, next_mode, next_duration));
 		W_DO(leaf.fix(leaf_pid, LATCH_EX) );
 		if(leaf.lsn() != leaf_lsn) {
 		    /*
@@ -852,8 +887,8 @@ again:
 	     * First try conditionally.  If that fails, unlatch the
 	     * leaf page(s) and try unconditionally.
 	     */
-
-	    if (rc = lm->lock(kvl, this_mode, this_duration, WAIT_IMMEDIATE))  {
+		rc = lm->lock(kvl, this_mode, this_duration, WAIT_IMMEDIATE);
+	    if (rc)  {
 		DBG(<<"rc=" <<rc);
 		w_assert3((rc.err_num() == eLOCKTIMEOUT) || (rc.err_num() == eDEADLOCK));
 
@@ -907,6 +942,7 @@ again:
 
 	    w_assert3(slot >= 0 && slot <= leaf.nrecs());
 
+	    DBG(<<"insert in leaf at slot " << slot);
 	    rc = leaf.insert(key, el, slot); 
 	    if(rc) {
 		DBG(<<"rc= " << rc);
@@ -928,14 +964,15 @@ again:
 	     */
 	    xct_log_switch_t toggle(OFF);
 
-	    rc = leaf.remove(slot);
-	    if(rc) {
+	    w_rc_t rc2 = 
+		leaf.remove(slot, leaf.is_compressed()); // zkeyed_p::remove
+	    if(rc2) {
 		leaf.discard(); // force the page out.
-		return rc.reset();
+		return rc2.reset();
 	    }
+	    return rc.reset();
 	}
 	w_assert3(!smlevel_1::log || me()->xct()->is_log_on());
-
     }
     }        
     check_latches(___s,___e, ___s+___e);
@@ -965,15 +1002,15 @@ btree_impl::_remove(
     stid_t 		stid = root.stid();
     rc_t		rc;
 
-    smlevel_0::stats.bt_remove_cnt++;
+    INC_TSTAT(bt_remove_cnt);
 
     DBGTHRD(<<"_remove:");
-#ifdef DEBUG
+#ifdef W_DEBUG
     if(print_remove) {
 	cout << "BEFORE _remove" <<endl;
 	btree_m::print(root);
     }
-#endif
+#endif /* W_DEBUG */
     get_latches(___s,___e);
 
     {
@@ -1067,7 +1104,7 @@ again:
 		    leaf, LATCH_EX, false, &parent, LATCH_NL);
 	tree_root.unfix(); // Instant latch
 
-	w_assert3(!tree_root.is_fixed());
+	w_assert3(!tree_root.is_fixed() );
 	w_assert3(leaf.is_fixed());
 	w_assert3( !parent.is_fixed());
 
@@ -1081,7 +1118,7 @@ again:
 		}
 		leaf.unfix();
 		DBGTHRD(<<"POSC done; ->again TREE LATCH MODE "
-				<< tree_root.latch_mode()
+				<< int(tree_root.latch_mode())
 				);
 		goto again;
 	    }
@@ -1101,7 +1138,7 @@ again:
     w_assert3(! leaf.is_smo());
 
     w_assert3(!parent.is_fixed());
-    w_assert3(!tree_root.is_fixed());
+    w_assert3(!tree_root.is_fixed() );
 
     sib_pid = root; // get vol id, store id
     sib_pid.page = leaf.next();
@@ -1118,6 +1155,7 @@ again:
 	    << " total_match=" << total_match
 	    << " leaf=" << leaf.pid()
 	    << " case=" << whatcase
+	    << " cc=" << int(cc)
 	    << " slot=" << slot);
 
     if(cc != t_cc_none) {
@@ -1164,16 +1202,16 @@ again:
 		 * of whether there is a prior entry with this key.
 		 */
 
-
-
 		if (!total_match && slot < leaf.nrecs())  {
 		    /* leaf.slot is next key value */
+		    DBG(<<"");
 		    btrec_t r(leaf, slot);
 		    mk_kvl(cc, nxt_kvl, stid, unique, r);
 		    lock_next = true;
 
 		} else if (slot < leaf.nrecs() - 1)  {
 		    /* next key value exists on same page */
+		    DBG(<<"");
 		    w_assert3(total_match);
 		    btrec_t s(leaf, slot);
 		    btrec_t r(leaf, slot + 1);
@@ -1195,12 +1233,13 @@ again:
 		} else {
 		    /* next key might be on next page */
 		    if (! leaf.next())  {
+			DBG(<<"");
 			mk_kvl_eof(cc, nxt_kvl, stid);
 			lock_next = true;
 		    } else {
-
 			// "following" a link here means fixing the page
-			smlevel_0::stats.bt_links++;
+			INC_TSTAT(bt_links);
+			DBG(<<"");
 
 			W_DO( sib.fix(sib_pid, LATCH_SH) );
 			sib_lsn = sib.lsn();
@@ -1230,17 +1269,18 @@ again:
 			    /* empty page -- ongoing deletion 
 			     * wait for POSC
 			     */
+			    DBG(<<"");
 
 			    rc_t rc;
 			    rc = tree_root.get(true, LATCH_SH,
 				leaf, LATCH_EX, false, &sib, LATCH_NL);
 			    tree_root.unfix(); // Instant latch
 
-			    w_assert3(!tree_root.is_fixed());
+			    w_assert3(!tree_root.is_fixed() );
 			    w_assert3(leaf.is_fixed());
 			    if(rc) { return RC_AUGMENT(rc); }
 			    DBGTHRD(<<"POSC done; ->again TREE LATCH MODE "
-				<< tree_root.latch_mode()
+				<< int(tree_root.latch_mode())
 				);
 			    goto again;
 
@@ -1274,8 +1314,10 @@ again:
 	w_assert3(leaf.is_fixed());
 
 	if (lock_next) {
+	    DBG(<<"lock next");
 	    /* conditional commit duration */
-	    if (rc = lm->lock(nxt_kvl, next_mode, next_duration, WAIT_IMMEDIATE))  {
+	    rc = lm->lock(nxt_kvl, next_mode, next_duration, WAIT_IMMEDIATE);
+	    if (rc)  {
 		DBG(<<"rc=" << rc);
 		w_assert3((rc.err_num() == eLOCKTIMEOUT) || (rc.err_num() == eDEADLOCK));
 
@@ -1318,14 +1360,14 @@ again:
 	mk_kvl(cc, kvl, stid, unique, key, el);
 
 
-#ifdef  DEBUG
+#ifdef W_DEBUG
 	w_assert3(leaf.is_fixed());
 	if(sib.is_fixed()) {
 	    w_assert3(sib_pid != leaf_pid);
 	}
-#endif
-
-	if (rc = lm->lock(kvl, this_mode, this_duration, WAIT_IMMEDIATE))  {
+#endif /* W_DEBUG */
+	rc = lm->lock(kvl, this_mode, this_duration, WAIT_IMMEDIATE);
+	if (rc)  {
 	    DBG(<<"rc=" << rc);
 	    w_assert3((rc.err_num() == eLOCKTIMEOUT) || (rc.err_num() == eDEADLOCK));
 
@@ -1407,7 +1449,7 @@ again:
 		if(rc.err_num() == eRETRY) {
 		    leaf.unfix();
 		    DBGTHRD(<<"-->again TREE LATCH MODE "
-				<< tree_root.latch_mode()
+				<< int(tree_root.latch_mode())
 				);
 		    goto again;
 		}
@@ -1430,7 +1472,8 @@ again:
 	    xct_log_switch_t toggle(OFF);
 	    DBGTHRD(<<" leaf: " << leaf.pid() << " removing slot " << slot);
 
-	    W_DO( leaf.remove(slot) ); // zkeyed_p::remove
+	    W_DO( leaf.remove(slot, leaf.is_compressed() ) ); // zkeyed_p::remove
+	    DBGTHRD(<<" removed slot " << slot);
 	}
 	w_assert3(!smlevel_1::log || me()->xct()->is_log_on());
 
@@ -1446,15 +1489,19 @@ again:
 	     *  Failed writing log. Manually undo physical remove.
 	     */
 	    xct_log_switch_t toggle(OFF);
-	    rc = leaf.insert(key, el, slot);
-	    if(rc) {
+	    DBG(<<"Re-insert in leaf at slot " << slot);
+	    w_rc_t rc2 = leaf.insert(key, el, slot);
+	    if(rc2) {
 		DBG(<<"rc= " << rc);
 		leaf.discard(); // force the page out.
-		return rc.reset();
+		return rc2.reset();
 	    }
+	    return rc.reset();
 	}
 	w_assert3(!smlevel_1::log || me()->xct()->is_log_on());
 	SSMTEST("btree.remove.5");
+
+        DBGTHRD(<<" logged ");
 
 	/* 
 	 * Mohan(IM): 
@@ -1469,15 +1516,17 @@ again:
 	    w_assert3(leaf.is_leaf());
 	    SSMTEST("btree.remove.6");
 	    W_DO(log_comment("set_delete"));
+	    DBGTHRD(<<" set_delete ");
+
 	    // Tree latch not held: have to compensate
 	    W_DO( leaf.set_delete() );
 	}
 
 	SSMTEST("btree.remove.7");
 	if (leaf.nrecs() == 0)  {
-#ifdef DEBUG
+#ifdef W_DEBUG
 	    W_DO(log_comment("begin remove leaf"));
-#endif
+#endif /* W_DEBUG */
 	    /*
 	     *  Remove empty page.
 	     *  First, try to get a conditional latch on the
@@ -1493,6 +1542,7 @@ again:
 		    true, &sib, LATCH_EX);
 	    // if sib wasn't latched before calling for the latch,
 	    // it won't be latched now.
+	    DBGTHRD(<<" rc= " << rc);
 
 	    w_assert3(tree_root.is_fixed());
 	    w_assert3(! parent.is_fixed());
@@ -1505,7 +1555,7 @@ again:
 		    sib.unfix();
 		    SSMTEST("btree.remove.8");
 		    DBGTHRD(<<"-->again TREE LATCH MODE "
-				<< tree_root.latch_mode()
+				<< int(tree_root.latch_mode())
 				);
 		    goto again;
 		}
@@ -1523,23 +1573,28 @@ again:
 		if(!sib.is_fixed()) {
 		    W_DO(sib.fix(sib_pid, LATCH_EX));
 		} else if (sib.latch_mode() != LATCH_EX) {
-#ifdef DEBUG
+#if defined(W_DEBUG) && defined(notdef)
+		    // Took out because the buffer cleaner might
+		    // have this page latched, but the buffer 
+		    // cleaner *will* free it soon - it never blocks
+		    // on latches.
 		    bool would_block = false;
 		    W_DO(sib.upgrade_latch_if_not_block(would_block));
 		    w_assert3(!would_block);
 #else
 		    sib.upgrade_latch(LATCH_EX);
-#endif
+#endif /* W_DEBUG and nodef */
 		}
 	    }
 	    w_assert3(leaf.is_fixed());
+	    DBGTHRD(<<" calling unlink&propogate ");
 	    W_DO(leaf.unlink_and_propagate(key, el, sib, parent_pid, 
 		tree_root.page()));
 	    SSMTEST("btree.remove.10");
 
-#ifdef DEBUG
+#ifdef W_DEBUG
 	    W_DO(log_comment("end remove leaf"));
-#endif
+#endif /* W_DEBUG */
 	} // removal of empty page
     } // deletion of the key
     }
@@ -1576,7 +1631,7 @@ btree_impl::_lookup(
     get_latches(___s,___e); 
     rc_t	rc;
 
-    smlevel_0::stats.bt_find_cnt++;
+    INC_TSTAT(bt_find_cnt);
     stid_t 	stid = root.stid();
 
     {
@@ -1698,7 +1753,7 @@ btree_impl::_lookup(
 		lpid_t pid = root; // get volume, store part
 		pid.page = leaf.next();
 
-		smlevel_0::stats.bt_links++;
+		INC_TSTAT(bt_links);
 		W_DO( p2.fix(pid, LATCH_SH) );
 		/* 
 		 * does successor have a satisfying key?
@@ -1735,7 +1790,7 @@ btree_impl::_lookup(
 		    tree_root.unfix(); // instant latch
 
 		    DBGTHRD(<<"-->again TREE LATCH MODE "
-				<< tree_root.latch_mode()
+				<< int(tree_root.latch_mode())
 				);
 		    /* 
 		     * restart the search from the parent
@@ -1777,7 +1832,7 @@ btree_impl::_lookup(
 		    }
 		    
 		    DBGTHRD(<<"-->again TREE LATCH MODE "
-				<< tree_root.latch_mode()
+				<< int(tree_root.latch_mode())
 				);
 		    goto again;
 
@@ -1831,7 +1886,8 @@ btree_impl::_lookup(
 		/*
 		 *  Conditionally lock current/next entry.
 		 */
-		if (rc = lm->lock(kvl, SH, t_long, WAIT_IMMEDIATE)) {
+		rc = lm->lock(kvl, SH, t_long, WAIT_IMMEDIATE);
+		if (rc) {
 		    DBG(<<"rc=" << rc);
 		    w_assert3((rc.err_num() == eLOCKTIMEOUT) || (rc.err_num() == eDEADLOCK));
 
@@ -1876,7 +1932,6 @@ btree_impl::_lookup(
 
 	    if (found) {
 		// rec is the key that we're looking up
-		w_assert3(rec || cursor);
 		if(!cursor) {
 		    // Copy the element 
 		    // assume caller provided space
@@ -1993,7 +2048,7 @@ rc_t
 btree_impl::_shrink_tree(btree_p& rp)
 {
     FUNC(btree_impl::_shrink_tree);
-    smlevel_0::stats.bt_shrinks++;
+    INC_TSTAT(bt_shrinks);
 
     w_assert3( rp.latch_mode() == LATCH_EX);
     w_assert1( rp.nrecs() == 0);
@@ -2015,7 +2070,9 @@ btree_impl::_shrink_tree(btree_p& rp)
 	w_assert3(rp.level() == cp.level() + 1);
 	w_assert3(!cp.next() && !cp.prev());
 	W_DO( rp.set_hdr( rp.root().page, 
-		rp.level() - 1, cp.pid0(), 0) );
+		rp.level() - 1, cp.pid0(), 
+		(uint2_t)(rp.is_compressed()? 
+			btree_p::t_compressed: btree_p::t_none)) );
 
 	w_assert3(rp.level() == cp.level());
 
@@ -2037,7 +2094,9 @@ btree_impl::_shrink_tree(btree_p& rp)
 		<< " from level " << rp.level()
 		<< " to 1");
 
-	W_DO( rp.set_hdr(rp.root().page, 1, 0, 0) );
+	W_DO( rp.set_hdr(rp.root().page, 1, 0, 
+	    (uint2_t)(rp.is_compressed()? 
+		btree_p::t_compressed: btree_p::t_none)) );
     }
     SSMTEST("btree.shrink.3");
     return RCOK;
@@ -2057,7 +2116,7 @@ rc_t
 btree_impl::_grow_tree(btree_p& rp)
 {
     FUNC(btree_impl::_grow_tree);
-    smlevel_0::stats.bt_grows++;
+    INC_TSTAT(bt_grows);
 
     /*
      *  Sanity check
@@ -2074,7 +2133,7 @@ btree_impl::_grow_tree(btree_p& rp)
     btree_p np;
 
     // "following" a link here means fixing the page
-    smlevel_0::stats.bt_links++;
+    INC_TSTAT(bt_links);
     W_DO( np.fix(nxtpid, LATCH_EX) );
     w_assert1(!np.next());
 
@@ -2082,11 +2141,11 @@ btree_impl::_grow_tree(btree_p& rp)
     /*
      *  Allocate a new child, link it up with right sibling,
      *  and shift everything over to it (i.e. it is a copy
-     *  of root).
+     *  of root).   If the first page is compressed, they all are.
      */
     btree_p cp;
     W_DO( _alloc_page(rp.pid(), rp.level(),
-		      np.pid(), cp, rp.pid0(), true) );
+		      np.pid(), cp, rp.pid0(), true, rp.is_compressed()) );
     
     W_DO( cp.link_up(rp.prev(), rp.next()) );
     W_DO( np.link_up(cp.pid().page, np.next()) );
@@ -2106,7 +2165,8 @@ btree_impl::_grow_tree(btree_p& rp)
     DBGTHRD(<<"growing to level " << rp.level() + 1);
     W_DO( rp.set_hdr(rp.root().page,  
 		     rp.level() + 1,
-		     cp.pid().page, false) );
+		     cp.pid().page, 
+		    (uint2_t)(rp.is_compressed()? btree_p::t_compressed: btree_p::t_none)) );
 
     w_assert3(rp.nrecs() == 0); // pid0 doesn't count in nrecs
 
@@ -2124,7 +2184,7 @@ btree_impl::_grow_tree(btree_p& rp)
  *  of pids.
  *
  *********************************************************************/
-#ifdef __GNUG__
+#ifdef EXPLICIT_TEMPLATE
 template class w_auto_delete_array_t<btree_p>; 
 // template class w_auto_delete_array_t<lpid_t>; 
 template class w_auto_delete_array_t<int>; 
@@ -2145,9 +2205,9 @@ btree_impl::_propagate(
     w_assert3(root.is_fixed());
     w_assert3(root.latch_mode()==LATCH_EX);
 
-#ifdef DEBUG
+#ifdef W_DEBUG
     W_DO(log_comment("start propagate"));
-#endif
+#endif /* W_DEBUG */
     lpid_t 		child_pid = _child_pid;
 
     /*
@@ -2240,20 +2300,20 @@ btree_impl::_propagate(
 
 	    DBG(<<"INSPECTING " << top << " pid " << pid[top] );
 	    W_DO( p[top].fix(pid[top], LATCH_SH) );
-#ifdef DEBUG
+#ifdef W_DEBUG
 	    if(print_propagate) {
 		DBG(<<"top=" << top << " page=" << pid[top]
 			<< " is_leaf=" << p[top].is_leaf());
 		p[top].print();
 	    }
-#endif
+#endif /* W_DEBUG */
 
 	    w_assert3(p[top].is_fixed());
    	    w_assert3(p[top].is_node());
 	    w_assert3(! p[top].is_smo() );
 
 	    // pid0 is not counted in nrecs()
-	    w_assert3(p[top].nrecs() > 0 || p[top].pid0 != 0);
+	    w_assert3(p[top].nrecs() > 0 || p[top].pid0() != 0);
 
 	    // search expects at least 2 pages
 	    DBG(<<"SEARCHING " << top << " page " << p[top].pid() << " for " << key);
@@ -2306,14 +2366,14 @@ btree_impl::_propagate(
 	    w_assert3(p[top].is_fixed());
 	    if(p[top].latch_mode() != LATCH_EX) {
 		// should not block because we've got the tree latched
-#ifdef DEBUG
+#ifdef W_DEBUG
 		bool would_block = false;
 		W_DO(p[top].upgrade_latch_if_not_block(would_block));
 		if(would_block) {
 		    // It's the bf cleaner!  
 		    DBG(<<"BF-CLEANER? clash" );
 		}
-#endif
+#endif /* W_DEBUG */
 		p[top].upgrade_latch(LATCH_EX);
 	    }
 
@@ -2335,7 +2395,7 @@ btree_impl::_propagate(
 		    << " in slot " << slot[top]
 		    << " of page " << pid[top]
 		    );
-#ifdef DEBUG
+#ifdef W_DEBUG
 		{
 		DBG(<<"RE-SEARCHING " << top << " page " << p[top].pid() << " for " << key);
 		slotid_t child_slot=0;
@@ -2346,7 +2406,7 @@ btree_impl::_propagate(
 		if(!total_match) child_slot--;
 		w_assert3(child_slot == slot[top]);
 		}
-#endif
+#endif /* W_DEBUG */
 		w_assert3(slot[top] >= -1 && slot[top] < p[top].nrecs());
 
 		bool was_split = false;
@@ -2379,13 +2439,13 @@ btree_impl::_propagate(
 		    child_pid.page = root.pid0();
 		    // have to do one more 
 		    // iteration because root's one child was split 
-#ifdef DEBUG
+#ifdef W_DEBUG
 		    {
 		    btree_p tmp;
 		    W_DO(tmp.fix(child_pid, LATCH_SH));
 		    w_assert3(tmp.next() != 0);
 		    }
-#endif
+#endif /* W_DEBUG */
 		    // avoid decrementing top
 		    w_assert3(! p[top].is_fixed());
 		    p[top] = root; //refix it to continue the loop
@@ -2398,7 +2458,9 @@ btree_impl::_propagate(
 	    child_pid = pid[top];
 	    --top;
 	    w_assert3(root.latch_mode()==LATCH_EX);
+#ifdef W_DEBUG
 	    if(pid[top] != root.pid()) w_assert3(!p[top].is_fixed());
+#endif
 
 	    W_DO(p[top].fix(pid[top], LATCH_EX));
 	}
@@ -2407,9 +2469,9 @@ btree_impl::_propagate(
     w_assert3(root.is_fixed());
     w_assert3(root.latch_mode() == LATCH_EX);
 
-#ifdef DEBUG
+#ifdef W_DEBUG
     W_DO(log_comment("end propagate"));
-#endif
+#endif /* W_DEBUG */
 
     return RCOK;
 }
@@ -2425,9 +2487,9 @@ btree_impl::_propagate_split(
 )
 {
 
-#ifdef DEBUG
+#ifdef W_DEBUG
     W_DO(log_comment("start propagate_split"));
-#endif
+#endif /* W_DEBUG */
 
     lpid_t pid = _pid;
     /*
@@ -2435,12 +2497,12 @@ btree_impl::_propagate_split(
      */
     btree_p c1;
     W_DO( c1.fix(pid, LATCH_SH) );
-#ifdef DEBUG
+#ifdef W_DEBUG
     if(print_split) { 
 	DBG(<<"LEAF being split :");
 	c1.print(); 
     }
-#endif
+#endif /* W_DEBUG */
 
     w_assert3( c1.is_smo() );
     w_assert3( c1.nrecs());
@@ -2448,23 +2510,23 @@ btree_impl::_propagate_split(
     btrec_t r1(c1, c1.nrecs() - 1);
 
     btree_p c2;
-    smlevel_0::stats.bt_links++;
+    INC_TSTAT(bt_links);
 
     // GAK: EX because we have to do an update below
     W_DO( c2.fix(pid, LATCH_EX) ); 
-#ifdef DEBUG
+#ifdef W_DEBUG
     if(print_split) { 
 	DBG(<<"NEW right sibling :");
 	c2.print(); 
     }
-#endif
+#endif /* W_DEBUG */
     w_assert3( c2.nrecs());
     w_assert3( c2.is_smo() );
 
-#ifdef DEBUG
+#ifdef W_DEBUG
     // Apparently page.distribute doesn't put anything into pid0
     w_assert3(c2.pid0() == 0);
-#endif
+#endif /* W_DEBUG */
 
     shpid_t childpid = pid.page;
     /* 
@@ -2510,16 +2572,16 @@ btree_impl::_propagate_split(
     /* 
      * insert key,pid into parent
      */
-#ifdef DEBUG
+#ifdef W_DEBUG
     if(print_split) { 
 	DBG(<<"PARENT PAGE" );
 	parent.print(); 
     }
-#endif
+#endif /* W_DEBUG */
     rc_t rc = parent.insert(pkey, pelem, ++slot, c2.pid().page);
-#ifdef DEBUG
+#ifdef W_DEBUG
     if(print_split) { parent.print(); }
-#endif
+#endif /* W_DEBUG */
     if (rc) {
 	DBG(<<"rc= " << rc);
 	if (rc.err_num() != eRECWONTFIT) {
@@ -2567,7 +2629,7 @@ btree_impl::_propagate_split(
     if (c2.is_node())  {
         shpid_t pid0 = c2.child(0);
         DBGTHRD(<<"remove first record, pid0=" << pid0);
-        W_DO(c2.remove(0));
+        W_DO(c2.remove(0, c2.is_compressed())); // zkeyed_p::remove
         SSMTEST("btree.propagate.s.9");
         W_DO(c2.set_pid0(pid0));
     }
@@ -2588,9 +2650,9 @@ btree_impl::_propagate_split(
     W_DO(c1.clr_smo());
     parent.unfix();
 
-#ifdef DEBUG
+#ifdef W_DEBUG
     W_DO(log_comment("end propagate_split"));
-#endif
+#endif /* W_DEBUG */
 
     return RCOK;
 }
@@ -2635,9 +2697,9 @@ btree_impl::_split_leaf(
 
     if (xd)  anchor = xd->anchor();
 
-#ifdef DEBUG
+#ifdef W_DEBUG
     W_DO(log_comment("start leaf split"));
-#endif
+#endif /* W_DEBUG */
 
     int 	addition = key.size() + el.size() + 2;
     lpid_t 	rsib_pid;
@@ -2659,9 +2721,9 @@ btree_impl::_split_leaf(
     
     X_DO(_propagate(root, key, el, leaf_pid, level, false /*not delete*/), anchor);
 
-#ifdef DEBUG
+#ifdef W_DEBUG
     W_DO(log_comment("end leaf split"));
-#endif
+#endif /* W_DEBUG */
     if (xd)  {
 	SSMTEST("btree.propagate.s.1");
 	xd->compensate(anchor);
@@ -2689,7 +2751,7 @@ btree_impl::__split_page(
 {
     FUNC(btree_impl::__split_page);
 
-    smlevel_0::stats.bt_splits++;
+    INC_TSTAT(bt_splits);
 
     DBGTHRD( << "split page " << page.pid() << " addition " << addition);
     
@@ -2698,7 +2760,8 @@ btree_impl::__split_page(
      */
     btree_p sibling;
     lpid_t root = page.root();
-    W_DO( _alloc_page(root, page.level(), page.pid(), sibling, 0, true) );
+    W_DO( _alloc_page(root, page.level(), page.pid(), sibling, 0, true,
+	page.is_compressed()) );
 
     w_assert3(sibling.is_fixed());
     w_assert3(sibling.latch_mode() == LATCH_EX);
@@ -2746,7 +2809,7 @@ btree_impl::__split_page(
 	btree_p cousin;
 
 	// "following" a link here means fixing the page
-	smlevel_0::stats.bt_links++;
+	INC_TSTAT(bt_links);
 	W_DO( cousin.fix(old_next, LATCH_EX) );
 	W_DO( cousin.link_up(sibling_page.page, cousin.next()));
     }
@@ -2816,9 +2879,9 @@ btree_impl::_traverse(
     get_latches(___s,___e); 
 
     if(start == __root) {
-	smlevel_0::stats.bt_traverse_cnt++;
+	INC_TSTAT(bt_traverse_cnt);
     } else {
-	smlevel_0::stats.bt_partial_traverse_cnt++;
+	INC_TSTAT(bt_partial_traverse_cnt);
     }
 
     tree_latch 		tree_root(__root);
@@ -2827,14 +2890,14 @@ pagain:
 
     check_latches(___s,___e, ___s+___e); 
 
-    DBGTHRD(<<"__traverse.pagain: mode " << mode);
-#ifdef DEBUG
+    DBGTHRD(<<"__traverse.pagain: mode " << int(mode));
+#ifdef W_DEBUG
     DBGTHRD(<<"");
     if(print_ptraverse) {
 	cout << "TRAVERSE.pagain "<<endl;
 	print(start);
     }
-#endif
+#endif /* W_DEBUG */
     {
 	btree_p p[2];		// for latch coupling
 	lpid_t  pid[2];		// for latch coupling
@@ -2843,8 +2906,8 @@ pagain:
 	int c;			// toggle for p[] and pid[]. 
 				// p[1-c] is child of p[c].
 
-	w_assert3(! p[0]);
-	w_assert3(! p[1]);
+	w_assert3(! p[0].is_fixed());
+	w_assert3(! p[1].is_fixed());
 	c = 0;
 
 	found = false;
@@ -2880,13 +2943,13 @@ pagain:
 	    DBGTHRD(<<"starting point changed; restart");
 	    start_lsn = lsn_t::null;
 	    start = __root;
-	    smlevel_0::stats.bt_restart_traverse_cnt++;
+	    INC_TSTAT(bt_restart_traverse_cnt);
 	    DBGTHRD(<<"->pagain");
 	    goto pagain;
 	}
-#ifdef DEBUG
+#ifdef W_DEBUG
 	int waited_for_posc = 0;
-#endif
+#endif /* W_DEBUG */
 
 no_change:
 	w_assert3(p[c].is_fixed());
@@ -2966,11 +3029,11 @@ no_change:
 	    }
 
 	    if(wait_for_posc) {
-#ifdef DEBUG
+#ifdef W_DEBUG
 		w_assert3(waited_for_posc < 3);
 		// TODO: remove
 		waited_for_posc ++;
-#endif
+#endif /* W_DEBUG */
 		/* 
 		 * Establish a POSC per Mohan, 2: Tree traversal
 		 * Grab LATCH_SH on root and await SMO to be completed.
@@ -2988,21 +3051,21 @@ no_change:
 		     * SH latch on the root.  
 		     */
 		    bool was_latched = tree_root.is_fixed();
-#ifdef DEBUG
+#ifdef W_DEBUG
 		    latch_mode_t old_mode = tree_root.latch_mode();
-		    DBG(<<"old mode" << old_mode);
-#endif
+		    DBG(<<"old mode" << int(old_mode));
+#endif /* W_DEBUG */
 
 		    rc = tree_root.get(false, LATCH_SH,
 				p[c], LATCH_SH, true, &p[1-c], LATCH_SH);
 
 		    w_assert3(tree_root.is_fixed());
 		    w_assert3(tree_root.latch_mode() >= LATCH_SH);
-#ifdef DEBUG
+#ifdef W_DEBUG
 		    if(was_latched) {
 			w_assert3(tree_root.latch_mode() >= old_mode);
 		    }
-#endif
+#endif /* W_DEBUG */
 
 		    if(p[c].is_smo()) {
 			/*
@@ -3021,7 +3084,7 @@ no_change:
 			    w_assert3(tree_root.pinned_by_me());
 			    p[c].upgrade_latch(LATCH_EX);
 			}
-			smlevel_0::stats.bt_clr_smo_traverse++;
+			INC_TSTAT(bt_clr_smo_traverse);
 			W_DO(log_comment("clr_smo/T"));
 			W_DO( p[c].clr_smo(true));
 			// no way to downgrade the latch.
@@ -3050,13 +3113,13 @@ no_change:
 		     * traverse at the parent.  We do that only if the
 		     * page's lsn hasn't changed.
 		     */
-		    if(p[1-c] && (p[1-c].lsn() == lsns[1-c])) {
+		    if(p[1-c].is_fixed() && (p[1-c].lsn() == lsns[1-c])) {
 			start = pid[1-c];
 			p[c].unfix(); // gak: we're going to re-fix
 					// it immediately
 			c = 1-c;
 			DBGTHRD(<<"-->no_change TREE LATCH MODE "
-				<< tree_root.latch_mode()
+				<< int(tree_root.latch_mode())
 				);
 			goto no_change;
 		    }
@@ -3066,9 +3129,9 @@ no_change:
 		    goto pagain;
 		}
 	    }
-#ifdef DEBUG
+#ifdef W_DEBUG
 		else waited_for_posc =0;
-#endif
+#endif /* W_DEBUG */
 
 	    w_assert3(  p[c].is_fixed());
 	    w_assert3( !p[c].is_smo() );
@@ -3117,7 +3180,7 @@ no_change:
 	leaf_lsn = p[c].lsn(); // caller wants lsn
 	p[c].unfix();
 
-	if(p[1-c]) {
+	if(p[1-c].is_fixed()) {
 	    DBGTHRD(<<"2-level btree");
 	    parent = p[1-c];	// does a refix
 	    parent_lsn =  p[1-c].lsn(); // caller wants lsn
@@ -3126,7 +3189,7 @@ no_change:
 	    w_assert3( parent.is_node());
 	    w_assert3( parent.is_leaf_parent());
 	} else {
-	    DBGTHRD(<<"1-page btree: latch mode= " << leaf.latch_mode());
+	    DBGTHRD(<<"1-page btree: latch mode= " << int(leaf.latch_mode()));
 	    // We hit a leaf right away
 	    w_assert3( leaf.pid() == start );
 
@@ -3143,17 +3206,17 @@ no_change:
 		    leaf.unfix();
 		    parent.unfix();
 		    tree_root.unfix();
-		    smlevel_0::stats.bt_upgrade_fail_retry++;
+		    INC_TSTAT(bt_upgrade_fail_retry);
 		    /* TODO: figure out how to avoid this
 		    * situation -- it's too frequent - we need
 		    * to pay better attention to the first fix 
 		    * when we first enter : if the tree is 1 level
 		    * at that time, just unfix, refix with proper mode
 		    */
-		    DBG("--> again; cannot upgrade ");
+		    DBG(<<"--> again; cannot upgrade ");
 		    goto pagain;
 		}
-		w_assert3(leaf.latch_mode() == mode);
+		w_assert3(leaf.latch_mode() == mode );
 	    }
 
 	    // Doubly-fix the page:
@@ -3169,7 +3232,7 @@ no_change:
      */
     w_assert3(  leaf.is_fixed());
     w_assert3(  leaf.is_leaf());
-    w_assert3(  leaf.latch_mode() == mode);
+    w_assert3(  leaf.latch_mode() == mode );
     w_assert3( leaf_lsn != lsn_t::null);
 
     w_assert3(parent.is_fixed());
@@ -3179,9 +3242,11 @@ no_change:
     w_assert3(parent_lsn != lsn_t::null);
 
     if(leaf.pid() == __root) {
-	check_latches(___s,___e+2, ___s+___e+2);
+	// sh, ex: 2,0 or 0,2, or 1,1
+	check_latches(___s+2,___e+2, ___s+___e+2);
     } else {
-	check_latches(___s+1,___e+1, ___s+___e+2);
+	// sh,ex: 2,0 or 1,1
+	check_latches(___s+2,___e+1, ___s+___e+2);
     }
 
     /* 
@@ -3216,9 +3281,11 @@ btree_impl::_search(
 )
 {
     if (key.is_neg_inf())  {
-	found_key = total_match = false, ret_slot = 0;
+	found_key = (total_match = false);
+	ret_slot = 0;
     } else if (key.is_pos_inf()) {
-	found_key = total_match = false, ret_slot = page.nrecs();
+	found_key = (total_match = false); 
+	ret_slot = page.nrecs();
     } else {
 	rc_t rc = page.search(key, elem, found_key, total_match, ret_slot);
 	if (rc)  return rc.reset();
@@ -3319,6 +3386,7 @@ btree_impl::_satisfy(
          }
     }
     wcase = (uint) whatcase;
+    DBG(<<"returning case= " << int(whatcase));
     return RCOK;
 }
 #endif /* USE_OLD_BTREE_IMPL */

@@ -1,40 +1,133 @@
-/* --------------------------------------------------------------- */
-/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
-/* -- University of Wisconsin-Madison, subject to the terms     -- */
-/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
-/* -- Reserved.                                                 -- */
-/* --------------------------------------------------------------- */
-SRC = ssh.cc ssh_random.cc shell.cc shell2.cc tcl_thread.cc  ssh_error.cc 
-CFILES = $(SRC) random_kick.cc ssh_random.cc
-HFILES = ovt.h shell.h ssh.h ssh_error.h %
-	ssh_random.h tcl_thread.h
-OBJ = $(SRC:.cc=.o)
+/*<std-header style='imakefile' orig-src='shore'>
 
-CPPFLAGS = -I.. -I../../sthread -I../../common -I../../fc Include(TclInclude)
+ $Id: Imakefile,v 1.86 1999/07/19 21:55:51 nhall Exp $
 
-LIB = ../libsm.a ../../sthread/libst.a ../../common/libcommon.a %
-	../../fc/libfc.a TclLib
+SHORE -- Scalable Heterogeneous Object REpository
 
-all_local:: ssh random_kick
+Copyright (c) 1994-99 Computer Sciences Department, University of
+                      Wisconsin -- Madison
+All Rights Reserved.
 
-%GEN error_def(../e_error.dat,e)
-%GEN error_def(../../common/opt_error.dat,opt)
-%GEN error_def(../../sthread/st_error.dat,st)
-%GEN error_def(../../fc/fc_error.dat,fc)
+Permission to use, copy, modify and distribute this software and its
+documentation is hereby granted, provided that both the copyright
+notice and this permission notice appear in all copies of the
+software, derivative works or modified versions, and any portions
+thereof, and that both notices appear in supporting documentation.
 
-%GEN c_plus_program(ssh, $(OBJ), $(LIB))
-%# random_kick is used with runssh for crash tests
-%GEN c_plus_program(random_kick, random_kick.o, -lm)
+THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+"AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 
-#ifdef IS_SP2
-%GEN poe_c_plus_program(ssh.poe, $(OBJ), $(LIB))
+This software was developed with support by the Advanced Research
+Project Agency, ARPA order number 018 (formerly 8230), monitored by
+the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+Further funding for this work was provided by DARPA through
+Rome Research Laboratory Contract No. F30602-97-2-0247.
+
+  -- do not edit anything above this line --   </std-header>*/
+
+init_file_group(ssh)
+init_file_group(ssh.coord)
+
+ssh.cpp += \
+	ssh.cpp sort_funcs.cpp sort_funcs2.cpp sort_funcs3.cpp \
+	sort_funcs4.cpp shell.cpp shell2.cpp tcl_thread.cpp  ssh_error.cpp  \
+	out_of_log_space.cpp
+ssh.h += \
+	shell.h ssh.h ssh_error.h tcl_thread.h sort_funcs.h
+
+ssh.coord.cpp += \
+	sm_mappings.cpp sm_coord.cpp
+ssh.coord.h += \
+	sm_coord.h sm_mappings.h
+ssh.coord.other += \
+	README.2PC setup.2pc
+
+#ifdef USE_COORD
+add_to_group(ssh, ssh.coord)
+#else
+unused_group(ssh.coord)
 #endif
 
-PURE_OPTIONS = $(PURE_OPT)
-QUANT_OPTIONS = -collection-granularity=line -record-system-calls=yes -record-register-window-traps=yes
-%GEN purify_c_plus_program(ssh, $(OBJ), $(LIB), $(PURE_OPTIONS))
-%GEN quantify_c_plus_program(ssh, $(OBJ), $(LIB), $(QUANT_OPTIONS))
+INCLUDE_DIRS += \
+	$(SM_INCL)		\
+	$(STHREAD_INCL)		\
+	$(COMMON_INCL)		\
+	$(FC_INCL)		\
+	$(TCL_INCL)
+
+LIBRARY = $(SM_LIB) $(COMMON_LIB)
+#ifdef USE_COORD
+INCLUDE_DIRS += $(OCOMM_INCL)
+LIBRARY += $(OCOMM_LIB) $(OCOMM_NS_LIB)
+#endif
+LIBRARY += $(STHREAD_LIB) $(FC_LIB) $(TCL_LIB)
+
+remote_target($(SM_LIB))
+
+e_error.h = e_error_def_gen.h e_einfo_gen.h e_einfo_bakw_gen.h e_errmsg_gen.h
+opt_error.h = opt_error_def_gen.h opt_einfo_bakw_gen.h opt_einfo_gen.h opt_errmsg_gen.h
+st_error.h = st_error_def_gen.h st_einfo_gen.h st_einfo_bakw_gen.h st_errmsg_gen.h
+fc_error.h = fc_error_def_gen.h fc_einfo_gen.h fc_einfo_bakw_gen.h fc_errmsg_gen.h
+
+gen_error_codes(ssh, $(SM_DIR)/e_error.dat, -d, $(e_error.h))
+gen_error_codes(ssh, $(COMMON_DIR)/opt_error.dat, -d, $(opt_error.h))
+gen_error_codes(ssh, $(STHREAD_DIR)/st_error.dat, -d, $(st_error.h))
+gen_error_codes(ssh, $(FC_DIR)/fc_error.dat, -d, $(fc_error.h))
+
+#ifdef USE_COORD
+ns_error.h = ns_error_def_gen.h ns_einfo_bakw_gen.h ns_einfo_gen.h ns_errmsg_gen.h
+sc_error.h = sc_error_def_gen.h sc_einfo_bakw_gen.h sc_einfo_gen.h sc_errmsg_gen.h
+
+gen_error_codes(ssh, $(OCOMM_DIR)/ns_error.dat, -d, $(ns_error.h))
+gen_error_codes(ssh, $(OCOMM_DIR)/sc_error.dat, -d, $(sc_error.h))
+#endif
+
+ssh.libs += $(LIBRARY)
+ssh.exec_name = ssh
+
+build_exec(ssh)
+
+CMNT random_kick is used with runssh for crash tests
+init_file_group(random_kick)
+random_kick.cpp += random_kick.cpp
+random_kick.libs += $(LIBRARY)
+random_kick_exec_name = random_kick
+#ifdef IS_NT
+unused_group(random_kick)
+#else
+build_test_exec(random_kick)
+#endif
+
+#ifdef IS_SP2
+build_poe_program(ssh)
+#endif
+
+QUANT_OPT += -collection-granularity=line -record-system-calls=yes -record-register-window-traps=yes
 PURECOV_OPT += -best-effort  $(PURE_OPT)
-%GEN purecov_c_plus_program(ssh, $(OBJ), $(LIB), $(PURECOV_OPT))
-%GEN depend_target($(CFILES))
-%GEN tags($(CFILES) $(HFILES))
+
+clean_files(ssh.log)
+squeaky_files(log/$(WILD) volumes/dev1)
+pristine_files(.shoreconfig .sshrc)
+
+init_file_group(test_stuff)
+test_stuff.other +=		\
+	README			\
+	buncha_tests		\
+	run.2pc			\
+	run.cd.perf		\
+	run.subord		\
+	runssh			\
+	runtest			\
+	runtests.pl		\
+	scale			\
+	testall			\
+	tkstats
+used_group(test_stuff)
+
+MISC_SUBDIRS +=			\
+	lib			\
+	log			\
+	scripts			\
+	volumes

@@ -1,36 +1,81 @@
-/* --------------------------------------------------------------- */
-/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
-/* -- University of Wisconsin-Madison, subject to the terms     -- */
-/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
-/* -- Reserved.                                                 -- */
-/* --------------------------------------------------------------- */
+/*<std-header orig-src='shore'>
 
-#include <iostream.h>
-#include <strstream.h>
-#include <sys/types.h>
-#include <unistd.h>
-#include <assert.h>
+ $Id: diskinfo.cpp,v 1.15 1999/06/07 19:06:19 kupsch Exp $
+
+SHORE -- Scalable Heterogeneous Object REpository
+
+Copyright (c) 1994-99 Computer Sciences Department, University of
+                      Wisconsin -- Madison
+All Rights Reserved.
+
+Permission to use, copy, modify and distribute this software and its
+documentation is hereby granted, provided that both the copyright
+notice and this permission notice appear in all copies of the
+software, derivative works or modified versions, and any portions
+thereof, and that both notices appear in supporting documentation.
+
+THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+"AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+This software was developed with support by the Advanced Research
+Project Agency, ARPA order number 018 (formerly 8230), monitored by
+the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+Further funding for this work was provided by DARPA through
+Rome Research Laboratory Contract No. F30602-97-2-0247.
+
+*/
+
+#include "w_defines.h"
+
+/*  -- do not edit anything above this line --   </std-header>*/
+
+#include <w_stream.h>
+#include <os_types.h>
 #include <memory.h>
+#include <getopt.h>
 
 #include <w.h>
 #include <w_statistics.h>
 #include <sthread.h>
 #include <sthread_stats.h>
 
-extern "C" char *optarg;
 
-ostream &operator<<(ostream &o, const struct disk_geometry &dg)
+static int parse_args(int, char **);
+
+
+typedef sthread_base_t::disk_geometry_t disk_geometry_t;
+typedef	sthread_base_t::filestat_t	filestat_t;
+
+ostream &operator<<(ostream &o, const disk_geometry_t &dg)
 {
-	W_FORM(o)("   %8d  %10d   %10d %10d %10d",
-		  dg.blocks, dg.block_size,
-		  dg.cylinders, dg.tracks, dg.sectors);
+	o 	<< "   " << setw(8) << dg.blocks
+		<< "  " << setw(10) << dg.block_size
+		<< "   " << setw(10) << dg.cylinders
+		<< " " << setw(10) << dg.tracks
+		<< " " << setw(10) << dg.sectors;
 	return o;
 }
 
-void print_dg(const char *fname, const struct disk_geometry &dg)
+ostream	&operator<<(ostream &o, const filestat_t &st)
+{
+	o 	<< "   " << setw(8) << (st.st_size / st.st_block_size)
+		<< "  " << setw(10) << st.st_block_size
+		<< "    " << "FILE: size= " << st.st_size;
+	return o;
+}
+
+void print_dg(const char *fname, const disk_geometry_t &dg)
 {
 	W_FORM(cout)("%-20s", fname);
 	cout << dg << endl;
+}
+
+void	print_st(const char *fname, const filestat_t &st)
+{
+	W_FORM(cout)("%-20s", fname);
+	cout << st << endl;
 }
 
 void label_dg()
@@ -40,13 +85,19 @@ void label_dg()
 		     "Cylinders", "Tracks", "Sectors");
 }
 
-w_rc_t test_diskinfo(const char *fname, bool stamp, struct disk_geometry *all)
+
+bool	check_last = false;
+char	*io_buf;	/* Sthread I/O buffer */
+
+
+w_rc_t test_diskinfo(const char *fname, bool stamp, disk_geometry_t *all)
 	
 {
-	int fd;
-	w_rc_t rc;
-	int flags = sthread_t::OPEN_RDONLY | sthread_t::OPEN_LOCAL;
-	struct	disk_geometry	dg;
+	int	fd;
+	w_rc_t	rc;
+	int	flags = sthread_t::OPEN_RDONLY | sthread_t::OPEN_LOCAL;
+	disk_geometry_t		dg;
+	filestat_t		st;
 
 	rc = sthread_t::open(fname, flags, 0666, fd);
 	if (rc) {
@@ -54,11 +105,42 @@ w_rc_t test_diskinfo(const char *fname, bool stamp, struct disk_geometry *all)
 		return rc;
 	}
 
+	rc = sthread_t::fstat(fd, st);
+	if (rc) {
+		cerr << "Can't stat '" << fname << "':" << endl << rc << endl;
+		sthread_t::close(fd);
+		return rc;
+	}
+
+	if (st.is_file) {
+		print_st(fname, st);
+		W_COERCE( sthread_t::close(fd) );
+		all->blocks += (st.st_size / st.st_block_size);
+		return RCOK;
+	}
+
 	rc = sthread_t::fgetgeometry(fd, dg);
 	if (rc) {
 		cerr << "Can't get disk geometry:" << endl << rc << endl;
+		sthread_t::close(fd);
 		return rc;
 	}
+
+	if (check_last) {
+
+		rc = sthread_t::lseek(fd, (dg.blocks-1) * dg.block_size,
+					sthread_t::SEEK_AT_SET);
+		if (rc)
+			cerr << "Can't seek to last block:" 
+				<< endl << rc << endl;
+		else {
+			rc = sthread_t::read(fd, io_buf, dg.block_size);
+			if (rc)
+				cerr << "Can't read last block:" 
+					<< endl << rc << endl;
+		}
+	}
+
 
 	if (stamp)
 		*all = dg;
@@ -76,29 +158,60 @@ w_rc_t test_diskinfo(const char *fname, bool stamp, struct disk_geometry *all)
 
 main(int argc, char **argv)
 {
-	int i;
+	int	i;
+	int	arg;
 
-	if (argc < 2) {
-		cerr << "usage: " << argv[0] << " device ..." << endl;
+	arg = parse_args(argc, argv);
+	if (arg < 0)
 		return 1;
-	}
 
-	char *buf = (char*) sthread_t::set_bufsize(1024*1024);
-	if (!buf)
-		W_FATAL(fcOUTOFMEMORY);
+	w_rc_t	e;
+	e = sthread_t::set_bufsize(1024*1024, io_buf);
+	if (e != RCOK)
+		W_COERCE(e);
 
-	struct disk_geometry all;
-	memset(&all, '\0', sizeof(all));
+	disk_geometry_t all;
+	memset(&all, 0, sizeof(all));	/* XXX soon be gone */
 
 	label_dg();
-	for (i = 1; i < argc; i++)
-		W_IGNORE(test_diskinfo(argv[i], i == 1, &all));
+	for (i = arg; i < argc; i++)
+		W_IGNORE(test_diskinfo(argv[i], i == arg, &all));
 
-	if (argc > 2)
+	if (argc - arg > 2)
 		print_dg("All", all);
 
-	(void) sthread_t::set_bufsize(0);
+	e = sthread_t::set_bufsize(0, io_buf);
+	if (e != RCOK)
+		cerr << "Warning: can't release buffer:" << endl << e << endl;
 
 	return 0;
 }
 
+
+static	int	parse_args(int argc, char **argv)
+{
+	int	errors = 0;
+	int	c;
+
+	while ((c = getopt(argc, argv, "c")) != EOF) {
+		switch (c) {
+		case 'c':
+			check_last = true;
+			break;
+		default:
+			errors++;
+			break;
+		}
+	}
+
+	if (optind == argc)
+		errors++;
+
+	if (errors)
+		cout << "Usage: " << argv[0]
+			<< " [-c]"
+			<< "path ..."
+			<< endl;
+
+	return errors ? -1 : optind;
+}

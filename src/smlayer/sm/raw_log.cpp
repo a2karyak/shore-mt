@@ -1,26 +1,47 @@
-/* --------------------------------------------------------------- */
-/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
-/* -- University of Wisconsin-Madison, subject to the terms     -- */
-/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
-/* -- Reserved.                                                 -- */
-/* --------------------------------------------------------------- */
+/*<std-header orig-src='shore'>
 
-/*
- *  $Id: raw_log.cc,v 1.22 1997/06/15 03:13:37 solomon Exp $
- */
+ $Id: raw_log.cpp,v 1.48 1999/08/06 19:53:47 bolo Exp $
+
+SHORE -- Scalable Heterogeneous Object REpository
+
+Copyright (c) 1994-99 Computer Sciences Department, University of
+                      Wisconsin -- Madison
+All Rights Reserved.
+
+Permission to use, copy, modify and distribute this software and its
+documentation is hereby granted, provided that both the copyright
+notice and this permission notice appear in all copies of the
+software, derivative works or modified versions, and any portions
+thereof, and that both notices appear in supporting documentation.
+
+THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+"AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+This software was developed with support by the Advanced Research
+Project Agency, ARPA order number 018 (formerly 8230), monitored by
+the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+Further funding for this work was provided by DARPA through
+Rome Research Laboratory Contract No. F30602-97-2-0247.
+
+*/
+
+#include "w_defines.h"
+
+/*  -- do not edit anything above this line --   </std-header>*/
+
 #define SM_SOURCE
 #define LOG_C
 #ifdef __GNUG__
 #   pragma implementation
 #endif
 
-#include <stream.h>
-#include <iostream.h>
-#include <fstream.h>
+#include <w_stream.h>
 #include <stdlib.h>
-#include <sm_int_1.h>
-#include <logdef.i>
-#include <logtype.i>
+#include "sm_int_1.h"
+#include "logdef_gen.cpp"
+#include "logtype_gen.h"
 #include "srv_log.h"
 #include "raw_log.h"
 #include "log_buf.h"
@@ -46,10 +67,45 @@ raw_log::_make_master_name(
 {
     FUNC(raw_log::_make_master_name);
     ostrstream s(_buf, (int) _bufsz);
-    s << master_lsn << '.' 
-      << min_chkpt_rec_lsn << '\0';
+    lsn_t 	array[max_open_log];
+    array[0] = master_lsn;
+    array[1] = min_chkpt_rec_lsn;
+    create_master_chkpt_string(s, 2, array);
+
+    /*
+     * Append a delimiter and a separator
+     */
+    s << "X"; // delimiter
+
+    int j=0;
+    for(int i=0; i < max_open_log; i++) {
+	const partition_t *p = this->i_partition(i);
+	if(p->num() > 0 && (p->last_skip_lsn().hi() == p->num())) {
+	    array[j++] = p->last_skip_lsn();
+	}
+    }
+    create_master_chkpt_contents(s, j, array);
     w_assert1(s);
 }
+
+
+w_rc_t	raw_log::new_raw_log(raw_log	*&the_log,
+			     const char	*logdir, 
+			     int	rdbufsize,
+			     int	wrbufsize,
+			     char	*shmbase,
+			     bool	reformat) 
+{
+	raw_log	*log;
+
+	log = new raw_log(logdir, rdbufsize, wrbufsize, shmbase, reformat);
+	if (!log)
+		return RC(fcOUTOFMEMORY);
+
+	the_log = log;
+	return RCOK;
+}
+
 
 /*********************************************************************
  *
@@ -65,12 +121,13 @@ raw_log::_make_master_name(
 NORET
 raw_log::raw_log(
 	const char* logdir, 
-	int rdbufsize, 
-	int wrbufsize,
+	int	 rdbufsize, 
+	int	 wrbufsize,
 	char *shmbase,
 	bool reformat
 ) 
-: srv_log(rdbufsize, wrbufsize, shmbase)
+: srv_log(rdbufsize, wrbufsize, shmbase),
+  _dev_bsize(DEV_BSIZE)	/* unix-ish default, could be 0 */
 {
     FUNC(raw_log::raw_log);
 
@@ -81,7 +138,7 @@ raw_log::raw_log(
     strcpy(_logdir, logdir);
 
 
-    smsize_t raw_size = 0;
+    fileoff_t raw_size = 0;
     {
 	w_rc_t e1, e2;    
 	/* 
@@ -97,6 +154,10 @@ raw_log::raw_log(
 	char *s = getenv("SM_LOG_LOCAL");
 	if (s && atoi(s))
 		lflag |= smthread_t::OPEN_LOCAL;
+
+	s = getenv("SM_LOG_RAW_RAW");
+	if (s && atoi(s) > 0)
+		lflag |= smthread_t::OPEN_RAW;
 
 	e1 = me()->open(logdir, lflag | smthread_t::OPEN_RDONLY, 0, _fhdl_rd);
 	e2 = me()->open(logdir, lflag | smthread_t::OPEN_RDWR | smthread_t::OPEN_SYNC, 0, _fhdl_app);
@@ -118,13 +179,42 @@ raw_log::raw_log(
 	if (_shared->_max_logsz != 0)  {
 	    raw_size = _shared->_max_logsz * max_open_log;
 
+		/* Allow testing of raw log code on files, get
+		   parameters for underlying device. */
+		smthread_t::filestat_t	st;
+		w_rc_t			e;
+
+		e = smthread_t::fstat(_fhdl_app, st);
+		if (e == RCOK && st.is_file) {
+			e = smthread_t::ftruncate(_fhdl_app, raw_size);
+			W_IGNORE(e);
+			W_IGNORE(e);
+			_dev_bsize = DEV_BSIZE;	/* XXX st.st_whatever */
+		}
+		else if (e == RCOK && st.is_device) {
+			smthread_t::disk_geometry_t	dg;
+			e = smthread_t::fgetgeometry(_fhdl_app, dg);
+			if (e == RCOK)
+				_dev_bsize = dg.block_size;
+			else
+				_dev_bsize = DEV_BSIZE;	/* XXX */
+			/* could check for raw_size not fitting on device,
+			  instead of seek tests later. */
+		}
+		/* fundamental assumption of log code */
+	        w_assert1(CHKPT_META_BUF == _dev_bsize);
+
 	    if (reformat)  {
-	        raw_size /= DEV_BSIZE;	// make an even multiple of DEV_BSIZE so write works on raw device
-	        raw_size *= DEV_BSIZE;
+		/*
+		 * Make an even multiple of the device block size 
+		 * so write works on raw device
+		 */
+	        raw_size /= _dev_bsize;
+	        raw_size *= _dev_bsize;
     
 	        // check to see if we can read and write the last DEV_BSIZE bytes of the log
-		off_t where = raw_size - DEV_BSIZE;
-	        e = me()->lseek(_fhdl_app, where, SEEK_SET);
+		fileoff_t where = raw_size - _dev_bsize;
+	        e = me()->lseek(_fhdl_app, where, sthread_t::SEEK_AT_SET);
 		if (e) {
 		    cerr << "Bad value for sm_logsize option.  "
 			<< "Cannot seek to last block." << endl;
@@ -132,10 +222,10 @@ raw_log::raw_log(
 	        }
 
 		/* Use the readbuffer for validating the log size */
-		w_assert1(rdbufsize >= DEV_BSIZE);
+		w_assert1((unsigned)rdbufsize >= _dev_bsize);
 
 		/* XXX non-shm I/O */
-		e = me()->read(_fhdl_app, _readbuf, DEV_BSIZE);
+		e = me()->read(_fhdl_app, _readbuf, _dev_bsize);
 		if (e) {
 			/* its not really an OS error, rather a user error */
 			cerr << "Bad value for sm_logsize option, cannot read last block.";
@@ -143,7 +233,7 @@ raw_log::raw_log(
 			W_COERCE(e);
 	        }
     
-	        e = me()->write(_fhdl_app, _readbuf, DEV_BSIZE);
+	        e = me()->write(_fhdl_app, _readbuf, _dev_bsize);
 		if (e) {
 			/* its not really an OS error, rather a user error */
 			cerr << "Bad value for sm_logsize option, cannot write last block.";
@@ -152,17 +242,19 @@ raw_log::raw_log(
 	        }
 	    }
 	}  else  {
-	    struct disk_geometry dg;
+	    sthread_base_t::disk_geometry_t dg;
 	    e = me()->fgetgeometry(_fhdl_rd, dg);
 	    /* XXX no way to report errors from the constructor */
 	    W_COERCE(e);
 
 	    raw_size = dg.blocks * dg.block_size;
 
-	    cout.form("raw device has %d bytes (%d blocks, %d b/block)\n",
-		      raw_size, dg.blocks, dg.block_size);
+	    _dev_bsize = dg.block_size;
+	    w_assert1(CHKPT_META_BUF == _dev_bsize);
 
-	    DBG(<< "raw device has " << raw_size << " blocks.");
+	    cout << "raw log device has " << raw_size << " bytes ("
+	    	<< dg.blocks << " blocks, "
+		<< dg.block_size << " bytes/block)" << endl;
 	}
 	DBG(<< "using a raw partition of size " << raw_size << " bytes.");
     }
@@ -171,8 +263,8 @@ raw_log::raw_log(
      * use the raw size computed above either from the sm_logsize configuration
      * option or the the size of the raw partition.
      */
-    smsize_t	size  = raw_size - CHKPT_META_BUF;
-    smsize_t	used  = CHKPT_META_BUF;  
+    fileoff_t	size  = raw_size - CHKPT_META_BUF;
+    fileoff_t	used  = CHKPT_META_BUF;  
     size /= max_open_log;
     size /= XFERSIZE;
     size *= XFERSIZE;
@@ -190,7 +282,15 @@ raw_log::raw_log(
     // partition size needs to be at least 64KB
     w_assert1(size >= 64*1024);
 
-    w_assert1(size > sizeof(logrec_t));
+    w_assert1(size > (int) sizeof(logrec_t));
+
+
+    /* Create a list of lsns for the partitions - this
+     * will be used to store any hints about the last
+     * lsns of the partitions (stored with checkpoint meta-info
+     */ 
+    lsn_t  lsnlist[max_open_log];
+    int    listlength = 0;
     {
 	DBG(<<"initialize part tbl, part size =" << size);
 	w_assert1((size / XFERSIZE)*XFERSIZE == size);
@@ -208,11 +308,12 @@ raw_log::raw_log(
 	    used += size;
 	    _part[i]._eop = used;
 	}
+
+#ifdef dont_do_this
 	/*
 	 * Extend the last partition if possible.
 	 * It could be extended as much as (7 * XFERSIZE)
 	 */
-#ifdef dont_do_this
     /**** DON'T DO THIS: parts of the code depend on uniform partition sizes */
 	{
 	    smsize_t left = raw_size - used;
@@ -256,7 +357,9 @@ raw_log::raw_log(
 	 * find last checkpoint  
 	 */
 	_read_master(_shared->_master_lsn, 
-		_shared->_min_chkpt_rec_lsn);
+		_shared->_min_chkpt_rec_lsn,
+		lsnlist, listlength
+		);
 
 	smlevel_0::errlog->clog << error_prio 
 	    << "Master checkpoint at ..." 
@@ -277,13 +380,13 @@ raw_log::raw_log(
 
     partition_number_t 	last_partition = 0;
     bool                last_partition_exists = false;
-    off_t 		offset = 0;
+    fileoff_t 		offset = 0;
 
     last_partition = 1;
     if(reformat) {
 	offset = 0;
 	_shared->_curr_lsn = 
-	_shared->_durable_lsn = lsn_t(uint4(0), uint4(0));  // set_durable(...)
+	_shared->_durable_lsn = log_base::first_lsn(0);  // set_durable(...)
 	// last_partition_exists = false;
     } else {
 	raw_partition 	*p;
@@ -294,8 +397,20 @@ raw_log::raw_log(
 	    p = &_part[i];
 
 	    DBG(<<"constructor: peeking at partition# " << i);
+
+	    // Find out if there's a hint about the length of the 
+	    // partition (from the checkpoint).  This lsn serves as a
+	    // starting point from which to search for the skip_log record
+	    // in the file.  It's a performance thing...
+	    lsn_t lasthint;
+	    for(int q=0; q<listlength; q++) {
+		if(lsnlist[q].hi() == p->num()) {
+		    lasthint = lsnlist[q];
+		}
+	    }
 		
-	    p->peek(0, true);
+	    p->peek(0, lasthint, true);
+
 	    if(p->num() >= last_partition) {
 		DBG(<<"new last_partition: partition# " << i);
 		last_partition = p->num();
@@ -313,11 +428,11 @@ raw_log::raw_log(
 	    }
 	    unset_current();
 	}
-	w_assert1((uint4)offset != partition_t::nosize);
+	w_assert1(offset != partition_t::nosize);
 	/* TODO : remove
 	// _shared->_curr_lsn = 
 	// _shared->_durable_lsn =  // set_durable(...)
-        // 	lsn_t(uint4(last_partition), uint4(offset));
+        // 	lsn_t(uint4_t(last_partition), offset);
 	*/
 
     }
@@ -328,7 +443,7 @@ raw_log::raw_log(
 
     _shared->_curr_lsn = 
     _shared->_durable_lsn = // set_durable(...)
-	lsn_t(uint4(last_partition), uint4(offset));
+	lsn_t(uint4_t(last_partition), sm_diskaddr_t(offset));
 
 
     DBG(<< "reformat   = " << reformat
@@ -344,31 +459,37 @@ raw_log::raw_log(
 	DBG(<<" opening last_partition " << last_partition
 		<< " expected-to-exist " << last_partition_exists
 	    );
-	partition_t *p = open(last_partition, last_partition_exists,
-		true, true);
+	lsn_t lasthint;
+	for(int q=0; q<listlength; q++) {
+	    if(lsnlist[q].hi() == last_partition) {
+		lasthint = lsnlist[q];
+	    }
+	}
+	partition_t *p = open(last_partition, 
+		lasthint, last_partition_exists, true, true);
 	/* XXXX error info lost */
 	if(!p) {
 	    smlevel_0::errlog->clog << error_prio 
 	    << "ERROR: could not open log file for partition "
 	    << last_partition << flushl;
-	    W_FATAL(eOS);
+	    W_FATAL(eINTERNAL);
 	}
 
 	w_assert3(p->num() == last_partition);
 	w_assert3(partition_num() == last_partition);
 	w_assert3(partition_index() == p->index());
 
-#ifdef DEBUG
+#ifdef W_DEBUG
 	{
 	raw_partition *r = (raw_partition *)p;
-	off_t eof = r->size();
-	w_assert1((uint4)eof != partition_t::nosize);
+	fileoff_t eof = r->size();
+	w_assert1(eof != partition_t::nosize);
 	w_assert3(last_partition == durable_lsn().hi());
 	w_assert3(last_partition == curr_lsn().hi());
-	w_assert3((uint4)eof == durable_lsn().lo());
-	w_assert3((uint4)eof == curr_lsn().lo());
+	w_assert3(eof == durable_lsn().lo());
+	w_assert3(eof == curr_lsn().lo());
 	}
-#endif
+#endif /* W_DEBUG */
     }
     DBG( << "partition num = " << partition_num()
 	    <<" current_lsn " << curr_lsn()
@@ -379,7 +500,7 @@ raw_log::raw_log(
 
 
 
-#ifdef DEBUG
+#ifdef W_DEBUG
     DBG(<<"************************");
     partition_t *p;
     for (uint i = 0; i < max_open_log; i++)  {
@@ -403,7 +524,7 @@ raw_log::raw_log(
 	    DBG( << " CURRENT ");
 	}
     }
-#endif
+#endif /* W_DEBUG */
 
     smlevel_0::errlog->clog << error_prio << endl<< "Log recovered." << flushl;
 }
@@ -448,19 +569,26 @@ raw_log::i_partition(partition_index_t i) const
 void
 raw_log::_read_master(
     lsn_t& l,
-    lsn_t& min
+    lsn_t& min,
+    lsn_t* lsnlist,
+    int&   listlength
 ) 
 {
     FUNC(raw_log::_read_master);
     int fd = _fhdl_rd;
     w_assert3(fd);
 
-    w_assert1(CHKPT_META_BUF == DEV_BLOCK_SIZE);
+    /* XXX unfortunately this means that logs only work with 512 byte
+       devices. But all that's really required is that checkpt block
+       size be a mpl of the the device block size and be large enough 
+       to hold the master.
+    */
+    w_assert1(CHKPT_META_BUF == _dev_bsize);
 
     DBG(<<"read_master seeking to " << 0);
     
     w_rc_t e;
-    e = me()->lseek(fd, 0, SEEK_SET);
+    e = me()->lseek(fd, 0, sthread_t::SEEK_AT_SET);
     if (e) {
 	smlevel_0::errlog->clog << error_prio 
 	    << "ERROR: could not seek to 0 to read checkpoint: "
@@ -475,18 +603,58 @@ raw_log::_read_master(
 	    << flushl;
 	W_COERCE(e);
     } 
-    istrstream s(readbuf(), readbufsize());
-    lsn_t tmp; lsn_t tmp1; char  separator;
-
-    if (! (s >> tmp >> separator >> tmp1) )  {
-	smlevel_0::errlog->clog << error_prio 
-	    << "Bad checkpoint master record -- " 
-	    << " you must reformat the log."
-	    << flushl;
-	W_FATAL(eINTERNAL);
+    /*
+     * Locate the separator 
+     */
+    char *REST=0, *c = readbuf();
+    for(int i=0; i < CHKPT_META_BUF; i++) {
+	if( *(c+i) == 'X') {
+	    // replace with a null char
+	    *(c+i) = '\0';
+	    i++;
+	    REST = (c + i);
+	    DBG(<<"Located X separator - prior buf is " << c
+		<< " REST = " << REST);
+	    break;
+	}
     }
-    l = tmp;
-    min = tmp1;
+
+    /* XXX Possible loss of bits in cast */
+    w_assert1(readbufsize() < fileoff_t(w_base_t::int4_max));
+    { 
+	istrstream s(readbuf(), int(readbufsize()));
+	lsn_t tmp; lsn_t tmp1;
+
+	bool  old_style;
+	listlength=0;
+	rc_t rc;
+	if ((rc = parse_master_chkpt_string(s, tmp, tmp1, 
+	    listlength, lsnlist,
+	    old_style)) != RCOK)  {
+	    smlevel_0::errlog->clog << error_prio 
+		<< "Bad checkpoint master record name -- " 
+		<< " you must reformat the log."
+		<< flushl;
+	    W_COERCE(rc);
+	}
+	l = tmp;
+	min = tmp1;
+    }
+
+    if( *REST != '\0' ) {
+	rc_t rc;
+	istrstream s(REST, int(readbufsize()) - (REST - readbuf()));
+	if ((rc = parse_master_chkpt_contents(s, listlength, lsnlist))
+		!= RCOK) {
+		smlevel_0::errlog->clog << error_prio 
+		    << "Bad checkpoint master contents -- " 
+		    << " you must reformat the log."
+		<< flushl;
+	    W_COERCE(rc);
+	}
+    }
+
+
 }
 
 void
@@ -501,14 +669,40 @@ raw_log::_write_master(
      */
     _make_master_name(l, min, _chkpt_meta_buf, CHKPT_META_BUF);
 
+    {	/* write ending lsns into the master chkpt record */
+
+	/* cast away const-ness of _chkpt_meta_buf */
+	char *_ptr = (char *)_chkpt_meta_buf + strlen(_chkpt_meta_buf);
+
+	lsn_t 	array[max_open_log];
+	int j=0;
+	for(int i=0; i < max_open_log; i++) {
+	    const partition_t *p = this->i_partition(i);
+	    if(p->num() > 0 && (p->last_skip_lsn().hi() == p->num())) {
+		array[j++] = p->last_skip_lsn();
+	    }
+	}
+	if(j > 0) {
+	    ostrstream s(_ptr, CHKPT_META_BUF);
+	    create_master_chkpt_contents(s, j, array);
+	} else {
+	    memset(_ptr, '\0', 1);
+	}
+	DBG(<< " #lsns=" << j
+	    << "write this to master checkpoint record: " <<
+		_ptr);
+
+    }
+
     DBG(<< "writing checkpoint master: " << _chkpt_meta_buf);
+
 
     int fd = fhdl_app();
 
     w_assert3(fd);
 
     DBG(<<"write_master seeking to " << 0);
-    w_rc_t e = me()->lseek(fd, 0, SEEK_SET);
+    w_rc_t e = me()->lseek(fd, 0, sthread_t::SEEK_AT_SET);
     if (e) {
 	smlevel_0::errlog->clog << error_prio 
 	    << "ERROR: could not seek to 0 to write checkpoint: "
@@ -553,17 +747,16 @@ raw_partition::open_for_read(
 	    << " does not exist"
 	     << flushl;
 	/* XXX bogus error info */
-	W_FATAL(smlevel_0::eOS);
+	W_FATAL(smlevel_0::eINTERNAL);
     }
     set_state(m_open_for_read);
     return ;
 }
 
 void
-raw_partition::close(bool /*both*/)  // default: both = true
+raw_partition::close(bool /* both */)
 {
     FUNC(raw_partition::close);
-    bool err_encountered=false;
 
     // We have to flush the writebuf
     // if it's "ours", which is to say,
@@ -579,13 +772,10 @@ raw_partition::close(bool /*both*/)  // default: both = true
     }
 
     // and invalidate it
-     w_assert3(! is_current());
+    w_assert3(! is_current());
+
     clr_state(m_open_for_read);
     clr_state(m_open_for_append);
-
-    if(err_encountered) {
-	W_FATAL(smlevel_0::eOS);
-    }
 }
 
 
@@ -629,12 +819,12 @@ raw_partition::_init(srv_log *owner)
 int
 raw_partition::fhdl_rd() const
 {
-#ifdef DEBUG
+#ifdef W_DEBUG
     bool isopen = is_open_for_read();
     if(raw_log::_fhdl_rd == 0) {
 	w_assert3( !isopen );
     }
-#endif
+#endif /* W_DEBUG */
     return raw_log::_fhdl_rd;
 }
 
@@ -688,7 +878,7 @@ raw_partition::destroy()
     skip(lsn_t::null, fhdl_app());
 
     if (thePartitionIndex >= 0)  {
-        thePartition->open_for_append(thePartitionNumber);
+        thePartition->open_for_append(thePartitionNumber, lsn_t::null);
         thePartition->open_for_read(thePartitionNumber, true);
     }
 
@@ -711,15 +901,19 @@ raw_partition::destroy()
  */
 void
 raw_partition::peek(
-    partition_number_t num_wanted,
-    bool 	recovery,
-    int *	fdp
+    partition_number_t 	num_wanted,
+    const lsn_t&	end_hint,
+    bool 		recovery,
+    int *		fdp
 )
 {
     FUNC(raw_partition::peek);
     int fd = fhdl_app();
     w_assert3(fd);
     if(fdp) *fdp  = fd;
-    _peek(num_wanted, recovery, fd);
+
+    w_assert3(num_wanted == end_hint.hi() || end_hint.hi() == 0);
+
+    _peek(num_wanted, end_hint.lo(), (_eop - start()), recovery, fd);
 }
 

@@ -1,15 +1,38 @@
-/* --------------------------------------------------------------- */
-/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
-/* -- University of Wisconsin-Madison, subject to the terms     -- */
-/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
-/* -- Reserved.                                                 -- */
-/* --------------------------------------------------------------- */
+/*<std-header orig-src='shore' incl-file-exclusion='VEC_T_H'>
 
-/*
- *  $Header: /p/shore/shore_cvs/src/common/vec_t.h,v 1.53 1997/05/19 19:41:15 nhall Exp $
- */
+ $Id: vec_t.h,v 1.64 1999/06/07 19:02:35 kupsch Exp $
+
+SHORE -- Scalable Heterogeneous Object REpository
+
+Copyright (c) 1994-99 Computer Sciences Department, University of
+                      Wisconsin -- Madison
+All Rights Reserved.
+
+Permission to use, copy, modify and distribute this software and its
+documentation is hereby granted, provided that both the copyright
+notice and this permission notice appear in all copies of the
+software, derivative works or modified versions, and any portions
+thereof, and that both notices appear in supporting documentation.
+
+THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+"AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+This software was developed with support by the Advanced Research
+Project Agency, ARPA order number 018 (formerly 8230), monitored by
+the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+Further funding for this work was provided by DARPA through
+Rome Research Laboratory Contract No. F30602-97-2-0247.
+
+*/
+
 #ifndef VEC_T_H
 #define VEC_T_H
+
+#include "w_defines.h"
+
+/*  -- do not edit anything above this line --   </std-header>*/
 
 /* NB: you must already have defined the type size_t,
  * (which is defined include "basics.h") before you include this.
@@ -49,7 +72,7 @@ typedef VEC_t vec_t;
 class cvec_t : protected VEC_t {
     friend class vec_t; // so vec_t can look at VEC_t
 protected:
-    static	void *zero_location; // see zvec_t, which is supposed
+    static	CADDR_T  zero_location; // see zvec_t, which is supposed
 				    // to be for the server-side only
 public:
     enum dummy_enumid { max_small = MAX_SMALL_VEC_SIZE };
@@ -97,10 +120,10 @@ public:
 
 
     size_t size() const	{
-#ifdef DEBUG
+#ifdef W_DEBUG
 	/* BUGBUG:- removed when vec_t stabilized */
 	check_size();
-#endif /*DEBUG*/
+#endif /*W_DEBUG*/
 	return _size;
     }
 
@@ -117,11 +140,12 @@ public:
     int count() const {return _cnt;}
 
     int checksum() const;
-    void calc_kvl(uint4& h) const;
+    void calc_kvl(uint4_t& h) const;
     void init() 	{ _cnt = _size = 0; }  // re-initialize the vector
 
-    is_pos_inf() const	{ return this == &pos_inf; }
-    is_neg_inf() const	{ return this == &neg_inf; }
+    bool is_pos_inf() const	{ return this == &pos_inf; }
+    bool is_neg_inf() const	{ return this == &neg_inf; }
+    bool is_null() const	{ return size() == 0; }
 
     friend inline bool operator<(const cvec_t& v1, const cvec_t& v2);
     friend inline bool operator<=(const cvec_t& v1, const cvec_t& v2);
@@ -150,14 +174,14 @@ private:
 
     // disabled
     cvec_t(const cvec_t& v);
-    operator=(cvec_t);
+    cvec_t& operator=(cvec_t);
 
     size_t recalc_size() const;
     bool check_size() const;
 
 public:
     bool is_zvec() const { 
-#ifdef DEBUG
+#ifdef W_DEBUG
 	if(count()>0) {
 	    if(_pair[0].ptr == zero_location) {
 		assert(count() == 1);
@@ -197,8 +221,8 @@ public:
 	size_t limit,		// # bytes
 	size_t myoffset = 0);	// offset in this
 
-    void*	ptr(int index) const { return (index >= 0 && index < _cnt) ? 
-					(void*)_base[index].ptr : NULL; }
+    CADDR_T	ptr(int index) const { return (index >= 0 && index < _cnt) ? 
+					_base[index].ptr : (CADDR_T) NULL; }
     size_t	len(int index) const { return (index >= 0 && index < _cnt) ? 
 					_base[index].len : 0; }
     void mkchunk( int maxsize, // max size of result vec
@@ -209,8 +233,8 @@ public:
     static vec_t& neg_inf;
 private:
     // disabled
-    vec_t(const vec_t&)  {}
-    operator=(vec_t);
+    vec_t(const vec_t&) : cvec_t()  {}
+    vec_t& operator=(vec_t);
 };
 
 inline bool operator<(const cvec_t& v1, const cvec_t& v2)
@@ -245,4 +269,6 @@ inline bool operator!=(const cvec_t& v1, const cvec_t& v2)
 
 #endif /*__cplusplus*/
 
-#endif
+/*<std-footer incl-file-exclusion='VEC_T_H'>  -- do not edit anything below this line -- */
+
+#endif          /*</std-footer>*/

@@ -1,0 +1,38 @@
+other_bits          c0000000
+max_any             3fffffff
+overflow_shift_bits 30
+max_inc             3fffffff
+mask_remote         80000000
+expect overflow after 2147483647
+[lowover=2147483638,local,in_memory]
+inc lowover by 0 did not overflow; new value = [lowover=2147483638,local,in_memory]
+inc lowover by 1 did not overflow; new value = [lowover=2147483640,local,in_memory]
+inc lowover by 2 did not overflow; new value = [lowover=2147483644,local,in_memory]
+inc lowover by 3 OVERFLOWED; new value = [lowover=2147483644,local,in_memory]
+inc lowover by 4 OVERFLOWED; new value = [lowover=2147483644,local,in_memory]
+[highover=2147483638,local,in_memory]
+inc highover by 0 no overflow:[highover=2147483638,local,in_memory]
+inc highover by 1 no overflow:[highover=2147483640,local,in_memory]
+inc highover by 2 no overflow:[highover=2147483644,local,in_memory]
+inc highover by 3 OVERFLOWED:[highover=2147483644,local,in_memory]
+inc highover by 4 OVERFLOWED:[highover=2147483644,local,in_memory]
+BEGIN { comparisons at 240 :testserial.cpp
+[a=2147483644,local,in_memory] !equiv [b=2147483638,local,in_memory]
+[b=2147483638,local,in_memory] !equiv [a=2147483644,local,in_memory]
+[a=2147483644,local,in_memory]!==[b=2147483638,local,in_memory]
+[a=2147483644,local,in_memory]!=[b=2147483638,local,in_memory]
+[a=2147483644,local,in_memory]!<=[b=2147483638,local,in_memory]
+[a=2147483644,local,in_memory]>=[b=2147483638,local,in_memory]
+[a=2147483644,local,in_memory]>[b=2147483638,local,in_memory]
+[a=2147483644,local,in_memory]!<[b=2147483638,local,in_memory]
+}
+BEGIN { comparisons at 241 :testserial.cpp
+[a=2147483644,local,in_memory]equiv[b=2147483644,local,in_memory]
+[b=2147483644,local,in_memory]equiv[a=2147483644,local,in_memory]
+[a=2147483644,local,in_memory]==[b=2147483644,local,in_memory]
+[a=2147483644,local,in_memory]!!=[b=2147483644,local,in_memory]
+[a=2147483644,local,in_memory]<=[b=2147483644,local,in_memory]
+[a=2147483644,local,in_memory]>=[b=2147483644,local,in_memory]
+[a=2147483644,local,in_memory]!>[b=2147483644,local,in_memory]
+[a=2147483644,local,in_memory]!<[b=2147483644,local,in_memory]
+}

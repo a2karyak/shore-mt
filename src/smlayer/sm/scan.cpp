@@ -1,13 +1,35 @@
-/* --------------------------------------------------------------- */
-/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
-/* -- University of Wisconsin-Madison, subject to the terms     -- */
-/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
-/* -- Reserved.                                                 -- */
-/* --------------------------------------------------------------- */
+/*<std-header orig-src='shore'>
 
-/*
- *  $Id: scan.cc,v 1.129 1997/06/15 03:13:15 solomon Exp $
- */
+ $Id: scan.cpp,v 1.148 1999/06/15 15:11:55 nhall Exp $
+
+SHORE -- Scalable Heterogeneous Object REpository
+
+Copyright (c) 1994-99 Computer Sciences Department, University of
+                      Wisconsin -- Madison
+All Rights Reserved.
+
+Permission to use, copy, modify and distribute this software and its
+documentation is hereby granted, provided that both the copyright
+notice and this permission notice appear in all copies of the
+software, derivative works or modified versions, and any portions
+thereof, and that both notices appear in supporting documentation.
+
+THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+"AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+This software was developed with support by the Advanced Research
+Project Agency, ARPA order number 018 (formerly 8230), monitored by
+the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+Further funding for this work was provided by DARPA through
+Rome Research Laboratory Contract No. F30602-97-2-0247.
+
+*/
+
+#include "w_defines.h"
+
+/*  -- do not edit anything above this line --   </std-header>*/
 
 #define SM_SOURCE
 #define SCAN_C
@@ -15,26 +37,26 @@
 #   pragma implementation
 #endif
 #include <sm_int_4.h>
+#include <sm.h>
 #include <pin.h>
 #include <scan.h>
 #include <bf_prefetch.h>
 #include <btcursor.h>
 #include <rtree_p.h>
-#ifdef USE_RDTREE
-#include <rdtree_p.h>
-#endif /* USE_RDTREE */
 
-#define DBGTHRD(arg) DBG(<<" th."<<me()->id << " " arg)
+W_FASTNEW_STATIC_DECL(scan_index_i, 32); 
+W_FASTNEW_STATIC_DECL(scan_file_i, 32); 
 
+#define SCAN_METHOD_PROLOGUE1		        \
+	w_rc_t rc = error_code();	\
+	if (rc) { 			\
+	    return rc; 		\
+	}
 #define SCAN_METHOD_PROLOGUE(func_name)		\
 	FUNC(func_name);			\
-	if (error_code()) { 			\
-	    return error_code(); 		\
-	}
-#define SCAN_METHOD_PROLOGUE1		        \
-	if (error_code()) { 			\
-	    return error_code(); 		\
-	}
+	SCAN_METHOD_PROLOGUE1
+
+	
 
 /*
  * This 2 validation functions converts a logical ID into a store id and
@@ -64,8 +86,6 @@ validate_stid(lid_t& id, stid_t& stid)
 }
 
 
-
-
 /*********************************************************************
  *
  *  scan_index_i::scan_index_i(stid, c1, bound1, c2, bound2, cc, prefetch)
@@ -81,11 +101,12 @@ scan_index_i::scan_index_i(
     const cvec_t& 	bound1_, 
     cmp_t 		c2, 
     const cvec_t& 	bound2_, 
+    bool		include_nulls,
     concurrency_t 	cc
     ) 
     : xct_dependent_t(xct()), stpgid(stid_), ntype(ss_m::t_bad_ndx_t),
       serial(serial_t::null), _eof(false),
-      _error_occurred(), _btcursor(0), _cc(cc)
+      _error_occurred(), _btcursor(0), _skip_nulls( ! include_nulls ), _cc(cc)
 {
     INIT_SCAN_PROLOGUE_RC(scan_index_i::scan_index_i, 1);
     _init(c1, bound1_, c2, bound2_);
@@ -98,10 +119,11 @@ scan_index_i::scan_index_i(
     const cvec_t& 	bound1_, 
     cmp_t 		c2, 
     const cvec_t& 	bound2_, 
+    bool		include_nulls,
     concurrency_t 	cc) 
     : xct_dependent_t(xct()), ntype(ss_m::t_bad_ndx_t), 
       serial(serial_t::null), _eof(false), _error_occurred(),
-      _btcursor(0), _cc(cc)
+      _btcursor(0), _skip_nulls( ! include_nulls ), _cc(cc)
 {
     INIT_SCAN_PROLOGUE_RC(scan_index_i::scan_index_i, 1);
 
@@ -115,12 +137,17 @@ scan_index_i::scan_index_i(
 }
 
 
+scan_index_i::~scan_index_i()
+{
+	finish();
+}
+
 
 /*********************************************************************
  *
  *  scan_index_i::_init(cond, b1, c2, b2)
  *
- *  Initialize a scan. Called by all constructor.
+ *  Initialize a scan. Called by all constructors.
  *
  *********************************************************************/
 void 
@@ -193,6 +220,7 @@ scan_index_i::_init(
     }
 
     if (serial != serial_t::null && serial != sd->sinfo().logical_id) {
+	DBG(<<"_init: " );
 	W_FATAL(eBADLOGICALID);
     }
     if((concurrency_t)sd->sinfo().cc != key_lock_level) {
@@ -203,7 +231,11 @@ scan_index_i::_init(
 
 	    case t_cc_modkvl:
 		// certain checks are made in fetch_init
-		key_lock_level = (concurrency_t)sd->sinfo().cc;
+		if(_cc == t_cc_none || _cc == t_cc_file) {
+			key_lock_level = t_cc_none;
+		} else {
+		    key_lock_level = (concurrency_t)sd->sinfo().cc;
+		}
 		break;
 
 	    case t_cc_im:
@@ -234,7 +266,7 @@ scan_index_i::_init(
     case t_btree:
     case t_uni_btree:
 	{
-	    _btcursor = new bt_cursor_t;
+	    _btcursor = new bt_cursor_t(!_skip_nulls);
 	    if (! _btcursor) {
 		_error_occurred = RC(eOUTOFMEMORY);
 		return;
@@ -256,9 +288,7 @@ scan_index_i::_init(
 	    }
 	    if(_btcursor->is_backward()) {
 		// Not fully supported
-		_error_occurred = RC(eBADCMPOP);
-	    }
-	    if (_error_occurred)  {
+		_error_occurred = RC(eNOTIMPLEMENTED);
 		return;
 	    }
 	}
@@ -336,6 +366,10 @@ scan_index_i::_fetch(
 {
     // Check if error condition occured.
     if (_error_occurred) {
+	if(_error_occurred.err_num() == eBADCMPOP) {
+	    _eof = true;
+	    return RCOK;
+	}
 	return _error_occurred;
     }
 
@@ -347,13 +381,10 @@ scan_index_i::_fetch(
     if (_finished)  {
 	return RC(eBADSCAN);
     }
-
     if (_eof)  {
 	return RC(eEOF);
     }
-
     w_assert1(xct()->tid() == tid);
-
     switch (ntype)  {
     case t_btree:
     case t_uni_btree:
@@ -361,9 +392,11 @@ scan_index_i::_fetch(
 	    /*
 	     *  Advance cursor.
 	     */
-	    W_DO( bt->fetch(*_btcursor) );
-	    DBG(<<"");
-	    if (! _btcursor->key()) break;
+	    do {
+		DBG(<<"");
+		W_DO( bt->fetch(*_btcursor) );
+		if(_btcursor->eof()) break;
+	    } while (_skip_nulls && (_btcursor->klen() == 0));
 	}
 	break;
 
@@ -375,10 +408,11 @@ scan_index_i::_fetch(
     /*
      *  Copy result to user buffer.
      */
-    if (!_btcursor->key())  {
+    if (_btcursor->eof())  {
 	DBG(<<"eof");
 	_eof = true;
     } else {
+	w_assert3(_btcursor->key());
 	DBG(<<"not eof");
 	if (klen)  *klen = _btcursor->klen();
 	if (elen)  *elen = _btcursor->elen();
@@ -403,20 +437,25 @@ scan_index_i::_fetch(
 }
     
 
-scan_rt_i::scan_rt_i(const stid_t& stid_, nbox_t::sob_cmp_t c, const nbox_t& qbox, concurrency_t cc) 
+scan_rt_i::scan_rt_i(const stid_t& stid_, nbox_t::sob_cmp_t c, const nbox_t& qbox, 
+	bool include_nulls,
+	concurrency_t cc) 
 : xct_dependent_t(xct()), stid(stid_), ntype(t_bad_ndx_t),
   serial(serial_t::null), _eof(false), _error_occurred(),
-  _cursor(0), _cc(cc)
+  _cursor(0), _skip_nulls( !include_nulls ), _cc(cc)
 {
     INIT_SCAN_PROLOGUE_RC(scan_rt_i::scan_rt_i, 1);
     _init(c, qbox);
 }
 
 scan_rt_i::scan_rt_i(const lvid_t& lvid, const serial_t& stid_,
-		     nbox_t::sob_cmp_t c, const nbox_t& qbox, concurrency_t cc) 
+	 nbox_t::sob_cmp_t c, const nbox_t& qbox, 
+	 bool include_nulls,
+	 concurrency_t cc) 
 : xct_dependent_t(xct()), ntype(t_bad_ndx_t),
   serial(serial_t::null), _eof(false), _error_occurred(),
-  _cursor(0), _cc(cc)
+  _cursor(0), _skip_nulls( ! include_nulls ), 
+  _cc(cc)
 {
     INIT_SCAN_PROLOGUE_RC(scan_rt_i::scan_rt_i, 1);
     lid_t id(lvid, stid_);
@@ -427,12 +466,20 @@ scan_rt_i::scan_rt_i(const lvid_t& lvid, const serial_t& stid_,
     _init(c, qbox);
 }
 
+scan_rt_i::~scan_rt_i()
+{
+	finish();
+}
+
+
 void scan_rt_i::finish()
 {
     _eof = true;
-    if (_cursor)  {
-	delete _cursor;
-	_cursor = 0;
+    if (_cursor )  {
+	if(_cursor->thread_can_delete()) {
+	    delete _cursor;
+	    _cursor = 0;
+	}
     }
 }
 
@@ -468,6 +515,7 @@ void scan_rt_i::_init(nbox_t::sob_cmp_t c, const nbox_t& qbox)
     }
 
     if (serial != serial_t::null && serial != sd->sinfo().logical_id) {
+	DBG(<<"_init: " );
 	W_FATAL(eBADLOGICALID);
     }
 
@@ -476,7 +524,7 @@ void scan_rt_i::_init(nbox_t::sob_cmp_t c, const nbox_t& qbox)
 	return;
     }
 
-    _cursor = new rt_cursor_t;
+    _cursor = new rt_cursor_t(!_skip_nulls);
     w_assert1(_cursor);
     _cursor->qbox = qbox;
     _cursor->cond = c;
@@ -533,149 +581,10 @@ scan_rt_i::xct_state_changed(
     xct_state_t		new_state)
 {
     if (new_state == xct_aborting || new_state == xct_committing)  {
-      finish();
-    }
-}
-
-#ifdef USE_RDTREE
-scan_rdt_i::scan_rdt_i(
-    const stid_t& stid_, 
-    nbox_t::sob_cmp_t c,
-    const rangeset_t& qset, concurrency_t cc) 
-: xct_dependent_t(xct()), stid(stid_), ntype(t_bad_ndx_t),
-  serial(serial_t::null), _eof(false), _error_occurred(),
-  _cursor(0), _cc(cc)
-{
-    INIT_SCAN_PROLOGUE_RC(scan_rdt_i::scan_rdt_i, 1);
-    _init(c, qset);
-}
-
-scan_rdt_i::scan_rdt_i(const lvid_t& lvid, const serial_t& stid_,
-		     nbox_t::sob_cmp_t c, const rangeset_t& qset, concurrency_t cc) 
-: xct_dependent_t(xct()), ntype(t_bad_ndx_t), serial(serial_t::null),
-    _eof(false), _error_occurred(), _cursor(0), _cc(cc)
-{
-    INIT_SCAN_PROLOGUE_RC(scan_rdt_i::scan_rdt_i, 1);
-    lid_t id(lvid, stid_);
-    // determind the physical index ID
-    _error_occurred = validate_stid(id, stid);
-    if (_error_occurred) return;
-    serial = id.serial;
-    _init(c, qset);
-}
-
-void scan_rdt_i::finish()
-{
-    _eof = true;
-    if (_cursor)  {
-	delete _cursor;
-	_cursor = 0;
-    }
-}
-
-void scan_rdt_i::_init(nbox_t::sob_cmp_t c, const rangeset_t& qset)
-{
-    _finished = false;
-
-    tid = xct()->tid();
-
-    // determine index lock mode
-    lock_mode_t index_lock_mode;
-    switch(_cc) {
-    case t_cc_none:
-	index_lock_mode = IS;
-	break;
-    case t_cc_page:
-	index_lock_mode = IS;
-	break;
-    case t_cc_file:
-	index_lock_mode = SH;
-	break;
-    case t_cc_append:
-    default:
-	_error_occurred = RC(eBADLOCKMODE);
-	return;
-	break;
-    }
-
-    sdesc_t* sd = 0;
-    _error_occurred = dir->access(stid, sd, index_lock_mode);
-    if (_error_occurred)  {
-	return;
-    }
-
-    if (serial != serial_t::null && serial != sd->sinfo().logical_id) {
-	W_FATAL(eBADLOGICALID);
-    }
-
-    if (sd->sinfo().stype != t_index)  {
-	_error_occurred = RC(eBADSTORETYPE);
-	return;
-    }
-
-    _cursor = new rdt_cursor_t;
-    w_assert1(_cursor);
-    _cursor->qset = qset;
-    _cursor->cond = c;
-
-    switch (ntype = (ndx_t) sd->sinfo().ntype)  {
-      case t_bad_ndx_t:
-	_error_occurred = RC(eBADNDXTYPE);
-	return;
-      case t_rdtree:
-	_error_occurred = rdt->fetch_init(sd->root(), *_cursor);
-	if (_error_occurred)  {
-	    return;
-	}
-	break;
-      default:
-	W_FATAL(eINTERNAL);
-      }
-}
-
-rc_t
-scan_rdt_i::_fetch(
-    rangeset_t& key,
-    void* el,
-    smsize_t& elen,
-    bool& eof,
-    bool skip)
-{
-    if (_error_occurred)  {
-	return _error_occurred;
-    }
-
-    SM_PROLOGUE_RC(scan_rdt_i::_fetch, in_xct, 0);
-
-    if (_finished)  {
-	return RC(eBADSCAN);
-    }
-
-    w_assert1(xct()->tid() == tid);
-
-    switch (ntype)  {
-      case t_rdtree:
-	W_DO(rdt->fetch(*_cursor, key, el, elen, _eof, skip));
-	break;
-      case t_bad_ndx_t:
-      default:
-	W_FATAL(eINTERNAL);
-    }
-    eof = _eof;
-
-    return RCOK;
-}
-
-void 
-scan_rdt_i::xct_state_changed(
-    xct_state_t		/*old_state*/,
-    xct_state_t		new_state)
-{
-    if (new_state == xct_aborting || new_state == xct_committing)  {
 	finish();
     }
 }
-#endif /* USE_RDTREE */
+
 
 scan_file_i::scan_file_i(const stid_t& stid_, const rid_t& start,
 			concurrency_t cc, bool pre) 
@@ -684,7 +593,8 @@ scan_file_i::scan_file_i(const stid_t& stid_, const rid_t& start,
   _do_prefetch(pre), _prefetch(0)
 {
     INIT_SCAN_PROLOGUE_RC(scan_file_i::scan_file_i, 0);
-    if (_init(cc == t_cc_append)) return;
+	w_rc_t rc = _init(cc == t_cc_append);
+    if (rc) return;
 }
 
 scan_file_i::scan_file_i(const stid_t& stid_, concurrency_t cc, bool pre) 
@@ -692,7 +602,8 @@ scan_file_i::scan_file_i(const stid_t& stid_, concurrency_t cc, bool pre)
   _lfid(serial_t::null), _cc(cc), _do_prefetch(pre), _prefetch(0)
 {
     INIT_SCAN_PROLOGUE_RC(scan_file_i::scan_file_i, 0);
-    if (_init(cc == t_cc_append)) return;
+	w_rc_t rc = _init(cc == t_cc_append);
+    if (rc) return;
 }
 
 scan_file_i::scan_file_i(const lvid_t& lvid, const serial_t& lfid,
@@ -701,8 +612,10 @@ scan_file_i::scan_file_i(const lvid_t& lvid, const serial_t& lfid,
   _lfid(serial_t::null), _cc(cc), _do_prefetch(pre), _prefetch(0)
 {
     INIT_SCAN_PROLOGUE_RC(scan_file_i::scan_file_i, 0);
-    if (_init_logical(lvid, lfid)) return;
-    if (_init(cc == t_cc_append)) return;
+	w_rc_t rc = _init_logical(lvid, lfid);
+    if (rc) return;
+	rc = _init(cc == t_cc_append);
+    if (rc) return;
 }
 
 scan_file_i::scan_file_i(const lvid_t& lvid, const serial_t& lfid,
@@ -712,7 +625,8 @@ scan_file_i::scan_file_i(const lvid_t& lvid, const serial_t& lfid,
   _do_prefetch(pre), _prefetch(0)
 {
     INIT_SCAN_PROLOGUE_RC(scan_file_i::scan_file_i, 0);
-    if (_init_logical(lvid, lfid)) return;
+	w_rc_t rc = _init_logical(lvid, lfid);
+    if (rc) return;
 
     lid_t id(lvid, start_rid);
     // determind the physical ID of the start record 
@@ -721,6 +635,12 @@ scan_file_i::scan_file_i(const lvid_t& lvid, const serial_t& lfid,
 
     W_IGNORE(_init(cc == t_cc_append));
 }
+
+scan_file_i::~scan_file_i()
+{
+	finish();
+}
+
 
 rc_t
 scan_file_i::_init_logical(const lvid_t& lvid, const serial_t& lfid) 
@@ -758,23 +678,25 @@ scan_file_i::_init(
     sdesc_t* sd = 0;
 
     // determine file and record lock modes
-    lock_mode_t mode;
+    lock_mode_t mode = NL;
+
     switch(_cc) {
     case t_cc_none:
 	mode = IS;
 	_page_lock_mode = NL;
 	_rec_lock_mode = NL;
 	break;
+
     case t_cc_record:
 	/* 
 	 * This might seem weird, but it's necessary
 	 * in order to prevent phantoms when another
 	 * tx does delete-in-order/abort or 
-	 * add-in-reverse-order/commit
+	 * add-in-reverse-order/commit (using location hints)
 	 * while a scan is going on. 
 	 *
 	 * See the note about SERIALIZABILITY, below.
-	 * It turns out that that trick isn't enough.
+	 * It turns out that this trick isn't enough.
 	 * Setting page lock mode to SH keeps that code
 	 * from being necessary, and it should be deleted.
 	 */
@@ -782,6 +704,7 @@ scan_file_i::_init(
 	_page_lock_mode = SH;  // record lock with IS the page
 	_rec_lock_mode = NL;
 	break;
+
     case t_cc_page:
 	mode = IS;
 	_page_lock_mode = SH;
@@ -798,17 +721,20 @@ scan_file_i::_init(
 	_page_lock_mode = NL;
 	_rec_lock_mode = NL;
 	break;
+
     default:
 	_error_occurred = RC(eBADLOCKMODE);
 	return _error_occurred;
 	break;
     }
 
+    DBGTHRD(<<"scan_file_i calling access for stid " << stid);
     _error_occurred = dir->access(stid, sd, mode);
     if (_error_occurred)  {
 	return _error_occurred;
     }
     if (_lfid != serial_t::null && _lfid != sd->sinfo().logical_id) {
+	DBG(<<"_init: " );
 	W_FATAL(eBADLOGICALID);
     }
 
@@ -819,9 +745,11 @@ scan_file_i::_init(
     // see if we need to figure out the first rid in the file
     // (ie. it was not specified in the constructor)
     if (curr_rid == rid_t::null) {
-	_error_occurred = for_append?
-	    fi->last_page(stid, curr_rid.pid): 
-	    fi->first_page(stid, curr_rid.pid);
+	if(for_append) {
+	    _error_occurred = fi->last_page(stid, curr_rid.pid); 
+	} else {
+	    _error_occurred = fi->first_page(stid, curr_rid.pid);
+	}
 
 	if (_error_occurred)  {
 	    return _error_occurred;
@@ -928,10 +856,12 @@ scan_file_i::_next(pin_i*& pin_ptr, smsize_t start, bool& eof)
 	curr = _cursor._get_hdr_page_no_lsn_check();
 	{
 	    slotid_t	slot;
+	    // BUGBUG: locking the wrong slot here!
 	    slot = curr->next_slot(curr_rid.slot);
 	    if(_rec_lock_mode != NL) {
 		w_assert3(curr_rid.pid.page != 0);
-		if (_error_occurred = lm->lock(curr_rid, _rec_lock_mode, t_long, WAIT_IMMEDIATE))  
+		_error_occurred = lm->lock(curr_rid, _rec_lock_mode, t_long, WAIT_IMMEDIATE);
+		if (_error_occurred)  
 		{
 		    if (_error_occurred.err_num() != eLOCKTIMEOUT) {
 			return _error_occurred;
@@ -1031,7 +961,14 @@ void scan_file_i::finish()
     // SCAN_METHOD_PROLOGUE(scan_file_i::finish);
 
     _eof = true;
-    _cursor.unpin();
+
+    if(_cursor.is_mine()) {
+	// Don't unpin unless I'm the owner. 
+	// (This function can get called from xct_state_changed(),
+	// running in a non-owner thread.)
+	_cursor.unpin();
+    }
+
     if (this->_prefetch) {
 	this->_prefetch->retire();
 	delete this->_prefetch;
@@ -1056,10 +993,13 @@ append_file_i::append_file_i(const stid_t& stid_)
     INIT_SCAN_PROLOGUE_RC(append_file_i::append_file_i, 0);
     W_IGNORE(_init(true));
     if(_error_occurred) return;
-    if(_error_occurred = lm->lock(stid, EX, 
-		  t_long, WAIT_SPECIFIED_BY_XCT)) return;
+	_error_occurred = lm->lock(stid, EX, t_long, WAIT_SPECIFIED_BY_XCT);
+    if(_error_occurred) return;
     sdesc_t *sd;
     _error_occurred = dir->access(stid, sd, IX); 
+    // makes a copy - only because the create_rec
+    // functions that we want to call require that we
+    // have one to reference.
     _cached_sdesc = *sd;
     w_assert3( !_page().is_fixed() );
 }
@@ -1069,23 +1009,29 @@ append_file_i::append_file_i(const lvid_t& lvid, const serial_t& lfid)
 {
     _init_constructor();
     INIT_SCAN_PROLOGUE_RC(append_file_i::append_file_i, 0);
-    if (_init_logical(lvid, lfid)) return;
+	w_rc_t rc = _init_logical(lvid, lfid);
+    if (rc) return;
     W_IGNORE(_init(true));
     if(_error_occurred) return;
-    if(_error_occurred = lm->lock(stid, EX, 
-		  t_long, WAIT_SPECIFIED_BY_XCT)) return;
+	_error_occurred = lm->lock(stid, EX, t_long, WAIT_SPECIFIED_BY_XCT);
+    if(_error_occurred) return;
 
     sdesc_t *sd;
     _error_occurred = dir->access(stid, sd, IX); 
+    // makes a copy - only because the create_rec
+    // functions that we want to call require that we
+    // have one to reference.
     _cached_sdesc = *sd;
     w_assert3( !_page().is_fixed() );
 }
+
 
 void
 append_file_i::_init_constructor()
 {
     FUNC(append_file_i::_init_constructor);
-    w_assert3(sizeof(_page_alias) == sizeof(file_p));
+    //  just make sure _page_alias is big enough
+    w_assert3(sizeof(_page_alias) >= sizeof(file_p));
 
     new (_page_alias) file_p();
     w_assert3( !_page().is_fixed() );
@@ -1100,17 +1046,19 @@ append_file_i::~append_file_i()
     }
     DBG( <<  (_page().is_fixed()? "IS FIXED-- ERROR" : "OK") );
     _page().destructor();
+
+    // Must invalidate so that ref counts are adjusted
+    DBGTHRD(<<"invalidating cached descr");
+    _cached_sdesc.invalidate_sdesc();
     finish(); 
 }
 
-#define pin_ptr
-#define start
-#define eof
 rc_t
+#if 0
 append_file_i::next(pin_i*& pin_ptr, smsize_t start, bool& eof)
-#undef pin_ptr
-#undef start
-#undef eof
+#else
+append_file_i::next(pin_i*&, smsize_t, bool& )
+#endif
 {
     w_assert1(0);
     return RCOK;
@@ -1128,11 +1076,11 @@ append_file_i::create_rec(
     SM_PROLOGUE_RC(append_file_i::create_rec, in_xct, 0);
 
 
-#ifdef DEBUG
+#ifdef W_DEBUG
     if(_page().is_fixed()) {
 	DBG(<<"IS FIXED! ");
     }
-#endif
+#endif /* W_DEBUG */
     serial_t serial;
     if(_error_occurred) { 
 	return _error_occurred;
@@ -1145,8 +1093,9 @@ append_file_i::create_rec(
 
     W_DO(lid->generate_new_serials(_lvid, vid, 1, serial, lid_m::local_ref));
 
-    W_DO( fi->create_rec_at_end(stid, 
-	hdr, len_hint, data, serial, _cached_sdesc, _page(), curr_rid) );
+    W_DO( fi->create_rec_at_end(_page(), 
+	len_hint, hdr, data, serial, _cached_sdesc,  curr_rid) );
+
 
     W_DO(lid->associate(_lvid, serial, curr_rid));
     lrid.serial = serial;
@@ -1165,11 +1114,11 @@ append_file_i::create_rec(
 {
     SCAN_METHOD_PROLOGUE(append_file_i::create_rec);
 
-#ifdef DEBUG
+#ifdef W_DEBUG
     if(_page().is_fixed()) {
 	DBG(<<"IS FIXED! ");
     }
-#endif
+#endif /* W_DEBUG */
     serial_t   serial;
 
     if(_error_occurred) { 
@@ -1179,9 +1128,10 @@ append_file_i::create_rec(
         return RC(eBADSCAN);
     }
 
-    W_DO( fi->create_rec_at_end(stid, 
-	hdr, len_hint, data, serial, _cached_sdesc, _page(), curr_rid) );
+    W_DO( fi->create_rec_at_end(_page(), 
+	len_hint, hdr, data, serial, _cached_sdesc,  curr_rid) );
 
     rid = curr_rid;
     return RCOK;
 }
+

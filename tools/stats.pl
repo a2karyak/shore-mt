@@ -1,19 +1,42 @@
-#!/bin/perl
-#
-#  $Header: /p/shore/shore_cvs/tools/stats.pl,v 1.14 1997/09/19 11:44:27 solomon Exp $
-#
-use Getopt::Std;
+#!/s/std/bin/perl -w
 
-$opt_C = 0;
-$opt_v = 0;
-die "usage: $0 [-vC] file ...\n"
-	unless getopts("vC");
+# <std-header style='perl' orig-src='shore'>
+#
+#  $Id: stats.pl,v 1.28 1999/06/07 19:09:15 kupsch Exp $
+#
+# SHORE -- Scalable Heterogeneous Object REpository
+#
+# Copyright (c) 1994-99 Computer Sciences Department, University of
+#                       Wisconsin -- Madison
+# All Rights Reserved.
+#
+# Permission to use, copy, modify and distribute this software and its
+# documentation is hereby granted, provided that both the copyright
+# notice and this permission notice appear in all copies of the
+# software, derivative works or modified versions, and any portions
+# thereof, and that both notices appear in supporting documentation.
+#
+# THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+# OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+# "AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+# FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+#
+# This software was developed with support by the Advanced Research
+# Project Agency, ARPA order number 018 (formerly 8230), monitored by
+# the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+# Further funding for this work was provided by DARPA through
+# Rome Research Laboratory Contract No. F30602-97-2-0247.
+#
+#   -- do not edit anything above this line --   </std-header>
+
+#
 # *************************************************************
 #
 # usage: <this-script> [-v] [-C] filename [filename]*
 #
 # -v verbose
 # -C issue C code that can be compiled by a C compiler
+# -enumOnly only generate ENUM file
 # 
 # *************************************************************
 #
@@ -29,7 +52,7 @@ die "usage: $0 [-vC] file ...\n"
 #
 #	"type" must be a one-word type:
 #		int, u_int, float 	are the only types the 
-#		long, u_long
+#		long, u_long, base_stat_t
 #		statistics package knows about.
 
 #	if "type" is any of the following types, it's translated:
@@ -53,24 +76,47 @@ die "usage: $0 [-vC] file ...\n"
 #
 # OUTPUT:
 #  for each class  this script creates:
-#	MSG:  <class>_msg.i		-- the strings
-#	DEFF: <class>_def.i 	-- #defined manifest constants
-#	STRUCT: <class>_struct.i -- the statistics variables
-#	CODE: <class>_op.i 		-- the operator<< 
+#	MSG:  <class>_msg_gen.h	-- the strings
+#	DEFF: <class>_def_gen.h -- #defined manifest constants
+#	STRUCT: <class>_struct_gen.h -- the statistics variables
+#	CODEINCR: <class>_inc_gen.cpp -- the operator+= 
+#	CODESTAT: <class>_stat_gen.cpp -- the operator<< to w_statistics_t
+#	CODEOUTP: <class>_out_gen.cpp -- the normal operator<< 
+#	COLLECT: <class>_collect_gen.cpp -- code for some::vtable_collect()
+#	ENUM: <class>_collect_enum_gen.h -- tokens vtable_enum.h
 #
 # *************************************************************
-#
-#
 
-$cpysrc = <<EOF;
-/* --------------------------------------------------------------- */
-/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
-/* -- University of Wisconsin-Madison, subject to the terms     -- */
-/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
-/* -- Reserved.                                                 -- */
-/* --------------------------------------------------------------- */
+
+use Getopt::Long;
+
+sub Usage
+{
+    my $progname = $0;
+    $progname = s/.*[\\\/]//;
+    print STDERR <<EOF;
+Usage: $progname [-v] [-C] [--enumOnly] [--help] inputfile...
+Generate C++ code which represents the statitistics from the inputfile.
+
+    -v             verbose
+    -C             generate valid C code only
+    --enumOnly     generate only the enumeration
+    --help|h       print this message and exit
 EOF
+}
 
+my %options = (v => 0, C => 0, enumOnly => 0, help => 0);
+my @options = ("v!", "C!", "enumOnly!", "help|h!");
+my $ok = GetOptions(\%options, @options);
+
+if (!$ok || $options{help})  {
+    Usage();
+    die(!$ok);
+}
+
+my $v = $options{v};
+my $C = $options{C};
+my $enumOnly = $options{enumOnly};
 
 # initialize:
 # can't initialize with proper basename
@@ -78,279 +124,391 @@ EOF
 
 $basename = "unknown";
 
+$maxw = 0; # max width of name yet found
+
+$enumOnly = '' if !defined $enumOnly;
 
 
 foreach $FILE (@ARGV) {
-	&translate($FILE);
-	if($opt_v) { printf(STDERR "done\n");}
+    &translate($FILE);
+    if($v) { printf(STDERR "done\n");}
 }
 
 sub pifdef {
-	local($F)=@_[0];
-	if($opt_C) {
-		printf($F "#ifdef __cplusplus\n");
-	}
+    local(*F)=$_[0];
+    if($C) {
+	printf(F "#ifdef __cplusplus\n");
+    }
 }
 sub pelse {
-	local($F)=@_[0];
-	if($opt_C) {
-		printf($F "#else /*__cplusplus*/\n");
-	}
+    local(*F)=$_[0];
+    if($C) {
+	printf(F "#else /*__cplusplus*/\n");
+    }
 }
 sub pendif {
-	local($F)=@_[0];
-	if($opt_C) {
-		printf($F "#endif /*__cplusplus*/\n");
-	}
+    local(*F)=$_[0];
+    if($C) {
+	printf(F "#endif /*__cplusplus*/\n");
+    }
 }
 
 sub head {
-	local($F)=@_[0];
-	local($fname)=@_[1];
+    local(*FILE, $fname) = @_;
 
-	local($x) = $fname;
-	$x =~ s/\.i/_i__/;
-	$x =~ s/\.h/_h__/;
+    my $hdrExclName = uc($fname);
+    $hdrExclName =~ tr/A-Z0-9/_/c;
 
-	if($opt_v) {
-		printf(STDERR 
-		"head: trying to open "."$fname\n");
-	}
-	open($F, ">$fname") || 
-		die "cannot open $fname: $!\n";
+    if($v) {
+	printf(STDERR 
+	"head: trying to open "."$fname\n");
+    }
+    open(FILE, ">$fname") or die "cannot open $fname: $!\n";
+
+    my $timeStamp = localtime;
+
+    print FILE <<EOF;
+#ifndef $hdrExclName
+#define $hdrExclName
+
+/* DO NOT EDIT --- GENERATED from $file by stats.pl
+		   on $timeStamp
+
+<std-header orig-src='shore' genfile='true'>
+
+SHORE -- Scalable Heterogeneous Object REpository
+
+Copyright (c) 1994-99 Computer Sciences Department, University of
+                      Wisconsin -- Madison
+All Rights Reserved.
+
+Permission to use, copy, modify and distribute this software and its
+documentation is hereby granted, provided that both the copyright
+notice and this permission notice appear in all copies of the
+software, derivative works or modified versions, and any portions
+thereof, and that both notices appear in supporting documentation.
+
+THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+"AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+This software was developed with support by the Advanced Research
+Project Agency, ARPA order number 018 (formerly 8230), monitored by
+the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+Further funding for this work was provided by DARPA through
+Rome Research Laboratory Contract No. F30602-97-2-0247.
+
+*/
+
+#include "w_defines.h"
+
+/*  -- do not edit anything above this line --   </std-header>*/
 
 
-	printf($F "#ifndef __$x\n");
-	printf($F "#define __$x\n");
+EOF
 }
+
 sub foot {
-	local($F)=@_[0];
-	local($fname)=@_[1];
+    local (*FILE, $fname) = @_;
 
-	local($x) = $fname;
-	$x =~ s/\.i/_i__/;
-	$x =~ s/\.h/_h__/;
+    local $hdrExclName = uc($fname);
+    $hdrExclName =~ tr/A-Z0-9/_/c;
 
-	printf($F "#endif /*__$x*/\n");
-	if($opt_v) {
-		printf(STDERR 
-		"head: trying to close "."$fname\n");
-	}
-	close($F);
+    print FILE "\n#endif /* $hdrExclName */\n";
+    if($v) {
+	print STDERR "foot: trying to close $fname\n";
+    }
+    close FILE;
 }
 
 sub translate {
-	local($file)=@_[0];
-	local($warning)="";
-	local($base)=\e;
-	local($typelist)='"';
+    local($file)=$_[0];
+    local($base)="e";
+    local($typelist)='"';
 
-	open(FILE,$file) || die "Cannot open $file\n";
-	if($opt_v) { printf (STDERR "translating $file ...\n"); }
-	$warning = 
-			"\n/* DO NOT EDIT --- GENERATED from $file by stats.pl */\n\n";
+    open(FILE,$file) || die "Cannot open $file\n";
+    if($v) { printf (STDERR "translating $file ...\n"); }
 
-	LINE: while (<>)  {
+    LINE: while (<>)  {
+	{
+	    # Handle comments -- some start with # after whitespace
+	    next LINE if (m/^\s*#/);
+	    # some are c++-style comments
+	    next LINE if (m=^\s*[/]{2}=);
+	}
+
+	# { to match the one in the next line (pattern)
+	s/\s*[}]// && do {
+	    if($v) { 
+		printf(STDERR 
+		"END OF PACKAGE: ".$basename.",".$BaseName." = 0x%x\n", $base);
+	    }
+
+	    {
+		if (!$enumOnly)  {
+		    # final stuff before closing files...
+
+		    printf(DEFF "#define $BaseName%-20s 0x%x\n",'_STATMIN', $base);
+		    printf(DEFF "#define $BaseName%-20s 0x%x\n",'_STATMAX', $highest);
+		    printf(DEFF "\n");
+
+		    print MSG "\t\"dummy stat code\"\n";
+
+
+		    &pifdef(*CODEOUTP);
+		    # finish off operator<< to ostream # { to match on next line
+		    printf(CODEOUTP "\treturn o;\n}\n");
+		    &pendif(*CODEOUTP);
+
+		    &pifdef(*CODEINCR);
+		    # finish off operator+=  # { to match on next line
+		    printf(CODEINCR "\treturn s;\n}\n");
+
+		    # define operator<<  to w_statistics_t
+		    printf(CODESTAT "w_statistics_t &\n");
+		    printf(CODESTAT 
+			    "operator<<(w_statistics_t &s,const $class &t)\n{\n");#}
+		    printf(CODESTAT "    w_rc_t e;\n");
+		    printf(CODESTAT 
+			    "    e = s.add_module_static(\"$description\",0x%x,%d,".
+			    "t.stat_names,t.stat_types,(&t.$first)+1);\n",
+			    $base,$cnt+1 );
+		    printf(CODESTAT 
+			    "    if(e) {\n");
+		    printf(CODESTAT "        cerr <<  e << endl;\n");
+		    printf(CODESTAT "    }\n");
+
+
+		    #{ to match theone in the next line
+		    printf(CODESTAT "    return s;\n}\n");
+		    &pendif(*CODESTAT);
+
+		    &pifdef(*CODESTAT);
+		    printf(CODESTAT "const\n");
+		    &pendif(*CODESTAT);
+		    printf(CODESTAT "\t\tchar	*$class"."::stat_types =\n");
+		    printf(CODESTAT "$typelist\";\n");
+
+		    &pifdef(*STRUCT);
+		    printf(STRUCT "public: \nfriend ostream &\n");
+		    printf(STRUCT "    operator<<(ostream &o,const $class &t);\n");
+		    &pifdef(*STRUCT);
+		    printf(STRUCT "public: \nfriend w_statistics_t &\n");
+		    printf(STRUCT "    operator<<(w_statistics_t &s,const $class &t);\n");
+
+		    printf(STRUCT "public: \nfriend $class &\n");
+		    printf(STRUCT "    operator+=($class &s,const $class &t);\n");
+		    #  Safe to increment by ints because the only
+		    # type we know about are at least int-sized  and are
+		    # multiples thereof, and this struct is aligned
+		    # by definition.
+		    printf(STRUCT "    bool vacuous() const{\n");
+		    printf(STRUCT "             const int *p=(int *)&this->_dummy_before_stats;\n");
+		    printf(STRUCT "             const int *q=p+sizeof(*this);\n");
+		    printf(STRUCT "             while(p<q)if(*p++) return false;\n");
+		    printf(STRUCT "             return true;\n");
+
+		    printf(STRUCT "         }\n");
+
+		    printf(STRUCT "static const char	*stat_names[];\n");
+		    printf(STRUCT "static const char	*stat_types;\n");
+
+		    printf(STRUCT "#define W_$class  $maxw + 2\n");
+		    &pendif(*STRUCT);
+		}
+	    }
+
+	    { # close files
+		if (!$enumOnly)  {
+		    &foot(*DEFF,$DEFF_fname);
+		    &foot(*MSG,$MSG_fname);
+		    &foot(*CODESTAT,$CODESTAT_fname);
+		    &foot(*CODEINCR,$CODEINCR_fname);
+		    &foot(*CODEOUTP,$CODEOUTP_fname);
+		    &foot(*COLLECT,$COLLECT_fname);
+		    &foot(*STRUCT,$STRUCT_fname);
+		}
+		&foot(*ENUM,$ENUM_fname);
+	    }
+
+	    $description = "";
+	    $basename = "";
+	    $BaseName = "";
+	    $base = "e";
+	};
+
+	s/\s*(\S+)\s+([\s\S]*)[=]\s*([0xabcdef123456789]+)\s*(\S+)\s*[{]// && do
+		# } to match the one in the pattern
+	{ 
+	    # a new group
+	    $basename = $1;
+	    $description = $2;
+	    $base = $3;
+	    $class = $4;
+#		$first = "";
+	    $first = "_dummy_before_stats";
+	    $typelist='"'; # starting point
+
+	    $MSG_fname = $class."_msg_gen.h";
+	    $DEFF_fname = $class."_def_gen.h";
+	    $STRUCT_fname = $class."_struct_gen.h";
+	    $CODESTAT_fname = $class."_stat_gen.cpp";
+	    $CODEINCR_fname = $class."_inc_gen.cpp";
+	    $CODEOUTP_fname = $class."_out_gen.cpp";
+	    $COLLECT_fname = $class."_collect_gen.cpp";
+	    $ENUM_fname = $class."_collect_enum_gen.h";
+
+	    $BaseName = $basename;
+
+	    # translate lowercase to upper case 
+	    $BaseName =~ y/a-z/A-Z/;
+	    $base = oct($base) if $base =~ /^0/;
+	    if($class){
+		if($v) {
+		    printf(STDERR "CLASS=$class\n");
+		}
+	    } else {
+		printf(STDERR "missing class name.");
+		exit 1;
+	    }
+
+	    $cnt = -1;
+	    $highest = 0;
+
+	    if($v) {
+		printf(STDERR "PACKAGE: $basename,$BaseName = 0x%x\n", $base);
+	    }
+
+	    {
+		# open each file and write boilerplate
 		{
-			# Handle comments -- some start with # after whitespace
-			next LINE if (m/^\s*#/);
-			# some are c++-style comments
-			next LINE if (m=^\s*[/]{2}=);
+		    if (!$enumOnly)  {
+			&head(*DEFF,$DEFF_fname);
+			&head(*CODEINCR,$CODEINCR_fname);
+			&head(*CODESTAT,$CODESTAT_fname);
+			&head(*CODEOUTP,$CODEOUTP_fname);
+			&head(*COLLECT,$COLLECT_fname);
+			&head(*STRUCT,$STRUCT_fname);
+			&head(*MSG,$MSG_fname);
+		    }
+		    &head(ENUM,$ENUM_fname);
+		}
+		# end of boilerplate
+
+		# stuff after boilerplate
+		if (!$enumOnly)  {
+		    &pifdef(*CODEINCR);
+		    printf(CODEINCR "$class &\n");
+		    printf(CODEINCR 
+			    "operator+=($class &s,const $class &t)\n{\n");#}
+		    &pendif(*CODEINCR);
+
+		    # define operator<<  to ostream
+		    &pifdef(*CODEOUTP);
+		    printf(CODEOUTP "ostream &\n");
+		    printf(CODEOUTP 
+			    "operator<<(ostream &o,const $class &t)\n{\n");#}
+		    &pendif(*CODEOUTP);
+
+
+		    &pifdef(*STRUCT);
+		    printf(STRUCT " w_stat_t $first;\n");
+		    &pelse(*STRUCT);
+		    if($C) {
+			printf(STRUCT " int $first;\n");
+		    }
+		    &pendif(*STRUCT);
 		}
 
-		# { to match the one in the next line (pattern)
-		s/\s*[}]// && do {
-			if($opt_v) { 
-				printf(STDERR 
-				"END OF PACKAGE: ".$basename.",".$BaseName." = 0x%x\n", $base);
-			}
+	    } # end opening files and writing tops of files
+	};  
+	    
+	next LINE if $base =~ "e";
+	# peel off whitespace at beginning
+	s/^\s+//;
 
-			{
-				# final stuff before closing files...
+	($typ, $def, $msg) = split(/\s+/, $_, 3);
+	next LINE unless $def;
 
-				printf(DEFF "#define $BaseName%-20s 0x%x\n",'_STATMIN', $base);
-				printf(DEFF "#define $BaseName%-20s 0x%x\n",'_STATMAX', $highest);
-				printf(DEFF "\n");
+	# peel semicolon off def if it's there
+	$def =~ s/;$//;
 
-				print MSG "\t\"dummy stat code\"\n";
+#	{
+#		#  save the name of the first value in the set
+#		if($cnt==-1) {
+#			$first = "$def";
+#		}
+#	}
+	{
+	    # update counters
+	    ++$cnt;
+	    $val = $cnt + $base;
+	    if($highest < $val) { $highest = $val; }
+	}
+	{
+	    # take newline off msg
+	    chop $msg;
+	    # put the message in double quotes
+	    $msg = qq/$msg/;
+	}
 
-				printf(CODE "w_rc_t e;\n");
-				printf(CODE 
-					"    if(e = s.add_module_static(\"$description\",0x%x,%d,".
-					"t.stat_names,t.stat_types,(&t.$first)+1)){\n",
-					$base,$cnt+1 );
-				printf(CODE "        cerr <<  e << endl;\n");
-				printf(CODE "    }\n");
+	{
+	    # clean up abbreviated types
+	    $typ =~ s/u_int/unsigned int/;
+	    $typ =~ s/u_long/unsigned long/;
+	    $typ =~ s/base/w_base_t::base_stat_t/;
 
-				#{ to match theone in the next line
-				printf(CODE "    return s;\n}\n");
-				&pendif(CODE);
+	    if ($typ =~ m/unsigned long/) {
+		$typechar = "v";
+	    } elsif ($typ =~ m/([a-z])/) {
+		$typechar = $1;
+	    }
+	    $typelist .= $typechar;
+	    if($v) {
+		printf(STDERR "typelist is $typelist\n");
+	    }
+	}
+	{
+	    # do the printing for this line
 
-				&pifdef(CODE);
-				printf(CODE "const\n");
-				&pendif(CODE);
-				printf(CODE "\t\tchar	*$class"."::stat_types =\n");
-				printf(CODE "$typelist\";\n");
+	    if (!$enumOnly)  {
+		# printf(DEFF "#define $BaseName"."_$def"."_relative     0x%x\n",$cnt);
+		printf(DEFF "#define $BaseName"."_$def"."              0x%08x,$cnt\n",$base);
 
-				&pifdef(STRUCT);
-				printf(STRUCT "public: \nfriend w_statistics_t &\n");
-				printf(STRUCT 
-						"    operator<<(w_statistics_t &s,const $class &t);\n");
-				printf(STRUCT "static const char	*stat_names[];\n");
-				printf(STRUCT "static const char	*stat_types;\n");
-				&pendif(STRUCT);
-			}
+		printf(MSG "/* $BaseName%s%-18s */ \"%s\",\n",  '_', $def, $msg);
 
-			{
-				&foot(DEFF,$DEFF_fname);
-				&foot(MSG,$MSG_fname);
-				&foot(CODE,$CODE_fname);
-				&foot(STRUCT,$STRUCT_fname);
-			}
+		printf(STRUCT " $typ $def;\n");
 
-			$description = "";
-			$basename = "";
-			$BaseName = "";
-			$base = \e;
-		};
-
-		s/\s*(\S+)\s+([\s\S]*)[=]\s*([0xabcdef123456789]+)\s*(\S+)\s*[{]// && do
-			# } to match the one in the pattern
-		{ 
-			# a new group
-			$basename = $1;
-			$description = $2;
-			$base = $3;
-			$class = $4;
-	#		$first = "";
-			$first = "_dummy_before_stats";
-			$typelist='"'; # starting point
-
-			$MSG_fname = $class."_msg.i";
-			$DEFF_fname = $class."_def.i";
-			$STRUCT_fname = $class."_struct.i";
-			$CODE_fname = $class."_op.i";
-
-			$BaseName = $basename;
-
-			# translate lowercase to upper case 
-			$BaseName =~ y/a-z/A-Z/;
-			$base = oct($base) if $base =~ /^0/;
-			if($class){
-				if($opt_v) {
-					printf(STDERR "CLASS=$class\n");
-				}
-			} else {
-				printf(STDERR "missing class name.");
-				exit 1;
-			}
-
-			$cnt = -1;
-			$highest = 0;
-
-			if($opt_v) {
-				printf(STDERR "PACKAGE: $basename,$BaseName = 0x%x\n", $base);
-			}
-
-			{
-				# open each file and write boilerplate
-				{
-					&head(DEFF,$DEFF_fname);
-					&head(CODE,$CODE_fname);
-					&head(STRUCT,$STRUCT_fname);
-					&head(MSG,$MSG_fname);
-				}
-
-				# WARNINGS
-				{
-					# add warning and copyright to each file
-					print DEFF $warning.$cpysrc;
-					print MSG $warning.$cpysrc;
-					print STRUCT $warning.$cpysrc;
-					print CODE $warning.$cpysrc;
-				}
-				# end of boilerplate
-
-				# stuff after boilerplate
-				{
-					&pifdef(CODE);
-					printf(CODE "w_statistics_t &\n");
-					printf(CODE 
-						"operator<<(w_statistics_t &s,const $class &t)\n{\n");#}
-
-					&pifdef(STRUCT);
-					printf(STRUCT " w_stat_t $first;\n");
-					&pelse(STRUCT);
-					if($opt_C) {
-						printf(STRUCT " int $first;\n");
-					}
-					&pendif(STRUCT);
-				}
-
-			} # end opening files and writing tops of files
-		};  
-		
-
-		next LINE if $base =~ \e;
-		# peel off whitespace at beginning
-		s/^\s+//;
-
-		($typ, $def, $msg) = split(/\s+/, $_, 3);
-		next LINE unless $def;
-
-		# peel semicolon off def if it's there
-		$def =~ s/;$//;
-
-#		{
-#			#  save the name of the first value in the set
-#			if($cnt==-1) {
-#				$first = "$def";
-#			}
-	#	}
-		{
-			# update counters
-			++$cnt;
-			$val = $cnt + $base;
-			if($highest < $val) { $highest = $val; }
-		}
-		{
-			# take newline off msg
-			chop $msg;
-			# put the message in double quotes
-			$msg = qq/$msg/;
+		# code for vtable_collect function
+		if ($typ =~ m/base/) {
+		    printf(COLLECT "\tt.set_base(VT_$def, TMP_GET_STAT($def));\n");
+		} elsif ($typ =~ m/unsigned long/) {
+		    printf(COLLECT "\tt.set_uint(VT_$def, TMP_GET_STAT($def));\n");
+		} elsif ($typ =~ m/int/) {
+		    printf(COLLECT "\tt.set_int(VT_$def, TMP_GET_TSTAT($def));\n");
+		} elsif ($typ =~ m/float/) {
+		    printf(COLLECT "\tt.set_float(VT_$def, TMP_GET_TSTAT($def));\n");
+		} else {
+		   printf(STDERR "cannot handle type $typ\n");
+		   exit(1);
 		}
 
-		{
-			# clean up abbreviated types
-			$typ =~ s/u_int/unsigned int/;
-			$typ =~ s/u_long/unsigned long/;
+		# code for operator +=
+		printf(CODEINCR "\ts.$def += t.$def;\n");
 
-			if ($typ =~ m/unsigned long/) {
-				$typechar = "v";
-			} elsif ($typ =~ m/([a-z])/) {
-				$typechar = $1;
-			}
-			$typelist .= $typechar;
-			if($opt_v) {
-				printf(STDERR "typelist is $typelist\n");
-			}
-		}
-		{
-			# do the printing for this line
+		# code for operator << to ostream
+		printf(CODEOUTP 
+		    "\to << setw(W_$class) << \"$def \" << t.$def << endl;\n");
+	    }
+	    if ($maxw < length($def)) {  $maxw = length($def); }
 
-			# printf(DEFF "#define $BaseName"."_$def"."_relative     0x%x\n",$cnt);
-			printf(DEFF "#define $BaseName"."_$def"."              0x%08x,$cnt\n",$base);
+	    printf(ENUM "\tVT_$def,\n");
+	}
 
-			printf(MSG "/* $BaseName%s%-18s */ \"%s\",\n",  '_', $def, $msg);
+    } # LINE: while
 
-			printf(STRUCT " $typ $def;\n");
+    if($v) { printf(STDERR "translated $file\n");}
 
-		}
-
-	} # LINE: while
-
-	if($opt_v) { printf(STDERR "translated $file\n");}
-
-	close FILE;
+    close FILE;
 }
-

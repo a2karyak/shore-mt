@@ -1,23 +1,43 @@
-/* --------------------------------------------------------------- */
-/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
-/* -- University of Wisconsin-Madison, subject to the terms     -- */
-/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
-/* -- Reserved.                                                 -- */
-/* --------------------------------------------------------------- */
+/*<std-header orig-src='shore' incl-file-exclusion='W_HASH_H'>
 
-/*
- *  $Id: w_hash.h,v 1.19 1997/06/16 21:35:54 solomon Exp $
- */
+ $Id: w_hash.h,v 1.28 1999/06/07 19:02:53 kupsch Exp $
+
+SHORE -- Scalable Heterogeneous Object REpository
+
+Copyright (c) 1994-99 Computer Sciences Department, University of
+                      Wisconsin -- Madison
+All Rights Reserved.
+
+Permission to use, copy, modify and distribute this software and its
+documentation is hereby granted, provided that both the copyright
+notice and this permission notice appear in all copies of the
+software, derivative works or modified versions, and any portions
+thereof, and that both notices appear in supporting documentation.
+
+THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+"AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+This software was developed with support by the Advanced Research
+Project Agency, ARPA order number 018 (formerly 8230), monitored by
+the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+Further funding for this work was provided by DARPA through
+Rome Research Laboratory Contract No. F30602-97-2-0247.
+
+*/
+
 #ifndef W_HASH_H
 #define W_HASH_H
 
-#ifndef W_BASE_H
-#include <w_base.h>
-#endif
+#include "w_defines.h"
 
-#ifndef W_LIST_H
+/*  -- do not edit anything above this line --   </std-header>*/
+
+#include <w_base.h>
 #include <w_list.h>
-#endif
+
+#include <new.h>
 
 template <class T, class K> class w_hash_t;
 template <class T, class K> class w_hash_i;
@@ -42,6 +62,9 @@ inline w_base_t::uint4_t hash(w_base_t::int2_t i)   {
     return CAST(w_base_t::int2_t, i);
 }
 
+BIND_FRIEND_OPERATOR_PART_1B(T,K,w_hash_t<T,K>);
+
+
 template <class T, class K>
 class w_hash_t : public w_base_t {
 public:
@@ -58,7 +81,7 @@ public:
     void			remove(T* t);
     uint4_t			num_members() { return _cnt; }
 
-    friend ostream&		operator<<(
+    friend ostream&		operator<< BIND_FRIEND_OPERATOR_PART_2B(T,K) (
 	ostream& 		    o,
 	const w_hash_t<T, K>& 	    obj);
     
@@ -80,8 +103,16 @@ private:
     }
 
     // disabled
-    NORET			w_hash_t(const w_hash_t&);
-    w_hash_t&			operator=(const w_hash_t&);
+    NORET			w_hash_t(const w_hash_t&)
+#ifdef _MSC_VER
+	{w_assert1(0);}
+#endif
+    ;
+    w_hash_t&			operator=(const w_hash_t&)
+#ifdef _MSC_VER
+	{w_assert1(0); return *this;}
+#endif
+    ;
 };
 
 template <class T, class K>
@@ -99,14 +130,143 @@ private:
     w_list_i<T>		_iter;
     const w_hash_t<T, K>&	_htab;
     
+#ifdef _MSC_VER
+    NORET		w_hash_i(w_hash_i& h)
+	: _htab(h._htab)
+	{ w_assert1(0); };
+#else
     NORET		w_hash_i(w_hash_i&);
-    w_hash_i&		operator=(w_hash_i&);
+#endif
+
+    w_hash_i&		operator=(w_hash_i&)
+#ifdef _MSC_VER
+	{w_assert1(0); return *this;}
+#endif
+    ;
 };
 
-#ifdef __GNUC__
-#if defined(IMPLEMENTATION_W_HASH_H) || !defined(EXTERNAL_TEMPLATES)
-#include <w_hash.cc>
-#endif
-#endif
 
-#endif /* W_HASH_H */
+template <class T, class K>
+ostream& operator<<(
+    ostream&			o,
+    const w_hash_t<T, K>&	h)
+{
+    for (int i = 0; i < h._top; i++)  {
+	o << '[' << i << "] ";
+	w_list_i<T> iter(h._tab[i]);
+	while (iter.next())  {
+	    o << h._keyof(*iter.curr()) << " ";
+	}
+	o << endl;
+    }
+    return o;
+}
+
+template <class T, class K>
+NORET
+w_hash_t<T, K>::w_hash_t(
+    w_base_t::uint4_t 	sz,
+    w_base_t::uint4_t 	key_offset,
+    w_base_t::uint4_t	link_offset)
+: _top(0), _cnt(0), _key_offset(key_offset),
+  _link_offset(link_offset), _tab(0)
+{
+    for (_top = 1; _top < sz; _top <<= 1);
+    _mask = _top - 1;
+    
+    w_assert1(!_tab); // just to check space
+    _tab = new w_list_t<T>[_top];
+    w_assert1(_tab);
+    for (uint i = 0; i < _top; i++)  {
+	_tab[i].set_offset(_link_offset);
+    }
+}
+
+template <class T, class K>
+NORET
+w_hash_t<T, K>::~w_hash_t()
+{
+    w_assert1(_cnt == 0);
+    delete[] _tab;
+}
+
+template <class T, class K>
+w_hash_t<T, K>&
+w_hash_t<T, K>::push(T* t)
+{
+    _tab[ hash(_keyof(*t)) & _mask].push(t);
+    ++_cnt;
+    return *this;
+}
+
+template <class T, class K>
+w_hash_t<T, K>& w_hash_t<T, K>::append(T* t)
+{
+    _tab[ hash(_keyof(*t)) & _mask].append(t);
+    ++_cnt;
+    return *this;
+}
+
+template <class T, class K>
+T*
+w_hash_t<T, K>::lookup(const K& k) const
+{
+    w_list_t<T>& list = _tab[hash(k) & _mask];
+    w_list_i<T> i( list );
+    register T* t;
+    int4_t count;
+    for (count = 0; (t = i.next()) && ! (_keyof(*t) == k); ++count);
+    if (t && count) {
+	w_link_t& link = _linkof(*t);
+	link.detach();
+	list.push(t);
+    }
+	
+    return t;
+}
+
+template <class T, class K>
+T*
+w_hash_t<T, K>::remove(const K& k)
+{
+    w_list_i<T> i(_tab[ hash(k) & _mask ]);
+    while (i.next() && ! (_keyof(*i.curr()) == k));
+
+    if (i.curr()) {
+	--_cnt;
+	_linkof(*i.curr()).detach();
+    }
+    return i.curr();
+}
+
+template <class T, class K>
+void
+w_hash_t<T, K>::remove(T* t)
+{
+    w_assert3(_linkof(*t).member_of() ==
+	      &_tab[ hash(_keyof(*t)) & _mask ]);
+    _linkof(*t).detach();
+    --_cnt;
+}
+
+template <class T, class K>
+T* w_hash_i<T, K>::next()
+{
+    if (_bkt == uint4_max)  {
+	_bkt = 0;
+	_iter.reset(_htab._tab[_bkt++]);
+    }
+
+    if (! _iter.next())  {
+	while (_bkt < _htab._top)  {
+	    
+	    _iter.reset( _htab._tab[ _bkt++ ] );
+	    if (_iter.next())  break;
+	}
+    }
+    return _iter.curr();
+}
+
+/*<std-footer incl-file-exclusion='W_HASH_H'>  -- do not edit anything below this line -- */
+
+#endif          /*</std-footer>*/

@@ -1,13 +1,36 @@
-/* --------------------------------------------------------------- */
-/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
-/* -- University of Wisconsin-Madison, subject to the terms     -- */
-/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
-/* -- Reserved.                                                 -- */
-/* --------------------------------------------------------------- */
+/*<std-header orig-src='shore'>
 
-/*
- *  $Id: nbox.cc,v 1.2 1997/06/15 02:03:19 solomon Exp $
- */
+ $Id: nbox.cpp,v 1.15 1999/06/07 19:02:44 kupsch Exp $
+
+SHORE -- Scalable Heterogeneous Object REpository
+
+Copyright (c) 1994-99 Computer Sciences Department, University of
+                      Wisconsin -- Madison
+All Rights Reserved.
+
+Permission to use, copy, modify and distribute this software and its
+documentation is hereby granted, provided that both the copyright
+notice and this permission notice appear in all copies of the
+software, derivative works or modified versions, and any portions
+thereof, and that both notices appear in supporting documentation.
+
+THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+"AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+This software was developed with support by the Advanced Research
+Project Agency, ARPA order number 018 (formerly 8230), monitored by
+the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+Further funding for this work was provided by DARPA through
+Rome Research Laboratory Contract No. F30602-97-2-0247.
+
+*/
+
+#include "w_defines.h"
+
+/*  -- do not edit anything above this line --   </std-header>*/
+
 #define SM_SOURCE
 #define NBOX_C
 #ifdef __GNUC__
@@ -16,10 +39,23 @@
 
 #include <stdlib.h>
 #include <iostream.h>
-#include <stdio.h>
 #include <math.h>
 #include <w.h>
 #include <nbox.h>
+
+#include <stdio.h>
+
+#ifndef MIN
+#define MIN(x,y) ((x) < (y) ? (x) : (y))
+#endif
+
+#ifndef MAX
+#define MAX(x,y) ((x) > (y) ? (x) : (y))
+#endif
+
+#ifndef ABS
+#define ABS(x) ((x) >= 0 ? (x) : -(x))
+#endif
 
 /* "register" declarations limit the optimizers of compilers */
 #ifdef WANT_REGISTER
@@ -28,38 +64,35 @@
 #define	REGISTER
 #endif
 
-nbox_t::nbox_t()
-{ 
-    dim = max_dimension; 
-    for (int i=0; i<dim; i++) {
-	array[i] = 0; 
-	array[i+dim] = -1;
-    }
-}
+// special ref to nbox for rtree queries
+nbox_t		__Null__(0); // dimension 0
+nbox_t&		nbox_t::Null = __Null__;
 
-nbox_t::nbox_t(const nbox_t& nbox)
-{ 
-    dim = nbox.dimension(); 
-    for (int i=0; i<dim; i++) {
-	array[i] = nbox.array[i];
-	array[i+dim] = nbox.array[i+dim];
-    }
-}
+const nbox_t::int4_t	nbox_t::max_int4 = w_base_t::int4_max;
+const nbox_t::int4_t	nbox_t::min_int4 = w_base_t::int4_min;
 
 nbox_t::nbox_t(int dimension)
-{ 
-    w_assert3(dimension <= max_dimension);
-    dim = dimension; 
-    for (int i=0; i<dim; i++) {
-	array[i] = max_int4;
-	array[i+dim] = min_int4;
-    }
+: dim(dimension)
+{
+	w_assert3(dimension <= max_dimension);
+#ifdef PURIFY_ZERO
+	memset(array, '\0', sizeof(array));
+#endif
+	nullify();
+}
+
+nbox_t::nbox_t(const nbox_t& r)
+{
+	*this = r;
 }
 
 nbox_t::nbox_t(int dimension, int box[])
-{ 
+: dim(dimension)
+{
     w_assert3(dimension <= max_dimension);
-    dim = dimension; 
+#ifdef PURIFY_ZERO
+	memset(array, '\0', sizeof(array));
+#endif
     for (int i=0; i<dim; i++) {
 	array[i] = box[i];
 	array[i+dim] = box[i+dim];
@@ -67,34 +100,31 @@ nbox_t::nbox_t(int dimension, int box[])
 }
 
 nbox_t::nbox_t(const char* s, int len)
+: dim(len / (2 * sizeof(int)))
 {
-    dim = len / (2*sizeof(int));
+    w_assert3(dim <= max_dimension);
+#ifdef PURIFY_ZERO
+    memset(array, '\0', sizeof(array));
+#endif
     memcpy((void*) array, (void*) s, len);
 }
 
 //
-// for tcl test only: representation for a box is like "2.0.0.1.1." 
+// for tcl test only: representation for a box is like "2.0.0.1.1."
 // 	(x0=0, y0=0, x1=1, y1=1)
 //
 nbox_t::nbox_t(const char* s)
 {
-    int n;
-
+#ifdef PURIFY_ZERO
+    memset(array, '\0', sizeof(array));
+#endif
     if (s==NULL) {
-    	dim = max_dimension; 
-    	for (int i=0; i<dim; i++) {
-	    array[i] = 0; 
-	    array[i+dim] = -1;
-    	}
+    	dim = max_dimension;
+	nullify();
 	return;
     }
 
-    n = sscanf((char* /*keep g++ happy*/)s, "%i.%i.%i.%i.%i", &dim,
-		&array[0], &array[1], &array[2], &array[3]);
-    w_assert1(n==5 && dim == 2);
-    for (int i=2*dim; i<2*max_dimension; i++) {
-	array[i] = 0;
-    }
+    put(s);
 }
 
 bool nbox_t::empty() const
@@ -102,35 +132,50 @@ bool nbox_t::empty() const
     return (area() < 0.0);
 }
 
-void nbox_t::print(int level) const
+void nbox_t::print(ostream &o, int level) const
 {
     REGISTER int i, j;
-    for (j = 0; j < 5 - level; j++) cout << "\t";
-    cout << "---------- :\n";
-    for (i=0; i<dim; i++) {
-	for (j = 0; j < 5 - level; j++) cout << "\t";
-	cout << array[i] << " " << array[i+dim] << endl;
+    for (j = 0; j < 5 - level; j++) o << "\t";
+    o << "---------- :\n";
+
+    if(dim > 0) {
+	/* A box is 2 points, each in <dim> dimensions */
+
+	for (j = 0; j < 5 - level; j++) o << "\t";
+	o << array[0] ;
+	for (i=1; i<dim; i++) {
+	    o << "," << array[i] ;
+	}
+	o << endl;
+
+	for (j = 0; j < 5 - level; j++) o << "\t";
+	o << array[0+dim] ;
+	for (i=1; i<dim; i++) {
+	    o << "," << array[i+dim] ;
+	}
+	o << endl;
     }
+    if(dim == 0) { o << "<NULL>" <<endl; }
 }
 
 //
 // for draw gremlin picture only
 //
 
-void nbox_t::draw(int level, FILE* DrawFile, const nbox_t& CoverAll) const
+void nbox_t::draw(int level, ostream &DrawFile, const nbox_t& CoverAll) const
 {
     static int seed;
     int thick;
-    float x1, y1, x2, y2;
-    float ScreenSize, WorldSize;
-    float ratio, adjust;
+    double x1, y1, x2, y2;
+    double ScreenSize, WorldSize;
+    double ratio, adjust;
     double adj,base;
 
     if (empty()) return;
 
-    base = 2147483647.0;		/* XXX magic number */
+    base = 2147483647.0;		/* XXX magic number int::max */
     ScreenSize = 500.0;
-    WorldSize = MAX(CoverAll.array[2]-CoverAll.array[0], 
+    WorldSize = (double)MAX(CoverAll.array[2]-CoverAll.array[0],
 			CoverAll.array[3]-CoverAll.array[1]);
 
     switch (level-1) {
@@ -145,11 +190,11 @@ void nbox_t::draw(int level, FILE* DrawFile, const nbox_t& CoverAll) const
     adjust = 0.0;
     if (thick != 5) {
 	srand(seed);
-	adj = (float) rand();
+	adj = rand();
 	adjust = (level-1) * 5.0 + (adj/base) * 5.0 ;
     }
 
-    ratio = (float)ScreenSize / (float)WorldSize;
+    ratio = ScreenSize / WorldSize;
 
     if (thick!=5) {
 	x1 = -1.0*ratio* ABS(array[0])*0.05;
@@ -159,26 +204,29 @@ void nbox_t::draw(int level, FILE* DrawFile, const nbox_t& CoverAll) const
     } else {
 	x1 = x2 = y1 = y2 = 0.0;
     }
-		
+
     x1 = 32.0 + (array[0] - CoverAll.array[0]) * ratio - adjust;
     x2 = 32.0 + (array[2] - CoverAll.array[0]) * ratio + adjust;
     y1 = -64.0 + (array[1] - CoverAll.array[1]) * ratio - adjust;
     y2 = -64.0 + (array[3] - CoverAll.array[1]) * ratio + adjust;
 
-	fprintf(DrawFile, "VECTOR\n");
-	fprintf(DrawFile, "%3.2f %3.2f\n",x1,y1);
-	fprintf(DrawFile, "%3.2f %3.2f\n",x2,y1);
-	fprintf(DrawFile, "%3.2f %3.2f\n",x2,y2);
-	fprintf(DrawFile, "%3.2f %3.2f\n",x1,y2);
-	fprintf(DrawFile, "%3.2f %3.2f\n",x1,y1);
-	fprintf(DrawFile, "*\n");
-	fprintf(DrawFile, "%1d 0\n",thick);
-	fprintf(DrawFile, "0\n");
+	W_FORM(DrawFile)("VECTOR\n");
+	W_FORM(DrawFile)("%3.2f %3.2f\n",x1,y1);
+	W_FORM(DrawFile)("%3.2f %3.2f\n",x2,y1);
+	W_FORM(DrawFile)("%3.2f %3.2f\n",x2,y2);
+	W_FORM(DrawFile)("%3.2f %3.2f\n",x1,y2);
+	W_FORM(DrawFile)("%3.2f %3.2f\n",x1,y1);
+	W_FORM(DrawFile)("*\n");
+	W_FORM(DrawFile)("%1d 0\n",thick);
+	W_FORM(DrawFile)("0\n");
 }
 
 bool nbox_t::operator==(const nbox_t& other) const
 {
     REGISTER int i;
+
+    w_assert3(dim == other.dim);
+
     for (i=0; i<dim; i++) {
 	if (array[i] != other.array[i] || array[i+dim] != other.array[i+dim])
 	    return false;
@@ -190,25 +238,38 @@ ostream& operator<<(ostream& os, const nbox_t& box)
 {
    REGISTER int i;
 
-   os << "[";
-   for (i = 0; i < box.dim; i++)
-   {
-      os << box.array[i] << " " << box.array[i+box.dim];
-      if (i < box.dim-1) os << ", ";
-   }
-   os << "] ";
+    os << "[";
+    if(box.dim > 0) {
+	/* A box is 2 points, each in <dim> dimensions */
+
+	os << "<"<< box.array[0] ;
+	for (i=1; i<box.dim; i++) {
+	    os << "," << box.array[i] ;
+	}
+	os <<  ">,<" ;
+
+	os << box.array[0+box.dim] ;
+	for (i=1; i<box.dim; i++) {
+	    os << "," << box.array[i+box.dim] ;
+	}
+	os << ">";
+    }
+    os << "] " << endl;
 
    return os;
 }
 
 double nbox_t::area() const
 {
+    if(is_Null()) return -1.0; 
+
     REGISTER int i;
-    int point = true, s;
+    int point = true;
+    int s;
     double product = 1.0;
     for (i=0; i<dim; i++) {
 	if ((s=side(i)) < 0) return -1.0;
-	if ((product *= s) < 0) return (4*max_int4*max_int4);
+	if ((product *= (double)s) < 0) return (4.0*max_int4*max_int4);
 	point = (point && !s);
     }
     if (point) return 1.0;
@@ -219,17 +280,19 @@ int nbox_t::margin()
 {
     REGISTER int i, sum = 0;
     for (i=0; i<dim; i++) {
-	sum += side(i); 
+	sum += side(i);
     }
     return sum;
 }
 
 //
-// if two boxes are not intersected, then result will be a null box
+// if two boxes are not intersected, then result will be an empty box
+// invalid to intersect Null with anything
 //
 nbox_t nbox_t::operator^(const nbox_t& other) const
 {
     REGISTER int i;
+    w_assert1(dim == other.dim);
     int box[2*max_dimension];
 
     for (i=0; i<dim; i++) {
@@ -238,10 +301,11 @@ nbox_t nbox_t::operator^(const nbox_t& other) const
     }
     return nbox_t(dim, box);
 }
-		
+
 nbox_t nbox_t::operator+(const nbox_t& other) const
 {
     REGISTER int i;
+    w_assert1(dim == other.dim);
     int box[2*max_dimension];
 
     for (i=0; i<dim; i++) {
@@ -250,10 +314,11 @@ nbox_t nbox_t::operator+(const nbox_t& other) const
     }
     return nbox_t(dim, box);
 }
-	
+
 nbox_t& nbox_t::operator+=(const nbox_t& other)
 {
     REGISTER int i;
+    w_assert1(dim == other.dim);
     for (i=0; i<dim; i++) {
 	array[i] = MIN(array[i], other.array[i]);
 	array[i+dim] = MAX(array[i+dim], other.array[i+dim]);
@@ -264,6 +329,9 @@ nbox_t& nbox_t::operator+=(const nbox_t& other)
 bool nbox_t::operator||(const nbox_t& other) const
 {
     REGISTER int i;
+
+    w_assert1(dim == other.dim);
+
     for (i=0; i<dim; i++)
     {
        // Check for overlap along dimension i
@@ -273,24 +341,18 @@ bool nbox_t::operator||(const nbox_t& other) const
     return true;
 }
 
-/*
-bool nbox_t::operator||(const nbox_t& other) const
-{
-    nbox_t temp = *this^other;
-    return (temp.area() >= 0.0);
-}
-*/
-
 bool nbox_t::operator/(const nbox_t& other) const
 {
     REGISTER int i;
 
+    w_assert3(dim == other.dim);
+
     for (i=0; i<dim; i++) 
 	if (array[i] > other.array[i]) return false;
-    
-    for (i=dim; i<2*dim; i++) 
+
+    for (i=dim; i<2*dim; i++)
 	if (array[i] < other.array[i]) return false;
-   
+
     return true;
 }
 
@@ -298,7 +360,8 @@ bool nbox_t::operator>(const nbox_t& other) const
 {
     REGISTER int i;
 
-    for (i=0; i<dim; i++) {
+    w_assert1(dim == other.dim);
+    for (i=0; i<dim*2; i++) {
 	if (array[i] > other.array[i]) return true;
 	else if (array[i] < other.array[i]) return false;
     }
@@ -309,7 +372,8 @@ bool nbox_t::operator<(const nbox_t& other) const
 {
     REGISTER int i;
 
-    for (i=0; i<dim; i++) {
+    w_assert1(dim == other.dim);
+    for (i=0; i<dim*2; i++) {
 	if (array[i] < other.array[i]) return true;
 	else if (array[i] > other.array[i]) return false;
     }
@@ -319,6 +383,7 @@ bool nbox_t::operator<(const nbox_t& other) const
 double nbox_t::operator*(const nbox_t& other) const
 {
     REGISTER int i;
+    w_assert1(dim == other.dim);
     double square = 0.0;
     for (i=0; i<dim; i++) {
 	int diff = array[i]+array[i+dim]-other.array[i]-other.array[i+dim];
@@ -332,9 +397,19 @@ double nbox_t::operator*(const nbox_t& other) const
 //
 nbox_t::operator char*()
 {
-    static char s[40];	/* XXX memory allocation, per-thread resoruce */
-    sprintf(s, "%d.%d.%d.%d.%d", dim, array[0], array[1], array[2], array[3]);
-    return s;
+	static char s[40];	/* XXX sharing problem */
+	ostrstream ss(s, sizeof(s));
+
+#ifdef notyet
+	ss << dim << '.' << array[0] << '.' << array[1]
+		<< '.' << array[2] << '.' << array[3] << ends;
+#else
+	W_FORM(ss)("%d.%ld.%ld.%ld.%ld", dim, 
+		array[0], array[1], array[2], array[3]);
+	ss << ends;
+#endif
+
+	return s;
 }
 
 void nbox_t::bytes2box(const char* key, int klen)
@@ -344,15 +419,23 @@ void nbox_t::bytes2box(const char* key, int klen)
 }
 
 //
-// for tcl test only: representation for a box is like "2.0.0.1.1." 
+// for tcl test only: representation for a box is like "2.0.0.1.1."
 // 	(x0=0, y0=0, x1=1, y1=1)
 //
 void nbox_t::put(const char* s)
 {
     int n;
-    n = sscanf((char* /*keep g++ happy*/)s, "%i.%i.%i.%i.%i", &dim,
+#ifdef notyet
+    istrstream	ss(s, strlen(s));
+    char	c[4];
+    ss >> dim >> c[0] >> array[0] >> c[1] >> array[1]
+    	>> c[2] >> array[2] >> c[3] >> array[3];
+    /* XXX check error on stream, delimiters, etc */
+#else
+    n = sscanf((char* /*keep g++ happy*/)s, "%d.%ld.%ld.%ld.%ld", &dim,
 		&array[0], &array[1], &array[2], &array[3]);
     w_assert1(n==5 && dim == 2);
+#endif
     for (int i=2*dim; i<2*max_dimension; i++) {
 	array[i] = 0;
     }
@@ -376,7 +459,7 @@ void nbox_t::squared()
 }
 
 void nbox_t::nullify()
-{ 
+{
     for (int i=0; i<dim; i++) {
 	array[i] = max_int4;
 	array[i+dim] = min_int4;
@@ -428,7 +511,7 @@ int nbox_t::hvalue(const nbox_t& universe, int level) const
     int count = 0, rotation = 0, sense = 1;
 
     REGISTER int i,j;
-    for ( i=(universe.side(0)+1)/2, j=(universe.side(1)+1)/2; 
+    for ( i=(universe.side(0)+1)/2, j=(universe.side(1)+1)/2;
 	    i>0 && j>0 && level>count; i=i/2, j=j/2) {
 	count++;
 	int x_val = (x - x_low) < i ? 0 : 1;
@@ -453,12 +536,12 @@ int nbox_t::hcmp(const nbox_t& other, const nbox_t& universe, int level) const
 
     int x_low = universe.bound(0), y_low = universe.bound(1);
     int val1, val2;
-    int x1 = center(0), y1 = center(1), 
+    int x1 = center(0), y1 = center(1),
 	x2 = other.center(0), y2 = other.center(1);
     int count = 0, rotation = 0, sense = 1;
 
     REGISTER int i,j;
-    for ( i=(universe.side(0)+1)/2, j=(universe.side(1)+1)/2; 
+    for ( i=(universe.side(0)+1)/2, j=(universe.side(1)+1)/2;
 	    i>0 && j>0 && level>count; i=i/2, j=j/2) {
 	count++;
 	int x_val = (x2 - x_low) < i ? 0 : 1;
@@ -478,4 +561,18 @@ int nbox_t::hcmp(const nbox_t& other, const nbox_t& universe, int level) const
     }
 
     return 0;
+}
+
+void    
+nbox_t::canonize()
+{
+    int x;
+    for (int i=0; i<dim; i++) {
+	if(array[i] > array[i+dim]) {
+	    // swap
+	    x = array[i];
+	    array[i] = array[i+dim];
+	    array[i+dim] = x;
+	}
+    }
 }

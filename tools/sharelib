@@ -1,0 +1,142 @@
+#!/bin/sh 
+
+# <std-header style='shell' orig-src='shore'>
+#
+#  $Id: sharelib,v 1.8 1999/06/07 19:09:15 kupsch Exp $
+#
+# SHORE -- Scalable Heterogeneous Object REpository
+#
+# Copyright (c) 1994-99 Computer Sciences Department, University of
+#                       Wisconsin -- Madison
+# All Rights Reserved.
+#
+# Permission to use, copy, modify and distribute this software and its
+# documentation is hereby granted, provided that both the copyright
+# notice and this permission notice appear in all copies of the
+# software, derivative works or modified versions, and any portions
+# thereof, and that both notices appear in supporting documentation.
+#
+# THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+# OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+# "AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+# FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+#
+# This software was developed with support by the Advanced Research
+# Project Agency, ARPA order number 018 (formerly 8230), monitored by
+# the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+# Further funding for this work was provided by DARPA through
+# Rome Research Laboratory Contract No. F30602-97-2-0247.
+#
+#   -- do not edit anything above this line --   </std-header>
+
+#
+# combine many archives into one shared library 
+#
+# usage: combinelibs $(AR) target otherlibs
+# $(AR) is the archive executable to use
+# target is the name of the generated library
+# otherlibs is a list of libraries to combine
+
+pn=`basename $0`
+t=/tmp/$pn.$$
+trap "rm -rf $t; exit 2" 1 2 3 15
+rm -rf $t
+trap "mkdir $t; exit 2" 1 2 3 15
+mkdir $t
+
+if [ $# -lt 3 ]
+then
+	echo "usage: $pn ar-program target-archive archive [ archive ... ]"
+	exit 1
+fi
+
+LD=$1
+shift
+AR=$1
+shift
+
+# KLUDGE ALERT: Navin Kabra
+# If someone can find a better way of doing this,
+# PLEASE PLEASE fix this.
+# Currently problem is that if I use gcc to create
+# the shared library it cannot find some C++ stuff
+# Sticking -liberty -lg++ -lstdc++ in the command line
+# did not seem to work and -x c++ did not work either
+LD=`echo $LD | sed 's/gcc$/g++/'`
+echo "using LD=$LD"
+
+dest=$1
+
+cur=`pwd`
+while [ $# -ge 1 ]
+do
+#	get proper path of $1
+	cd `dirname $1`; p=`pwd`; cd $cur
+	lib=$p/`basename $1`
+	if [ -s $lib ]
+	then
+            ext=`echo $lib | sed 's/.*\.//'` 
+            if [ $ext = "a" ] 
+            then
+		echo extracting $lib ...
+
+		cd $t
+		trap "$AR x $lib; exit 2" 1 2 3 15
+		$AR x $lib; 
+		if [ -s "__.SYMDEF" ]
+		then
+			rm -f __.SYMDEF
+		fi
+		cd $cur
+
+		for i in `$AR t $1`
+		do
+			s=`basename $i .o`
+			if [ $s.o != $i -a $i != "__.SYMDEF" ]
+			then
+				echo "Warning: file name was truncated in $1. "
+				echo $i is being changed to $i.o
+				mv $t/$i $t/$i.o
+			fi
+		done
+		echo " done with" $lib
+             elif [ $ext = "o" ] 
+             then 
+		echo copying $lib ...
+		cp $lib $t
+             fi
+	fi
+	shift
+done
+
+
+echo
+echo "The following .o files will be in"  $dest ":"
+ls $t
+echo
+
+if [ -f $dest ]
+then
+	echo removing $dest
+	rm -f $dest
+fi
+
+if [ -f $t/rx.o ]
+then
+	\rm -f $t/rx.o
+fi
+
+if [ -f $t/CursesW.o ]
+then
+	\rm -f $t/CursesW.o
+fi
+
+echo creating $dest
+$LD -o $dest -G $t/*.o 
+
+echo ranlib $dest
+ranlib $dest
+
+rm -rf $t
+echo $pn "is done."
+exit 0

@@ -1,22 +1,66 @@
-/* --------------------------------------------------------------- */
-/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
-/* -- University of Wisconsin-Madison, subject to the terms     -- */
-/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
-/* -- Reserved.                                                 -- */
-/* --------------------------------------------------------------- */
+/*<std-header orig-src='shore' incl-file-exclusion='FILE_S_H'>
 
-/*
- *  $Id: file_s.h,v 1.24 1997/05/19 19:47:13 nhall Exp $
- */
+ $Id: file_s.h,v 1.34 1999/06/07 19:04:04 kupsch Exp $
+
+SHORE -- Scalable Heterogeneous Object REpository
+
+Copyright (c) 1994-99 Computer Sciences Department, University of
+                      Wisconsin -- Madison
+All Rights Reserved.
+
+Permission to use, copy, modify and distribute this software and its
+documentation is hereby granted, provided that both the copyright
+notice and this permission notice appear in all copies of the
+software, derivative works or modified versions, and any portions
+thereof, and that both notices appear in supporting documentation.
+
+THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+"AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+This software was developed with support by the Advanced Research
+Project Agency, ARPA order number 018 (formerly 8230), monitored by
+the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+Further funding for this work was provided by DARPA through
+Rome Research Laboratory Contract No. F30602-97-2-0247.
+
+*/
+
 #ifndef FILE_S_H
 #define FILE_S_H
+
+#include "w_defines.h"
+
+/*  -- do not edit anything above this line --   </std-header>*/
 
 #ifdef __GNUG__
 #pragma interface
 #endif
 
-typedef uint4 clust_id_t; // not used at this time
+typedef uint4_t clust_id_t; // not used at this time
 class file_p;
+
+enum pg_policy_t { 
+    t_append		= 0x01, // retain sort order (cache 0 pages)
+    t_cache		= 0x02, // look in n cached pgs 
+    t_compact		= 0x04, // scan file for space in pages 
+    /* These are masks - the following combinations are supported:
+     * t_append	-- preserve sort order
+     * t_cache  -- look only in cache - error if no luck (not really sensible)
+     * t_compact  -- don't bother with cache (bad idea)
+     * t_cache | t_append -- check the cache first, append if no luck
+     * t_cache | t_compact -- check the cache first, if no luck,
+     *                     search the file if histogram if apropos;
+     *                     error if no luck
+     * t_cache | t_compact | t_append  -- like above, but append to
+     * 			   file as a last resort
+     * t_compact | t_append  -- don't bother with cache (bad idea)
+     *
+     * Of course, not all combos are sensible.
+     */
+	
+};
 
 enum recflags_t { 
     t_badflag		= 0x00,
@@ -30,16 +74,21 @@ enum recflags_t {
 };
     
 struct rectag_t {
-    uint2	hdr_len;	// length of user header 
-    uint2	flags;		// enum recflags_t
-    uint4	body_len;	// true length of the record 
+    uint2_t	hdr_len;	// length of user header 
+    uint2_t	flags;		// enum recflags_t
+    smsize_t	body_len;	// true length of the record 
     /* 8 */
 
     serial_t	serial_no;	// logical serial number in file
+    /* 12 or 16 */
+
+#if ALIGNON == 0x8
 #ifndef BITS64
     fill4	filler;		// for 8 byte alignment with small serial#s
-#endif
+#endif /* not BITS64 */
     /* 16 */
+#endif /* ALIGNON 8 bytes */
+
 
 #ifdef notdef
     fill4	cluster_id;	// cluster for this record
@@ -63,6 +112,7 @@ public:
     record_t()	{};
     bool is_large() const;
     bool is_small() const;
+    int  large_impl() const;
 
     smsize_t hdr_size() const;
     smsize_t body_size() const;
@@ -78,7 +128,7 @@ public:
 private:
 
     // only friends can use these
-    uint4  page_count() const;
+    smsize_t  page_count() const;
     lpid_t last_pid(const file_p& page) const;
 };
 
@@ -97,12 +147,24 @@ inline const char* record_t::hdr() const
 
 inline bool record_t::is_large() const	
 { 
-    return tag.flags & (t_large_0 | t_large_1 | t_large_2); 
+    return (tag.flags & (t_large_0 | t_large_1 | t_large_2)) != 0; 
+}
+
+inline int record_t::large_impl() const	
+{ 
+    switch ((int)(tag.flags & (t_large_0 | t_large_1 | t_large_2))) {
+    case (int)t_large_0: return 0;
+    case (int)t_large_1: return 1;
+    case (int)t_large_2: return 2;
+    default: 
+	break;
+    }
+    return -1;
 }
 
 inline bool record_t::is_small() const 
 { 
-    return tag.flags & t_small; 
+    return (tag.flags & t_small) != 0; 
 }
 
 inline const char* record_t::body() const
@@ -120,4 +182,6 @@ inline smsize_t record_t::body_size() const
     return tag.body_len;
 }
 
-#endif /*FILE_S_H*/
+/*<std-footer incl-file-exclusion='FILE_S_H'>  -- do not edit anything below this line -- */
+
+#endif          /*</std-footer>*/

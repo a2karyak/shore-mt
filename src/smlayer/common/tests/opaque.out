@@ -1,0 +1,6 @@
+value of ch = opaque[4]"COPY"
+length of ch = 4
+value of s = opaque[7]"ALIGNED"
+length of s = 7
+value of s = opaque[10]"NOTALIGNED"
+length of s = 10

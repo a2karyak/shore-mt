@@ -1,33 +1,76 @@
-/* --------------------------------------------------------------- */
-/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
-/* -- University of Wisconsin-Madison, subject to the terms     -- */
-/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
-/* -- Reserved.                                                 -- */
-/* --------------------------------------------------------------- */
+/*<std-header orig-src='shore' incl-file-exclusion='SMSTATS_H'>
 
-/*
- *  $Id: smstats.h,v 1.22 1997/05/19 19:48:17 nhall Exp $
- */
+ $Id: smstats.h,v 1.32 1999/06/07 19:04:40 kupsch Exp $
+
+SHORE -- Scalable Heterogeneous Object REpository
+
+Copyright (c) 1994-99 Computer Sciences Department, University of
+                      Wisconsin -- Madison
+All Rights Reserved.
+
+Permission to use, copy, modify and distribute this software and its
+documentation is hereby granted, provided that both the copyright
+notice and this permission notice appear in all copies of the
+software, derivative works or modified versions, and any portions
+thereof, and that both notices appear in supporting documentation.
+
+THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+"AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+This software was developed with support by the Advanced Research
+Project Agency, ARPA order number 018 (formerly 8230), monitored by
+the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+Further funding for this work was provided by DARPA through
+Rome Research Laboratory Contract No. F30602-97-2-0247.
+
+*/
+
 #ifndef SMSTATS_H
 #define SMSTATS_H
+
+#include "w_defines.h"
+
+/*  -- do not edit anything above this line --   </std-header>*/
 
 #ifndef W_STATISTICS_H
 #include <w_statistics.h>
 #endif
 
 // This file is included in sm.h in the middle of the class ss_m
-// declaration.  Member functions are defined in sm.c
+// declaration.  Member functions are defined in sm.cpp
 
-struct sm_stats_info_t {
+
+class sm_stats_t {
+public:
 	void	compute();
+#include "sm_stats_t_struct_gen.h"
+};
 
-// grot -- temporary
-#ifndef SM_APP_H
-#include "sm_stats_info_t_struct.i"
+class smthread_stats_t {
+public:
+	void	compute();
+#include "smthread_stats_t_struct_gen.h"
+};
 
-    friend ostream& operator<<(ostream&, const sm_stats_info_t& s);
+class sm2pc_stats_t {
+public:
+	void	compute();
+#include "sm2pc_stats_t_struct_gen.h"
+};
 
-#endif /*SM_APP_H*/
+class sm_stats_info_t {
+public:
+	sm_stats_t 	sm;
+	smthread_stats_t summary_thread;
+	sm2pc_stats_t 	summary_2pc;
+	void	compute() { 
+		sm.compute(); 
+		summary_thread.compute(); 
+		summary_2pc.compute(); 
+	}
+        friend ostream& operator<<(ostream&, const sm_stats_info_t& s);
 };
 
 struct sm_config_info_t {
@@ -44,12 +87,12 @@ struct sm_config_info_t {
     u_long pages_per_ext;	// #page per ext (# bits in Pmap)
     bool   multi_threaded_xct;  // true-> allow multi-threaded xcts
     bool   preemptive;  	// true-> configured for preemptive threads
-    bool   object_cc;  		// true-> configured OBJECT_CC
-    bool   multi_server;  	// true-> configured with MULTI_SERVER
     bool   serial_bits64;  	// true-> configured with BITS64
     bool   logging;  		// true-> configured with logging on
 
     friend ostream& operator<<(ostream&, const sm_config_info_t& s);
 };
 
-#endif /*SMSTATS_H*/
+/*<std-footer incl-file-exclusion='SMSTATS_H'>  -- do not edit anything below this line -- */
+
+#endif          /*</std-footer>*/

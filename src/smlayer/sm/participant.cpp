@@ -1,14 +1,37 @@
-/* --------------------------------------------------------------- */
-/* -- Copyright (c) 1994,5,6,7 Computer Sciences Department,    -- */
-/* -- University of Wisconsin-Madison, subject to the terms     -- */
-/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
-/* -- Reserved.                                                 -- */
-/* --------------------------------------------------------------- */
+/*<std-header orig-src='shore'>
 
+ $Id: participant.cpp,v 1.55 1999/08/06 15:35:42 bolo Exp $
+
+SHORE -- Scalable Heterogeneous Object REpository
+
+Copyright (c) 1994-99 Computer Sciences Department, University of
+                      Wisconsin -- Madison
+All Rights Reserved.
+
+Permission to use, copy, modify and distribute this software and its
+documentation is hereby granted, provided that both the copyright
+notice and this permission notice appear in all copies of the
+software, derivative works or modified versions, and any portions
+thereof, and that both notices appear in supporting documentation.
+
+THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+"AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+This software was developed with support by the Advanced Research
+Project Agency, ARPA order number 018 (formerly 8230), monitored by
+the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+Further funding for this work was provided by DARPA through
+Rome Research Laboratory Contract No. F30602-97-2-0247.
+
+*/
+
+#include "w_defines.h"
+
+/*  -- do not edit anything above this line --   </std-header>*/
 
 /*
- *  $Id: participant.cc,v 1.26 1997/06/15 03:13:29 solomon Exp $
- *  
  *  Stuff common to both coordinator and subordnates.
  */
 
@@ -17,29 +40,24 @@
 
 
 #include <sm_int_0.h>
+#include <w_windows.h>
+
+#ifdef USE_COORD
 #include <coord.h>
 
-#if defined(__GNUG__) && !defined(SOLARIS2) && !defined(Irix) && !defined(AIX41) 
-extern "C" {
-    int gettimeofday(timeval*, struct timezone*);
-} 
-#endif
-
-#ifdef __GNUG__
+#ifdef EXPLICIT_TEMPLATE
 template class w_list_t<twopc_thread_t>;
 template class w_list_i<twopc_thread_t>;
 #endif
 typedef class w_list_t<twopc_thread_t> twopc_thread_list_t;
 
-#ifdef CHEAP_RC
-/* delegate not used for DO_GOTO; have to delete the _err */
-#define RETURN_RC( _err) \
-    { 	w_rc_t rc = rc_t(_err); if(_err) delete _err; return  rc; }
-#else
 /* delegate is used in debug case */
 #define RETURN_RC( _err) \
-    { 	w_rc_t rc = rc_t(_err); return  rc; }
-#endif
+    do { w_rc_t rc = rc_t(_err); return  rc; } while(0)
+
+
+/* Seconds -> milliseconds converter for timeouts. */
+#define	SECONDS(n)	((n) * 1000)
 
 /* 
  * version 2 of the protocol doesn't ship endpoints around;
@@ -48,7 +66,49 @@ typedef class w_list_t<twopc_thread_t> twopc_thread_list_t;
  */
 
 
-static Buffer	nullbuf((void *)0, 0); 
+/* message timestamp methods */
+
+message_t::stamp_t::stamp_t(const stime_t &r)
+: sec(r.secs()),
+  usec(r.usecs())
+{
+}
+
+
+message_t::stamp_t	&message_t::stamp_t::operator=(const stime_t &r)
+{
+	sec = r.secs();
+	usec = r.usecs();
+
+	return *this;
+}
+
+
+void	message_t::stamp_t::net_to_host()
+{
+	sec = ntohl(sec);
+	usec = ntohl(usec);
+}
+
+
+void	message_t::stamp_t::host_to_net()
+{
+	sec = htonl(sec);
+	usec = htonl(usec);
+}
+
+
+ostream &message_t::stamp_t::print(ostream &o) const
+{
+	return o << sec << "." << usec;
+}
+
+
+ostream &operator<<(ostream &o, const message_t::stamp_t &m)
+{
+	return m.print(o);
+}
+
 
 /***************************************************
  * class message_t
@@ -56,10 +116,12 @@ static Buffer	nullbuf((void *)0, 0);
 void 	
 message_t::audit(bool audit_sender) const
 {
-    DBG(<<"message_t::audit "
-	<< "tid.len=" << tid().length()
-	<< "sender.len=" << sender().length()
-	<< "typ=" << typ
+    DBG(<<"message_t::audit"
+        << " sequence=" << sequence
+	<< " tid.len=" << tid().length()
+	<< " sender.len=" << sender().length()
+	<< " sender=" << sender()
+	<< " typ=" << type()
     );
     // in all cases, the gtid should be legit
     w_assert3(tid().wholelength() <= sizeof(gtid_t));
@@ -73,7 +135,7 @@ message_t::audit(bool audit_sender) const
 	w_assert1(sender().length() > 0);
     }
 
-    switch(typ) {
+    switch(type()) {
 	case smsg_prepare:
 	case smsg_abort:
 	case smsg_commit:
@@ -113,44 +175,31 @@ message_t::audit(bool audit_sender) const
     }
 }
 
-void 	
-message_t::ntoh() 
+void	message_t::ntoh() 
 {
-    unsigned int n;
+	_typ = ntohl(_typ);
 
-    n = error_num;
-    error_num = ntohl(n);
+	error_num = ntohl(error_num);
+	sequence = ntohl(sequence);
 
-    n = sequence;
-    sequence = ntohl(n);
+	stamp.net_to_host();
 
-    gtid_t *t = _settable_tid();
-    w_assert1(t);
-    t->ntoh();
-
-    if(t) {
-	server_handle_t *s = _settable_sender();
-	if(s) s->ntoh();
-    }
+	_gtid.ntoh();
+	_server_handle.ntoh();
 }
 
-void 	
-message_t::hton() 
+
+void	message_t::hton() 
 {
-    unsigned int n;
+	_typ = htonl(_typ);
 
-    n = error_num;
-    error_num = htonl(n);
+	error_num = htonl(error_num);
+	sequence = htonl(sequence);
 
-    n = sequence;
-    sequence = htonl(n);
+	stamp.host_to_net();
 
-    gtid_t *t = _settable_tid();
-    w_assert1(t);
-    server_handle_t *s = _settable_sender();
-
-    t->hton();
-    if(s) s->hton();
+	_gtid.hton();
+	_server_handle.hton();
 }
 
 void  		
@@ -166,10 +215,7 @@ message_t::put_tid(const gtid_t &t)
 void
 message_t::_clear_sender() 
 {
-    server_handle_t *s =  _settable_sender();
-    if(s) {
-	s->clear();
-    }
+	_server_handle.clear();
 }
 
 server_handle_t *
@@ -177,7 +223,7 @@ message_t::_settable_sender()
 {
     if(tid().length() > 0) {
 	 w_assert3(tid().wholelength() < sizeof(gtid_t));
-	 return (server_handle_t *) &_data[tid().wholelength()];
+	 return &_server_handle;
     } else {
 	return 0;
     }
@@ -187,7 +233,7 @@ const server_handle_t &
 message_t::sender() const 
 {
     w_assert1(tid().length() > 0);
-    const server_handle_t *s =  (const server_handle_t *)&_data[tid().wholelength()];
+    const server_handle_t *s = &_server_handle;
     return *s;
 }
 
@@ -195,7 +241,7 @@ void
 message_t::put_sender(const server_handle_t &s)
 {
     server_handle_t *sp = _settable_sender();
-    w_assert3(sp);
+    w_assert1(sp);
     sp->clear();
     *sp = s;
 }
@@ -258,8 +304,9 @@ void
 participant::_init_base()
 {
     w_assert3(_mutex.is_mine());
+    _error = _meBox.set(0,_me);
 
-    if (_error = _meBox.insert(0,_me) ) {
+    if (_error) {
 	W_FATAL(_error.err_num());
     }
 }
@@ -281,7 +328,7 @@ participant::~participant()
         delete _message_handler;
 	_message_handler=0;
 	if(_me.is_valid()) {
-	    while(_me.mep()->refs() > 0) {
+	    while(_me.refs() > 0) {
 		W_COERCE(_me.release()); // ep.release()
 	    }
 	}
@@ -319,7 +366,7 @@ participant::receive(
 	sentbox
 #endif
 	,
-    EndpointBox& 	mebox  // what to send with any response generated
+    const EndpointBox& 	mebox  // what to send with any response generated
 )
 {
     FUNC(twopc_thread_t::receive);
@@ -330,15 +377,19 @@ participant::receive(
     Endpoint 		_ep;
     server_handle_t 	srvaddr;
 
-    Buffer		*bp=&buf;
     Endpoint		sender;
 
     /*
      * set up the ref to the message  in the buffer
      */
-    struct message_t* 		mp;
-    mp = (struct message_t *)bp->start();
-    struct message_t &		m = *mp;
+    if (buf.size() != sizeof(message_t)) {
+	    smlevel_0::errlog->clog <<error_prio
+		    << "Coord message wrong size " << buf.size()
+		    << ", expecting size " << sizeof(message_t) << endl;
+	    return RC(scWRONGSIZE);	/* XXX choose a better errno */
+    }
+
+    message_t	&m = * (message_t *) buf.start();
 
     rc_t    		rc;
 
@@ -352,11 +403,10 @@ participant::receive(
 	// treat as "not found"
 	// log this stray message and drop it
 	smlevel_0::errlog->clog <<error_prio 
-		<< m.tv.tv_sec << "." << m.tv.tv_usec << ":"
-		<< " STRAY message type " << m.typ
+		<< m.stamp << ":"
+		<< " STRAY message type " << m.type()
 		<< " sequence " << m.sequence 
-		<< " from "  << m.sender();
-	smlevel_0::errlog->clog <<error_prio 
+		<< " from "  << m.sender()
 		<< " cannot convert from endpoint to name"
 		<< flushl;
 
@@ -376,12 +426,11 @@ participant::receive(
 	// treat as "not found"
 	// log this stray message and drop it
 	smlevel_0::errlog->clog <<error_prio 
-		<< m.tv.tv_sec << "." << m.tv.tv_usec << ":"
+		<< m.stamp << ":"
 		<< " STRAY message type " << m.typ
 		<< " sequence " << m.sequence 
 		<< " from " ;
-		sender.print(smlevel_0::errlog->clog); 
-	smlevel_0::errlog->clog <<error_prio 
+		<< sender
 		<< " cannot convert from endpoint to name"
 		<< flushl;
 
@@ -390,7 +439,7 @@ participant::receive(
     }
 #endif
 
-    rc =   __receive(__purpose, *bp, m, sender, srvaddr, mebox);
+    rc =   __receive(__purpose, buf, m, sender, srvaddr, mebox);
     W_COERCE(sender.release());
     return rc;
 }
@@ -406,7 +455,7 @@ participant::receive(
 			     // this is the endpoint
 			     // on which to do the receive. (CASE2- not
 			     // tested)
-    EndpointBox& 	mebox  // what to send with any response generated
+    const EndpointBox& 	mebox  // what to send with any response generated
 )
 {   // CASE 2: we do the receive
     FUNC(twopc_thread_t::receive);
@@ -417,8 +466,7 @@ participant::receive(
     rc_t    		rc;
     server_handle_t 	srvaddr;
 
-    Buffer		*bp=&buf;
-    struct message_t 	holder;
+    message_t 	holder;
     EndpointBox 	senderbox;
     Endpoint		sender;
 
@@ -427,17 +475,20 @@ participant::receive(
     /*
      * set up the ref to the message  in the buffer
      */
-    struct message_t* 		mp;
-    mp = (struct message_t *)bp->start();
-    struct message_t &		m = *mp;
+    if (buf.size() != sizeof(message_t)) {
+	    smlevel_0::errlog->clog <<error_prio
+		    << "Coord message wrong size " << buf.size()
+		    << ", expecting size " << sizeof(message_t) << endl;
+	    return RC(scWRONGSIZE);	/* XXX choose a better errno */
+    }
+
+    message_t	&m = * (message_t *) buf.start();
 
     { /* do the receive */
-#ifdef DEBUG
-	DBGTHRD(<<"participant_receive: listening on endpoint " ); 
-	_ep.print(_debug.clog); _debug.clog << flushl;
+#ifdef W_DEBUG
+	DBGTHRD(<<"participant_receive: listening on: " << _ep << flushl); 
 #endif
-	AlignedBuffer	amybuf((void *)&holder, sizeof(holder)); // maximum size
-	Buffer &mybuf = amybuf.buf;
+	Buffer	mybuf(&holder, sizeof(holder)); // maximum size
 	rc = _ep.receive(mybuf, senderbox);
 	if(rc) {
 	   // TODO: handle death notification
@@ -445,8 +496,12 @@ participant::receive(
 	   W_FATAL(rc.err_num());
 	}
 
-	w_assert3(mybuf.size() >= holder.minlength());
-	w_assert3(mybuf.size() == holder.wholelength());
+	    if (mybuf.size() != sizeof(message_t)) {
+		    smlevel_0::errlog->clog <<error_prio
+			    << "Coord message wrong size " << mybuf.size()
+			    << ", expecting size " << sizeof(message_t) << endl;
+		    W_FATAL(scWRONGSIZE);	/* XXX choose a better errno */
+	    }
 
         m.ntoh();
 
@@ -462,14 +517,14 @@ participant::receive(
 	    // what if scDEAD? nsNOTFOUND?
 	    W_FATAL(rc.err_num()); // for now
 	}
-	w_assert3(sender.mep()->refs() >= 1);
+	w_assert3(sender.refs() >= 1);
 
     }
-    DBGTHRD(<<"sender.REF " << sender.mep()->refs());
+    DBGTHRD(<<"sender.REF " << sender.refs());
 
     m.audit();
 
-    DBGTHRD(<<"ep.REF " << sender.mep()->refs());
+    DBGTHRD(<<"ep.REF " << sender.refs());
 #ifdef VERSION_2
     srvaddr = m.sender();
 #else
@@ -483,18 +538,17 @@ participant::receive(
 	// treat as "not found"
 	// log this stray message and drop it
 	smlevel_0::errlog->clog <<error_prio 
-		<< m.tv.tv_sec << "." << m.tv.tv_usec << ":"
+		<< m.stamp << ":"
 		<< " STRAY message type " << m.typ
 		<< " sequence " << m.sequence 
-		<< " from " ;
-		sender.print(smlevel_0::errlog->clog); 
-	smlevel_0::errlog->clog <<error_prio 
+		<< " from "
+		<< sender
 		<< " cannot convert from endpoint to name"
 		<< flushl;
 	return RCOK;
     }
 #endif
-    rc =  __receive(__purpose, *bp, m, sender, srvaddr, mebox);
+    rc =  __receive(__purpose, buf, m, sender, srvaddr, mebox);
 
     if(sender.is_valid()) {
 	W_COERCE(sender.release()); // ep.release()
@@ -506,10 +560,10 @@ rc_t
 participant::__receive(
     coord_thread_kind 	__purpose,
     Buffer&		buf,	
-    struct message_t &	m,
+    message_t &	m,
     Endpoint& 		sender,  // ep of sender
     server_handle_t&	srvaddr, // name of sender
-    EndpointBox& 	mebox
+    const EndpointBox& 	mebox
 )
 {
     bool  is_subordinate = (
@@ -518,66 +572,66 @@ participant::__receive(
     );
 
     if(m.error()) {
-	DBGTHRD("received (error=" << m.error_num << ") typ=" << m.typ );
+	DBGTHRD(<< "received (error=" << m.error_num << ") typ=" << m.type());
 	if(is_subordinate) {
-	    INCRSTAT(s_errors_recd);
+	    INC_2PCSTAT(s_errors_recd);
 	} else {
-	    INCRSTAT(c_errors_recd);
+	    INC_2PCSTAT(c_errors_recd);
 	}
     } else {
-	switch(m.typ) {
+	switch(m.type()) {
 
 	case smsg_prepare:
-	    INCRSTAT(s_prepare_recd);
+	    INC_2PCSTAT(s_prepare_recd);
 	    w_assert3(is_subordinate);
 	    break;
 	case smsg_abort:
-	    INCRSTAT(s_abort_recd);
+	    INC_2PCSTAT(s_abort_recd);
 	    w_assert3(is_subordinate);
 	    break;
 	case smsg_commit:
-	    INCRSTAT(s_commit_recd);
+	    INC_2PCSTAT(s_commit_recd);
 	    w_assert3(is_subordinate);
 	    break;
 	case sreply_ack:
-	    INCRSTAT(c_acks_recd);
+	    INC_2PCSTAT(c_acks_recd);
 	    w_assert3(! is_subordinate);
 	    break;
 	case sreply_status:
-	    INCRSTAT(c_status_recd);
+	    INC_2PCSTAT(c_status_recd);
 	    w_assert3(! is_subordinate);
 	    break;
 	case sreply_vote:
-	    INCRSTAT(c_votes_recd);
+	    INC_2PCSTAT(c_votes_recd);
 	    break;
 	default:
 	    break;
 	}
     }
-    DBGTHRD(<< "calling handle_message() for " << m.typ
+    DBGTHRD(<< "calling handle_message() for " << m.type()
                 << " error " << m.error()
                 << " gtid "
 		<< m.tid()
 		);
     if(smlevel_0::errlog->getloglevel() >= log_info) {
 	    smlevel_0::errlog->clog <<info_prio 
-		<< m.tv.tv_sec << "." << m.tv.tv_usec ;
+		<< m.stamp;
 
 	    smlevel_0::errlog->clog <<info_prio 
 			<< " " << me()->id  << ":";
 	    if(m.sequence>0) {
 		smlevel_0::errlog->clog <<info_prio 
-		    << " RDUP: t:" << m.typ ;
+		    << " RDUP: t:" << m.type() ;
 	    } else {
 		smlevel_0::errlog->clog <<info_prio 
-		    << " RECV: t:" << m.typ ;
+		    << " RECV: t:" << m.type() ;
 	    }
 
-	switch(m.typ) {
+	switch(m.type()) {
 	    case sreply_status:
 	    case sreply_vote:
 		smlevel_0::errlog->clog <<info_prio 
-		    << " v:" << m._u.vote ;
+		    << " v:" << int(m._u.vote) ;
 		break;
 	    case sreply_ack:
 		smlevel_0::errlog->clog <<info_prio 
@@ -598,8 +652,8 @@ participant::__receive(
 		<< " s:" << m.sequence 
 		<< " e:" << m.error_num
 		<< endl << "    "
-		<< " from:" ;
-	sender.print(smlevel_0::errlog->clog); smlevel_0::errlog->clog <<info_prio 
+		<< " from:"
+		<< sender
 		<< "(" << srvaddr << ")"
 		<< endl << "    "
 		<< " to:" ;
@@ -613,7 +667,8 @@ participant::__receive(
 	     * although that's only convention. We have no idea what
 	     * endpoint this was really received ON.
 	     */
-	    id.print(smlevel_0::errlog->clog); 
+	    smlevel_0::errlog->clog <<info_prio 
+		<< id;
 	} else {
 	    smlevel_0::errlog->clog <<info_prio 
 		<< "empty box ";
@@ -629,25 +684,39 @@ participant::__receive(
     return handle_message(__purpose, buf, sender, srvaddr, mebox);
 }
 
+static const char *const twopcthreadname = "2PC____________________";
+NORET
 twopc_thread_t::twopc_thread_t(
     participant *p, 
     coord_thread_kind k, 
     bool otf
 ) :
+    // make its name long enough to rename safely
+    smthread_t(t_regular, false, false, twopcthreadname),
     _on_the_fly(otf),
     _purpose(k),
     _proto(p?p->proto():smlevel_0::presumed_abort),
     _retire(false),
     _party(p),
     // _error
-    _mutex("2PC____________________"), // long enough to rename safely
+    _mutex(twopcthreadname), 
     // _link
-    _condition("condition______________"), // long enough to rename safely
+    _condition(twopcthreadname), 
     _sleeptime(SECONDS(10)),
-    _timeout(WAIT_FOREVER),
-    smthread_t(t_regular, false, false, "2PC____________________")  // ditto
+    _timeout(WAIT_FOREVER)
 {
     FUNC(twopc_thread_t::twopc_thread_t);
+
+    _2pcstats = new sm2pc_stats_t;
+    // These things have no constructor
+    memset(_2pcstats, 0, sizeof(sm2pc_stats_t));
+}
+
+NORET
+twopc_thread_t::~twopc_thread_t()
+{
+    smlevel_0::stats.summary_2pc += twopc_stats();
+    delete _2pcstats;
 }
 
 void
@@ -666,6 +735,8 @@ twopc_thread_t::handle_message(coord_thread_kind k)
     FUNC(twopc_thread_t::handle_message);
 
     rc_t	rc;
+    Buffer	nullbuf;
+
     W_COERCE(_mutex.acquire());
 
     while(!_retire) {
@@ -679,8 +750,8 @@ twopc_thread_t::handle_message(coord_thread_kind k)
 	    /* CASE2 - not implemented, much less, tested */
 	    W_FATAL(fcNOTIMPLEMENTED); 
 
-	    if(rc = _party->receive(
-		k, nullbuf, _party->self(), _party->box())) {
+	    rc = _party->receive(k, nullbuf, _party->self(), _party->box());
+	    if(rc) {
 
 		 DBGTHRD(<< "unexpected error with commit" << rc);
 	         this->retire();
@@ -705,13 +776,11 @@ participant::send_message(
     Buffer&		buf, 
     Endpoint& 		destination,
     server_handle_t& 	dest_name,
-    EndpointBox& 	mebox
+    const EndpointBox& 	mebox
 )
 {
-    struct message_t 	*mp= (struct message_t *)buf.start();
-    w_assert3(mp!=0);
-    struct message_t 	&m=*mp;
     rc_t		rc;
+    message_t		&m = *(message_t *) buf.start();
 
     DBGTHRD(<<"participant::sendmessage() "
 	    << " destination " << destination
@@ -719,29 +788,28 @@ participant::send_message(
 	    );
 
     if(smlevel_0::errlog->getloglevel() >= log_info) {
-	int e = gettimeofday(&m.tv,0);
-	w_assert1(e== 0);
+	m.stamp = stime_t::now();    
 
 	smlevel_0::errlog->clog <<info_prio 
-		<< m.tv.tv_sec << "." << m.tv.tv_usec;
+		<< m.stamp;
 	smlevel_0::errlog->clog <<info_prio 
 	    << " " << me()->id  << ":";
 	if(m.sequence>0) {
 	    smlevel_0::errlog->clog <<info_prio 
-		<< " SDUP: t:" << m.typ ;
+		<< " SDUP: t:" << m.type() ;
 	} else {
 	    smlevel_0::errlog->clog <<info_prio 
-		<< " SEND: t:" << m.typ ;
+		<< " SEND: t:" << m.type() ;
 	}
 
-	switch(m.typ) {
+	switch(m.type()) {
 	    case sreply_status:
 	    case sreply_vote:
 		smlevel_0::errlog->clog <<info_prio 
-		    << " v:" << m._u.vote ;
+		    << " v:" << int(m._u.vote) ;
 		break;
 	    case sreply_ack:
-		smlevel_0::errlog->clog <<info_prio 
+		smlevel_0::errlog->clog << info_prio 
 		    << " a:" << m._u.typ_acked ;
 		break;
 	    default:
@@ -751,8 +819,8 @@ participant::send_message(
 		<< " s:" << m.sequence 
 		<< " e:" << m.error_num
 		<< endl << "    "
-		<< " to:" ;
-	destination.print(smlevel_0::errlog->clog); smlevel_0::errlog->clog <<info_prio 
+		<< " to:" 
+		<< destination
 		<< "(" << dest_name << ")"
 		<< endl << "    "
 		<< " from:" ;
@@ -760,7 +828,8 @@ participant::send_message(
 		Endpoint id;
 		W_IGNORE(mebox.get(0,id));
 		if(id.is_valid()) {
-		    id.print(smlevel_0::errlog->clog); 
+		    smlevel_0::errlog->clog <<info_prio 
+			<< id;
 		} else {
 		    smlevel_0::errlog->clog <<info_prio 
 			<< " empty box" ;
@@ -779,18 +848,14 @@ participant::send_message(
 #endif
 
 
-    DBGTHRD(<< "sending message " << m.typ 
-	    << " error " << m.error()
-	    << " (vote=" << m._u.vote
+    DBGTHRD(<< "sending message " << m.type()
+	    << " error " << w_error_t::error_string(m.error())
+	    << " (vote=" << int(m._u.vote)
 	    << ")  gtid=" << m.tid()
 	    << " sender= " << m.sender()
 	    );
 
 
-    int currsize = m.wholelength();
-    if(buf.set(currsize) != currsize) {
-	W_FATAL(fcINTERNAL);
-    }
     m.audit();
 
     bool  is_subordinate = (
@@ -799,34 +864,34 @@ participant::send_message(
 	);
     if(m.error()) {
 	if(is_subordinate) {
-	    INCRSTAT(s_errors_sent);
+	    INC_2PCSTAT(s_errors_sent);
 	} else {
-	    INCRSTAT(c_errors_sent);
+	    INC_2PCSTAT(c_errors_sent);
 	}
     } else {
-	switch(m.typ) {
+	switch(m.type()) {
 	case smsg_prepare:
-	    INCRSTAT(c_prepare_sent);
+	    INC_2PCSTAT(c_prepare_sent);
 	    w_assert3(! is_subordinate);
 	    break;
 	case smsg_abort:
-	    INCRSTAT(c_abort_sent);
+	    INC_2PCSTAT(c_abort_sent);
 	    w_assert3(! is_subordinate);
 	    break;
 	case smsg_commit:
-	    INCRSTAT(c_commit_sent);
+	    INC_2PCSTAT(c_commit_sent);
 	    w_assert3(! is_subordinate);
 	    break;
 	case sreply_ack:
-	    INCRSTAT(s_acks_sent);
+	    INC_2PCSTAT(s_acks_sent);
 	    w_assert3(is_subordinate);
 	    break;
 	case sreply_status:
-	    INCRSTAT(s_status_sent);
+	    INC_2PCSTAT(s_status_sent);
 	    w_assert3(is_subordinate);
 	    break;
 	case sreply_vote:
-	    INCRSTAT(s_votes_sent);
+	    INC_2PCSTAT(s_votes_sent);
 	    w_assert3(is_subordinate);
 	    break;
 	default:
@@ -840,19 +905,19 @@ participant::send_message(
 	    );
 
     m.hton();
-
-    if( 
-	rc = destination.send(buf, mebox)
-					    ) {
+    rc = destination.send(buf, mebox);
+    m.ntoh();
+    if( rc ) {
 	smlevel_0::errlog->clog <<error_prio
-		<< m.tv.tv_sec << "." << m.tv.tv_usec
+		<< m.stamp
 		<< " Cannot send message: "  
-		<< m.typ
+		<< m.type()
 		<< rc << flushl;
 	switch(rc.err_num()) {
 	case scTRANSPORT:
 	case scGENERIC:
 	case fcOS:
+	case fcWIN32:
 	    return rc;
 
 	case scDEAD:
@@ -865,10 +930,9 @@ participant::send_message(
 	   W_FATAL(rc.err_num());
 	}
     }
-    m.ntoh();
 
     DBGTHRD(<<"participant::sendmessage() "
-	    << " destination.refs=" << destination.mep()->refs()
+	    << " destination.refs=" << destination.refs()
 	    );
     return RCOK;
 }
@@ -890,6 +954,52 @@ twopc_thread_t::retired()
     b = _retire;
     _mutex.release();
     return b;
+}
+
+#include <vtable_info.h>
+#include <vtable_enum.h>
+
+void		
+twopc_thread_t::vtable_collect(vtable_info_t& t) 
+{
+    smthread_t::vtable_collect(t);
+
+    const char *c=0;
+    switch (purpose()) {
+    case participant::coord_message_handler: // handles all replies
+	c = "coord msg reply handler";
+	break;
+    case participant::coord_commit_handler: // commits single gtx
+	c = "coord commit 1 tx" ;
+	break;
+    case participant::coord_abort_handler: // aborts single gtx
+	c = "coord abort 1 tx";
+	break;
+    case participant::coord_recovery_handler: // for recovery in presumed_*
+	c = "coord recover";
+	break;
+    case participant::coord_reaper: // reaps coord_recovery_handler threads
+	c = "coord reaper";
+	break;
+
+    case participant::subord_recovery_handler: // prepared gtxs (for presumed_abort)
+	c = "subord recover";
+	break;
+    case participant::subord_message_handler:	// handles all commands
+	c = "subord msg handler";
+	break;
+    default:
+    case participant::coord_thread_kind_bad: 
+	c = "bad";
+	break;
+    };
+    t.set_string(twopc_thread_purpose_attr, c);
+
+#ifdef NOTDEF
+/* moved back to static struct */
+#define TMP_GET_STAT(x) GET_MY2PCSTAT(x)
+#include "sm2pc_stats_t_collect_gen.cpp"
+#endif
 }
 
 bool 
@@ -937,3 +1047,5 @@ participant::reap_finished(bool killthem)
    DBG(<<left << "resolver threads are still running");
    return left;
 }
+#endif /* USE_COORD */
+

@@ -1,39 +1,85 @@
 #!/bin/sh 
 
-# 
-# Run various ssh 2pc tests
-# NEED: a directory with various subdirectories
-#	for the subordinates
-#  E.G.: ssh -- coordinator
-#     green, pink, blue -- subordinates
+# <std-header style='shell' orig-src='shore'>
+#
+#  $Id: run.2pc,v 1.22 1999/06/07 19:04:55 kupsch Exp $
+#
+# SHORE -- Scalable Heterogeneous Object REpository
+#
+# Copyright (c) 1994-99 Computer Sciences Department, University of
+#                       Wisconsin -- Madison
+# All Rights Reserved.
+#
+# Permission to use, copy, modify and distribute this software and its
+# documentation is hereby granted, provided that both the copyright
+# notice and this permission notice appear in all copies of the
+# software, derivative works or modified versions, and any portions
+# thereof, and that both notices appear in supporting documentation.
+#
+# THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+# OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+# "AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+# FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+#
+# This software was developed with support by the Advanced Research
+# Project Agency, ARPA order number 018 (formerly 8230), monitored by
+# the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+# Further funding for this work was provided by DARPA through
+# Rome Research Laboratory Contract No. F30602-97-2-0247.
+#
+#   -- do not edit anything above this line --   </std-header>
+
+#
+#  BEGIN configurable stuff.    See README.2PC
 #
 # optional argument: test# coordinator-name subordinates names script-number
 # optional alternative name: gdb.2pc
 #
-# USES: ssh scripts coordonly.3, coord.start
+# USES: scripts/coordonly.3, scripts/coord.start
 #
+
 listonly=0
 testnumber=${1:-0}
 coordinator=${2:-coord}
 cpath=../ssh
-subordinates=${3:-"pink green blue"}
+
+#
+# CONFIGURE number of subordinates and their names:
+#
+# subordinates=${3:-"pink green blue"}
+subordinates=${3:-"green"}
+
 tid=color
 scriptnum=${4:-3}
 
+#
+# CONFIGURE DELAY tests:  if you want ssh to insert delays at well-known
+# spots, use one of the delays list below.  If you want to skip these
+# tests, use the "none@@" list.
+#
 # delays="delay@sub.after.resolve@40000 delay@sub.after.vote@40000 delay@sub.before.prepare@40000 delay@sub.after.prepare@40000 delay@sub.after.ack@40000"
 
 # delays = "delay@co.before.prepare@40000 delay@co.after.prepare@40000 delay@co.got.vote@40000 delay@co.after.vote@40000 delay@co.before.resolve@40000 delay@co.after.resolve@40000 delay@co.got.ack@40000 delay@co.after.ack@40000"
 
 delays="none@@"
 
+#
+# CRASH tests:  if you want ssh to insert crashes at well-known
+# spots in the coordinator or subordinates, use the crash lists below.  
+# If you want to skip these tests, use the "none@@" list.
+#
 
+# CONFIGURE SUBORDINATE CRASHES:
 # removed crash@sub.after.ack@1 - sort of not needed
 # removed crash@sub.before.resolve@1 - pretty-much same as after.vote
 scrashes=" crash@sub.after.prepare@1 crash@sub.after.resolve@1 crash@sub.before.prepare@1 crash@sub.after.vote@1 "
-# scrashes="none@@"
+
+# must override (do no crashes) if not built with USE_SSMTEST
+scrashes="none@@"
 
 echo SUB CRASHES=$scrashes
 
+# COORDINATOR CRASHES:
 ccrashes="crash@co.after.ack@1 crash@co.after.prepare@1 crash@co.after.vote@1 crash@co.before.resolve@1 crash@co.after.resolve@1 crash@co.got.ack@1"
 #
 # the following really isn't in the domain of 2pc - it's a crash
@@ -41,8 +87,14 @@ ccrashes="crash@co.after.ack@1 crash@co.after.prepare@1 crash@co.after.vote@1 cr
 # co.got.vote is essentially the same as co.after.prepare
 # co.after.vote is essentially the same as co.before.resolve
 #
+# must override (do no crashes) if not built with USE_SSMTEST
 ccrashes=""
 echo COORD CRASHES=$ccrashes
+
+# 
+#  END of configurable stuff.  The rest is just the script doing its work.
+#  
+############################################################################
 
 echo 
 echo
@@ -67,7 +119,7 @@ echo $numsub subordinates
 
 actions="readonly readwrite"
 finish="commit abort"
-sc=../scripts/coordonly.$scriptnum
+sc=scripts/coordonly.$scriptnum
 args1="-t subs=\"$subordinates\" -t coname=$coordinator -f $sc"
 
 doit() 
@@ -236,7 +288,7 @@ if test -x $cpath/ssh ;  then
 	echo 
 	echo "STARTING WITH CLEAN DISK"
 	/bin/rm -f log/* volumes/* ssh.log
-	set file=`ssh -f ../scripts/coord.start`
+	set file=`ssh -f scripts/coord.start`
     fi
     echo "STARTING LOOP"
 

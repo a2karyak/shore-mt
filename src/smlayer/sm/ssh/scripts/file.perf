@@ -1,0 +1,77 @@
+# <std-header style='tcl' orig-src='shore'>
+#
+#  $Id: file.perf,v 1.9 1999/06/07 19:05:29 kupsch Exp $
+#
+# SHORE -- Scalable Heterogeneous Object REpository
+#
+# Copyright (c) 1994-99 Computer Sciences Department, University of
+#                       Wisconsin -- Madison
+# All Rights Reserved.
+#
+# Permission to use, copy, modify and distribute this software and its
+# documentation is hereby granted, provided that both the copyright
+# notice and this permission notice appear in all copies of the
+# software, derivative works or modified versions, and any portions
+# thereof, and that both notices appear in supporting documentation.
+#
+# THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+# OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+# "AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+# FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+#
+# This software was developed with support by the Advanced Research
+# Project Agency, ARPA order number 018 (formerly 8230), monitored by
+# the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+# Further funding for this work was provided by DARPA through
+# Rome Research Laboratory Contract No. F30602-97-2-0247.
+#
+#   -- do not edit anything above this line --   </std-header>
+
+# set fileType to tmp or regular or no_log
+# set logging to yes or no here AND in .shoreconfig
+
+set fileType regular
+set logging yes
+set numTests 100
+set id_width %08d
+
+proc test {fileType}  {
+	global id_width volid buffer
+
+	sm begin_xct
+    set fid [sm create_file $volid $fileType]
+	for {set i 0} {$i < 32} {incr i}  {
+		sm create_rec $fid [format $id_width $i] 30000 $buffer
+	}
+	sm commit_xct
+}
+
+# make a 64K buffer
+set buffer ""
+for {set i 48} {$i < 112} {incr i}  {
+	set c [format "%c" $i]
+	set buffer "$buffer$c"
+}
+for {set i 0} {$i < 10} {incr i}  {
+	set buffer "$buffer$buffer"
+}
+
+
+source $script_dir/vol.init
+clearstats
+
+echo "********************************"
+echo "** fileType: $fileType, logging: $logging, numTest: $numTests"
+echo "********************************"
+
+set testTime [time {test $fileType} $numTests]
+
+echo
+echo testTime=$testTime
+echo ********************************
+echo STAT NUMBERS ARE FOR $numTests RUNS.
+echo ********************************
+echo [sm gather_stats]
+echo
+echo
+

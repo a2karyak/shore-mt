@@ -1,13 +1,35 @@
-/* --------------------------------------------------------------- */
-/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
-/* -- University of Wisconsin-Madison, subject to the terms     -- */
-/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
-/* -- Reserved.                                                 -- */
-/* --------------------------------------------------------------- */
+/*<std-header orig-src='shore'>
 
-/*
- *  $Id: sort.cc,v 1.85 1997/07/30 19:48:29 solomon Exp $
- */
+ $Id: sort.cpp,v 1.121 1999/06/07 19:04:41 kupsch Exp $
+
+SHORE -- Scalable Heterogeneous Object REpository
+
+Copyright (c) 1994-99 Computer Sciences Department, University of
+                      Wisconsin -- Madison
+All Rights Reserved.
+
+Permission to use, copy, modify and distribute this software and its
+documentation is hereby granted, provided that both the copyright
+notice and this permission notice appear in all copies of the
+software, derivative works or modified versions, and any portions
+thereof, and that both notices appear in supporting documentation.
+
+THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+"AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+This software was developed with support by the Advanced Research
+Project Agency, ARPA order number 018 (formerly 8230), monitored by
+the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+Further funding for this work was provided by DARPA through
+Rome Research Laboratory Contract No. F30602-97-2-0247.
+
+*/
+
+#include "w_defines.h"
+
+/*  -- do not edit anything above this line --   </std-header>*/
 
 #define SM_SOURCE
 #define SORT_C
@@ -18,15 +40,80 @@
 #endif
 
 #include "sm_int_4.h"
+
+#ifdef OLDSORT_COMPATIBILITY
+
 #include "lgrec.h"
 #include "sm.h"
 
-#ifdef __GNUG__
-template class w_auto_delete_array_t<int2>;
+#ifdef EXPLICIT_TEMPLATE
+template class w_auto_delete_array_t<int2_t>;
 template class w_auto_delete_array_t<rid_t>;
 template class w_auto_delete_array_t<run_scan_t>;
 #endif
 
+#define  INSTRUMENT_SORT
+#ifdef INSTRUMENT_SORT
+
+#define INC_TSTAT_SORT(x)       INC_TSTAT(x)
+#define ADD_TSTAT_SORT(x, y)    ADD_TSTAT(x, y)
+#define GET_TSTAT_SORT(x)       GET_TSTAT(x)
+#define SET_TSTAT_SORT(x, y)    SET_TSTAT(x, y)
+
+#else
+
+#define INC_TSTAT_SORT(x)
+#define ADD_TSTAT_SORT(x, y)
+#define GET_TSTAT_SORT(x)       0
+#define SET_TSTAT_SORT(x, y)
+
+#endif
+
+#ifdef INSTRUMENT_SORT
+/*
+ * Record pertinent stats about malloced space
+ */
+inline void 
+record_malloc(smsize_t amt) 
+{
+    base_stat_t a = base_stat_t(amt);
+    INC_TSTAT_SORT(sort_mallocs); 
+    ADD_TSTAT_SORT(sort_malloc_bytes, (unsigned long)(a)); 
+    ADD_TSTAT_SORT(sort_malloc_curr, (unsigned long)(a)); 
+    base_stat_t m = GET_TSTAT_SORT(sort_malloc_max);
+    if(m < a) { SET_TSTAT_SORT(sort_malloc_max, (unsigned long)(a)); }
+
+    // scratch_used is the highwater mark
+    base_stat_t c = GET_TSTAT_SORT(sort_malloc_curr);
+    m = GET_TSTAT_SORT(sort_malloc_hiwat);
+    if(c > m) {
+	// m = c
+	SET_TSTAT_SORT(sort_malloc_hiwat, (unsigned long)(c));
+    }
+}
+
+inline void 
+record_free(smsize_t amt) 
+{
+    // scratch_used is the highwater mark
+    base_stat_t	c = GET_TSTAT_SORT(sort_malloc_curr);
+    c -= base_stat_t(amt);
+    SET_TSTAT_SORT(sort_malloc_curr, (unsigned long)(c));
+}
+
+#else
+
+inline void
+record_malloc(smsize_t /* amt */)
+{
+}
+
+inline void
+record_free(smsize_t /* amt */ )
+{
+}
+
+#endif
 
 //
 // key struct for sorting stream
@@ -34,34 +121,37 @@ template class w_auto_delete_array_t<run_scan_t>;
 struct sort_key_t {
     void* val;          // pointer to key
     void* rec;          // pointer to data
-    uint2 klen;         // key length
-    uint2 rlen;         // record data length (if large, in place indx size)
+    uint2_t klen;         // key length
+    uint2_t rlen;         // record data length (if large, in place indx size)
 
     NORET sort_key_t() {
                 val = rec = 0;
                 klen = rlen = 0;
           };
     NORET ~sort_key_t() {
-                if (val) delete val;
-                if (rec) delete rec;
+                delete[] val;
+                delete[] rec;
           };
 };
+
 
 struct file_sort_key_t {
     const void* val;    // pointer to key
     const void* rec;    // pointer to data
-    uint2 klen;         // key length
-    uint2 rlen;         // record data length (if large, in place indx size)
+    uint2_t klen;         // key length
+    uint2_t rlen;         // record data length (if large, in place indx size)
     void* hdr;          // pointer to header
-    uint4 blen;         // real body size
-    uint2 hlen;         // record header length
+    uint4_t blen;         // real body size
+    uint2_t hlen;         // record header length
 
     NORET file_sort_key_t() {
                 hdr = 0;
                 klen = hlen = rlen = 0;
                 blen = 0;
           };
-    NORET ~file_sort_key_t() { if (hdr) delete hdr; }
+    NORET ~file_sort_key_t() {
+	delete[] hdr;
+    }
 };
 
 //
@@ -79,14 +169,13 @@ struct sort_desc_t {
     uint uniq_count;    // # of unique entries in runs
 
     rid_t* run_list;    // store first rid for all the runs
-    uint2 max_list_sz;  // max size for run list array
-    uint2 run_count;    // current size
+    uint2_t max_list_sz;  // max size for run list array
+    uint2_t run_count;    // current size
 
     uint num_pages;     // number of pages
     uint total_rec;     // total number of records
 
-    PFC cmp;            // comparison function
-    const void *cdata;  // any extra data needed by the cmp function
+    PFC comp;           // comparison function
     rid_t last_marker;  // rid of last marker
     rid_t last_rid;     // rid of last record in last run
 
@@ -106,345 +195,128 @@ struct sort_desc_t {
 
 };
 
-#ifdef notdef
-// Taken out because character comparison differs
-// on different machines, and we want something predictable
-// for everything ...!!!
-
-//
-// Comparison function for chars
-//
-#ifndef W_DEBUG
-#define klen1 /* klen1 not used */
-#define klen2 /* klen2 not used */
-#endif
-static int
-_char_cmp(uint4 klen1, const void* kval1, uint4 klen2, const void* kval2, const void *cdata)
-#undef klen1
-#undef klen2
-{
-    w_assert3(klen1 == klen2);
-    return (* (char*) kval1) - (* (char*) kval2);
-}
-
-#ifndef W_DEBUG
-#define klen1 /* klen1 not used */
-#define klen2 /* klen2 not used */
-#endif
-static int
-_char_rcmp(uint4 klen1, const void* kval1, uint4 klen2, const void* kval2, const void *cdata)
-#undef klen1
-#undef klen2
-{
-    w_assert3(klen1 == klen2);
-    return (* (char*) kval2) - (* (char*) kval1);
-}
-#endif
-
-/**
- * A structure which holds the comparison information necessary for an
- * artificially-created "reverse" comparison function in the case that
- * a custom function is provided.
- */
-struct rcustom_info {
-  const void *cdata;
-  PFC comp_func;
-};
-/**
- * Comparison function which reverses the output of a custom comparison
- * function.
- */
-static int
-_custom_rcmp(uint4 klen1, const void* kval1, uint4 klen2, const void* kval2, const void *cdata)
-{
-  struct rcustom_info *rcinfo = (struct rcustom_info *)cdata;
-  return (-(rcinfo->comp_func(klen1, kval1, klen2, kval2, rcinfo->cdata)));
-}
-
-//
-// Comparison function for 1-byte unsigned integers and characters.
-// NB: we use unsigned 1-byte compare for characters because the
-// native char comparison on some machines is unsigned, some signed,
-// and we want predictable results here.
-//
-#ifndef W_DEBUG
-#define klen1 /* klen1 not used */
-#define klen2 /* klen2 not used */
-#endif
-static int
-_uint1_cmp(uint4 klen1, const void* kval1, uint4 klen2, const void* kval2, const void *)
-#undef klen1
-#undef klen2
-{
-    w_assert3(klen1 == klen2);
-    return (* (w_base_t::uint1_t*) kval1) - (* (w_base_t::uint1_t*) kval2);
-}
 
 static int
-#ifndef W_DEBUG
-#define klen1 /* klen1 not used */
-#define klen2 /* klen2 not used */
-#endif
-_uint1_rcmp(uint4 klen1, const void* kval1, uint4 klen2, const void* kval2, const void *)
-#undef klen1
-#undef klen2
+_uint1_rcmp(uint4_t W_IFDEBUG(klen1), const void* kval1,
+	    uint4_t W_IFDEBUG(klen2), const void* kval2)
 {
     w_assert3(klen1 == klen2);
     return (* (w_base_t::uint1_t*) kval2) - (* (w_base_t::uint1_t*) kval1);
 }
 
-//
-// Comparison function for 2-byte unsigned integers
-//
-#ifndef W_DEBUG
-#define klen1 /* klen1 not used */
-#define klen2 /* klen2 not used */
-#endif
 static int
-_uint2_cmp(uint4 klen1, const void* kval1, uint4 klen2, const void* kval2, const void *)
-#undef klen1
-#undef klen2
-{
-    w_assert3(klen1 == klen2);
-    return (* (w_base_t::uint2_t*) kval1) - (* (w_base_t::uint2_t*) kval2);
-}
-
-static int
-#ifndef W_DEBUG
-#define klen1 /* klen1 not used */
-#define klen2 /* klen2 not used */
-#endif
-_uint2_rcmp(uint4 klen1, const void* kval1, uint4 klen2, const void* kval2, const void *)
-#undef klen1
-#undef klen2
+_uint2_rcmp(uint4_t W_IFDEBUG(klen1), const void* kval1,
+	    uint4_t W_IFDEBUG(klen2), const void* kval2)
 {
     w_assert3(klen1 == klen2);
     return (* (w_base_t::uint2_t*) kval2) - (* (w_base_t::uint2_t*) kval1);
 }
 
-//
-// Comparison function for 4-byte unsigned integers
-//
-#ifndef W_DEBUG
-#define klen1 /* klen1 not used */
-#define klen2 /* klen2 not used */
-#endif
 static int
-_uint4_cmp(uint4 klen1, const void* kval1, uint4 klen2, const void* kval2, const void *)
-#undef klen1
-#undef klen2
+_uint4_rcmp(uint4_t W_IFDEBUG(klen1), const void* kval1,
+	    uint4_t W_IFDEBUG(klen2), const void* kval2)
 {
     w_assert3(klen1 == klen2);
-    return (* (w_base_t::uint4_t*) kval1) - (* (w_base_t::uint4_t*) kval2);
+    // return (* (w_base_t::uint4_t*) kval2) - (* (w_base_t::uint4_t*) kval1);
+    bool ret = (* (w_base_t::uint4_t*) kval2) < (* (w_base_t::uint4_t*) kval1);
+    return ret? -1 :
+	((* (w_base_t::uint4_t*) kval2) == (* (w_base_t::uint4_t*) kval1))? 0:
+	1;
 }
 
 static int
-#ifndef W_DEBUG
-#define klen1 /* klen1 not used */
-#define klen2 /* klen2 not used */
-#endif
-_uint4_rcmp(uint4 klen1, const void* kval1, uint4 klen2, const void* kval2, const void *)
-#undef klen1
-#undef klen2
-{
-    w_assert3(klen1 == klen2);
-    return (* (w_base_t::uint4_t*) kval2) - (* (w_base_t::uint4_t*) kval1);
-}
-
-//
-// Comparison function for 1-byte integers
-//
-#ifndef W_DEBUG
-#define klen1 /* klen1 not used */
-#define klen2 /* klen2 not used */
-#endif
-static int
-_int1_cmp(uint4 klen1, const void* kval1, uint4 klen2, const void* kval2, const void *)
-#undef klen1
-#undef klen2
-{
-    w_assert3(klen1 == klen2);
-    return (* (w_base_t::int1_t*) kval1) - (* (w_base_t::int1_t*) kval2);
-}
-
-static int
-#ifndef W_DEBUG
-#define klen1 /* klen1 not used */
-#define klen2 /* klen2 not used */
-#endif
-_int1_rcmp(uint4 klen1, const void* kval1, uint4 klen2, const void* kval2, const void *)
-#undef klen1
-#undef klen2
+_int1_rcmp(uint4_t W_IFDEBUG(klen1), const void* kval1,
+	   uint4_t W_IFDEBUG(klen2), const void* kval2)
 {
     w_assert3(klen1 == klen2);
     return (* (w_base_t::int1_t*) kval2) - (* (w_base_t::int1_t*) kval1);
 }
 
-//
-// Comparison function for 2-byte integers
-//
-#ifndef W_DEBUG
-#define klen1 /* klen1 not used */
-#define klen2 /* klen2 not used */
-#endif
-static int
-_int2_cmp(uint4 klen1, const void* kval1, uint4 klen2, const void* kval2, const void *)
-#undef klen1
-#undef klen2
-{
-    w_assert3(klen1 == klen2);
-    return (* (w_base_t::int2_t*) kval1) - (* (w_base_t::int2_t*) kval2);
-}
 
 static int
-#ifndef W_DEBUG
-#define klen1 /* klen1 not used */
-#define klen2 /* klen2 not used */
-#endif
-_int2_rcmp(uint4 klen1, const void* kval1, uint4 klen2, const void* kval2, const void *)
-#undef klen1
-#undef klen2
+_int2_rcmp(uint4_t W_IFDEBUG(klen1), const void* kval1,
+	   uint4_t W_IFDEBUG(klen2), const void* kval2)
 {
     w_assert3(klen1 == klen2);
     return (* (w_base_t::int2_t*) kval2) - (* (w_base_t::int2_t*) kval1);
 }
 
-//
-// Comparison function for 4-byte integers
-//
-#ifndef W_DEBUG
-#define klen1 /* klen1 not used */
-#define klen2 /* klen2 not used */
-#endif
+
 static int
-_int4_cmp(uint4 klen1, const void* kval1, uint4 klen2, const void* kval2, const void *)
-#undef klen1
-#undef klen2
+_int4_rcmp(uint4_t W_IFDEBUG(klen1), const void* kval1,
+	   uint4_t W_IFDEBUG(klen2), const void* kval2)
 {
     w_assert3(klen1 == klen2);
-    return (* (w_base_t::int4_t*) kval1) - (* (w_base_t::int4_t*) kval2);
+    // return (* (w_base_t::int4_t*) kval2) - (* (w_base_t::int4_t*) kval1);
+    // a - b can overflow: use comparison instead
+    bool ret = ((* (w_base_t::int4_t*) kval2) < (* (w_base_t::int4_t*) kval1));
+    return ret? -1 : ((* (w_base_t::int4_t*) kval2) == (* (w_base_t::int4_t*) kval1))?
+	0 : 1;
+}
+
+
+static int
+_float_rcmp(uint4_t W_IFDEBUG(klen1), const void* kval1,
+	    uint4_t W_IFDEBUG(klen2), const void* kval2)
+{
+    w_assert3(klen1 == klen2);
+    // w_base_t::f4_t tmp = (* (w_base_t::f4_t*) kval2) - (* (w_base_t::f4_t*) kval1);
+    // a - b can overflow: use comparison instead
+    bool res = (* (w_base_t::f4_t*) kval2) < (* (w_base_t::f4_t*) kval1);
+    return res ? -1 : (
+	((* (w_base_t::f4_t*) kval1) == (* (w_base_t::f4_t*) kval2))
+	) ? 0 : 1;
 }
 
 static int
-#ifndef W_DEBUG
-#define klen1 /* klen1 not used */
-#define klen2 /* klen2 not used */
-#endif
-_int4_rcmp(uint4 klen1, const void* kval1, uint4 klen2, const void* kval2, const void *)
-#undef klen1
-#undef klen2
+_double_rcmp(uint4_t W_IFDEBUG(klen1), const void* kval1,
+	     uint4_t W_IFDEBUG(klen2), const void* kval2)
 {
     w_assert3(klen1 == klen2);
-    return (* (w_base_t::int4_t*) kval2) - (* (w_base_t::int4_t*) kval1);
+    w_base_t::f8_t d1, d2;
+    // copy kval2 into d1, kval1 into d2 (reverse order)
+    memcpy(&d2, kval1, sizeof(w_base_t::f8_t));
+    memcpy(&d1, kval2, sizeof(w_base_t::f8_t));
+    ADD_TSTAT_SORT(sort_memcpy_cnt,2);
+    ADD_TSTAT_SORT(sort_memcpy_bytes, 2*sizeof(w_base_t::f8_t));
+    // bool ret =  (* (w_base_t::f8_t*) kval1) < (* (w_base_t::f8_t*) kval2);
+    bool ret =  d1 < d2;
+    return ret ? -1 : (d1 == d2) ? 0 : 1;
 }
 
-//
-// Comparison function for floats
-//
-#ifndef W_DEBUG
-#define klen1 /* klen1 not used */
-#define klen2 /* klen2 not used */
-#endif
-static int
-_float_cmp(uint4 klen1, const void* kval1, uint4 klen2, const void* kval2, const void *)
-#undef klen1
-#undef klen2
-{
-    w_assert3(klen1 == klen2);
-    w_base_t::f4_t tmp = (* (w_base_t::f4_t*) kval1) - (* (w_base_t::f4_t*) kval2);
-    return tmp < 0 ? -1 : ((tmp > 0) ? 1 : 0);
-}
-
-#ifndef W_DEBUG
-#define klen1 /* klen1 not used */
-#define klen2 /* klen2 not used */
-#endif
-static int
-_double_cmp(uint4 klen1, const void* kval1, uint4 klen2, const void* kval2, const void *)
-#undef klen1
-#undef klen2
-{
-    w_assert3(klen1 == klen2);
-    w_base_t::f8_t tmp = (* (w_base_t::f8_t*) kval1) - (* (w_base_t::f8_t*) kval2);
-    return tmp < 0 ? -1 : ((tmp > 0) ? 1 : 0);
-}
-
-#ifndef W_DEBUG
-#define klen1 /* klen1 not used */
-#define klen2 /* klen2 not used */
-#endif
-static int
-_float_rcmp(uint4 klen1, const void* kval1, uint4 klen2, const void* kval2, const void *)
-#undef klen1
-#undef klen2
-{
-    w_assert3(klen1 == klen2);
-    w_base_t::f4_t tmp = (* (w_base_t::f4_t*) kval2) - (* (w_base_t::f4_t*) kval1);
-    return tmp < 0 ? -1 : ((tmp > 0) ? 1 : 0);
-}
-
-#ifndef W_DEBUG
-#define klen1 /* klen1 not used */
-#define klen2 /* klen2 not used */
-#endif
-static int
-_double_rcmp(uint4 klen1, const void* kval1, uint4 klen2, const void* kval2, const void *)
-#undef klen1
-#undef klen2
-{
-    w_assert3(klen1 == klen2);
-    w_base_t::f8_t tmp = (* (w_base_t::f8_t*) kval2) - (* (w_base_t::f8_t*) kval1);
-    return tmp < 0 ? -1 : ((tmp > 0) ? 1 : 0);
-}
-
-//
-// Comparison function for strings 
-//
-static int 
-_string_cmp(uint4 klen1, const void* kval1, uint4 klen2, const void* kval2, const void *)
-{
-    register char* p1 = (char*) kval1;
-    register char* p2 = (char*) kval2;
-    register result = 0;
-    for (uint4 i = klen1 < klen2 ? klen1 : klen2;
-	 i > 0 && ! (result = *p1 - *p2);
-	 i--, p1++, p2++);
-    return result ? result : klen1 - klen2;
-}
 
 static int 
-_string_rcmp(uint4 klen1, const void* kval1, uint4 klen2, const void* kval2, const void *)
+_string_rcmp(uint4_t klen1, const void* kval1, uint4_t klen2, const void* kval2)
 {
-    register char* p2 = (char*) kval1;
-    register char* p1 = (char*) kval2;
-    register result = 0;
-    for (uint4 i = klen2 < klen1 ? klen2 : klen1;
+    unsigned char* p2 = (unsigned char*) kval1;
+    unsigned char* p1 = (unsigned char*) kval2;
+    int result = 0;
+    for (uint4_t i = klen2 < klen1 ? klen2 : klen1;
 	 i > 0 && ! (result = *p1 - *p2);
 	 i--, p1++, p2++);
     return result ? result : klen2 - klen1;
 }
 
-// TODO: Mark, praveen : no statics !!
 static nbox_t _universe_(2);
 static nbox_t _box_(2);
 
+
 //
-// Comparison function for rectangles (based on hilbert curve 
+// Comparison function for rectangles (based on hilbert curve)
 //
-static int _spatial_cmp(uint4 klen1, const void* kval1, uint4 klen2,
-			const void* kval2, const void *)
+static int _spatial_cmp(uint4_t klen1, const void* kval1, uint4_t klen2,
+			const void* kval2)
 {
+    static nbox_t _universe_(2);
     w_assert3(klen1 == klen2);
 
     nbox_t box1((char*)kval1, (int)klen1),
 	   box2((char*)kval2, (int)klen2);
     
-//    return (box1.hvalue(_universe_) - box2.hvalue(_universe_));
     return (box1.hcmp(box2, _universe_));
 }
-
-static int _spatial_rcmp(uint4 klen1, const void* kval1, uint4 klen2,
-			const void* kval2, const void *)
+static int _spatial_rcmp(uint4_t klen1, const void* kval1, uint4_t klen2,
+			const void* kval2)
 {
     w_assert3(klen1 == klen2);
 
@@ -458,25 +330,22 @@ static int _spatial_rcmp(uint4 klen1, const void* kval1, uint4 klen2,
 //
 // Get comparison function
 //
-static PFC 
-get_cmp_func(key_info_t &k_info, bool up)
+PFC 
+sort_stream_i::get_cmp_func(key_info_t::key_type_t type, bool up)
 {
     if (up) {
-      switch(k_info.type) {
-      	// case key_info_t::t_custom:
-        case sortorder::kt_custom:
-	        return k_info.cmp;
+      switch(type) {
 
       	// case key_info_t::t_float:	
       	case sortorder::kt_f4:	
-		return _float_cmp;
+		return sort_keys_t::f4_cmp;
 
       	case sortorder::kt_f8:	
-		return _double_cmp;
+		return sort_keys_t::f8_cmp;
 
       	// case key_info_t::t_string:
       	case sortorder::kt_b:
-		return _string_cmp;
+		return sort_keys_t::string_cmp;
 
       	// case key_info_t::t_spatial:
       	case sortorder::kt_spatial:
@@ -485,31 +354,33 @@ get_cmp_func(key_info_t &k_info, bool up)
       	// case key_info_t::t_char:	 use u1
 		// return _char_cmp;
       	case sortorder::kt_u1:
-		return _uint1_cmp;
+		return sort_keys_t::uint1_cmp;
 
       	case sortorder::kt_u2:
-		return _uint2_cmp;
+		return sort_keys_t::uint2_cmp;
 
       	case sortorder::kt_u4:
-		return _uint4_cmp;
+		return sort_keys_t::uint4_cmp;
+
+      	case sortorder::kt_u8:
+		return sort_keys_t::uint8_cmp;
 
       	case sortorder::kt_i1:
-		return _int1_cmp;
+		return sort_keys_t::int1_cmp;
 
       	case sortorder::kt_i2:
-		return _int2_cmp;
+		return sort_keys_t::int2_cmp;
 
       	//case key_info_t::t_int:
       	case sortorder::kt_i4:
       	default: 			
-		return _int4_cmp;
+		return sort_keys_t::int4_cmp;
+
+      	case sortorder::kt_i8:
+		return sort_keys_t::int8_cmp;
       }
     } else {
-      switch(k_info.type) {
-      	// case key_info_t::t_custom:
-        case sortorder::kt_custom:
-	  return _custom_rcmp;
-
+      switch(type) {
       	// case key_info_t::t_float:	
       	case sortorder::kt_f4:	
 		return _float_rcmp;
@@ -521,7 +392,6 @@ get_cmp_func(key_info_t &k_info, bool up)
       	case sortorder::kt_b:
 		return _string_rcmp;
 
-      	//case key_info_t::t_spatial:
       	case sortorder::kt_spatial:
 		return _spatial_rcmp;
 
@@ -551,14 +421,17 @@ get_cmp_func(key_info_t &k_info, bool up)
     }
 }
 
-static const int _marker_ = -99999999;
+static const long _marker_ = min_int4; 
 
 sort_desc_t::sort_desc_t() 
 {
     rec_count = num_pages = total_rec = uniq_count = 0;
     run_count = 0;
     max_list_sz = 20;
-    run_list = new rid_t[max_list_sz];
+    run_list = new rid_t[max_list_sz]; // deleted in ~sort_desc_t
+
+    record_malloc(max_list_sz*sizeof(rid_t));
+
     max_rec_cnt = 0;
     keys = 0;
     fkeys = 0;
@@ -588,34 +461,40 @@ run_scan_t::~run_scan_t()
 }
 
 rc_t
-run_scan_t::init(rid_t& begin, const key_info_t& k, bool unique=false)
+run_scan_t::init(rid_t& begin, PFC c, const key_info_t& k, bool unique=false)
 {
     i = 0;
     pid = begin.pid;
     slot = begin.slot - 1;
+    cmp = c;
     kinfo = k;
-    cmp = k.cmp;
-    cdata = k.comp_data;
     eof = false;
+
+    DBG(<<"init run_scan rid=" << begin);
+
 
     // toggle_base = (_unique = unique) ? 2 : 1;
     // toggle in all cases
     _unique = unique;
     toggle_base = 2;
 
-    fp = new file_p[toggle_base];
+    fp = new file_p[toggle_base]; // deleted in ~run_scan_t
+    record_malloc(sizeof(file_p));
 
     // open scan on the file
     W_DO( fp[0].fix(pid, LATCH_SH) );
+    INC_TSTAT_SORT(sort_page_fixes);
     W_DO( next(eof) );
 
     if (unique) {
 	W_DO( ss_m::SSM->fi->next_page(pid, eof) );
+	INC_TSTAT_SORT(sort_page_fixes);
 	if (eof) { 
 	    single = true; eof = false; 
 	} else { 
 	    single = false; 
 	    W_DO( fp[1].fix(pid, LATCH_SH) );
+	    INC_TSTAT_SORT(sort_page_fixes);
 	}
     } 
 
@@ -629,11 +508,13 @@ run_scan_t::current(const record_t*& rec)
     else { 
 	rec = cur_rec; 
 	w_assert1(fp->is_fixed());
-	DBG(<<" current: i " << i
+	/*
+	DBGTHRD(<<" current: i " << i
 		<< " slot " << slot
 		<< " pid " << pid
 		<< " single " << single
 	    );
+	*/
     }
 
     return RCOK;
@@ -642,28 +523,32 @@ run_scan_t::current(const record_t*& rec)
 rc_t
 run_scan_t::next(bool& end)
 {
-    FUNC(run_scan_t::next);
+    // FUNC(run_scan_t::next);
     end = false;
     if (eof) { end = true; return RCOK; }
 
-    DBG(<<" next: i " << i
+/*
+    DBGTHRD(<<" next: i " << i
 	<< " slot " << slot
 	<< " pid " << pid
 	<< " single " << single
     );
+*/
 
     // scan next record
     slot = fp[i].next_slot(slot);
     if (slot==0) {
-	DBG(<<"new page");
+	DBGTHRD(<<"new page");
 	cur_rec = NULL;
 	if (_unique) { // unique case 
 	    // here
 	    if (single) { eof = true; end = true; return RCOK; }
 	    W_DO( ss_m::SSM->fi->next_page(pid, eof) );
+	    INC_TSTAT_SORT(sort_page_fixes);
 	    if (eof) { single = true; eof = false; }
 	    else  {
 		W_DO( fp[i].fix(pid, LATCH_SH) );
+		INC_TSTAT_SORT(sort_page_fixes);
 	    }
 	    // for unique case, we replace the current page and
 	    // move i to the next page since we always have both
@@ -671,18 +556,22 @@ run_scan_t::next(bool& end)
 	    i = (i+1)%toggle_base;
 	} else {
 	    W_DO( ss_m::SSM->fi->next_page(pid, eof) );
+	    INC_TSTAT_SORT(sort_page_fixes);
 	    if (eof) { end = true; return RCOK; }
 	    i = (i+1)%toggle_base;
             W_DO( fp[i].fix(pid, LATCH_SH) );
+	    INC_TSTAT_SORT(sort_page_fixes);
         }
 	slot = fp[i].next_slot(0);
     }
 
-    DBG(<<" next: i " << i
+/*
+    DBGTHRD(<<" next: i " << i
 	<< " slot " << slot
 	<< " pid " << pid
 	<< " single " << single
     );
+*/
     W_DO(fp[i].get_rec(slot, cur_rec));
 
     w_assert1(cur_rec);
@@ -697,6 +586,25 @@ run_scan_t::next(bool& end)
     }
 
     return RCOK;
+}
+
+bool
+operator>(run_scan_t& s1, run_scan_t& s2)
+{
+    // get length and keys to be compared
+    w_assert1(s1.cur_rec && s2.cur_rec);
+
+    int len1, len2;
+    if (s1.kinfo.len==0 && int(s1.kinfo.type)==int(key_info_t::t_string)) {
+	// variable size, use hdr size
+    	len1 = s1.cur_rec->hdr_size(), 
+	len2 = s2.cur_rec->hdr_size();
+    } else {
+	len1 = len2 = (int)s1.kinfo.len;
+    }
+
+    INC_TSTAT_SORT(sort_keycmp_cnt);
+    return (s1.cmp(len1, s1.cur_rec->hdr(), len2, s2.cur_rec->hdr()) > 0);
 }
 
 //
@@ -718,6 +626,7 @@ static bool duplicate_rec(const record_t* rec1, const record_t* rec2)
 	memcmp(rec1->hdr(), rec2->hdr(), rec1->hdr_size()))
 	return false;
     
+    INC_TSTAT_SORT(sort_duplicates);
     return true;
 }
 
@@ -727,18 +636,51 @@ static bool duplicate_rec(const record_t* rec1, const record_t* rec2)
 //
 static inline uint rec_size(const record_t* r)
 {
-   return ((r->tag.flags & t_small) ? r->body_size() 
+  // NB: The following replacement had to be made for gcc 2.7.2.x
+  // with a later release, try the original code again
+   return (r->tag.flags & t_small) ? (unsigned int)r->body_size()  : 
+		    ((r->tag.flags & t_large_0) ? 
+		       sizeof(lg_tag_chunks_s):
+			(unsigned int)(sizeof(lg_tag_indirect_s))
+			    );
+
+   /*
+   return ((r->tag.flags & t_small) ? (unsigned int)r->body_size() 
 		: ((r->tag.flags & t_large_0) ? 
 			sizeof(lg_tag_chunks_s) :
 			sizeof(lg_tag_indirect_s)));
+    */
 }
 
-static void create_heap(int2 heap[], int heap_size, int num_runs,
+static PFC _local_cmp;
+
+static int
+qsort_cmp(const void* k1, const void* k2)
+{
+    INC_TSTAT_SORT(sort_keycmp_cnt);
+    return _local_cmp(  ((sort_key_t*)k1)->klen,
+			((sort_key_t*)k1)->val,
+			((sort_key_t*)k2)->klen,
+			((sort_key_t*)k2)->val );
+}
+
+static int
+fqsort_cmp(const void* k1, const void* k2)
+{
+    INC_TSTAT_SORT(sort_keycmp_cnt);
+    return _local_cmp(	((file_sort_key_t*)k1)->klen,
+		      	((file_sort_key_t*)k1)->val,
+			((file_sort_key_t*)k2)->klen,
+			((file_sort_key_t*)k2)->val );
+}
+
+
+static void create_heap(int2_t heap[], int heap_size, int num_runs,
 				run_scan_t sc[])
 {
-    register r;
-    register s, k;
-    register winner;
+    int r;
+    int s, k;
+    int winner;
     int tmp;
 
     for (s=0; s<heap_size; heap[s++] = heap_size);
@@ -769,10 +711,11 @@ static void create_heap(int2 heap[], int heap_size, int num_runs,
     }
 }
 
-static int heap_top(int2 heap[], int heap_size, int winner, run_scan_t sc[])
+static int 
+heap_top(int2_t heap[], int heap_size, int winner, run_scan_t sc[])
 {
-    register    s;      /* a heap index */
-    register    r;      /* a run num */
+    int    s;      /* a heap index */
+    int    r;      /* a run num */
 
     for (s = (heap_size + winner) >> 1; s > 0; s >>= 1) {
 	if ((r = heap[s]) < 0)
@@ -782,7 +725,6 @@ static int heap_top(int2 heap[], int heap_size, int winner, run_scan_t sc[])
 	else if (sc[winner] > sc[r])
 	    heap[s] = winner, winner = r;
     }
-
     return (winner);
 }
 
@@ -792,80 +734,46 @@ static int heap_top(int2 heap[], int heap_size, int winner, run_scan_t sc[])
 rc_t 
 sort_stream_i::remove_duplicates()
 {
-    register uint pos=0, prev=0;
+    unsigned pos=0, prev=0;
     sd->uniq_count = 0;
 
     if (!(sd->last_rid==rid_t::null)) {
         // read in the previous rec
 	file_p tmp;
 	const record_t* r;
+	DBGTHRD(<<"sort_stream_i:remove_duplicates");
 	W_DO( fi->locate_page(sd->last_rid, tmp, LATCH_SH) );
+	INC_TSTAT_SORT(sort_page_fixes);
 	W_COERCE( tmp.get_rec(sd->last_rid.slot, r) );
 
-        uint2 hlen = r->hdr_size();
-        uint4 rlen = r->body_size();
+        smsize_t hlen = r->hdr_size();
+        smsize_t rlen = r->body_size();
 
 	if (r->is_small()) {
 	    // compare against the previous one
 	    if (_file_sort) {
 		while(pos<sd->rec_count) {
 		    file_sort_key_t* fk = (file_sort_key_t*)sd->fkeys[pos];
-		    // If a custom comparison function was provided,
-		    // it must determine if two items are equal
-		    if (ki.type == key_info_t::t_custom) {
-		      if ((ki.where == key_info_t::t_hdr) &&
-			  (ki.cmp((ki.len ? ki.len : fk->klen),
-				  (const void *)(fk->hdr + ki.offset), 
-				  (ki.len ? ki.len : hlen),
-				  (const void *)(r->hdr() + ki.offset),
-				  ki.comp_data)))
-			break;
-		      else if ((ki.where == key_info_t::t_body) &&
-			       (ki.cmp((ki.len ? ki.len : fk->rlen),
-				       (const void *)(fk->rec+ki.offset), 
-				       (ki.len ? ki.len : rlen),
-				       (const void *)(r->body()+ki.offset),
-				       ki.comp_data)))
-			break;
-		      pos++;
-		    } else {
-		      // Otherwise a memcmp will suffice
-		      if (fk->hlen==(int)hlen && fk->rlen==(int)rlen) {
+		    if (fk->hlen==(int)hlen && fk->rlen==(int)rlen) {
 			if (hlen>0 && 
-			    memcmp(fk->hdr+fk->klen, 
-				   r->hdr()+fk->klen, hlen-fk->klen))
-			  break;
+			    memcmp((char*)fk->hdr+fk->klen, 
+				r->hdr()+fk->klen, hlen-fk->klen))
+			    break;
 			if (rlen>0 && memcmp(fk->rec, r->body(), (int)rlen))
-			  break;
+			    break;
 			pos++;
-		      } else { break; }
-		    }
+		    } else { break; }
 		}
 	    } else {
 		while(pos<sd->rec_count) {
 		    sort_key_t* k = (sort_key_t*)sd->keys[pos];
-		    // If a custom comparison function was provided,
-		    // it must determine if two items are equal
-		    if (ki.type == key_info_t::t_custom) {
-		      if ((ki.where == key_info_t::t_hdr) &&
-			  (ki.cmp(k->klen, k->val, hlen, r->hdr(),
-				  ki.comp_data)))
-			break;
-		      else if ((ki.where == key_info_t::t_body) &&
-			       (ki.cmp(k->rlen, k->rec, 
-				       rlen, r->body(), ki.comp_data)))
-			break;
-		      pos++;
-		    } else {
-		      // Otherwise a memcmp will suffice
-		      if (k->klen==(int)hlen && k->rlen==(int)rlen) {
+		    if (k->klen==(int)hlen && k->rlen==(int)rlen) {
 			if (hlen>0 && memcmp(k->val, r->hdr(), hlen))
-			  break;
+			    break;
 			if (rlen>0 && memcmp(k->rec, r->body(), (int)rlen))
-			  break;
+			    break;
 		    	pos++;
-		      } else { break; }
-		    }
+		    } else { break; }
 		}
 	    }
 	}
@@ -889,66 +797,28 @@ sort_stream_i::remove_duplicates()
           while(pos<sd->rec_count) {
 	    file_sort_key_t *fk1 = (file_sort_key_t*)sd->fkeys[pos],
 			    *fk2 = (file_sort_key_t*)sd->fkeys[pos-1];
-	    // If a custom comparison function was provided,
-	    // it must determine if two items are equal
-	    if (ki.type == key_info_t::t_custom) {
-	      if ((ki.where == key_info_t::t_hdr) &&
-		  (ki.cmp((ki.len ? ki.len : fk1->hlen),
-			  (const void *)(fk1->hdr + ki.offset),
-			  (ki.len ? ki.len : fk2->hlen),
-			  (const void *)(fk2->hdr + ki.offset),
-			  ki.comp_data)))
-		break;
-	      else if ((ki.where == key_info_t::t_body) &&
-		       (ki.cmp((ki.len ? ki.len : fk1->rlen),
-			       (const void *)(fk1->rec + ki.offset),
-			       (ki.len ? ki.len : fk2->rlen),
-			       (const void *)(fk2->rec + ki.offset),
-			       ki.comp_data)))
-		break;
-	      pos++;
-	    } else {
-	      // Otherwise a memcmp will suffice
-	      if (fk1->hlen == fk2->hlen && fk1->rlen == fk2->rlen) {
+            if (fk1->hlen == fk2->hlen && fk1->rlen == fk2->rlen) {
                 if (fk1->hlen>0 && 
-		    memcmp(fk1->hdr+fk1->klen, fk2->hdr+fk2->klen,
+		    memcmp((char*)fk1->hdr+fk1->klen, (char*)fk2->hdr+fk2->klen,
 			   fk1->hlen - fk1->klen))
-		  break;
+                    break;
                 if (fk1->rlen>0 && memcmp(fk1->rec, fk2->rec, fk1->rlen))
-		  break;
+                    break;
                 pos++;
-	      } else { break; }
-	    }
+            } else { break; }
           }
 	} else {
 	    while(pos<sd->rec_count) {
 	    	sort_key_t *k1 = (sort_key_t*)sd->keys[pos],
 			   *k2 = (sort_key_t*)sd->keys[pos-1];
-		// If a custom comparison function was provided,
-		// it must determine if two items are equal
-		if (ki.type == key_info_t::t_custom) {
-		  if ((ki.where == key_info_t::t_hdr) &&
-		      (ki.cmp(k1->klen, k1->val, 
-			      k2->klen, k2->val, 
-			      ki.comp_data)))
-		    break;
-		  else if ((ki.where == key_info_t::t_body) &&
-			   (ki.cmp(k1->rlen, k1->rec,  
-				   k2->rlen, k2->rec, 
-				   ki.comp_data)))
-		    break;
-		  pos++;
-		} else {
-		  // Otherwise a memcmp will suffice
-		  if (k1->klen == k2->klen && k1->rlen == k2->rlen) {
+            	if (k1->klen == k2->klen && k1->rlen == k2->rlen) {
                     if (k1->klen>0 &&
 			memcmp(k1->val, k2->val, k1->klen))
-		      break;
+                    	break;
                	    if (k1->rlen>0 && memcmp(k1->rec, k2->rec, k1->rlen))
-		      break;
+                    	break;
                     pos++;
-		  } else { break; }
-		}
+                } else { break; }
             }
 	}
         if (pos>=sd->rec_count) break;
@@ -985,7 +855,7 @@ sort_stream_i::remove_duplicates()
 // find out the type of the record: small, large_0, large_1
 //
 static inline recflags_t
-lgrec_type(uint2 rec_sz)
+lgrec_type(uint2_t rec_sz)
 {
     if (rec_sz==sizeof(lg_tag_chunks_s))
 	return t_large_0;
@@ -995,71 +865,90 @@ lgrec_type(uint2 rec_sz)
     W_FATAL(fcINTERNAL);
     return t_badflag;
 }
+	
 
-const MAXSTACKDEPTH = 30;
-const LIMIT = 10;
-
-static int
-qsort_cmp(const void* k1, const void* k2, PFC comp_func, const void *cdata)
+static 
+void QuickSort(char* a[], int cnt, int (*compar)(const void*, const void*) )
 {
-  return comp_func(  ((sort_key_t*)k1)->klen,
-		     ((sort_key_t*)k1)->val,
-		     ((sort_key_t*)k2)->klen,
-		     ((sort_key_t*)k2)->val,
-		     cdata);
-}
+	/* XXX If you change this above 30, use the dynamic allocation
+	  code instead of the on-the-stack code */
+    const int MAXSTACKDEPTH = 30;
+    const int LIMIT = 10;
+    static long randx = 1;
 
-static int
-fqsort_cmp(const void* k1, const void* k2, PFC comp_func, const void *cdata)
-{
-  return comp_func(((file_sort_key_t*)k1)->klen,
-		   ((file_sort_key_t*)k1)->val,
-		   ((file_sort_key_t*)k2)->klen,
-		   ((file_sort_key_t*)k2)->val,
-		   cdata);
-}
+    struct qs_stack_item {
+	int l, r;
+    };
+#ifdef _WINDOWS
+    // Under NT, Tcl has such a huge footprint that this
+    // can keep the scripts from running!!! Arg.
+    qs_stack_item *stack = new qs_stack_item[MAXSTACKDEPTH];
+    if (!stack)
+	 W_FATAL(fcOUTOFMEMORY);
+#else
+    qs_stack_item stack[MAXSTACKDEPTH]; // MAXSTACKDEPTH is small for now -->
+				  // 30 * 8 - 240 bytes
+				  // so avoid mallocs
+#endif
 
-static void QuickSort(char* a[], int cnt, 
-		      int (*compare)(const void*, const void*, 
-				     PFC comp, const void *cdata), 
-		      PFC cmpfunc, const void *cdata)
-{
-    int stack[MAXSTACKDEPTH][2];
     int sp = 0;
     int l, r;
     char* tmp;
-    register i, j;
-    register char* pivot;
-    long randx = 1;
+    int i, j;
+    char* pivot;
 
     for (l = 0, r = cnt - 1; ; ) {
 	if (r - l < LIMIT) {
 	    if (sp-- <= 0) break;
-	    l = stack[sp][0], r = stack[sp][1];
+	    l = stack[sp].l, r = stack[sp].r;
 	    continue;
 	}
 	randx = (randx * 1103515245 + 12345) & 0x7fffffff;
-	pivot = a[l + randx % (r - l)];
+	randx %= (r-l);
+	pivot = a[l + randx];
 	for (i = l, j = r; i <= j; )  {
-	    while (compare(a[i], pivot, cmpfunc, cdata) < 0) i++;
-	    while (compare(pivot, a[j], cmpfunc, cdata) < 0) j--;
+	    while (compar(a[i], pivot) < 0) i++;
+	    while (compar(pivot, a[j]) < 0) j--;
 	    if (i < j) { tmp=a[i]; a[i]=a[j]; a[j]=tmp; }
 	    if (i <= j) i++, j--;
 	}
 
 	if (j - l < r - i) {
-	    if (i < r) stack[sp][0] = i, stack[sp++][1] = r;
+	    if (i < r) {
+		if(sp >= MAXSTACKDEPTH) {
+		    goto error;
+		}
+		stack[sp].l = i, stack[sp++].r = r;
+	    }
             r = j;
 	} else {
-	    if (l < j) stack[sp][0] = l, stack[sp++][1] = j;
+	    if (l < j) {
+		if(sp >= MAXSTACKDEPTH) {
+		    goto error;
+		}
+		stack[sp].l = l, stack[sp++].r = j;
+	    }
 	    l = i;
 	}
     }
 
     for (i = 1; i < cnt; a[j+1] = pivot, i++)
 	for (j = i - 1, pivot = a[i];
-	     j >= 0 && (compare(pivot, a[j], cmpfunc, cdata) < 0);
+	     j >= 0 && (compar(pivot, a[j]) < 0);
              a[j+1] = a[j], j--);
+
+#ifdef _WINDOWS
+    delete [] stack;
+#endif
+    return;
+
+error:
+#ifdef _WINDOWS
+    delete [] stack;
+#endif
+    // not likely 
+    cerr << "QuickSort: stack too small" <<endl;
+    W_FATAL(fcOUTOFMEMORY);
 }
 
 //
@@ -1069,8 +958,8 @@ static void QuickSort(char* a[], int cnt,
 rc_t 
 sort_stream_i::flush_run()
 {
-    FUNC(sort_stream_i::flush_run);
-    register int i;
+    //  FUNC(sort_stream_i::flush_run);
+    int i;
     if (sd->rec_count==0) return RCOK;
 
     if (sd->tmp_fid==stid_t::null) {
@@ -1078,33 +967,30 @@ sort_stream_i::flush_run()
 	if (_once) {
 	    W_DO( SSM->_create_file(sp.vol, sd->tmp_fid, 
 				_property, _logical_id) );
+	    INC_TSTAT_SORT(sort_files_created);
 	} else {
 	    W_DO( SSM->_create_file(sp.vol, sd->tmp_fid, 
 				t_temporary, serial_t::null) );
+	    INC_TSTAT_SORT(sort_files_created);
 	}
     }
     
-#ifdef OLD_SORT
-    W_COERCE( dir->access(sd->tmp_fid, sd->sdesc, NL) );
-    w_assert1(sd->sdesc);
-#else
     W_COERCE( dir->access(sd->tmp_fid, sd->sdesc, NL) );
     w_assert1(sd->sdesc);
 
     file_p last_page;
-#endif
-
+    
     rid_t rid, first;
 
+    // use quick sort 
+    _local_cmp = sd->comp;
     _universe_ = ki.universe;
 
     if (_file_sort) {
-	QuickSort(sd->fkeys, sd->rec_count, fqsort_cmp, 
-		  sd->cmp, sd->cdata);
+	QuickSort(sd->fkeys, sd->rec_count, fqsort_cmp);
     } else {
-	QuickSort(sd->keys, sd->rec_count, qsort_cmp, sd->cmp, sd->cdata);
-	if (ki.len==0 && ki.type!=key_info_t::t_string &&
-	    ki.type!=key_info_t::t_custom) {
+	QuickSort(sd->keys, sd->rec_count, qsort_cmp);
+	if (ki.len==0 && int(ki.type)!=int(key_info_t::t_string)) {
 	    ki.len = ((file_sort_key_t*)sd->keys[0])->klen;
 	}
     }
@@ -1122,39 +1008,41 @@ sort_stream_i::flush_run()
 	    const file_sort_key_t* k = (file_sort_key_t*) sd->fkeys[i];
 	    vec_t hdr, data(k->rec, k->rlen);
 	    if (_once) {
-		hdr.put(k->hdr+k->klen, k->hlen-k->klen);
+		hdr.put((char*)k->hdr+k->klen, k->hlen-k->klen);
 		if (sp.keep_lid) {
 		    serial_t serial_no;
-		    memcpy(&serial_no, k->hdr+k->klen-sizeof(serial_t),
+		    memcpy(&serial_no, (char*)k->hdr+k->klen-sizeof(serial_t),
 				sizeof(serial_t));
-#ifdef OLD_SORT
-	    	    W_DO ( fi->create_rec(sd->tmp_fid, hdr, k->rlen,
-				data, serial_no, *sd->sdesc, rid) );
-#else
-	    	    W_DO ( fi->create_rec_at_end(sd->tmp_fid, hdr, k->rlen,
-				data, serial_no, *sd->sdesc, last_page, rid) );
-#endif
+		    INC_TSTAT_SORT(sort_memcpy_cnt);
+		    ADD_TSTAT_SORT(sort_memcpy_bytes, sizeof(serial_t));
+	    	    W_DO ( fi->create_rec_at_end(
+			last_page,
+			k->rlen, 
+			hdr, data, 
+			serial_no, *sd->sdesc, rid) );
+
+		    INC_TSTAT_SORT(sort_tmpfile_cnt);
+		    ADD_TSTAT_SORT(sort_tmpfile_bytes, hdr.size() + data.size());
+
 		    W_DO ( lid->associate(sp.lvid, serial_no, rid) );
 		} else {
-#ifdef OLD_SORT
-	    	    W_DO ( fi->create_rec(sd->tmp_fid, hdr, k->rlen,
-				data, serial_t::null, *sd->sdesc, rid) );
-#else
-	    	    W_DO ( fi->create_rec_at_end(sd->tmp_fid, hdr, k->rlen,
-				data, serial_t::null, *sd->sdesc, 
-				last_page, rid) );
-#endif
+	    	    W_DO ( fi->create_rec_at_end(
+			last_page,
+			k->rlen,
+			hdr, data, 
+			serial_t::null, *sd->sdesc, rid) );
+
+		    INC_TSTAT_SORT(sort_tmpfile_cnt);
+		    ADD_TSTAT_SORT(sort_tmpfile_bytes, hdr.size() + data.size());
 		}
 	    } else {
 		hdr.put(k->hdr, k->hlen);
-#ifdef OLD_SORT
-	    	W_DO ( fi->create_rec(sd->tmp_fid, hdr, k->rlen,
-			data, serial_t::null, *sd->sdesc, rid) );
-#else
-	    	W_DO ( fi->create_rec_at_end(sd->tmp_fid, hdr, k->rlen,
-			data, serial_t::null, *sd->sdesc, 
-			last_page, rid) );
-#endif
+	    	W_DO ( fi->create_rec_at_end(
+			last_page, k->rlen,
+			hdr, data, serial_t::null, *sd->sdesc, 
+			rid) );
+		INC_TSTAT_SORT(sort_tmpfile_cnt);
+		ADD_TSTAT_SORT(sort_tmpfile_bytes, hdr.size() + data.size());
 	    }
 	    if (k->blen > k->rlen) {
                 // HACK:
@@ -1169,14 +1057,13 @@ sort_stream_i::flush_run()
 	for (i=0; i<count; i++) {
 	    const sort_key_t* k = (sort_key_t*) sd->keys[i];
 	    vec_t hdr(k->val, k->klen), data(k->rec, k->rlen);
-#ifdef OLD_SORT
-	    W_DO ( fi->create_rec(sd->tmp_fid, hdr, k->rlen,
-			data, serial_t::null, *sd->sdesc, rid) );
-#else
-	    W_DO ( fi->create_rec_at_end(sd->tmp_fid, hdr, k->rlen,
-			data, serial_t::null, *sd->sdesc, 
-			last_page, rid) );
-#endif
+	    W_DO ( fi->create_rec_at_end(
+		    last_page, k->rlen,
+		    hdr, data, serial_t::null, *sd->sdesc, 
+		    rid) );
+
+	    INC_TSTAT_SORT(sort_tmpfile_cnt);
+	    ADD_TSTAT_SORT(sort_tmpfile_bytes, hdr.size() + data.size());
 	    if (rid.slot == 1) ++sd->num_pages;
 	    if (i == 0) first = rid;
 	}
@@ -1186,14 +1073,11 @@ sort_stream_i::flush_run()
     if (!_once) {
     	// put a marker to distinguish between different runs
     	vec_t hdr, data((void*)&_marker_, sizeof(int));
-#ifdef OLD_SORT
-    	W_DO( fi->create_rec(sd->tmp_fid, hdr, sizeof(int), data,
-                           	serial_t::null, *sd->sdesc, rid) );
-#else
-    	W_DO( fi->create_rec_at_end(sd->tmp_fid, hdr, sizeof(int), data,
-                           	serial_t::null, *sd->sdesc, 
-				last_page, rid) );
-#endif
+    	W_DO( fi->create_rec_at_end(
+		last_page, sizeof(int), 
+		hdr, data, serial_t::null, *sd->sdesc, rid) );
+	INC_TSTAT_SORT(sort_tmpfile_cnt);
+	ADD_TSTAT_SORT(sort_tmpfile_bytes, hdr.size() + data.size());
     }
 
     sd->last_marker = rid;
@@ -1202,8 +1086,13 @@ sort_stream_i::flush_run()
     // record first rid for the current run
     if (sd->run_count == sd->max_list_sz) {
         // expand the run list space
-        rid_t* tmp = new rid_t[sd->max_list_sz<<1];
+        rid_t* tmp = new rid_t[sd->max_list_sz<<1]; // deleted in ~sort_desc_t
+	record_malloc((sd->max_list_sz << 1)*sizeof(rid_t));
+
         memcpy(tmp, sd->run_list, sd->run_count*sizeof(rid));
+	INC_TSTAT_SORT(sort_memcpy_cnt);
+	ADD_TSTAT_SORT(sort_memcpy_bytes, sd->run_count * sizeof(rid));
+
         delete [] sd->run_list;
         sd->run_list = tmp;
         sd->max_list_sz <<= 1;
@@ -1218,22 +1107,27 @@ sort_stream_i::flush_run()
 
 rc_t
 sort_stream_i::flush_one_rec(const record_t *rec, rid_t& rid, 
-			     const stid_t& out_fid, file_p& last_page)
+				const stid_t& 
+				, file_p& last_page, 
+				bool to_final_file // for stats only
+				)
 {
     // for regular sort
     uint rlen = rec_size(rec);
     vec_t hdr(rec->hdr(), rec->hdr_size()),
 	  data(rec->body(), (int)rlen);
 
-#ifdef OLD_SORT
-    W_DO( fi->create_rec(out_fid, hdr, rlen, data, 
-			 serial_t::null, *sd->sdesc, rid) );
-#else
-    W_DO( fi->create_rec_at_end(out_fid, hdr, rlen, data, 
-				serial_t::null, *sd->sdesc, 
-				last_page, rid) );
-#endif
+    W_DO( fi->create_rec_at_end(
+	last_page, rlen, hdr, data, 
+	serial_t::null, *sd->sdesc, rid) );
 
+    if(to_final_file) {
+	INC_TSTAT_SORT(sort_recs_created);
+	ADD_TSTAT_SORT(sort_rec_bytes,  hdr.size() + data.size());
+    } else {
+	INC_TSTAT_SORT(sort_tmpfile_cnt);
+	ADD_TSTAT_SORT(sort_tmpfile_bytes,  hdr.size() + data.size());
+    }
     if (!(rec->tag.flags & t_small)) {
 	// large object, patch rectag for shallow copy
 	W_DO( fi->update_rectag(rid, rec->tag.body_len, rec->tag.flags) );
@@ -1245,33 +1139,48 @@ sort_stream_i::flush_one_rec(const record_t *rec, rid_t& rid,
 rc_t
 sort_stream_i::merge(bool skip_last_pass=false)
 {
-    uint4 i, j, k;
-    FUNC(sort_stream_i::merge)
+    uint4_t i, j, k;
+    bool	to_final_file = false;
+    // FUNC(sort_stream_i::merge)
 
 //    if (sp.unique) { sp.run_size >>= 1; }
 
     for (i = sp.run_size-1, heap_size = 1; i>0; heap_size <<= 1, i>>=1);
-    int2* m_heap = new int2[heap_size];
+    int2_t* m_heap = new int2_t[heap_size]; // auto-del
+    record_malloc(heap_size*sizeof(int2_t));
     w_assert1(m_heap);
-    w_auto_delete_array_t<int2> auto_del_heap(m_heap);
+    w_auto_delete_array_t<int2_t> auto_del_heap(m_heap);
 
     num_runs = sd->run_count;
+    SET_TSTAT_SORT(sort_runs, num_runs);
 
     if (sd->run_count<=1) return RCOK;
 
-    uint4 out_parts = sd->run_count;
+    uint4_t out_parts = sd->run_count;
     int in_parts = 0;
     int num_passes = 1;
     for (i=sp.run_size; i<sd->run_count; i*=sp.run_size, num_passes++);
     
-    uint4 in_list_cnt = 0, out_list_cnt = sd->run_count;
+    uint4_t in_list_cnt = 0, out_list_cnt = sd->run_count;
     stid_t& out_file = sd->tmp_fid;
-    rid_t  *out_list = sd->run_list, *list_buf = new rid_t[out_list_cnt+1],
-	   *in_list = list_buf;
+    rid_t  *out_list = sd->run_list, 
+	   *list_buf = new rid_t[out_list_cnt+1], // auto-del
+           *in_list = list_buf;
+	   record_malloc((out_list_cnt+1)*sizeof(rid_t));
+
     w_assert1(list_buf);
     w_auto_delete_array_t<rid_t> auto_del_list(list_buf);
 
+    SET_TSTAT_SORT(sort_ntapes, out_parts);
+
     for (i=0; out_parts>1; i++) {
+
+#ifdef COMMENT
+	DBG(<< "PHASE(1)? " << i
+	<< " skip_last_pass=" << skip_last_pass
+	<< " out_parts=" << out_parts);
+#endif /* COMMENT */
+
 	in_parts = out_parts;
 	out_parts = (in_parts - 1) / sp.run_size + 1;
 	
@@ -1283,8 +1192,10 @@ sort_stream_i::merge(bool skip_last_pass=false)
 
 	if (skip_last_pass && last_pass) {
 	    if (sd->run_list != in_list) {
-	       // switched, we need to copy the out list
-	       memcpy(sd->run_list, in_list, (int)in_list_cnt*sizeof(rid_t));
+		// switched, we need to copy the out list
+	        memcpy(sd->run_list, in_list, (int)in_list_cnt*sizeof(rid_t));
+		INC_TSTAT_SORT(sort_memcpy_cnt);
+		ADD_TSTAT_SORT(sort_memcpy_bytes, int(in_list_cnt * sizeof(rid_t)));
 	    }
 	    num_runs = in_parts;
 	    sd->tmp_fid = in_file;
@@ -1296,29 +1207,58 @@ sort_stream_i::merge(bool skip_last_pass=false)
             // (file should use logical_id)
 	    W_DO( SSM->_create_file(sp.vol, out_file, sp.property,
 					sp.logical_id) );
+	    INC_TSTAT_SORT(sort_files_created);
+	    to_final_file = true;
     	} else {
 	    // not last pass so use temp file
 	    W_DO( SSM->_create_file(sp.vol, out_file, 
 					t_temporary,
 					serial_t::null) );
+	    INC_TSTAT_SORT(sort_files_created);
+	    to_final_file = false;
     	}
 
 
 	W_COERCE( dir->access(out_file, sd->sdesc, NL) );
 	w_assert1(sd->sdesc);
-#ifndef OLD_SORT
 	file_p last_page;
-#endif
 
 	int b;
+
+#ifdef COMMENT
+	DBG(<< "out_parts= " << out_parts 
+	<< " b = " << b
+	<< " in_parts=" << in_parts);
+#endif /* COMMENT */
+
 	for (j=b=0; j<out_parts; j++, b+=sp.run_size) {
+		
+
 	    num_runs = (j==out_parts-1) ? (in_parts-b) : sp.run_size;
-	    run_scan_t* rs = new run_scan_t[num_runs];
+
+	    INC_TSTAT_SORT(sort_phases);
+
+#ifdef COMMENT
+	    DBG(<< "before creating HEAP of " << num_runs 
+	    <<  "runs, bp.npages="
+	    << bf->npages() << " bp.totalfix = " << bf->total_fix()
+	    );
+#endif /* COMMENT */
+
+	    run_scan_t* rs = new run_scan_t[num_runs]; // auto-del
+	    record_malloc(num_runs*sizeof(run_scan_t));
     	    w_assert1(rs);
 	    w_auto_delete_array_t<run_scan_t> auto_del_run(rs);
 	    for (k = 0; k<num_runs; k++) {
-		W_DO( rs[k].init(in_list[b+k], ki, sp.unique) );
+		W_DO( rs[k].init(in_list[b+k], sd->comp, ki, sp.unique) );
+		DBG(<<"run[" << k << "].first rid=" << rs[k].page());
 	    }
+
+#ifdef COMMENT
+	    DBG(<< "init'd HEAP of " << num_runs <<  "runs, bp.npages="
+	    << bf->npages() << " bp.totalfix = " << bf->total_fix()
+	    );
+#endif /* COMMENT */
 
 	    if (num_runs == 1) m_heap[0] = 0;
 	    else {
@@ -1332,23 +1272,27 @@ sort_stream_i::merge(bool skip_last_pass=false)
 	    const record_t *rec = 0, *old_rec = 0;
 	    bool first_rec = true;
 
-	    register uint2 r;
+	    uint2_t r;
+	    int heap_top_count=0;
 	    for (r = m_heap[0]; num_runs > 1; r = heap_top(m_heap, heap_size, r, rs)) {
+		++heap_top_count;
 	    	W_DO( rs[r].current(rec) );
 	    	if (sp.unique) {
 		    if (first_rec) {
 		    	old_rec = rec;
 		    	first_rec = false;
 		    } else {
-			W_DO(flush_one_rec(old_rec, rid, out_file, last_page));
+			W_DO(flush_one_rec(old_rec, rid, out_file, last_page, 
+				to_final_file));
 		    	old_rec = rec;
 		        if (new_part) {
 		            out_list[out_list_cnt++] = rid;
 		            new_part = false;
 	    	    	}
 		    }
-	    	} else { 
-		    W_DO( flush_one_rec(rec, rid, out_file, last_page) );
+	    	} else {
+		    W_DO( flush_one_rec(rec, rid, out_file, last_page,
+		    to_final_file) );
 		    if (new_part) {
 		        out_list[out_list_cnt++] = rid;
 		        new_part = false;
@@ -1357,23 +1301,28 @@ sort_stream_i::merge(bool skip_last_pass=false)
 		W_DO( rs[r].next(eof) );
 		if (eof) --num_runs;
 	    }
+	    DBG(<<"Pulled off heap: " << heap_top_count );
 
+	    int tail_of_run=0;
 	    do { //  for the rest in last run for current merge
+		tail_of_run++;
 	    	W_DO( rs[r].current(rec) );
 	    	if (sp.unique) {
 		    if (first_rec) {
 		    	old_rec = rec;
 		    	first_rec = false;
 		    } else {
-		    	W_DO(flush_one_rec(old_rec, rid, out_file, last_page));
+		    	W_DO(flush_one_rec(old_rec, rid, out_file, last_page,
+			to_final_file));
 		    	old_rec = rec;
 		        if (new_part) {
 		            out_list[out_list_cnt++] = rid;
 		            new_part = false;
 	    	    	}
 		    }
-	    	} else { 
-		    W_DO( flush_one_rec(rec, rid, out_file, last_page) );
+	    	} else {
+		    W_DO( flush_one_rec(rec, rid, out_file, last_page,
+		    to_final_file) );
 
 		    if (new_part) {
 		        out_list[out_list_cnt++] = rid;
@@ -1384,9 +1333,11 @@ sort_stream_i::merge(bool skip_last_pass=false)
 		W_DO( rs[r].next(eof) );
 
 	    } while (!eof);
+	    DBG(<<"tail of run = " << tail_of_run);
 
 	    if (sp.unique) {
-	    	W_DO( flush_one_rec(old_rec, rid, out_file, last_page) );
+	    	W_DO( flush_one_rec(old_rec, rid, out_file, last_page,
+		to_final_file) );
 	    	if (new_part) {
 		    out_list[out_list_cnt++] = rid;
 		    new_part = false;
@@ -1395,15 +1346,16 @@ sort_stream_i::merge(bool skip_last_pass=false)
 	    if (!last_pass) {
 	    	// put a marker to distinguish between different runs
 	    	vec_t hdr, data((void*)&_marker_, sizeof(int));
-#ifdef OLD_SORT
-	    	W_DO( fi->create_rec(out_file, hdr, sizeof(int), data,
-				serial_t::null, *sd->sdesc, rid) );
-#else
-	    	W_DO( fi->create_rec_at_end(out_file, hdr, sizeof(int), data,
-				serial_t::null, *sd->sdesc, last_page, rid) );
-#endif
+	    	W_DO( fi->create_rec_at_end(
+			last_page, sizeof(int), hdr, data,
+			serial_t::null, *sd->sdesc, rid) );
+
+		INC_TSTAT_SORT(sort_tmpfile_cnt);
+		ADD_TSTAT_SORT(sort_tmpfile_bytes, hdr.size() + data.size());
 	    }
+	    
 	}
+	DBGTHRD(<<"about to destroy " << in_file);
 	W_DO ( SSM->_destroy_file(in_file) );
     }
 
@@ -1417,21 +1369,23 @@ sort_stream_i::sort_stream_i() : xct_dependent_t(xct())
     empty = true;
     heap=0;
     sc=0;
-    sd = new sort_desc_t; 
+    sd = new sort_desc_t;  // deleted in ~sort_stream_i
+    record_malloc(sizeof(sort_desc_t));
     _once = false;
     _logical_id = serial_t::null;
 }
 
 NORET
 sort_stream_i::sort_stream_i(const key_info_t& k, const sort_parm_t& s,
-			     uint est_rec_sz) : xct_dependent_t(xct())
+		uint est_rec_sz) : xct_dependent_t(xct())
 {
     _file_sort = sorted = eof = false;
     empty = true;
     heap=0;
     sc=0;
     
-    sd = new sort_desc_t; 
+    sd = new sort_desc_t;  // deleted in ~sort_stream_i
+    record_malloc(sizeof(sort_desc_t));
     ki = k;
     sp = s;
 
@@ -1445,16 +1399,7 @@ sort_stream_i::sort_stream_i(const key_info_t& k, const sort_parm_t& s,
 	(align(sizeof(rectag_t)+ALIGNON+est_rec_sz)+sizeof(page_s::slot_t))
 	* sp.run_size);
 
-    // If the comparison function is specified, create the structure 
-    // that will be used as the data for the inverse function
-    if ((ki.type == key_info_t::t_custom) && (!sp.ascending)) {
-      struct rcustom_info *newdata = new struct rcustom_info();
-      newdata->comp_func = ki.cmp;
-      newdata->cdata = ki.comp_data;
-      ki.comp_data = newdata;
-    }
-    sd->cmp = get_cmp_func(ki, sp.ascending);
-    sd->cdata = ki.comp_data;
+    sd->comp = get_cmp_func(ki.type, sp.ascending);
     _once = false;
     _logical_id = serial_t::null;
 }
@@ -1462,21 +1407,22 @@ sort_stream_i::sort_stream_i(const key_info_t& k, const sort_parm_t& s,
 NORET
 sort_stream_i::~sort_stream_i()
 {
+    // FUNC(sort_stream_i::~sort_stream_i);
     if (heap) delete [] heap;
     if (sc) delete [] sc;
     if (sd) {
         if (sd->tmp_fid!=stid_t::null) {
+	    DBGTHRD(<<"about to destroy " << sd->tmp_fid);
 	    W_IGNORE ( SSM->_destroy_file(sd->tmp_fid) );
         }
         delete sd;
     }
-    if ((ki.type == key_info_t::t_custom) && (!sp.ascending))
-      delete ((struct rcustom_info *)ki.comp_data);
 }
 
 void 
 sort_stream_i::finish()
 {
+    // FUNC(sort_stream_i::finish);
     if (heap) {
 	delete [] heap; heap = 0;
     }
@@ -1485,8 +1431,10 @@ sort_stream_i::finish()
     }
     if (sd) {
 	if (sd->tmp_fid!=stid_t::null) {
-	    if (xct())
+	    if (xct()) {
+		DBGTHRD(<<"about to destroy " << sd->tmp_fid);
 	    	W_COERCE ( SSM->_destroy_file(sd->tmp_fid) );
+	    }
         }
         delete sd;
 	sd = 0;
@@ -1522,14 +1470,14 @@ sort_stream_i::init(const key_info_t& k, const sort_parm_t& s, uint est_rec_sz)
 	* sp.run_size);
     
     if (sd->keys)  {
-	for (register uint i=0; i < sd->rec_count; i++)
+	for (unsigned i=0; i < sd->rec_count; i++)
 	    delete ((sort_key_t*) sd->keys[i]);
         delete [] sd->keys;
         sd->keys = 0;
     }
 
     if (sd->fkeys)  {
-        for (register uint i=0; i<sd->rec_count; i++)
+        for (unsigned i=0; i<sd->rec_count; i++)
 	    delete ((file_sort_key_t*) sd->fkeys[i]);
 	delete [] sd->fkeys;
         sd->fkeys = 0;
@@ -1537,16 +1485,7 @@ sort_stream_i::init(const key_info_t& k, const sort_parm_t& s, uint est_rec_sz)
 
     sd->rec_count = 0;
 
-    // If the comparison function is specified, create the structure 
-    // that will be used as the data for the inverse function
-    if ((ki.type == key_info_t::t_custom) && (!sp.ascending)) {
-      struct rcustom_info *newdata = new struct rcustom_info();
-      newdata->comp_func = ki.cmp;
-      newdata->cdata = ki.comp_data;
-      ki.comp_data = newdata;
-    }
-    sd->cmp = get_cmp_func(ki, sp.ascending);
-    sd->cdata = ki.comp_data;
+    sd->comp = get_cmp_func(ki.type, sp.ascending);
 
     if (sc) { delete [] sc; sc = 0; }
 
@@ -1561,7 +1500,7 @@ sort_stream_i::init(const key_info_t& k, const sort_parm_t& s, uint est_rec_sz)
 rc_t
 sort_stream_i::put(const cvec_t& key, const cvec_t& elem)
 {
-    FUNC(sort_stream_i::put);
+    // FUNC(sort_stream_i::put);
     w_assert1(!_file_sort);
 
     if (sd->rec_count >= sd->max_rec_cnt) {
@@ -1570,14 +1509,18 @@ sort_stream_i::put(const cvec_t& key, const cvec_t& elem)
     }
 
     if (!sd->keys) {
-	sd->keys = new char* [sd->max_rec_cnt];
+	sd->keys = new char* [sd->max_rec_cnt]; // deleted in free_space
+	record_malloc(sizeof(char *) * sd->max_rec_cnt);
         w_assert1(sd->keys);
 	memset(sd->keys, 0, sd->max_rec_cnt*sizeof(char*));
+	INC_TSTAT_SORT(sort_memcpy_cnt);
+	ADD_TSTAT_SORT(sort_memcpy_bytes, sd->max_rec_cnt * sizeof(char *));
     }
 
     sort_key_t* k = (sort_key_t*) sd->keys[sd->rec_count];
     if (!k) {
-	k = new sort_key_t;
+	k = new sort_key_t; // deleted in free_space
+	record_malloc(sizeof(sort_key_t));
         sd->keys[sd->rec_count] = (char*) k;
     } else {
 	if (k->val) delete [] k->val;
@@ -1585,13 +1528,15 @@ sort_stream_i::put(const cvec_t& key, const cvec_t& elem)
     }
 
     // copy key
-    k->val = new char[key.size()];
+    k->val = new char[key.size()]; // deleted in ~sort_key_t
+    record_malloc(key.size());
     key.copy_to(k->val, key.size());
     k->klen = key.size();
 
     // copy elem
     k->rlen = elem.size();
-    k->rec = new char[k->rlen];
+    k->rec = new char[k->rlen]; // deleted in ~sort_key_t
+    record_malloc(k->rlen);
     elem.copy_to(k->rec, k->rlen);
 
     sd->rec_count++;
@@ -1605,18 +1550,28 @@ rc_t
 sort_stream_i::file_put(const cvec_t& key, const void* rec, uint rlen,
 			uint hlen, const rectag_t* tag)
 {
-    FUNC(sort_stream_i::put);
+    // FUNC(sort_stream_i::put);
     w_assert1(_file_sort);
 
     if (sd->rec_count >= sd->max_rec_cnt) {
 	// ran out of array space
 	if (_once) {
 	  if (sd->fkeys) {
-	    char** new_keys = new char* [sd->max_rec_cnt<<1];
+	    char** new_keys = new char* [sd->max_rec_cnt<<1]; //deleted in free_space
+	    record_malloc((sd->max_rec_cnt<<1) * sizeof(char *));
 	    memcpy(new_keys, sd->fkeys, sd->max_rec_cnt*sizeof(char*));
+	    INC_TSTAT_SORT(sort_memcpy_cnt);
+	    ADD_TSTAT_SORT(sort_memcpy_bytes, sd->max_rec_cnt * sizeof(char *));
+
 	    memset(&new_keys[sd->max_rec_cnt], 0, sd->max_rec_cnt*sizeof(char*));
+	    INC_TSTAT_SORT(sort_memcpy_cnt);
+	    ADD_TSTAT_SORT(sort_memcpy_bytes, sd->max_rec_cnt * sizeof(char *));
+
 	    // this is needed for shallow deletion of fkeys
 	    memset(sd->fkeys, 0, sd->max_rec_cnt*sizeof(char*));
+	    INC_TSTAT_SORT(sort_memcpy_cnt);
+	    ADD_TSTAT_SORT(sort_memcpy_bytes, sd->max_rec_cnt * sizeof(char *));
+
 	    delete [] sd->fkeys;
 	    sd->fkeys = new_keys;
 	  }
@@ -1628,26 +1583,31 @@ sort_stream_i::file_put(const cvec_t& key, const void* rec, uint rlen,
     }
 
     if (!sd->fkeys) {
-	sd->fkeys = new char* [sd->max_rec_cnt];
+	sd->fkeys = new char* [sd->max_rec_cnt];// deleted in free_space
+	record_malloc((sd->max_rec_cnt) * sizeof(char *));
 	w_assert1(sd->fkeys);
 	memset(sd->fkeys, 0, sd->max_rec_cnt*sizeof(char*));
+	INC_TSTAT_SORT(sort_memcpy_cnt);
+	ADD_TSTAT_SORT(sort_memcpy_bytes, sd->max_rec_cnt * sizeof(char *));
     }
 
     file_sort_key_t* k = (file_sort_key_t*) sd->fkeys[sd->rec_count];
     if (!k) {
 	k = new file_sort_key_t;
+	record_malloc( sizeof(file_sort_key_t));
 	sd->fkeys[sd->rec_count] = (char*) k;
     } else {
         if (k->hdr) { delete [] k->hdr; }
     }
 
     // copy key and hdr
-    k->hdr = new char[key.size()];
+    k->hdr = new char[key.size()]; // deleted in ~file_sort_key_t
+    record_malloc(key.size());
     key.copy_to((void*)k->hdr, key.size());
     k->val = k->hdr;
     k->klen = k->hlen = key.size();
 
-    if (!ki.derived) {
+    if (!ki.derived && ki.len > 0) {
 	// for non-derived keys, the key will have rec hdr at end
 	k->klen -= hlen;
     }
@@ -1669,17 +1629,18 @@ sort_stream_i::file_put(const cvec_t& key, const void* rec, uint rlen,
 rc_t
 sort_stream_i::get_next(vec_t& key, vec_t& elem, bool& end)
 {
-    FUNC(sort_stream_i::get_next)
+    // FUNC(sort_stream_i::get_next)
     fill4 filler;
     W_DO( file_get_next(key, elem, filler.u4, end) );
 
     return RCOK;
 }
 
+
 rc_t
-sort_stream_i::file_get_next(vec_t& key, vec_t& elem, uint4& blen, bool& end)
+sort_stream_i::file_get_next(vec_t& key, vec_t& elem, uint4_t& blen, bool& end)
 {
-    FUNC(sort_stream_i::file_get_next);
+    // FUNC(sort_stream_i::file_get_next);
     end = eof;
     if (eof) {
 	finish();
@@ -1706,16 +1667,18 @@ sort_stream_i::file_get_next(vec_t& key, vec_t& elem, uint4& blen, bool& end)
 
 	// initialize for the final merge: ???
 	if (sc) delete [] sc;
-	sc = new run_scan_t[num_runs];
+	sc = new run_scan_t[num_runs]; // deleted in ~sort_stream_i
+	record_malloc(num_runs* sizeof(run_scan_t));
 
-	register uint4 k;
+	uint4_t k;
 	for (k = 0; k<num_runs; k++) {
-	    W_DO( sc[k].init(sd->run_list[k], ki, sp.unique) );
+	    W_DO( sc[k].init(sd->run_list[k], sd->comp, ki, sp.unique) );
 	}
 
 	for (k = num_runs-1, heap_size = 1; k > 0; heap_size <<= 1, k >>= 1);
 	if (heap) delete [] heap;
-	heap = new int2[heap_size];
+	heap = new int2_t[heap_size]; // deleted in ~sort_stream_i 
+	record_malloc(heap_size* sizeof(int2_t));
         
 	if (num_runs == 1)  {
 	    r = heap[0] = 0;
@@ -1733,31 +1696,36 @@ sort_stream_i::file_get_next(vec_t& key, vec_t& elem, uint4& blen, bool& end)
     bool part_eof;
     
     W_DO ( sc[r].current(rec) );
-    DBG(<<"r " << r 
+    /*
+    DBGTHRD(<<"r " << r 
 	<< " rec: "
 	<< rec->body()[0]
 	<< rec->body()[1]
 	<< rec->body()[2]
 	);
+    */
 
     if (sp.unique) {
 	if (old_rec) {
 	    bool same = duplicate_rec(old_rec, rec);
-	    while (same && num_runs>1) {
+	    while (same && num_runs>1) 
+	    {
 		old_rec = rec;
-		r = heap_top(heap, heap_size, r, sc);
 		W_DO ( sc[r].next(part_eof) );
-		if (part_eof) {
-		    // reach end of current run
-		    r = heap_top(heap, heap_size, r, sc);
+		
+		r = heap_top(heap, heap_size, r, sc);
+		if (part_eof)
+		{
 		    num_runs--;
-		} else { 
+		} else {    
 		    W_DO ( sc[r].current(rec) );
 		    same = duplicate_rec(old_rec, rec);
 		}
 	    }
-	    if (same) {
-		while (1) {
+	    if (same) 
+	    {
+		while (1) 
+		{
 		    old_rec = rec;
 		    W_DO ( sc[r].current(rec) );
 		    if (!duplicate_rec(old_rec, rec))
@@ -1779,8 +1747,6 @@ sort_stream_i::file_get_next(vec_t& key, vec_t& elem, uint4& blen, bool& end)
     key.put(rec->hdr(), rec->hdr_size());
     elem.put(rec->body(), rec_size(rec));
 
-    DBG(<<"copying  rec " << rec->body()[0] << rec->body()[1] << rec->body()[2]);
-
     if (_file_sort) { blen = rec->body_size(); }
 
     // prepare for next get
@@ -1794,7 +1760,6 @@ sort_stream_i::file_get_next(vec_t& key, vec_t& elem, uint4& blen, bool& end)
 	    eof = true;
 	}
     }
-    DBG(<<"returning  rec " << rec->body()[0] << rec->body()[1] << rec->body()[2]);
 
     return RCOK;
 }
@@ -1806,14 +1771,14 @@ static rc_t
 _copy_out_large_obj(
 	const record_t* rec,
 	void*		data,
-	uint4		start,
-	uint4		len,
+	uint4_t		start,
+	uint4_t		len,
 	const file_p&	hdr_page)
 {
     lpid_t data_pid;
     lgdata_p page;
     char* buf_ptr = (char*) data;
-    uint4 start_byte, new_start = start, range, left = len, offset;
+    uint4_t start_byte, new_start = start, range, left = len, offset;
 	
     w_assert1(!rec->is_small());
 
@@ -1821,8 +1786,17 @@ _copy_out_large_obj(
 	data_pid = rec->pid_containing(new_start, start_byte, hdr_page);
 	offset = new_start-start_byte;
 	range = MIN(lgdata_p::data_sz-offset, rec->body_size()-new_start); 
+	range = MIN(left, range); 
 	W_DO( page.fix(data_pid, LATCH_SH) );
+	INC_TSTAT_SORT(sort_lg_page_fixes);
+
 	memcpy(buf_ptr, (char*) page.tuple_addr(0)+offset, (int)range);
+	INC_TSTAT_SORT(sort_memcpy_cnt);
+#ifdef INSTRUMENT_SORT
+        base_stat_t r = base_stat_t(range);
+#endif
+	ADD_TSTAT_SORT(sort_memcpy_bytes, (unsigned long)(r));
+
 	buf_ptr += range; 
 	new_start += range;
 	left -= range;
@@ -1838,16 +1812,21 @@ rc_t
 ss_m::_sort_file(const stid_t& fid, vid_t vid, stid_t& sfid,
                 sm_store_property_t property,
                 const key_info_t& key_info, int run_size,
+		bool ascending,
                 bool unique, bool destructive,
                 const serial_t& logical_id,
-		const lvid_t& logical_vid)
+		const lvid_t& logical_vid
+		)
 {
-    register int i, j;
+    int i, j;
 
     if (run_size < 3) run_size = 3;
 
+    SET_TSTAT_SORT(sort_run_size, run_size);
+
     // format sort parameters
     sort_parm_t sp;
+    sp.ascending = ascending;
     sp.unique = unique;
     sp.vol = vid;
     sp.property = property;
@@ -1865,13 +1844,12 @@ ss_m::_sort_file(const stid_t& fid, vid_t vid, stid_t& sfid,
 	// create a file to hold potential large object 
 	// in a non-destructive sort.
 	W_DO ( _create_file(vid, lg_fid, property, logical_id) );
+	INC_TSTAT_SORT(sort_files_created);
     	W_COERCE( dir->access(lg_fid, sdesc, NL) );
 	w_assert1(sdesc);
     }
 
-#ifndef OLD_SORT
     file_p last_lg_page;
-#endif
 
     key_info_t kinfo = key_info;
     bool fast_spatial = (kinfo.type==sortorder::kt_spatial && !sp.unique);
@@ -1883,24 +1861,28 @@ ss_m::_sort_file(const stid_t& fid, vid_t vid, stid_t& sfid,
     }
 
     w_assert1((kinfo.len>0) || 
-	      (kinfo.len==0 && kinfo.type==key_info_t::t_string) ||
-	      (kinfo.len==0 && kinfo.type==key_info_t::t_custom));
+		(kinfo.len==0 && int(kinfo.type)==int(key_info_t::t_string)));
 
-    // determine how many pages are used for the current file to 
-    // estimate file size (decide whether all-in-memory is possible)
     lpid_t pid, first_pid;
     W_DO( fi->first_page(fid, pid) );
     first_pid = pid;
-    int pcount = 0;
+   
+    
+    // determine how many pages are used for the current file to 
+    // estimate file size (decide whether all-in-memory is possible)
     bool eof = false;
+    SmFileMetaStats file_stats;
+    file_stats.smallSnum = fid.store;
+    
+    W_DO(io->get_file_meta_stats(fid.vol, 1, &file_stats));
+    /* XXX possible loss of data */
+    int pcount = int(file_stats.small.numAllocPages);
 
-    while (!eof) {
-	if (pcount++ > run_size) break;
-	W_DO(fi->next_page(pid, eof) );
-    }
     
     bool once = (pcount<=run_size);
     if (once) run_size = pcount;
+
+    SET_TSTAT_SORT(sort_run_size, run_size);
 
     // setup a sort stream
     sp.run_size = run_size;
@@ -1918,12 +1900,14 @@ ss_m::_sort_file(const stid_t& fid, vid_t vid, stid_t& sfid,
     // to to memory for sorting
     pid = first_pid;
     {
-      file_p* fp = new file_p[pcount];
+      file_p* fp = new file_p[pcount]; // auto-del
+      record_malloc(pcount* sizeof(file_p));
       w_auto_delete_array_t<file_p> auto_del_fp(fp);
 
       for (eof = false; ! eof; ) {
 	 for (i=0; i<run_size && !eof; i++) {
 	    W_DO( fp[i].fix(pid, LATCH_SH) );
+	    INC_TSTAT_SORT(sort_page_fixes);
 	    for (j = fp[i].next_slot(0); j; j = fp[i].next_slot(j)) {
 		//
 		// extract the key, and compress hdr with body
@@ -1932,7 +1916,7 @@ ss_m::_sort_file(const stid_t& fid, vid_t vid, stid_t& sfid,
 		W_COERCE( fp[i].get_rec(j, r) );
 
 		const void *kval, *hdr, *rec;
-		uint rlen, hlen;
+		uint rlen, hlen, klen = key_info.len;
 
 		hdr = r->hdr();
 		hlen = r->hdr_size();
@@ -1949,35 +1933,43 @@ ss_m::_sort_file(const stid_t& fid, vid_t vid, stid_t& sfid,
 			rlen = (uint) r->body_size();
 
 			// copy the large object into another file
-			char* buf = new char[rlen];
+			char* buf = new char[rlen]; // auto-del
+			record_malloc(rlen);
 			w_auto_delete_array_t<char> auto_del_buf(buf);
 			W_DO( _copy_out_large_obj(r, buf, 0, rlen, fp[i]) );
+
 			vec_t b_hdr, b_rec(buf, rlen);
 			
 			W_COERCE( dir->access(lg_fid, sdesc, NL) );
 			w_assert1(sdesc);
-#ifdef OLD_SORT
-			W_DO ( fi->create_rec(lg_fid, b_hdr, rlen, b_rec, 
-					serial_t::null, *sdesc, rid) );
-#else
-			W_DO ( fi->create_rec_at_end(lg_fid, b_hdr, rlen,
-					b_rec, serial_t::null, *sdesc,
-					last_lg_page, rid) );
-#endif
+			W_DO ( fi->create_rec_at_end(
+				last_lg_page,
+				rlen, b_hdr, b_rec, serial_t::null, *sdesc,
+				rid) );
+			INC_TSTAT_SORT(sort_recs_created);
+			ADD_TSTAT_SORT(sort_rec_bytes,  b_hdr.size() + b_rec.size());
 			// get its new index info
 			file_p tmp;
 			W_DO( fi->locate_page(rid, tmp, LATCH_SH) );
+			INC_TSTAT_SORT(sort_page_fixes);
 			const record_t* nr;
 			W_COERCE( tmp.get_rec(rid.slot, nr) );
 
 			rlen = rec_size(nr);
 			void* nbuf = sort_stream.buf_space.alloc(rlen);
 			memcpy(nbuf, nr->body(), rlen);
+			INC_TSTAT_SORT(sort_memcpy_cnt);
+			ADD_TSTAT_SORT(sort_memcpy_bytes, rlen);
 			rec = nbuf;
 		    }
 
 		    if (key_info.where==key_info_t::t_hdr) {
 			kval = (char*)hdr + key_info.offset;
+			if (key_info.len == 0)
+			{
+			    // special casing for variable lenght key in header
+			    klen = hlen;
+			}
 		    } else {
 			// has to copy the region of bytes for key
 			void* buf = sort_stream.buf_space.alloc(key_info.len);
@@ -2002,11 +1994,7 @@ ss_m::_sort_file(const stid_t& fid, vid_t vid, stid_t& sfid,
 		    hvalue = _box_.hvalue(key_info.universe);
 		    key.put(&hvalue, sizeof(int));
 		} else {
-		    if ((int)key_info.len == 0)
-		      key.put(kval, ((key_info.where==key_info_t::t_hdr)
-				     ? hlen : rlen));
-		    else
-		      key.put(kval, (int)key_info.len);
+		    key.put(kval, (int)klen);
 		}
 
 		// for destructive sort that preserve the oid for
@@ -2020,7 +2008,7 @@ ss_m::_sort_file(const stid_t& fid, vid_t vid, stid_t& sfid,
 		// another hack: since the sort stream stores keys at
 		// the header of intermediate rec, we have to append 
 		// original header at end of key.
-		if (hlen>0 && !key_info.derived) {
+		if (hlen>0 && !key_info.derived && key_info.len > 0) {
 		    key.put(hdr, hlen);
 		}
 
@@ -2028,16 +2016,16 @@ ss_m::_sort_file(const stid_t& fid, vid_t vid, stid_t& sfid,
             }
 
             W_DO( fi->next_page(pid, eof) );
+	    INC_TSTAT_SORT(sort_page_fixes);
 	 }
 
          // flush each run
          W_DO ( sort_stream.flush_run() );
+	INC_TSTAT_SORT(sort_runs);
       }
     }
 
-#ifndef OLD_SORT
     last_lg_page.unfix();
-#endif
 
 
     if (once) {
@@ -2048,22 +2036,23 @@ ss_m::_sort_file(const stid_t& fid, vid_t vid, stid_t& sfid,
 	if (sfid == stid_t::null) {
 	    // empty file, creating an empty file
 	    W_DO ( _create_file(vid, sfid, property, logical_id) );
+	    INC_TSTAT_SORT(sort_files_created);
 	}
     } else {
         // get sorted stream, write to the final file
         W_DO ( _create_file(vid, sfid, property, logical_id) );
+	INC_TSTAT_SORT(sort_files_created);
 
-#ifndef OLD_SORT
 	file_p last_page;
-#endif
 
 	if (!sort_stream.is_empty()) { 
-    	    char* tmp_buf = new char[1000];
+    	    char* tmp_buf = new char[1000]; // auto-del
+	    record_malloc(1000);
     	    w_assert1(tmp_buf);
     	    w_auto_delete_array_t<char> auto_del_buf(tmp_buf);
 
             bool eof;
-	    uint4 blen;
+	    uint4_t blen;
 	    vec_t key, hdr, rec;
 	    W_DO ( sort_stream.file_get_next(key, rec, blen, eof) );
 
@@ -2085,14 +2074,15 @@ ss_m::_sort_file(const stid_t& fid, vid_t vid, stid_t& sfid,
 		if (sp.keep_lid) {
 		    memcpy((char*)&serial_no, tmp_buf+kinfo.len,
 				sizeof(serial_t));
+		    INC_TSTAT_SORT(sort_memcpy_cnt);
+		    ADD_TSTAT_SORT(sort_memcpy_bytes, sizeof(serial_t));
 		} 
-#ifdef OLD_SORT
-		W_DO ( fi->create_rec(sfid, hdr, rec.size(), rec, 
+		W_DO ( fi->create_rec_at_end(
+			last_page,
+			rec.size(), hdr, rec, 
 			serial_no, *sdesc, rid) );
-#else
-		W_DO ( fi->create_rec_at_end(sfid, hdr, rec.size(), rec, 
-			serial_no, *sdesc, last_page, rid) );
-#endif
+		INC_TSTAT_SORT(sort_tmpfile_cnt);
+		ADD_TSTAT_SORT(sort_tmpfile_bytes,  hdr.size() + rec.size());
 
 		if (serial_no != serial_t::null) {
 		    W_DO(lid->associate(sp.lvid, serial_no, rid));
@@ -2139,33 +2129,26 @@ ss_m::sort_file(const stid_t& fid, // I - input file id
         const key_info_t& key_info,// I - info about sort key
                                    //     (offset, len, type...)
         int run_size,              // I - # pages each run
+        bool ascending,		   // I - ascending?
         bool unique,		   // I - eliminate duplicates?
         bool destructive,	   // I - destroy the input file?
-        const serial_t& serial)    // I - serial number for logical id
+        const serial_t& serial,
+	bool use_new_sort	   // I - true
+	)    // I - serial number for logical id
 {
-    SM_PROLOGUE_RC(ss_m::sort_file, in_xct, 0);
-    W_DO(_sort_file(fid, vid, sfid, property, key_info, run_size,
-			unique, destructive, serial, lvid_t::null));
-    return RCOK;
-}
-
-int
-operator>(run_scan_t& s1, run_scan_t& s2)
-{
-    // get length and keys to be compared
-    w_assert1(s1.cur_rec && s2.cur_rec);
-
-    int len1, len2;
-    if (((s1.kinfo.len == 0) && 
-	 (s1.kinfo.type == key_info_t::t_string)) ||
-	(s1.kinfo.type == key_info_t::t_custom)) {
-      // variable size, use hdr size
-      len1 = s1.cur_rec->hdr_size(), len2 = s2.cur_rec->hdr_size();
-    } else {
-      len1 = len2 = (int)s1.kinfo.len;
+    /* BEFORE entering SM: */
+    if(use_new_sort) {
+	// New sort treats run_size as total# pages used,
+	// not exactly as run size.
+	run_size++;
+	return ss_m::new_sort_file(fid, vid, sfid, property,
+			key_info, run_size, ascending, 
+			unique, destructive, serial);
     }
 
-    return (s1.cmp(len1, s1.cur_rec->hdr(), len2, s2.cur_rec->hdr(), 
-		   s1.cdata) > 0);
+    SM_PROLOGUE_RC(ss_m::sort_file, in_xct, 0);
+    W_DO(_sort_file(fid, vid, sfid, property, key_info, run_size,
+			ascending, unique, destructive, serial, lvid_t::null));
+    return RCOK;
 }
-
+#endif /* OLDSORT_COMPATIBILITY */

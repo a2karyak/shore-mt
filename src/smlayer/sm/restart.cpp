@@ -1,13 +1,36 @@
-/* --------------------------------------------------------------- */
-/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
-/* -- University of Wisconsin-Madison, subject to the terms     -- */
-/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
-/* -- Reserved.                                                 -- */
-/* --------------------------------------------------------------- */
+/*<std-header orig-src='shore'>
 
-/*
- *  $Id: restart.cc,v 1.108 1997/06/15 03:13:50 solomon Exp $
- */
+ $Id: restart.cpp,v 1.129 1999/06/15 15:11:55 nhall Exp $
+
+SHORE -- Scalable Heterogeneous Object REpository
+
+Copyright (c) 1994-99 Computer Sciences Department, University of
+                      Wisconsin -- Madison
+All Rights Reserved.
+
+Permission to use, copy, modify and distribute this software and its
+documentation is hereby granted, provided that both the copyright
+notice and this permission notice appear in all copies of the
+software, derivative works or modified versions, and any portions
+thereof, and that both notices appear in supporting documentation.
+
+THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+"AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+This software was developed with support by the Advanced Research
+Project Agency, ARPA order number 018 (formerly 8230), monitored by
+the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+Further funding for this work was provided by DARPA through
+Rome Research Laboratory Contract No. F30602-97-2-0247.
+
+*/
+
+#include "w_defines.h"
+
+/*  -- do not edit anything above this line --   </std-header>*/
+
 #define SM_SOURCE
 #define RESTART_C
 
@@ -19,17 +42,21 @@
 #include <sm_int_1.h>
 #include "restart.h"
 #include "restart_s.h"
+#include "w_heap.h"
 
 
 //#define LOGTRACE(x)  cout x << endl;
-#define LOGTRACE(x)  DBG(x)
+#define LOGTRACE(x)  DBGTHRD(x)
 
-#ifdef __GNUG__
+#ifdef EXPLICIT_TEMPLATE
 template class w_hash_t<dp_entry_t, bfpid_t>;
 template class w_hash_i<dp_entry_t, bfpid_t>;
 template class w_list_t<dp_entry_t>;
 template class w_list_i<dp_entry_t>;
+template class Heap<xct_t*, CmpXctUndoLsns>;
 #endif
+
+typedef class Heap<xct_t*, CmpXctUndoLsns> XctPtrHeap;
 
 tid_t		restart_m::_redo_tid;
 
@@ -83,6 +110,7 @@ private:
 void 
 restart_m::recover(lsn_t master)
 {
+    FUNC(restart_m::recover);
     dirty_pages_tab_t dptab(2 * bf->npages());
     lsn_t redo_lsn;
     bool found_xct_freeing_space = false;
@@ -90,7 +118,7 @@ restart_m::recover(lsn_t master)
     // set so mount and dismount redo can tell that they should log stuff.
 
     smlevel_0::errlog->clog << info_prio << "Restart recovery:" << flushl;
-#ifdef DEBUG
+#ifdef W_DEBUG
     {
 	DBG(<<"TX TABLE before analysis:");
 	xct_i iter;
@@ -103,7 +131,7 @@ restart_m::recover(lsn_t master)
 	}
 	DBG(<<"END TX TABLE before analysis:");
     }
-#endif /* DEBUG */
+#endif /* W_DEBUG */
 
     /*
      *  Phase 1: ANALYSIS.
@@ -123,7 +151,7 @@ restart_m::recover(lsn_t master)
     smlevel_0::errlog->clog << info_prio << " redo ..." << flushl;
     lsn_t curr_lsn = log->curr_lsn(); 
 
-#ifdef DEBUG
+#ifdef W_DEBUG
     {
 	DBG(<<"TX TABLE at end of analysis:");
 	xct_i iter;
@@ -135,7 +163,7 @@ restart_m::recover(lsn_t master)
 	}
 	DBG(<<"END TX TABLE at end of analysis:");
     }
-#endif
+#endif /* W_DEBUG */
 
     DBG(<<"starting redo at " << redo_lsn << " highest_lsn " << curr_lsn);
     redo_pass(redo_lsn, curr_lsn, dptab);
@@ -171,9 +199,9 @@ restart_m::recover(lsn_t master)
     undo_pass();
 
     /*
-     * if there are any files with there deleting bit still set then it was set by
-     * a xct which completed (entered freeing_space mode), but not yet done freeing
-     * space.  these files are destroyed here.
+     * if there are any files with the deleting bit still set, it was set by
+     * a xct that completed (entered freeing_space mode), but not yet 
+     * done freeing space.  these files are destroyed here.
      */
     if (found_xct_freeing_space)  {
 	xct_t*	xd = new xct_t();
@@ -191,14 +219,16 @@ restart_m::recover(lsn_t master)
 	<< xct_t::youngest_tid() << flushl;
     smlevel_0::errlog->clog << info_prio << "Restart successful." << flushl;
 
-#ifdef DEBUG
+#if defined(W_DEBUG) || defined(W_TRACE)
     {
 	DBG(<<"TX TABLE at end of recovery:");
 	xct_i iter;
 	xct_t* xd;
 	while ((xd = iter.next()))  {
 	    w_assert1(xd->state()==xct_t::xct_prepared);
+#ifdef W_TRACE
 	    server_handle_t ch = xd->get_coordinator();
+#endif
 
 	    DBG(<< "transaction " << xd->tid() 
 		<< " has state " << xd->state()
@@ -207,7 +237,7 @@ restart_m::recover(lsn_t master)
 	}
 	DBG(<<"END TX TABLE at end of recovery:");
     }
-#endif /* DEBUG */
+#endif /* W_DEBUG */
 }
 
 /*********************************************************************
@@ -234,7 +264,7 @@ restart_m::analysis_pass(
     found_xct_freeing_space = false;
     if (master == null_lsn) return;
 
-    smlevel_0::in_analysis = true;
+    smlevel_0::operating_mode = smlevel_0::t_in_analysis;
 
     /*
      *  Open a forward scan
@@ -275,6 +305,7 @@ restart_m::analysis_pass(
 	 *  Scan next record
 	 */
 	LOGTRACE( << lsn << " A: " << r );
+
 	xct_t* xd = 0;
 
 	/*
@@ -397,13 +428,16 @@ restart_m::analysis_pass(
 	
 	case logrec_t::t_dismount_vol:
 	case logrec_t::t_mount_vol:
-	    /* JK: perform all mounts and dismounts up to the minimum redo lsn, so that the system
-	     * has the right volumes mounted during the redo phase.  the only time the this should
-	     * be redone is when no dirty pages were in the checkpoint and a mount/dismount occurs
-	     * before the first page is dirtied after the checkpoint.  the case of the first dirty
-	     * page occuring before the checkpoint is handled by undoing mounts/dismounts back to
-	     * to the min dirty page lsn in the analysis_pass after the log has been scanned.
-	     */
+	    /* JK: perform all mounts and dismounts up to the minimum redo lsn,
+	    * so that the system has the right volumes mounted during 
+	    * the redo phase.  the only time the this should  be redone is 
+	    * when no dirty pages were in the checkpoint and a 
+	    * mount/dismount occurs  before the first page is dirtied after 
+	    * the checkpoint.  the case of the first dirty  page occuring 
+	    * before the checkpoint is handled by undoing mounts/dismounts 
+	    * back to the min dirty page lsn in the analysis_pass 
+	    * after the log has been scanned.
+	    */
 	    w_assert3(num_chkpt_end_handled > 0);  // mount & dismount shouldn't happen during a check point
 	    if (lsn < dptab.min_rec_lsn())  {
 		r.redo(0);
@@ -415,16 +449,22 @@ restart_m::analysis_pass(
 	     *  Done with the master checkpoint record. Flag true 
 	     *  to avoid processing an incomplete checkpoint.
 	     */
-#ifdef DEBUG
+#ifdef W_DEBUG
 	    {
-		const lsn_t* l = (lsn_t*) r.data();
-		const lsn_t* l2 = ++l;
+		lsn_t l, l2;
+		volatile unsigned long i = sizeof(lsn_t); 
+			// GROT: stop gcc from 
+			// optimizing memcpy into something that 
+			// chokes on sparc due to misalignment
 
-		DBG(<<"checkpt end: master=" << *l 
-		    << " min_rec_lsn= " << *l2);
+		memcpy(&l, (lsn_t*) r.data(), i);
+		memcpy(&l2, ((lsn_t*) r.data())+1, i);
 
-		if(lsn == *l) {
-		    w_assert3(*l2 == dptab.min_rec_lsn());
+		DBG(<<"checkpt end: master=" << l 
+		    << " min_rec_lsn= " << l2);
+
+		if(lsn == l) {
+		    w_assert3(l2 == dptab.min_rec_lsn());
 		}
 	    }
 
@@ -436,16 +476,18 @@ restart_m::analysis_pass(
 		 * update the master record (move the pointer to the last
 		 * checkpoint)
 		 */
-		smlevel_0::errlog->clog << "Error: more than 2 complete checkpoints found! " <<flushl;
+		smlevel_0::errlog->clog  << error_prio
+		<< "Warning: more than 2 complete checkpoints found! " 
+		<<flushl;
 		/* 
 		 * comment out the following if you are testing
 		 * a situation that involves a crash at the
 		 * critical point
 		 */
-		w_assert1(0);
+		// w_assert3(0);
 	    }
 
-#endif /*DEBUG*/
+#endif /*W_DEBUG*/
 
 	    num_chkpt_end_handled++;
 	    break;
@@ -467,14 +509,15 @@ restart_m::analysis_pass(
 			 */
 		    me()->attach_xct(xd);	
 		    // release all locks (1st true) and don't free extents which hold locks (2nd true)
-		    W_COERCE( lm->unlock_duration(t_long, true, true) )
+		    W_COERCE( lm->unlock_duration(t_long, true, true) );
 		    me()->detach_xct(xd);	
 		}
 	    xd->change_state(xct_t::xct_ended);
 	    delete xd;
 	    break;
 
-	default:
+	default: {
+	    lpid_t page_of_interest = r.construct_pid();
 	    if (r.is_page_update()) {
 		if (r.is_undo()) {
 		    /*
@@ -482,13 +525,14 @@ restart_m::analysis_pass(
 		     */
 		    xd->set_undo_nxt(lsn);
 		}
-		if (r.is_redo() && !(dptab.look_up(r.pid()))) {
+		if (r.is_redo() && !(dptab.look_up(page_of_interest))) {
 		    /*
 		     *  r is redoable and not in dptab ...
 		     *  Register a new dirty page.
 		     */
-		    DBG(<<"dptab.insert dirty pg " << r.pid() << " " << lsn);
-		    dptab.insert( r.pid(), lsn );
+		    DBG(<<"dptab.insert dirty pg " << page_of_interest 
+			<< " " << lsn);
+		    dptab.insert( page_of_interest, lsn );
 		}
 
 	    } else if (r.is_cpsn()) {
@@ -504,18 +548,20 @@ restart_m::analysis_pass(
 		} else {
 		    xd->set_undo_nxt(r.undo_nxt());
 		}
-		if (r.is_redo() && !(dptab.look_up(r.pid()))) {
+		if (r.is_redo() && !(dptab.look_up(page_of_interest))) {
 		    /*
 		     *  r is redoable and not in dptab ...
 		     *  Register a new dirty page.
 		     */
-		    DBG(<<"dptab.insert dirty pg " << r.pid() << " " << lsn);
-		    dptab.insert( r.pid(), lsn );
+		    DBG(<<"dptab.insert dirty pg " << page_of_interest 
+			<< " " << lsn);
+		    dptab.insert( page_of_interest, lsn );
 		}
 	    } else if (r.type()!=logrec_t::t_comment) {
 		W_FATAL(eINTERNAL);
 	    }
-	}
+	}// case default
+	}// switch
     }
 
     /*
@@ -531,27 +577,41 @@ restart_m::analysis_pass(
 		? "redoing mounts/dismounts before chkpt but after redo_lsn"  \
 		: "no mounts/dismounts need to be redone"));
 
+    { // Contain the scope of the following __copy__buf:
+
+    logrec_t* __copy__buf = new logrec_t;
+    if(! __copy__buf) { W_FATAL(eOUTOFMEMORY); }
+    w_auto_delete_t<logrec_t> auto_del(__copy__buf);
+    logrec_t& 	copy = *__copy__buf;
+
     while (theLastMountLSNBeforeChkpt != lsn_t::null 
 	&& theLastMountLSNBeforeChkpt > redo_lsn)  {
-	W_COERCE(log->fetch(theLastMountLSNBeforeChkpt, log_rec_buf));  
+
+	W_COERCE(log->fetch(theLastMountLSNBeforeChkpt, log_rec_buf, 0));  
+
 	// HAVE THE LOG_M MUTEX
 	// We have to release it in order to do the mount/dismounts
-	// so we make a copy of the log record
+	// so we make a copy of the log record (log_rec_buf points
+	// into the log_m's copy, and thus we have the mutex.`
 
 	logrec_t& r = *log_rec_buf;
-	logrec_t 	copy = r;
+
+	/* Only copy the valid portion of the log record. */
+	memcpy(__copy__buf, &r, r.length());
 	log->release();
 
 	DBG( << theLastMountLSNBeforeChkpt << ": " << copy );
 
 	w_assert3(copy.type() == logrec_t::t_dismount_vol || 
-	    copy.type() == logrec_t::t_mount_vol);
+		    copy.type() == logrec_t::t_mount_vol);
 
 	chkpt_dev_tab_t *dp = (chkpt_dev_tab_t*)copy.data();
 	w_assert3(dp->count == 1);
 
-	// it is ok if the mount/dismount fails, since this may be caused by the destruction
-	// of the volume.  if that was the case then there won't be updates that need to be
+	// it is ok if the mount/dismount fails, since this 
+	// may be caused by the destruction
+	// of the volume.  if that was the case then there 
+	// won't be updates that need to be
 	// done/undone to this volume so it doesn't matter.
 	if (copy.type() == logrec_t::t_dismount_vol)  {
 	    W_IGNORE(io_m::mount(dp->devrec[0].dev_name, dp->devrec[0].vid));
@@ -561,6 +621,10 @@ restart_m::analysis_pass(
 
 	theLastMountLSNBeforeChkpt = copy.prev();
     }
+    // close scope so the
+    // auto-release will free the log rec copy buffer, __copy__buf
+    } 
+
     io_m::SetLastMountLSN(theLastMountLSNBeforeChkpt);
 
     /*
@@ -588,7 +652,14 @@ restart_m::analysis_pass(
 	    }
 	}
     }
-    smlevel_0::in_analysis = false;
+    {
+	w_base_t::base_stat_t f = GET_STAT(log_fetches);
+	w_base_t::base_stat_t i = GET_STAT(log_inserts);
+	smlevel_0::errlog->clog << info_prio 
+	    << "after analysis_pass: " 
+	    << f << " log_fetches, " 
+	    << i << " log_inserts " << flushl;
+    }
 }
 
 
@@ -601,24 +672,22 @@ restart_m::analysis_pass(
  *  apply redo if durable page is old.
  *
  *********************************************************************/
-#ifndef DEBUG
-#define highest_lsn /* highes_lsn not used */
-#endif
 void 
 restart_m::redo_pass(
     lsn_t redo_lsn, 
-    const lsn_t &highest_lsn, 
+    const lsn_t & W_IFDEBUG(highest_lsn),
     dirty_pages_tab_t& dptab
 )
-#undef highest_lsn
 {
     FUNC(restart_m::redo_pass);
+    smlevel_0::operating_mode = smlevel_0::t_in_redo;
 
     AutoTurnOffLogging turnedOnWhenDestroyed;
 
     /*
      *  Open a scan
      */
+    DBG(<<"Start redo scanning at redo_lsn = " << redo_lsn);
     log_i scan(*log, redo_lsn);
 
     /*
@@ -646,7 +715,7 @@ restart_m::redo_pass(
 	bool redone = false;
 	LOGTRACE( << lsn << " R: " << r );
 	if ( r.is_redo() ) {
-	    if (r.pid() == lpid_t::null) {
+	    if (r.null_pid()) {
 		/*
 		 * Handle prepare stuff
 		 * if the transaction is still
@@ -673,13 +742,18 @@ restart_m::redo_pass(
 			}
 		    }
 		}  else  {
-		    // JK: redo mounts and dismounts, at the start of redo, all the volumes which
-		    // were mounted at the redo lsn should be mounted.  need to do this to take
-		    // care of the case of creating a volume which mounts the volume under a temporary
-		    // volume id inorder to create stores and initialize the volume.  this temporary
+		    // JK: redo mounts and dismounts, at the start of redo, 
+		    // all the volumes which
+		    // were mounted at the redo lsn should be mounted.  
+		    // need to do this to take
+		    // care of the case of creating a volume which mounts the 
+			// volume under a temporary
+		    // volume id inorder to create stores and initialize the 
+			// volume.  this temporary
 		    // volume id can be reused, which is why this must be done.
 
-		    w_assert3(r.type() == logrec_t::t_dismount_vol || r.type() == logrec_t::t_mount_vol);
+		    w_assert3(r.type() == logrec_t::t_dismount_vol || 
+				r.type() == logrec_t::t_mount_vol);
 		    DBG(<<"redo - no page, no xct ");
 		    r.redo(0);
 			io_m::SetLastMountLSN(lsn);
@@ -687,147 +761,175 @@ restart_m::redo_pass(
 		}
 
 	    } else {
-		if(dptab.look_up(r.pid(), &rec_lsn) && lsn >= *rec_lsn)  {
-		/*
-		 *  We are only concerned about log records that involve
-		 *  page updates.
-		 */
-		DBG(<<"redo page update, pid " 
-			<< r.pid() 
-			<< " dirty page lsn: "  << *rec_lsn
-			);
-		w_assert1(r.pid().page); 
+		lpid_t	page_updated = r.construct_pid();
+		if(dptab.look_up(page_updated, &rec_lsn) && lsn >= *rec_lsn)  {
+		    /*
+		     *  We are only concerned about log records that involve
+		     *  page updates.
+		     */
+		    DBG(<<"redo page update, pid " 
+			    << r.shpid() 
+			    << " dirty page lsn: "  << *rec_lsn
+			    );
+		    w_assert1(r.shpid()); 
 
-		/*
-		 *  Fix the page.
-		 */ 
-		page_p page;
+		    /*
+		     *  Fix the page.
+		     */ 
+		    page_p page;
 
-		/* 
-		 * The following code determines whether to perform
-		 * redo on the page.  If the log record is for a page
-		 * format (page_init) then there are two possible
-		 * implementations.
-		 * 
-		 * 1) Trusted LSN on New Pages
-		 *   If we assume that the LSNs on new pages can always be
-		 *   trusted then the code reads in the page and 
-		 *   checks the page lsn to see if the log record
-		 *   needs to be redone.  Note that this requires that
-		 *   pages on volumes stored on a raw device must be
-		 *   zero'd when the volume is created.
-		 * 
-		 * 2) No Trusted LSN on New Pages
-		 *   If new pages are not in a known (ie. lsn of 0) state
-		 *   then when a page_init record is encountered, it
-		 *   must always be redone and therefore all records after
-		 *   it must be redone.
-		 *   
-		 * These are selected by the preprocessor symbol
-		 * DONT_TRUST_PAGE_LSN (defined in shore.def).
-		 */
+		    /* 
+		     * The following code determines whether to perform
+		     * redo on the page.  If the log record is for a page
+		     * format (page_init) then there are two possible
+		     * implementations.
+		     * 
+		     * 1) Trusted LSN on New Pages
+		     *   If we assume that the LSNs on new pages can always be
+		     *   trusted then the code reads in the page and 
+		     *   checks the page lsn to see if the log record
+		     *   needs to be redone.  Note that this requires that
+		     *   pages on volumes stored on a raw device must be
+		     *   zero'd when the volume is created.
+		     * 
+		     * 2) No Trusted LSN on New Pages
+		     *   If new pages are not in a known (ie. lsn of 0) state
+		     *   then when a page_init record is encountered, it
+		     *   must always be redone and therefore all records after
+		     *   it must be redone.
+		     *   
+		     * These are selected by the preprocessor symbol
+		     * DONT_TRUST_PAGE_LSN (defined in shore.def).
+		     */
 #ifndef DONT_TRUST_PAGE_LSN
-		store_flag_t store_flags = st_bad;
-		DBG(<< "TRUST_PAGE_LSN");
-		W_COERCE( page.fix(r.pid(), 
-				page_p::t_any_p, 
-				LATCH_EX, 
-				0,  // page_flags
-				store_flags,
-				true // ignore store_id
-				) );
+		    store_flag_t store_flags = st_bad;
+		    DBG(<< "TRUST_PAGE_LSN");
+		    W_COERCE( page.fix(page_updated,
+				    page_p::t_any_p, 
+				    LATCH_EX, 
+				    0,  // page_flags
+				    store_flags,
+				    true // ignore store_id
+				    ) );
 
-#ifdef DEBUG
-		if(r.pid() != page.pid()) {
-                    DBG(<<"Pids don't match: expected " << r.pid()
-                        << " got " << page.pid());
-                }
-#endif /* DEBUG */
+#ifdef W_DEBUG
+		    if(page_updated != page.pid()) {
+			DBG(<<"Pids don't match: expected " << page_updated
+			    << " got " << page.pid());
+		    }
+#endif /* W_DEBUG */
 
-		lsn_t page_lsn = page.lsn();
-		DBG(<<" page lsn " << page_lsn);
-		if (page_lsn < lsn) 
+		    lsn_t page_lsn = page.lsn();
+		    DBG(<<" page lsn " << page_lsn);
+		    if (page_lsn < lsn) 
 #else
-		DBG(<< "DON'T TRUST_PAGE_LSN");
-		uint4_t page_flags = 0;
-		if (r.type() == logrec_t::t_page_init
-		    || r.type() == logrec_t::t_page_format) {
-		    page_flags = page_p::t_virgin;
-		}
-		W_COERCE( page.fix(r.pid(), 
-			page_p::t_any_p, 
-			LATCH_EX, 
-			page_flags, 
-			page_p::st_bad,  // store flags
-			true // ignore store id
-			) );
-
-		lsn_t page_lsn = page.lsn();
-		DBG(<<" page lsn " << page_lsn);
-		if (page_lsn < lsn ||  (page_flags & page_p::t_virgin)) 
-#endif /* ndef DONT_TRUST_PAGE_LSN */
-	
-		{
-		    /*
-		     *  Redo must be performed if page has lower lsn 
-		     *  than record
-		     */
-		    xct_t* xd = 0; 
-		    if (r.tid() != null_tid)  { 
-			if ((xd = xct_t::look_up(r.tid())))  {
-			    /*
-			     * xd will be aborted following redo
-			     * thread attached to xd to make sure that
-			     * redo is correct for the transaction
-			     */
-			    me()->attach_xct(xd);
-			}
+		    DBG(<< "DON'T TRUST_PAGE_LSN");
+		    uint4_t page_flags = 0;
+		    if (r.type() == logrec_t::t_page_init
+					|| r.type() == logrec_t::t_page_format) {
+					page_flags = page_p::t_virgin;
 		    }
+		    smlevel_0::store_flag_t store_flags = smlevel_0::st_bad;
+		    W_COERCE( page.fix(page_updated, 
+			    page_p::t_any_p, 
+			    LATCH_EX, 
+			    page_flags, 
+			    store_flags,  // store flags
+			    true // ignore store id
+			    ) );
 
-		    /*
-		     *  Perform the redo. Do not generate log.
-		     */
+		    lsn_t page_lsn = page.lsn();
+		    DBG(<<" page lsn " << page_lsn);
+		    if (page_lsn < lsn ||  (page_flags & page_p::t_virgin)) 
+#endif /* ifndef DONT_TRUST_PAGE_LSN */
+	    
 		    {
-			redone = true;
-			// remember the tid for space resv hack.
-			_redo_tid = r.tid();
-			r.redo(page ? &page : 0);
-			_redo_tid = tid_t::null;
-			page.set_lsn(lsn);	/* page is updated */
+			/*
+			 *  Redo must be performed if page has lower lsn 
+			 *  than record.
+			 *
+			 * NB: this business of attaching the xct isn't
+			 * all that reliable.  If the xct was found, during
+			 * analysis, to have committed, the xct won't be found
+			 * in the table, yet we might have to redo the records
+			 * anyway.  For that reason, not only do we attach it,
+			 * but we also stuff it into a global variable, redo_tid.
+			 * This is redundant, and we should fix this.  The 
+			 * RIGHT thing to do is to leave the xct in the table
+			 * after analysis, and make xct_end redo-able -- at that
+			 * point, we should remove the xct from the table.
+			 */
+			xct_t* xd = 0; 
+			if (r.tid() != null_tid)  { 
+			    if ((xd = xct_t::look_up(r.tid())))  {
+				/*
+				 * xd will be aborted following redo
+				 * thread attached to xd to make sure that
+				 * redo is correct for the transaction
+				 */
+				me()->attach_xct(xd);
+			    }
+			}
+
+			/*
+			 *  Perform the redo. Do not generate log.
+			 */
+			{
+			    redone = true;
+			    // remember the tid for space resv hack.
+			    _redo_tid = r.tid();
+			    r.redo(page.is_fixed() ? &page : 0);
+			    _redo_tid = tid_t::null;
+			    page.set_lsn(lsn);	/* page is updated */
+			}
+			    
+			if (xd) me()->detach_xct(xd);
+			    
+		    } else 
+#ifdef W_DEBUG
+		    if(page_lsn >= highest_lsn) {
+			cerr << "WAL violation! page " 
+			<< page.pid()
+			<< " has lsn " << page_lsn
+			<< " end of log is record prior to " << highest_lsn
+			<< endl;
+
+			W_FATAL(eINTERNAL);
+		    } else
+#endif /* W_DEBUG */
+		    {
+			/*
+			 *  Increment recovery lsn of page to indicate that 
+			 *  the page is younger than this record
+			 */
+			*rec_lsn = page_lsn.advance(1);
 		    }
-			
-		    if (xd) me()->detach_xct(xd);
-			
-		} else 
-#ifdef DEBUG
-		if(page_lsn >= highest_lsn) {
-		    cerr << "WAL violation! page " 
-		    << page.pid()
-		    << " has lsn " << page_lsn
-		    << " end of log is record prior to " << highest_lsn
-		    << endl;
 
-		    W_FATAL(eINTERNAL);
-		} else
-#endif
-		{
-		    /*
-		     *  Increment recovery lsn of page to indicate that 
-		     *  the page is younger than this record
-		     */
-		    *rec_lsn = page_lsn.advance(1);
+		    // page.destructor is supposed to do this:
+		    // page.unfix();
+		} else {
+		    DBG(<<"log record= " << lsn 
+			<< " page=" << r.shpid()
+			<< " page rec_lsn=" << 
+			(lsn_t)(rec_lsn?(*rec_lsn):(lsn_t::null))
+			);
 		}
-
-		// page.destructor is supposed to do this:
-		// page.unfix();
-	    }
 	    }
 	}
 	LOGTRACE( << (redone ? " redo" : " skip") );
     }
+    {
+	w_base_t::base_stat_t f = GET_STAT(log_fetches);
+	w_base_t::base_stat_t i = GET_STAT(log_inserts);
+	smlevel_0::errlog->clog << info_prio 
+	    << "after redo_pass: "
+	    << f << " log_fetches, " 
+	    << i << " log_inserts " << flushl;
+    }
 }
 
 
+#ifdef NOTDEF
 
 /*********************************************************************
  *
@@ -847,13 +949,16 @@ private:
     xct_t*			_xd;
 };
 
+#endif /* NOTDEF */
+
 
 /*********************************************************************
  *
  *  restart_m::undo_pass()
  *
- *  For each active transaction, fork an sm_undo_thread_t (worker)
- *  to abort the transaction.
+ *  abort all the active transactions, doing so in a strictly reverse
+ *  chronological order, which prevents recovery errors due to
+ *  physiological logging.
  *
  *********************************************************************/
 void 
@@ -861,79 +966,63 @@ restart_m::undo_pass()
 {
     FUNC(restart_m::undo_pass);
 
-    int count = 0;
-    sm_undo_thread_t* worker[max_xcts];
+    smlevel_0::operating_mode = smlevel_0::t_in_undo;
 
-    /*
-     *  Fork workers
-     */
-    xct_t* xd;
+    CmpXctUndoLsns	cmp;
+    XctPtrHeap		heap(cmp);
+    xct_t*		xd;
 
-#define CAREFUL_RESTART
-#ifdef CAREFUL_RESTART
-
-    /*
-     * NB: this is NOT SUFFICIENT to deal with the
-     * restart-undo processing of btrees, but it
-     * reduces the window of opportunity for multi-user
-     * crash problems.  The ONLY real fix is for restart-undo 
-     * to guarantee processing in reverse chronological order.
-     */
-	{
+    {
 	xct_i iter;
 	while ((xd = iter.next()))  {
-	    w_assert1(  xd->state() == xct_t::xct_active ||
-			xd->state() == xct_t::xct_prepared);
-	    DBG(<< "Transaction " << xd->tid() 
-		<< " has state " << xd->state()
-		<< " has latches " << xd->recovery_latches()
-		);
-	    if(xd->state() == xct_t::xct_active && xd->recovery_latches()>0) {
-		w_assert1(count <  max_xcts);
-		smlevel_0::errlog->clog << info_prio 
-		    << "Undo SMO xct: " << xd->tid() << flushl;
-		worker[count] = new sm_undo_thread_t(xd);
-		if (! worker[count])  {
-		    W_FATAL(eOUTOFMEMORY);
-		}
-		W_COERCE(worker[count]->fork());
-		++count;
+	    DBG( << "Transaction " << xd->tid() << " has state " << xd->state() );
+
+	    if (xd->state() == xct_t::xct_active)  {
+		heap.AddElementDontHeapify(xd);
 	    }
 	}
-	/*
-	 *  Wait for first set of workers to finish
-	 */
-	for (int i = 0; i < count; i++) {
-	    W_IGNORE( worker[i]->wait() );
-	    delete worker[i];
-	}
-    }
-#endif
-    xct_i iter;
-    count = 0;
-    while ((xd = iter.next()))  {
-	w_assert1(  xd->state() == xct_t::xct_active ||
-		    xd->state() == xct_t::xct_prepared);
-	DBG(<< "Transaction " << xd->tid() << " has state " << xd->state());
-	if(xd->state() == xct_t::xct_active) {
-	    w_assert1(count <  max_xcts);
-	    smlevel_0::errlog->clog << info_prio 
-		<< "Parallel undo xct: " << xd->tid() << flushl;
-	    worker[count] = new sm_undo_thread_t(xd);
-	    if (! worker[count])  {
-		W_FATAL(eOUTOFMEMORY);
-	    }
-	    W_COERCE(worker[count]->fork());
-	    ++count;
+
+	heap.Heapify();
+    }  // destroy iter
+
+    // rollback the xct with the largest lsn until the 2nd largest lsn,
+    // and repeat until all xct's are rolled back completely
+
+    if (heap.NumElements() > 1)  {
+	while (heap.First()->undo_nxt() != lsn_t::null)  {
+	    xd = heap.First();
+
+	    DBG( << "Transaction " << xd->tid() << " with undo_nxt lsn " << xd->undo_nxt()
+		 << " rolling back to " << heap.Second()->undo_nxt() );
+
+	    me()->attach_xct(xd);
+	    W_COERCE( xd->rollback(heap.Second()->undo_nxt()) );
+	    me()->detach_xct(xd);
+
+	    w_assert3(xd->undo_nxt() < heap.Second()->undo_nxt() || xd->undo_nxt() == lsn_t::null);
+
+	    heap.ReplacedFirst();
 	}
     }
 
-    /*
-     *  Wait for workers to finish
-     */
-    for (int i = 0; i < count; i++) {
-	W_IGNORE( worker[i]->wait() );
-	delete worker[i];
+    // all xct are completely rolled back, now abort them all
+
+    while (heap.NumElements() > 0)  {
+	xd = heap.RemoveFirst();
+
+	w_assert3(xd->undo_nxt() == lsn_t::null || heap.NumElements() == 0);
+
+	me()->attach_xct(xd);
+	W_COERCE( xd->abort() );
+	delete xd;
+    }
+    {
+	w_base_t::base_stat_t f = GET_STAT(log_fetches);
+	w_base_t::base_stat_t i = GET_STAT(log_inserts);
+	smlevel_0::errlog->clog << info_prio 
+	    << "after redo_pass: "
+	    << f << " log_fetches, " 
+	    << i << " log_inserts " << flushl;
     }
 }
 
@@ -1089,6 +1178,7 @@ dirty_pages_tab_t::remove(const lpid_t& pid)
 
 
 
+#ifdef NOTDEF
 /*********************************************************************
  *
  *  sm_undo_thread_t::sm_undo_thread_t(xd)
@@ -1121,3 +1211,6 @@ sm_undo_thread_t::run()
 
     delete _xd;
 }
+
+#endif /* NOTDEF */
+

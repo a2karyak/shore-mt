@@ -1,21 +1,40 @@
-/* --------------------------------------------------------------- */
-/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
-/* -- University of Wisconsin-Madison, subject to the terms     -- */
-/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
-/* -- Reserved.                                                 -- */
-/* --------------------------------------------------------------- */
+/*<std-header orig-src='shore'>
 
+ $Id: w_timer.cpp,v 1.32 1999/06/07 19:02:58 kupsch Exp $
+
+SHORE -- Scalable Heterogeneous Object REpository
+
+Copyright (c) 1994-99 Computer Sciences Department, University of
+                      Wisconsin -- Madison
+All Rights Reserved.
+
+Permission to use, copy, modify and distribute this software and its
+documentation is hereby granted, provided that both the copyright
+notice and this permission notice appear in all copies of the
+software, derivative works or modified versions, and any portions
+thereof, and that both notices appear in supporting documentation.
+
+THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+"AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+This software was developed with support by the Advanced Research
+Project Agency, ARPA order number 018 (formerly 8230), monitored by
+the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+Further funding for this work was provided by DARPA through
+Rome Research Laboratory Contract No. F30602-97-2-0247.
+
+*/
+
+#include "w_defines.h"
+
+/*  -- do not edit anything above this line --   </std-header>*/
 
 #ifdef __GNUC__
 #pragma implementation
-
-#if __GNUC__ >= 2 && __GNUC_MINOR__ > 6
-/* gcc 2.7.2 has bogus warning messages; it doesn't inherit pointer
-   properties correctly */
-#define	GCC_IS_BOGUS
 #endif
 
-#endif
 
 #define W_SOURCE
 
@@ -24,7 +43,7 @@
 #include <stime.h>
 #include <w_timer.h>
 
-#ifdef GCC_IS_BOGUS
+#if defined(GNUG_BUG_15) || defined(VCPP_BUG_5)
 #define	GCC_PIBUG(type)	(type)
 #else
 #define	GCC_PIBUG(type)
@@ -32,12 +51,12 @@
 
 
 w_timer_t::w_timer_t(const stime_t &when)
-: _next(this),
-  _prev(this),
-  _queue(0),
+: _queue(0),
   _when(when),
   _fired(false)
 {
+	_next = this;
+	_prev = this;
 }
 
 
@@ -50,8 +69,8 @@ w_timer_t::~w_timer_t()
 	   that prev/next point to ourself */
 
 	if (!(_next == this  && _prev == this)) {
-		W_FORM(cerr)("w_timer_t(%#lx): destructed in eventQ(%#lx) !!!\n",
-			  (long)this, (long)_queue);
+		W_FORM2(cerr, ("w_timer_t(%#lx): destructed in eventQ(%#lx) !!!\n",
+			  (long)this, (long)_queue));
 	}
 }
 
@@ -85,9 +104,9 @@ void	w_timer_t::reset(const stime_t &when)
 
 ostream	&w_timer_t::print(ostream &s) const
 {
-	W_FORM(s)("w_timer_t(%#lx) fire%s at ",
+	W_FORM2(s, ("w_timer_t(%#lx) fire%s at ",
 		  (long) this,
-		  _fired ? "d" : "s");
+		  _fired ? "d" : "s"));
 	s << _when;
 	return s;
 }
@@ -106,8 +125,8 @@ w_timerqueue_t::~w_timerqueue_t()
 	if (isEmpty())
 		return;
 
-	W_FORM(cerr)("timerqueue_t(%#lx): destroy untriggered events ...\n",
-		  (long)this);
+	W_FORM2(cerr,("timerqueue_t(%#lx): destroy untriggered events ...\n",
+		  (long)this));
 
 	for (event = _queue._next; event != &_queue; event = _queue._next) { 
 		event->detach();
@@ -191,7 +210,7 @@ ostream &w_timerqueue_t::print(ostream &s) const
 {
 	w_timer_t	*event;
 
-	W_FORM(s)("w_timerqueue_t(%#lx):", (long) this);
+	W_FORM2(s,("w_timerqueue_t(%#lx):", (long) this));
 
 	event = _queue._next;
 	if (event == GCC_PIBUG(w_timer_t *)&_queue) {
@@ -206,3 +225,4 @@ ostream &w_timerqueue_t::print(ostream &s) const
 
 	return s;
 }
+

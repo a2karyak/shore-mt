@@ -1,13 +1,35 @@
-/* --------------------------------------------------------------- */
-/* -- Copyright (c) 1994,5,6,7 Computer Sciences Department,    -- */
-/* -- University of Wisconsin-Madison, subject to the terms     -- */
-/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
-/* -- Reserved.                                                 -- */
-/* --------------------------------------------------------------- */
+/*<std-header orig-src='shore'>
 
-/*
- *  $Id: sm_mappings.cc,v 1.17 1997/06/15 10:30:24 solomon Exp $
- */
+ $Id: sm_mappings.cpp,v 1.33 1999/06/07 19:05:00 kupsch Exp $
+
+SHORE -- Scalable Heterogeneous Object REpository
+
+Copyright (c) 1994-99 Computer Sciences Department, University of
+                      Wisconsin -- Madison
+All Rights Reserved.
+
+Permission to use, copy, modify and distribute this software and its
+documentation is hereby granted, provided that both the copyright
+notice and this permission notice appear in all copies of the
+software, derivative works or modified versions, and any portions
+thereof, and that both notices appear in supporting documentation.
+
+THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+"AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+This software was developed with support by the Advanced Research
+Project Agency, ARPA order number 018 (formerly 8230), monitored by
+the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+Further funding for this work was provided by DARPA through
+Rome Research Laboratory Contract No. F30602-97-2-0247.
+
+*/
+
+#include "w_defines.h"
+
+/*  -- do not edit anything above this line --   </std-header>*/
 
 /* 
  * Code for testing the functions of the 2PC coordinator 
@@ -19,12 +41,11 @@
 #pragma implementation
 #endif
 
-#include <sm_int_4.h>
+#include <sm_vas.h>
 #include <sm_mappings.h>
 #include <coord.h>
-#include <debug.h>
+#include <w_debug.h>
 
-#define DBGTHRD(arg) DBG(<<" th."<<me()->id << " " arg)
 /*
  **************************************************************************
  * mapping for coordinator
@@ -78,7 +99,6 @@ ep_map::name2endpoint(const server_handle_t &s, Endpoint &ep)
 
     if(find(s, j)) {
 	W_DO(_box.get(j, ep));
-	if( ep.mep()->isDead() ) return RC(scDEAD);
 	DBG(<<" about to .acquire() on ep " << ep);
 
 	ep.acquire();
@@ -103,12 +123,11 @@ ep_map::endpoint2name(const Endpoint &ep, server_handle_t &s)
 
     if(find(ep, j)) {
 	s = _slist[j];
-#ifdef DEBUG
+#ifdef W_TRACE
 	/*
 	DBG(<<"ep_map::endpoint2name ep=" );
-	_debug.clog <<"endpoint2name: ";
-	    ep.print(_debug.clog);
-	_debug.clog <<" <--> " << (char *)&s._opaque[0] << flushl;
+	_debug.clog <<"endpoint2name: " 
+		<< ep <<" <--> " << s << flushl;
 	*/
 #endif
 	return RCOK;
@@ -122,7 +141,7 @@ ep_map::endpoint2name(const Endpoint &ep, server_handle_t &s)
 bool
 ep_map::find(const Endpoint &ep, int &i)
 {
-    w_assert3(_slist_size <= _box.size());
+    w_assert3(_slist_size <= (int)_box.size());
     Endpoint    x;
     rc_t        rc;
     for(i=0; i< _slist_size; i++) {
@@ -145,7 +164,7 @@ ep_map::clear()
 {
     int i;
     if(_slist) {
-        w_assert3(_slist_size <= _box.size());
+        w_assert3(_slist_size <= (int)_box.size());
         Endpoint        x;
         rc_t    rc;
         for(i=0; i< _slist_size; i++) {
@@ -162,7 +181,7 @@ ep_map::clear()
 		<< " name " << _slist[i]
 		<< " " << x
 		);
-	    if(x.mep()->refs() > 3) {
+	    if(x.refs() > 3) {
 		cerr << "WARNING: clearing map with #refs>3: " << x << endl;
 	    }
             x.release();
@@ -219,19 +238,21 @@ ep_map::add(int num, const char **list)
             // get the equiv Endpoint
 	    // NB: nameserver wants a null-terminated
 	    // string for the name
-            W_DO(_ns->lookup((const char *)s, ep));
-#ifdef DEBUG
+	    ostrstream ss;
+	    ss << s << ends;
+            w_rc_t e = _ns->lookup(ss.str(), ep);
+	    delete [] ss.str();
+	    W_DO(e);
+#ifdef W_TRACE
 	    _debug.clog << _slist_size << ": NS: " 
-	    << s << " <-->  ";
-	    ep.print(_debug.clog); _debug.clog << flushl;
+		    << s << " <-->  " <<  ep << flushl;
 #endif 
 	    w_assert3(ep);
 	    w_assert3(ep.is_valid());
-	    w_assert3( ! ep.mep()->isDead() );
 
 	    /*
-	    w_assert3(ep.mep()->refs() > 0 
-		    && ep.mep()->refs() <= 3
+	    w_assert3(ep.refs() > 0 
+		    && ep.refs() <= 3
 		);
 	    */
 
@@ -241,7 +262,7 @@ ep_map::add(int num, const char **list)
             _slist[_slist_size-1] = s; // make a copy
 
             // stash it in the box
-            W_DO(_box.insert(_slist_size-1, ep));
+            W_DO(_box.set(_slist_size-1, ep));
 	    DBGTHRD(<<" added as entry @ " 
 		<< _slist_size-1 
 		<<  " " << c << " <--> " << ep);
@@ -259,9 +280,9 @@ ep_map::refresh(const char *c, Endpoint& given, bool force_lookup)
     server_handle_t     s(c);
 
    DBG(<<"refresh: given= " << given);
-#ifdef DEBUG
+#if defined(W_TRACE) || defined(NOTDEF)
     // TODO: remove this check
-    unsigned int refs = given.is_valid()? given.mep()->refs() : 0;
+    unsigned int refs = given.is_valid()? given.refs() : 0;
     unsigned int refsh = 0;
 #endif
 
@@ -274,8 +295,8 @@ ep_map::refresh(const char *c, Endpoint& given, bool force_lookup)
 	    DBG(<<"returning early - found && no force");
 	    return RCOK;
 	} 
-#ifdef DEBUG
-	refsh = held.is_valid()? held.mep()->refs() : 0;
+#if defined(W_TRACE) || defined(NOTDEF)
+	refsh = held.is_valid()? held.refs() : 0;
 #endif
 	held.release();
 	// If held==given, given is down one 
@@ -287,7 +308,12 @@ ep_map::refresh(const char *c, Endpoint& given, bool force_lookup)
     // NB: nameserver wants a null-terminated
     // string for the name
 
-    W_DO(_ns->lookup((const char *)s, given));
+    ostrstream	ss;
+    ss << s << ends;
+    w_rc_t e = _ns->lookup(ss.str(), given);
+    delete [] ss.str();
+    W_DO(e);
+
     // Now given might be a *new* endpoint altogether.
 
     // if held==given, given is even, even if given
@@ -307,29 +333,29 @@ ep_map::refresh(const char *c, Endpoint& given, bool force_lookup)
     // TODO:  get this cleaned up
     w_assert3( 
 	((held == given) && 
-		(refs == given.mep()->refs()) ||
-		(refsh == given.mep()->refs()))
+		(refs == given.refs()) ||
+		(refsh == given.refs()))
     ||
 	(refs == 0) 
     ||
-	(refs + 1 <= given.mep()->refs()) 
+	(refs + 1 <= given.refs()) 
 	);
 #endif
 
-    if(given.mep()->isDead()) {
+    if(given.isDead()) {
 	rc = RC(scDEAD);
     } else {
 	if(replace) {
 	    // being put in
 
-	    rc = _box.insert(j, given);
+	    rc = _box.set(j, given);
 	} else {
 	    expand(_slist_size+1);
 	    // stash the server list in the given order
 	    _slist[_slist_size-1] = s; // make a copy
 	    // stash it in the box
 	    j = _slist_size - 1;
-	    rc = _box.insert(_slist_size-1, given);
+	    rc = _box.set(_slist_size-1, given);
 	    if(!rc) _slist_size++;
 	}
 	DBGTHRD(<<" added as entry @ " << j
@@ -356,9 +382,7 @@ ep_map::dump(ostream &o) const
     while(i.next(eof), !eof) {
 	i.ep(ep);
 	i.name(s);
-        o << "    " << s << " <--> " ;
-	ep.print(o) ;
-	o << endl;
+        o << "    " << s << " <--> " << ep << endl;
     }
 }
 
@@ -369,7 +393,7 @@ ep_map::dump(ostream &o) const
  **************************************************************************
  */
 
-#ifdef __GNUG__
+#ifdef EXPLICIT_TEMPLATE
 template class w_list_t<tid_map::_map>; 
 template class w_list_i<tid_map::_map>;
 template class w_hash_t<tid_map::_map, const gtid_t>;

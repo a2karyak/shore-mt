@@ -1,340 +1,1164 @@
-/* --------------------------------------------------------------- */
-/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
-/* -- University of Wisconsin-Madison, subject to the terms     -- */
-/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
-/* -- Reserved.                                                 -- */
-/* --------------------------------------------------------------- */
+/*<std-header style='imake' orig-src='shore'>
 
-%#>>>>>>>>>>>> $Header: /p/shore/shore_cvs/config/Imake.rules,v 1.91 1997/09/30 21:14:11 solomon Exp $
+ $Id: Imake.rules,v 1.144 1999/06/11 16:00:33 bolo Exp $
 
-/****************************************************************
- * Imake.rules:  "Library procedures" for building up a Makefile.
- * Each of these rules is envoked by a line of the form
- *   %GEN rule_name(arg1,arg2)
- ****************************************************************/
+SHORE -- Scalable Heterogeneous Object REpository
 
-/****************************************************************
- * Build a C program from .o files and libraries.
- ****************************************************************/
-%DEF c_program(program,objlist,libs)
-clean_local::
-	-$(RM) -f program objlist
+Copyright (c) 1994-99 Computer Sciences Department, University of
+                      Wisconsin -- Madison
+All Rights Reserved.
 
-program: objlist libs
-	$(LINK.c) -o program objlist libs GlobalLibraries
-%ENDDEF
+Permission to use, copy, modify and distribute this software and its
+documentation is hereby granted, provided that both the copyright
+notice and this permission notice appear in all copies of the
+software, derivative works or modified versions, and any portions
+thereof, and that both notices appear in supporting documentation.
 
-/****************************************************************
- * Build a C++ program from .o files and libraries
- ****************************************************************/
-%DEF c_plus_program(program,objlist,libs)
-clean_local::
-	-$(RM) -f program objlist
+THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+"AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 
-program: objlist libs
-	$(LINK.cc) -o program objlist libs GlobalLibraries
-%ENDDEF
+This software was developed with support by the Advanced Research
+Project Agency, ARPA order number 018 (formerly 8230), monitored by
+the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+Further funding for this work was provided by DARPA through
+Rome Research Laboratory Contract No. F30602-97-2-0247.
 
-/****************************************************************
- * Build a Purified C++ program from .o files and libraries.
- ****************************************************************/
-#ifdef UsePurify
-%DEF purify_c_plus_program(program,objlist,libs,pure_options)
-clean_local::
-	-$(RM) -f program.pure objlist real-ld .pure *_pure_*.o lib*pure*.a
-program.pure: objlist libs
-	Purify/purify PureFlags %
-		$(LINK.cc) -o program.pure objlist libs PurifyLibrary GlobalLibraries
-%ENDDEF
+  -- do not edit anything above this line --   </std-header>*/
+
+/*
+ LDLIBS for libraries
+*/
+
+NEWSUFFIXES += .C .c .cc .cpp
+
+#if IS_NT
+NEWSUFFIXES += .obj .exe .sbr .bsc .pdb
+
+/* Zs for syntax-only -- just to get the .sbr file */
+%.sbr: %.c
+	$(COMPILE.c) -Zs $< 
+/* Zs for syntax-only -- just to get the .sbr file */
+%.sbr: %.cpp
+	$(COMPILE.c) -Zs $< 
+#endif /* IS_NT */
+
+ifdef INCLUDE_DEPEND
+%.OBJEXT: %.c
+	$(COMPILE.c) $< 
+
+%.OBJEXT: %.cpp
+	$(COMPILE.cpp) $<
+endif
+
+preprocess_%: %
+	$(CPP) $<
+
+/* need command to follow shell construct && which doesn't return an error */
+#define NULL_CMD exit 0
+WILD = *
+COLON = :
+EMPTY_VAR =
+SPACE = $(EMPTY_VAR) $(EMPTY_VAR)
+
+#if IS_SNAKE_HPUX8
+EXTRA_LD_FLAGS = $(CPLUSFLAGS)
 #else
-%DEF purify_c_plus_program(program,objlist,libs,pure_options)
-/* nothing */
-%ENDDEF
-#endif /* UsePurify */
-
-/****************************************************************
- * Build a Quantified C++ program from .o files and libraries.
- ****************************************************************/
-#ifdef UseQuantify
-%DEF quantify_c_plus_program(program,objlist,libs,quant_options)
-clean_local::
-	-$(RM) -f program.quant objlist real-ld .quant *_quant_*.o lib*quant*.a
-program.quant: objlist libs
-	Quantify/quantify %
-		$(LINK.cc) -o program.quant objlist libs PurifyLibrary GlobalLibraries
-%ENDDEF
-#else
-%DEF quantify_c_plus_program(program,objlist,libs,quant_options)
-/* nothing */
-%ENDDEF
-#endif /* UseQuantify */
-
-/****************************************************************
- * Build a PureCoveraged C++ program from .o files and libraries.
- ****************************************************************/
-#ifdef UsePureCoverage
-%DEF purecov_c_plus_program(program,objlist,libs,pure_options)
-clean_local::
-	-$(RM) -f program.purecov objlist real-ld .pure *_pure_*.o lib*pure*.a
-program.purecov: objlist libs
-	PureCoverage/purecov %
-		$(LINK.cc) -o program.purecov objlist libs PurifyLibrary GlobalLibraries
-%ENDDEF
-#else
-%DEF purecov_c_plus_program(program,objlist,libs,pure_options)
-/* nothing */
-%ENDDEF
-#endif /* UsePureCoverage */
-
-/****************************************************************
- * How to make a library
- *    lib:      the library
- *    objlist:  the files that go in it
- * Also arranges for "make clean" to remove the libarary, its component files,
- * and purify and quantify versions of it.
- ****************************************************************/
-%DEF library(lib,objlist)
-lib: objlist
-	-$(RM) -f lib
-	Ar qv  lib  objlist
-#ifdef Ranlib
-	Ranlib lib
+EXTRA_LD_FLAGS = 
 #endif
-clean_local::
-	-$(RM) -f lib objlist li*pure*.a  li*pure_q*.a
-%ENDDEF
 
-/****************************************************************
- * Build lib from objlist and the objects in each of otherlibs.
- ****************************************************************/
-%DEF merge_library(lib,objlist,otherlibs)
-lib:: objlist otherlibs
-	@echo "(re)build joint library " lib
-	@echo "from objects " objlist
-	-$(RM) -f lib
-	Ar qv lib objlist
-	@echo "add libraries " otherlibs
-	$(TOP)/tools/combinelibs Ar lib otherlibs  
-clean_local::
-	-$(RM) -f lib objlist li*pure_q*.a li*pure*.a
-%ENDDEF
+#ifdef USE_CC
+#if IS_SNAKE_HPUX8
+#define pxdb_message $(ECHO) 'NB: Ignore error messages from pxdb.'
+#endif
+#endif
 
-/****************************************************************
- * Add srcs to the list of files to be analyzed by "make depend" or "make
- * tags".  These rules are invoked directly from Imakefiles for hand-written
- * sources.  They are also invoked indirectly, through generated_srcs (see
- * below), for source files built by other tools (such as Perl scripts).
- * The rules only add the file names to the values of Make macros DEPEND_SOURCE
- * (TAGS_SOURCE) so that the dependencies (tags) can be built all at once
- * in rules near the start of Imake.targets.
- ****************************************************************/
-%DEF depend_target(srcs)
-DEPEND_SOURCE += srcs
-%ENDDEF
+#ifndef pxdb_message
+#define pxdb_message 
+#endif
 
-%DEF tags(srcs)
-TAGS_SOURCE += srcs
-%ENDDEF
+#ifndef full_file_names
+#define full_file_names(srcs) $(addprefix $(PWD)/, $(filter-out /%, srcs)) $(filter /%, srcs)
+#endif
 
-/****************************************************************
- * Additional files to be removed with "make clean", "make distclean", etc.
- * This rule is seldom needed in Imakefiles.  Various other rules in
- * this file explicitly add the files they build to the list of files
- * removed by "make clean".
- ****************************************************************/
-%DEF clean_files(files)
-clean_local::
-	-$(RM) -f files
-%ENDDEF
+#ifndef objs_from_sources
+#define objs_from_sources(srcs) $(addsuffix .OBJEXT, $(basename srcs))
+#endif
 
-/****************************************************************
- * Extra rules for sources that are generated by various pre-processors
- * (such as rpcgen or perl scripts).
- * Generated_headers and generated srcs differ only in that the former
- * are supplied as dependencies but not inputs to the rule the makes the
- * .depend file.   Thus if foo.h, bar.h, foo.cc and bar.cc are generated files,
- * the resulting Makefile would have something similar to
- *    depend_local: foo.cc bar.cc
- *        makedepend foo.cc bar.cc >.depend
- *    depend_local: foo.h bar.h
- * In both cases, the named files are candidates for removal on "make clean",
- * inputs to "make tags", and dependencies of the special PHONY target
- * "automatic", which is a prerequisite for many things.
- ****************************************************************/
-%DEF generated_headers(targets)
-depend_local: targets
-clean_local::
-	-$(RM) -f targets
-automatic:: targets
-%GEN tags(targets)
-%ENDDEF
+#ifndef objs_from_subgroup
+#define objs_from_subgroup(group) objs_from_sources($(group.c) $(group.cpp) $(group.asm))
+#endif
 
-%DEF generated_srcs(targets)
-%GEN depend_target(targets)
-clean_local::
-	-$(RM) -f targets
-automatic:: targets
-%GEN tags(targets)
-%ENDDEF
+#ifndef objs_from_group
+#define objs_from_group(group) objs_from_subgroup(group) objs_from_subgroup(group.gen)
+#endif
 
-/****************************************************************
- * Generate source files (usually C++ source or header files) from other
- * files using a Perl script.
- *   targets:      files to be produced
- *   script:       script that does the work
- *   dependencies: files implicitly used by the script
- *   flags:        initial command-line options to the script
- *   inputs:       explicit file arguments to the script.
- * Ensures that targets are built by "make depend", removed by "make clean",
- * included in the ctags, and listed as dependencies of the special PHONY
- * target "automatic", which is a prerequisite for many things.
- ****************************************************************/
-%DEF generate_source(targets,script,dependencies,flags,inputs)
-targets: script dependencies inputs
-	Perl script flags inputs
-%GEN generated_headers(targets)
-%ENDDEF
+#ifndef perm_and_gen
+#define perm_and_gen(prefix, suffix) $(prefix.perm.suffix) $(prefix.gen.suffix)
+#endif
 
-/**** Special cases of generate_source ****/
+#ifndef used_group_name
+#define used_group_name(group) USED_GROUP_NAMES += group
+#endif
 
-/****************************************************************
- * Rule for invoking stats.pl.
- *   datfile:  the specification file
- *   name:     the "layer names" defined in the specification file.
- ****************************************************************/
-%DEF stats(datfile,names)
-%GEN generate_source(%CROSS(names,_msg.i _def.i _struct.i _op.i),
-	$(TOP)/tools/stats.pl,,,datfile)
-%ENDDEF
-%DEF cstats(datfile,names)
-%GEN generate_source(%CROSS(names,_msg.i _def.i _struct.i _op.i),
-	$(TOP)/tools/stats.pl,,-C,datfile)
-%ENDDEF
+#ifndef used_important_group_name
+#define used_important_group_name(group) IMPORTANT_GROUP_NAMES += group
+#endif
 
-/****************************************************************
- * Rules for invoking errors.pl.
- * Use error_enum for errors.pl -e and error_def for errors.pl -d.
- *   datfile:  the specification file
- *   name:     the "layer names" defined in the specification file.
- ****************************************************************/
-%DEF error_enum(datfile,names)
-%GEN generate_source(%CROSS(names,_error.i _einfo.i _error.h),
-	$(TOP)/tools/errors.pl,,-e,datfile)
-%ENDDEF
+#ifndef init_group_name
+#define init_group_name(group) INIT_GROUP_NAMES += group
+#endif
 
-%DEF error_def(datfile,names)
-%GEN generate_source(
-	%CROSS(names,_error.i _einfo.i _einfo_bakw.i _error_def.h),
-	$(TOP)/tools/errors.pl,,-d,datfile)
-%ENDDEF
+#ifndef set_group_purpose
+#define set_group_purpose(group, p)						@@\
+group.purpose += p								@@\
+used_group_name(group)
+#endif
 
-/****************************************************************
- * Copy files to installation location
+#ifndef set_important_group_purpose
+#define set_important_group_purpose(group, p)					@@\
+group.purpose += p								@@\
+used_important_group_name(group)
+#endif
+
+#ifndef init_file_subgroup
+#define init_file_subgroup(group)						\
+group.h =									@@\
+group.c =									@@\
+group.cpp =									@@\
+group.asm =									@@\
+group.java =									@@\
+group.other =
+#endif
+
+#ifndef init_file_group
+#define init_file_group(group)							@@\
+init_group_name(group)								@@\
+init_file_subgroup(group)							@@\
+init_file_subgroup(group.gen)							@@\
+group.exec_name =								@@\
+group.libs =									@@\
+group.sys_libs =								@@\
+group.lib_name =								@@\
+group.objs = objs_from_group($(strip group))					@@\
+group.full_exec_name = EXENAME($($(strip group).exec_name))			@@\
+group.purpose =
+#endif
+
+#ifndef add_to_subgroup
+#define add_to_subgroup(to, from)						\
+to.h += $($(strip from).h)							@@\
+to.c += $($(strip from).c)							@@\
+to.cpp += $($(strip from).cpp)							@@\
+to.asm += $($(strip from).asm)							@@\
+to.java += $($(strip from).java)						@@\
+to.other += $($(strip from).other)
+#endif
+
+#ifndef add_to_group
+#define add_to_group(to, from)							@@\
+set_group_purpose(from, added_to_group($(strip to)))				@@\
+add_to_subgroup(to, from)							@@\
+add_to_subgroup(to.gen, from.gen)
+#endif
+
+#ifndef add_to_subgroup_as_hfiles
+#define add_to_subgroup_as_hfiles(to, from)					\
+to.h += $($(strip from).h)							@@\
+to.h += $($(strip from).c)							@@\
+to.h += $($(strip from).cpp)							@@\
+to.asm += $($(strip from).asm)							@@\
+to.other += $($(strip from).other)
+#endif
+
+#ifndef add_to_group_as_hfiles
+#define add_to_group_as_hfiles(to, from)					@@\
+set_group_purpose(from, added_to_group_as_hfiles($(strip to)))			@@\
+add_to_subgroup_as_hfiles(to, from)						@@\
+add_to_subgroup_as_hfiles(to.gen, from.gen)
+#endif
+
+#ifndef print_var_list_wide
+#define print_var_list_wide(var)						\
+	$(ECHO) '   ' var =							@@\
+	$(ECHO) '        $(sort $(strip $(var)))'
+#endif
+
+#ifndef print_group_attribute_wide
+#define print_group_attribute_wide(group, attribute) print_var_list_wide(group.$(strip attribute))
+#endif
+
+#ifndef print_var_list
+#define print_var_list(var)							\
+	$(ECHO) '   ' var =							@@\
+	@$(foreach i,$(sort $(var)),$(ECHO_NO_AT) '        $i';)
+#endif
+
+#ifndef print_warning_if_not_empty
+#define print_warning_if_not_empty(msg, var)					\
+ifneq (,$(strip var))								@@\
+	$(ECHO) $(DIVIDER2)							@@\
+	$(ECHO) '    WARNING$(COLON)' msg					@@\
+	@$(foreach i,$(sort var),$(ECHO_NO_AT) '        $i';)			@@\
+endif
+#endif
+
+#ifndef print_group_attribute
+#define print_group_attribute(group, attribute) print_var_list(group.$(strip attribute))
+#endif
+
+#ifndef print_subgroup
+#define print_subgroup(group, printer)						\
+	printer(group, h)							@@\
+	printer(group, c)							@@\
+	printer(group, cpp)							@@\
+	printer(group, asm)							@@\
+	printer(group, java)							@@\
+	printer(group, other)
+#endif
+
+#ifndef print_group_type
+#define print_group_type(group, printer)					\
+	$(ECHO) $(DIVIDER2)							@@\
+	print_subgroup(group, printer)						@@\
+	print_subgroup(group.gen, printer)					@@\
+	printer(group, exec_name)						@@\
+	printer(group, libs)							@@\
+	printer(group, lib_name)						@@\
+	printer(group, full_exec_name)						@@\
+	printer(group, purpose)
+#endif
+
+#ifndef print_group
+#define print_group(group) print_group_type(group, print_group_attribute)
+#endif
+
+#ifndef print_group_wide
+#define print_group_wide(group) print_group_type(group, print_group_attribute_wide)
+#endif
+
+#ifndef used_group
+#define used_group(group) add_to_group(SRC, group)
+#endif
+
+#ifndef unused_group
+#define unused_group(group) add_to_group(SRC.unused, group)
+#endif
+
+
+/*
+ * These files can be removed with "make clean"
+ */
+#ifndef clean_files
+#define clean_files(files)							@@\
+CLEAN_FILES += files
+#endif 
+
+/*
+ * These files can be removed with "make squeaky"
+ */
+#ifndef squeaky_files
+#define squeaky_files(files)							@@\
+SQUEAKY_FILES += files
+#endif 
+
+/*
+ * These files can be removed with "make pristine"
+ */
+#ifndef pristine_files
+#define pristine_files(files)							@@\
+PRISTINE_FILES += files
+#endif
+
+#ifndef all_target_files
+#define all_target_files(files)							@@\
+ALL_TARGET_FILES += files
+#endif
+
+#ifndef exec_files
+#define exec_files(files)							@@\
+EXEC_FILES += files
+#endif
+
+#ifndef test_exec_files
+#define test_exec_files(files)							@@\
+TEST_EXEC_FILES += files
+#endif
+
+#ifndef misc_exec_files
+#define misc_exec_files(files)							@@\
+MISC_EXEC_FILES += files
+#endif
+
+#ifndef lib_files
+#define lib_files(files)							@@\
+LIB_FILES += files
+#endif
+
+#ifndef test_lib_files
+#define test_lib_files(files)							@@\
+TEST_LIB_FILES += files
+#endif
+
+#ifndef misc_lib_files
+#define misc_lib_files(files)							@@\
+MISC_LIB_FILES += files
+#endif
+
+#ifndef shared_lib_files
+#define shared_lib_files(files)							@@\
+SHARED_LIB_FILES += files
+#endif
+
+#ifndef test_shared_lib_files
+#define test_shared_lib_files(files)						@@\
+TEST_SHARED_LIB_FILES += files
+#endif
+
+#ifndef misc_shared_lib_files
+#define misc_shared_lib_files(files)						@@\
+MISC_SHARED_LIB_FILES += files
+#endif
+
+#ifndef install_files
+#define install_files(files)							@@\
+INSTALL_FILES += files
+#endif
+
+#ifndef imakefile_depend_files
+#define imakefile_depend_files(files)						@@\
+IMAKEFILE_DEPEND_FILES += files
+#endif
+
+#ifndef do_clean_targets
+#define do_clean_targets()							@@\
+clean_localdir::								@@\
+	$(RM_F) $(CLEAN_FILES)							@@\
+										@@\
+squeaky_localdir:: clean_localdir						@@\
+	$(RM_F) $(SQUEAKY_FILES)						@@\
+										@@\
+pristine_localdir:: squeaky_localdir						@@\
+	$(RM_F) $(PRISTINE_FILES)						@@\
+										@@\
+clean_install_localdir::							@@\
+	$(RM_F) $(INSTALL_FILES)
+#endif
+
+/*
+** Build browser info for NT
+** unfortunately, I don't yet know how to combine .bsc files
+** into one (for each library, for example).
+*/
+
+#ifdef IS_NT
+#define EXENAME(exec) exec.EXEEXT
+#define GLOBAL_LD_OUTFLAGS(exec) -out$(COLON)$(strip EXENAME(exec))
+#define AR_OUTFLAGS(lib)	-out$(COLON)lib
+#define nt_exe_dep(exec) exec: EXENAME(exec) ;
+
+#define GLOBAL_LD_DLL_OUTFLAGS(dll) -out$(COLON)$(strip dll)
+
+#ifndef build_bsc_file
+#define build_bsc_file(exec, libs)						@@\
+clean_files(exec.ilk exec.opt)							@@\
+										@@\
+squeaky_files(exec.bsc exec.sbr)						@@\
+										@@\
+exec.bsc:									@@\
+	bscmake -n -nologo -Iu -o exec.bsc lib 
+#endif /* build_bsc_file */
+
+#else /* NOT IS_NT */
+
+#define EXENAME(exec) exec
+#define GLOBAL_LD_OUTFLAGS(exec)  -o EXENAME(exec)
+#define GLOBAL_LD_DLL_OUTFLAGS(dll)  -o dll
+#define AR_OUTFLAGS(lib)	lib
+#define nt_exe_dep(exec) 
+#ifndef build_bsc_file
+#define build_bsc_file(exec, libs)
+#endif /* build_bsc_file */
+
+#endif /* !IS_NT */
+
+#ifndef filename_path_dep
+#define filename_path_dep(full_path)						@@\
+ifneq ($(notdir $(strip full_path)), $(strip full_path))			@@\
+$(notdir full_path): full_path ;						@@\
+endif
+#endif
+
+#ifndef exec_dependencies
+#define exec_dependencies(exec_name)						@@\
+nt_exe_dep(exec_name)								@@\
+filename_path_dep(exec_name)
+#endif
+
+/*
+** Build a C++ exec from .OBJEXT files and libraries.
+*/
+
+#ifndef build_exec
+#define build_exec(group)							\
+set_important_group_purpose(group, exec)					@@\
+build_categorized_exec(group, exec_files)
+#endif
+
+#ifndef build_test_exec
+#define build_test_exec(group)							\
+set_important_group_purpose(group, test_exec)					@@\
+build_categorized_exec(group, test_exec_files)
+#endif
+
+#ifndef build_misc_exec
+#define build_misc_exec(group)							\
+set_important_group_purpose(group, misc_exec)					@@\
+build_categorized_exec(group, misc_exec_files)
+#endif
+
+#ifndef build_categorized_exec
+#define build_categorized_exec(group, file_type)				\
+add_to_group(SRC, group)							@@\
+build_bsc_file($(group.exec_name), $(addsuffix .sbr, $(group.libs)))		@@\
+file_type($(group.exec_name))							@@\
+exec_dependencies($(group.exec_name))						@@\
+										@@\
+ifdef INCLUDE_DEPEND								@@\
+$(group.full_exec_name): $(group.objs) $(group.libs)				@@\
+	@$(MAKE_W_OPT) $(group.exec_name).link					@@\
+endif										@@\
+										@@\
+$(group.exec_name).link:							@@\
+	$(LD) GLOBAL_LD_OUTFLAGS($(group.exec_name)) $(group.objs) $(group.libs) $(EXTRA_LD_FLAGS) $(LDFLAGS) $(LOCAL_LDFLAGS) $(CPLUSLIB) $(group.sys_libs) $(GLOBAL_LDFLAGS)		@@\
+	pxdb_message								@@\
+build_purify_exec(group, $(PURE_OPT))						@@\
+build_quantify_exec(group, $(QUANT_OPT))					@@\
+build_purecov_exec(group, $(PURECOV_OPT))
+#endif /* build_categorized_exec */
+
+/*
+** Build a Windows C++ exec from .OBJEXT files and libraries.
+*/
+
+#ifndef build_windows_exec
+#define build_windows_exec(group)						\
+set_important_group_purpose(group, windows_exec)				@@\
+build_categorized_windows_exec(group, exec_files)
+#endif
+
+#ifndef build_test_windows_exec
+#define build_test_windows_exec(group)						\
+set_important_group_purpose(group, test_windows_exec)				@@\
+build_categorized_windows_exec(group, test_exec_files)
+#endif
+
+#ifndef build_misc_windows_exec
+#define build_misc_windows_exec(group)						\
+set_important_group_purpose(group, misc_windows_exec)				@@\
+build_categorized_windows_exec(group, misc_exec_files)
+#endif
+
+#ifndef build_categorized_windows_exec
+#define build_categorized_windows_exec(group, file_type)			\
+add_to_group(SRC, group)							@@\
+build_bsc_file($(group.exec_name), $(addsuffix .sbr, $(group.libs)))		@@\
+file_type($(group.exec_name))							@@\
+exec_dependencies($(group.exec_name))						@@\
+										@@\
+ifdef INCLUDE_DEPEND								@@\
+$(group.full_exec_name): $(group.objs) $(group.libs)				@@\
+	@$(MAKE_W_OPT) $(group.exec_name).link					@@\
+endif										@@\
+										@@\
+$(group.exec_name).link:							@@\
+	$(LD) GLOBAL_LD_OUTFLAGS($(group.exec_name)) $(group.objs) $(group.libs) $(EXTRA_LD_FLAGS) $(LDFLAGS) $(LOCAL_LDFLAGS) $(CPLUSLIB) $(group.sys_libs) $(GLOBAL_WINDOWS_LDFLAGS)		@@\
+	pxdb_message
+#endif /* build_categorized_windows_exec */
+
+#if defined(IS_SP2)
+#ifndef build_poe_exec
+#define build_poe_exec(group)							\
+set_important_group_purpose(group, poe_exec)					@@\
+build_categorized_poe_exec(group, exec_files)
+#endif
+
+#ifndef build_test_poe_exec
+#define build_test_poe_exec(group)						\
+set_important_group_purpose(group, test_poe_exec)				@@\
+build_categorized_poe_exec(group, test_exec_files)
+#endif
+
+#ifndef build_misc_poe_exec
+#define build_misc_poe_exec(group)						\
+set_important_group_purpose(group, misc_poe_exec)				@@\
+build_categorized_poe_exec(group, misc_exec_files)
+#endif
+
+/*
+** Build a C++ exec from .OBJEXT files and libraries.
+** The resulting executable is link with the IBM POE (Parallel Operating
+** Environment) runtime.
+*/
+#ifndef build_categorized_poe_exec
+#define build_categorized_poe_exec(group, file_type)				\
+add_to_group(SRC, group)							@@\
+file_type(EXENAME($(group.exec_name).poe))					@@\
+exec_dependencies($(group.exec_name).poe)					@@\
+										@@\
+ifdef INCLUDE_DEPEND								@@\
+EXENAME($(group.exec_name).poe): $(group.objs) $(group.libs)			@@\
+	@$(MAKE_W_OPT) EXENAME($(group.exec_name)).poe.link			@@\
+endif										@@\
+										@@\
+EXENAME($(group.exec_name)).poe.link:						@@\
+	$(LD) -mpoe GLOBAL_LD_OUTFLAGS($(group.exec_name).poe) $(group.objs) $(group.libs) $(EXTRA_LD_FLAGS) $(LDFLAGS) $(LOCAL_LDFLAGS) $(CPLUSLIB) $(group.sys_libs) $(GLOBAL_LDFLAGS)	@@\
+	pxdb_message
+#endif /* build_categorized_poe_exec */
+#else
+#define build_poe_exec(group)
+#define build_test_poe_exec(group)
+#define build_misc_poe_exec(group)
+#define	build_categorized_poe_exec(group, file_type)
+#endif /* SP2 */
+
+#ifndef build_timestamped_exec
+#define build_timestamped_exec(group)						\
+set_important_group_purpose(group, timestamped_exec)				@@\
+build_timestamped_categorized_exec(group, exec_files)
+#endif
+
+#ifndef build_test_timestamped_exec
+#define build_test_timestamped_exec(group)					\
+set_important_group_purpose(group, test_timestamped_exec)			@@\
+build_timestamped_categorized_exec(group, test_exec_files)
+#endif
+
+#ifndef build_misc_timestamped_exec
+#define build_misc_timestamped_exec(group)					\
+set_important_group_purpose(group, misc_timestamped_exec)			@@\
+build_timestamped_categorized_exec(group, misc_exec_files)
+#endif
+
+#ifndef build_timestamped_categorized_exec
+#define build_timestamped_categorized_exec(group, file_type)			\
+NEED_TIME_STAMP_FILE = yes							@@\
+group.gen.cpp += $(TIMESTAMP.cpp)						@@\
+build_categorized_exec(group, file_type)					@@\
+$(TIMESTAMP.o): $(filter-out $(TIMESTAMP.o), $(group.objs)) $(group.libs)
+#endif /* build_categorized_exec */
+
+/*
+***************************************************************
+** Build a Purify-ied C++ exec from .OBJEXT files and libraries.
+*/
+#ifdef USE_PURIFY
+#if IS_SNAKE_HPUX8
+GLOBAL_PURE_OPT =
+#elif IS_SPARC_SUNOS41
+GLOBAL_PURE_OPT = -g++ -collector=$(PURIFY_COLLECTOR)
+#elif IS_SPARC_SOLARIS2
+GLOBAL_PURE_OPT = -g++ -collector=$(PURIFY_COLLECTOR)
+#elif IS_I860_OSF1AD
+GLOBAL_PURE_OPT = -collector=unknown
+#elif IS_MIPS_ULTRIX42
+GLOBAL_PURE_OPT = -g++ -collector=$(PURIFY_DIR)/collect2
+#else
+GLOBAL_PURE_OPT = -g++=yes -collector=$(PURIFY_COLLECTOR)
+#endif
+
+PURIFY_FLAGS += -DPURIFY
+
+#ifndef build_purify_exec
+#define build_purify_exec(group, pure_options)					@@\
+set_group_purpose(group, purify_exec)						@@\
+clean_files(EXENAME($(group.exec_name).pure))					@@\
+misc_exec_files(EXENAME($(group.exec_name).pure))				@@\
+exec_dependencies($(group.exec_name).pure)					@@\
+										@@\
+ifdef INCLUDE_DEPEND								@@\
+EXENAME($(group.exec_name).pure): $(group.objs) $(group.libs)			@@\
+	@$(MAKE_W_OPT) EXENAME($(group.exec_name).pure).link			@@\
+endif										@@\
+										@@\
+EXENAME($(group.exec_name).pure).link:						@@\
+	$(PURIFY) $(GLOBAL_PURE_OPT) pure_options $(LD) GLOBAL_LD_OUTFLAGS(EXENAME($(group.exec_name).pure)) $(group.objs) $(group.libs) $(EXTRA_LD_FLAGS) $(LDFLAGS) $(LOCAL_LDFLAGS) $(CPLUSLIB) $(group.sys_libs) $(GLOBAL_LDFLAGS)
+#endif /* build_purify_exec */
+#else
+#ifndef build_purify_exec
+#define build_purify_exec(group, pure_options)
+#endif /* build_purify_exec */
+#endif /*USE_PURIFY*/
+
+/*
+** end Purify
+***************************************************************
+*/
+
+/*
+***************************************************************
+** Build a Quantified C++ exec from .OBJEXT files and libraries.
+*/
+#ifdef USE_QUANTIFY
+#if IS_SNAKE_HPUX8
+GLOBAL_QUANT_OPT =
+#elif IS_SPARC_SUNOS41
+GLOBAL_QUANT_OPT = -g++ -collector=$(QUANTIFY_COLLECTOR)
+#elif IS_I860_OSF1AD
+GLOBAL_QUANT_OPT = -collector=unknown
+#elif IS_MIPS_ULTRIX42
+GLOBAL_QUANT_OPT = -g++ -collector=$(PURIFY_DIR)/collect2
+#else
+GLOBAL_QUANT_OPT = -g++=yes -collector=$(QUANTIFY_COLLECTOR)
+#endif
+
+PURIFY_FLAGS += -DQUANTIFY
+
+#ifndef build_quantify_exec
+#define build_quantify_exec(group, quant_options)				@@\
+set_group_purpose(group, quantify_exec)						@@\
+clean_files(EXENAME($(group.exec_name).quant))					@@\
+misc_exec_files($(group.exec_name).quant)					@@\
+nt_exe_dep($(group.exec_name).quant)						@@\
+										@@\
+ifdef INCLUDE_DEPEND								@@\
+EXENAME($(group.exec_name).quant): $(group.objs) $(group.libs)			@@\
+	@$(MAKE_W_OPT) EXENAME($(group.exec_name).quant).link			@@\
+endif										@@\
+										@@\
+EXENAME($(group.exec_name).quant).link:						@@\
+	$(QUANTIFY) $(GLOBAL_QUANT_OPT) quant_options $(LD) GLOBAL_LD_OUTFLAGS($(group.exec_name).quant) $(group.objs) $(group.libs) $(EXTRA_LD_FLAGS) $(LDFLAGS) $(LOCAL_LDFLAGS) $(CPLUSLIB) $(group.sys_libs) $(GLOBAL_LDFLAGS)
+#endif /* build_quantify_exec */
+#else
+#ifndef build_quantify_exec
+#define build_quantify_exec(group, quant_options)
+#endif /* build_quantify_exec */
+#endif /*USE_QUANTIFY*/
+/*
+** end Quantify
+***************************************************************
+*/
+
+/*
+***************************************************************
+** Build a Pure-coverage-ed C++ exec from .OBJEXT files and libraries.
+*/
+#ifdef USE_PURECOV
+#if IS_SNAKE_HPUX8
+GLOBAL_PURECOV_OPT =
+#elif IS_SPARC_SUNOS41
+GLOBAL_PURECOV_OPT = -g++=yes -collector=$(PURECOV_COLLECTOR)
+#elif IS_I860_OSF1AD
+GLOBAL_PURECOV_OPT = -collector=unknown
+#elif IS_MIPS_ULTRIX42
+GLOBAL_PURECOV_OPT = -g++ -collector=$(PURECOV_COLLECTOR)
+#else 
+GLOBAL_PURECOV_OPT = -g++=yes -collector=$(PURECOV_COLLECTOR)
+#endif
+
+PURIFY_FLAGS += -DPURECOV
+
+#ifndef build_purecov_exec
+#define build_purecov_exec(group, pure_options)					@@\
+set_group_purpose(group, purecoverage_exec)					@@\
+clean_files(EXENAME($(group.exec_name).purecov))				@@\
+misc_exec_files($(group.exec_name).purecov)					@@\
+nt_exe_dep($(group.exec_name).purecov)						@@\
+										@@\
+ifdef INCLUDE_DEPEND								@@\
+EXENAME($(group.exec_name).purecov): $(group.objs) $(group.libs)		@@\
+	@$(MAKE_W_OPT) EXENAME($(group.exec_name).purecov).link			@@\
+endif										@@\
+										@@\
+EXENAME($(group.exec_name).purecov).link:					@@\
+	$(PURECOV) $(GLOBAL_PURECOV_OPT) pure_options $(LD) GLOBAL_LD_OUTFLAGS(exec.purecov) $(group.objs) $(group.libs) $(EXTRA_LD_FLAGS) $(LDFLAGS) $(LOCAL_LDFLAGS) $(CPLUSLIB) $(group.sys_libs) $(GLOBAL_LDFLAGS)
+#endif /* build_purecov_exec */
+#else
+#ifndef build_purecov_exec
+#define build_purecov_exec(group, pure_options)
+#endif /* build_purecov_exec */
+#endif /*USE_PURECOV*/
+
+/*
+** end Purecov
+***************************************************************
+*/
+
+/*
+ * How to make a library
+ * remove it and use quick append (fastest way)
+ */
+#ifdef IS_NT
+AR_FLAGS = -nologo
+#else
+AR_FLAGS = qv
+#endif
+
+#ifndef build_library
+#define build_library(group)							\
+set_important_group_purpose(group, library)					@@\
+build_categorized_library(group, lib_files)
+#endif
+
+#ifndef build_test_library
+#define build_test_library(group)						\
+set_important_group_purpose(group, test_library)				@@\
+build_categorized_library(group, test_lib_files)
+#endif
+
+#ifndef build_misc_library
+#define build_misc_library(group)						\
+set_important_group_purpose(group, misc_library)				@@\
+build_categorized_library(group, misc_lib_files)
+#endif
+
+#ifndef build_categorized_library
+#define build_categorized_library(group, file_type)				@@\
+add_to_group(SRC, group)							@@\
+filename_path_dep($(group.lib_name))						@@\
+build_bsc_file($(basename $(group.lib_name)), $(foreach i, $(group.objs) $(group.libs), $(i).sbr))	@@\
+file_type($(group.lib_name))							@@\
+										@@\
+ifdef INCLUDE_DEPEND								@@\
+$(group.lib_name): $(group.objs) $(group.libs)					@@\
+	@$(MAKE_W_OPT) $(group.lib_name).archive				@@\
+endif										@@\
+										@@\
+$(group.lib_name).archive:							@@\
+	-$(RM_F) $(group.lib_name)						@@\
+ifeq ($(group.libs),)								@@\
+	$(AR) $(AR_FLAGS) AR_OUTFLAGS($(group.lib_name)) $(group.objs)			@@\
+	@$(RANLIB_IFNEEDED) $(group.lib_name) 	   				@@\
+else										@@\
+	$(ECHO) '(re)build joint library ' lib					@@\
+	$(ECHO) 'from objects ' objlist						@@\
+	$(AR) qv lib objlist							@@\
+	$(ECHO) 'add libraries ' otherlibs					@@\
+	@$(COMBINELIBS) $(AR) lib otherlibs					@@\
+endif
+#endif /* build_library */
+
+#ifndef build_shared_library
+#define build_shared_library(group)						\
+set_important_group_purpose(group, shared_library)				@@\
+build_categorized_shared_library(group, shared_lib_files)
+#endif
+
+#ifndef build_test_shared_library
+#define build_test_shared_library(group)					\
+set_important_group_purpose(group, test_shared_library)				@@\
+build_categorized_shared_library(group, test_shared_lib_files)
+#endif
+
+#ifndef build_misc_shared_library
+#define build_misc_shared_library(group)					\
+set_important_group_purpose(group, misc_shared_library)				@@\
+build_categorized_shared_library(group, misc_shared_lib_files)
+#endif
+
+#ifndef build_categorized_shared_library
+#define build_categorized_shared_library(group, file_type)			@@\
+add_to_group(SRC, group)							@@\
+filename_path_dep($(group.lib_name))						@@\
+build_bsc_file($(basename $(group.lib_name)), $(foreach i, $(group.objs) $(group.libs), $(i).sbr))	@@\
+file_type($(group.lib_name))							@@\
+										@@\
+ifdef INCLUDE_DEPEND								@@\
+$(group.lib_name): $(group.objs) $(group.libs)					@@\
+	@$(MAKE_W_OPT) $(group.lib_name).archive				@@\
+endif										@@\
+										@@\
+$(group.lib_name).archive:							@@\
+	-$(RM_F) $(group.lib_name)						@@\
+	$(LD) $(DLL_FLAGS) GLOBAL_LD_DLL_OUTFLAGS($(group.lib_name)) $(group.objs) $(group.libs) $(EXTRA_LD_FLAGS) $(LDFLAGS) $(LOCAL_LDFLAGS) $(CPLUSLIB) $(group.sys_libs) $(GLOBAL_LDFLAGS) 
+#endif /* build_categorized_shared_library */
+
+/*
+** Build Makefile dependencies for an object tree.
+*/
+#ifndef depend_target
+#ifdef USE_MULTIPLE_DEPENDS_PER_DIR
+#define depend_target(src_list)							@@\
+DEPEND_FILES += $(addprefix ., $(addsuffix .d, $(basename src_list)))		@@\
+.%.d: %.cpp									@@\
+	$(GENDEPEND) --outFile=$@ $< 						@@\
+.%.d: %.c									@@\
+	$(GENDEPEND) --outFile=$@ $< 						@@\
+depend: automatic								@@\
+	$(MAKE_W_OPT) depend_no_automatic					@@\
+										@@\
+depend_no_automatic_localdir: $(DEPEND_FILES)					@@\
+ifneq (,$(strip src_list))							@@\
+$(DEPEND_FILES): Imakefile							@@\
+										@@\
+pristine_files($(DEPEND_FILES))							@@\
+										@@\
+ifdef INCLUDE_DEPEND								@@\
+ifneq ($(INCLUDE_DEPEND),no)							@@\
+include $(DEPEND_FILES)								@@\
+endif										@@\
+endif										@@\
+endif										@@\
+										@@\
+clean_depends_localdir:								@@\
+ifneq (,$(strip src_list))							@@\
+	$(RM_F) $(DEPEND_FILES)							@@\
+endif
+#else  /* USE_SINGLE_DEPEND */
+#define depend_target(src_list)							@@\
+depend: automatic								@@\
+	$(MAKE_W_OPT) depend_no_automatic					@@\
+										@@\
+depend_no_automatic_localdir: src_list						@@\
+ifneq (,$(strip src_list))							@@\
+	-$(RM_F) $(DEPEND_FILES)						@@\
+	$(GENDEPEND) --outFile=$(DEPEND_FILES) $+ 				@@\
+										@@\
+DEPEND_FILES += .depend								@@\
+$(DEPEND_FILES): Imakefile							@@\
+	$(TOUCH) $@								@@\
+	$(MAKE_W_OPT) depend							@@\
+										@@\
+pristine_files($(DEPEND_FILES))							@@\
+										@@\
+ifdef INCLUDE_DEPEND								@@\
+ifneq ($(INCLUDE_DEPEND),no)							@@\
+include $(DEPEND_FILES)								@@\
+endif										@@\
+endif										@@\
+else										@@\
+DEPEND_FILES += 								@@\
+endif										@@\
+										@@\
+clean_depends_localdir:								@@\
+ifneq (,$(strip src_list))							@@\
+	$(RM_F) $(DEPEND_FILES)							@@\
+endif
+#endif /* USE_SINGLE_DEPEND */
+#endif /* depend_target */
+
+/*
+** Generate files from a script with the filenames known
+*/
+#ifndef gen_with_known_files
+#define gen_with_known_files(group, script, dataFile, flags, args, hFiles, cFiles, cppFiles, asmFiles, otherFiles)@@\
+hFiles cFiles cppFiles asmFiles otherFiles: script dataFile			@@\
+	$(PERL) $< flags $(filter-out Makefile $<,$+) args			@@\
+										@@\
+group.other += script dataFile							@@\
+group.gen.h += hFiles								@@\
+group.gen.c += cFiles								@@\
+group.gen.cpp += cppFiles							@@\
+group.gen.asm += asmFiles							@@\
+group.gen.other += otherFiles
+#endif
+
+#ifndef gen_with_unknown_files
+#define gen_with_unknown_files(group, gen_group, script, dataFile, flags, args)	@@\
+group.other += script dataFile							@@\
+init_file_group(gen_group)							@@\
+include gen_group.mak								@@\
+										@@\
+gen_group.mak $($(strip gen_group).gen.h) $($(strip gen_group).gen.c) $($(strip gen_group).gen.cpp) $($(strip gen_group).gen.asm) $(filter-out script dataFile,$($(strip group).gen.other)): script dataFile	@@\
+	$(PERL) $< flags $(filter-out Makefile $<,$+) args			@@\
+add_to_group(group, gen_group)							@@\
+group.gen.other += gen_group.mak
+#endif
+
+/*
+** Build Makefile dependencies for an object tree.
+*/
+#ifndef gen_error_codes
+#define gen_error_codes(group, errDataFile, errFlags, errFiles)			\
+gen_with_known_files(group, $(ERRORPL), errDataFile, errFlags, NA, errFiles, NA, NA, NA, NA)
+#endif	/* gen_error_codes */
+
+#ifndef gen_statistics
+#define gen_statistics(group, statDataFile, statFiles)				\
+gen_with_known_files(group, $(STATPL), statDataFile, NA, NA, statFiles, NA, NA, NA, NA)
+#endif	/* gen_statistics */
+
+#ifndef gen_statistics_enum_only
+#define gen_statistics_enum_only(group, statDataFile, statFiles)		\
+gen_with_known_files(group, $(STATPL), statDataFile, --enumOnly, NA, statFiles, NA, NA, NA, NA)
+#endif	/* gen_statistics */
+
+#ifndef gen_paradise_error_files
+#define gen_paradise_error_files(group, errDataFile, outputPrefix, outputFilePrefix)	\
+gen_with_known_files(group, $(MKERRORPL), errDataFile, NA, outputPrefix, 	\
+		$(strip outputFilePrefix).h, NA, outputFilePrefix.cpp, NA, NA)
+#endif  /* gen_paradise_error_files */
+
+#ifndef gen_event_file
+#define gen_event_file(group, basename)							\
+gen_with_known_files(group, $(EVENTFMTPL), $(strip basename).dat, -i -b -q, NA,	\
+		$(strip basename)_gen.h, NA, NA, NA, $(strip basename)_gen.eda $(strip basename)_sqlstate_gen.eda)
+#endif /* gen_event_file */
+
+#ifndef gen_time_stamp_file
+#define gen_time_stamp_file(group)						@@\
+ifdef NEED_TIME_STAMP_FILE							@@\
+$(TIMESTAMP.o): $(TIMESTAMP.cpp)						@@\
+gen_with_known_files(timestamp, $(GENTIMESTAMPPL), NA, NA, $(TIMESTAMP.cpp), 	\
+	NA, NA, $(TIMESTAMP.cpp), NA, NA)					@@\
+endif
+#endif  /* gen_time_stamp_file */
+
+#ifndef gen_defines
+#define gen_defines(group, filename, flags)					\
+gen_with_known_files(group, $(GENDEFINESPL), NA, flags --outfile=$(strip filename), NA, filename, NA, NA, NA, NA)
+#endif  /* gen_defines*/
+
+#ifndef gen_group_file
+#define gen_group_file(group, groupFileName, cppFiles)				\
+gen_with_known_files(group, $(GENGROUPFILEPL), NA, NA, groupFileName cppFiles,	\
+		NA, NA, groupFileName, NA, NA)
+#endif  /* gen_group_file */
+
+#ifndef create_group_file
+#ifdef NO_COMPILE_GROUPS
+#define create_group_file(group, groupFileName, cppFiles)			@@\
+group.cpp += cppFiles
+#else
+#define create_group_file(group, groupFileName, cppFiles)			@@\
+gen_group_file(group, groupFileName, cppFiles)					@@\
+group.h += cppFiles
+#endif
+#endif
+
+#ifndef gen_yacc_parser
+#define gen_yacc_parser(group, outFile, inFile)			@@\
+outFile $(basename outFile).h $(basename outFile).act: inFile	@@\
+	$(BISON_W_OPT) --output-file=$(basename $@).c $<	@@\
+	$(MV) $(basename $@).c $(basename $@).cpp	        @@\
+								@@\
+group.other += inFile						@@\
+group.gen.cpp += outFile					@@\
+group.gen.h += $(basename outFile).h		                @@\
+group.gen.other += $(basename outFile).act	                @@\
+squeaky_files($(basename outFile).c)
+#endif
+
+#ifndef gen_lex_scanner
+#define gen_lex_scanner(group, outFile, inFile)		        @@\
+outFile: inFile							@@\
+	$(FLEX_W_OPT) $<					@@\
+	$(MV) lex.yy.cc $@					@@\
+								@@\
+group.other += inFile						@@\
+group.gen.cpp += outFile					@@\
+squeaky_files(lex.yy.cc)
+#endif
+
+#ifndef gen_version_file
+#define gen_version_file(group, dataFile, prefix, flags)	\
+ifdef FOR_SCM							@@\
+VERSION_TYPE = --officialBuild					@@\
+else								@@\
+VERSION_TYPE =							@@\
+endif								@@\
+gen_with_known_files(group, $(GENVERSIONPL), dataFile, flags --filePrefix=$(strip prefix) $(VERSION_TYPE), NA, $(strip prefix)_gen.h, NA, $(strip prefix)_gen.cpp, NA, NA)
+#endif
+
+
+/*
+** Copy, move or create links from files to installation location.
+*/
+
+#ifndef EXTRA_INSTALL
+#if defined(INSTALL_PDB_WITH_EXE) && defined(USE_CL) && (DEBUGGERSYMBOLS == ON)
+#define EXTRA_INSTALL(files) files $(patsubst %.exe,%.pdb,$(filter %.exe, files))
+#else
+#define EXTRA_INSTALL(files) files
+#endif
+#endif
+
+#ifndef do_install_prepare
+#define do_install_prepare(dir)							\
+	$(MKDIR_P) $(INSTALL_DIR)/dir						@@\
+	$(RM_F) $(foreach i, $(notdir $+), $(INSTALL_DIR)/dir/$(i))
+#endif
+
+#ifndef do_install_links
+#define do_install_links(dir, toinstall)					@@\
+install_links_localdir:: EXTRA_INSTALL(toinstall)				@@\
+	do_install_prepare(dir)							@@\
+	$(foreach file, $+, $(LN_S) full_file_names($(file)) $(INSTALL_DIR)/dir/$(notdir $(file)) && ) NULL_CMD
+#endif
+
+#ifndef install_copy
+#define install_copy(dir, toinstall)						@@\
+install_localdir:: EXTRA_INSTALL(toinstall)					@@\
+	do_install_prepare(dir)							@@\
+	$(CP_P) $+ $(INSTALL_DIR)/dir						@@\
+do_install_links(dir, toinstall)						@@\
+install_files($(foreach i, $(notdir EXTRA_INSTALL(toinstall)), $(INSTALL_DIR)/dir/$(i)))
+#endif /*install_copy*/
+
+#ifndef install_copy_noextra
+#define install_copy_noextra(dir, toinstall)					@@\
+install_localdir:: toinstall							@@\
+	do_install_prepare(dir)							@@\
+	$(CP_P) $+ $(INSTALL_DIR)/dir						@@\
+do_install_links(dir, toinstall)						@@\
+install_files($(foreach i, $(notdir toinstall), $(INSTALL_DIR)/dir/$(i)))
+#endif /*install_copy*/
+
+#ifndef install_move
+#define install_move(dir, toinstall)						@@\
+install_localdir:: EXTRA_INSTALL(toinstall)					@@\
+	do_install_prepare(dir)							@@\
+	$(MV) $+ $(INSTALL_DIR)/dir						@@\
+do_install_links(dir, toinstall)						@@\
+install_files($(foreach i, $(notdir EXTRA_INSTALL(toinstall)), $(INSTALL_DIR)/dir/$(i)))
+#endif /*install_move*/
+
+/*
+ * WARNING:  imake has a grotesque hack in it for detecting
+ * versions of cpp that reduce all tabs to a single space, and
+ * correcting the situation.  Said hack treats the special case 
+ *  x :
+ * as a target, and leaves the tabs out.  MORAL: do NOT do things like 
+ *	$(ECHO) subdirs:
+ * in these macros, or you'll end up with invalid Makefiles!!!!!
  *
- * Target install_only unconditionally copies the files to the installation
- * directory.  It does not try to build them, and does not check for
- * existing installed copies.
+ * if you need a colon use $(COLON) as this will work
+ *	$(ECHO) subdirs$(COLON)
  *
- * Target install builds all the files and only copies them to the
- * installation directory if necessar (if the installed versions are missing
- * or out of date).
- *
- * NB:  These rules assum mkdir understands the '-p' option (no error if
- * existing, make parent directories as needed).  If your platform doesn't
- * support this option, use gnu mkdir, or fix this rule!
- ****************************************************************/
-%DEF install(dir,toinstall)
-%NON_NULL toinstall
-install_local:: $(INSTALL_DIR)/dir %CROSS($(INSTALL_DIR)/dir/, toinstall)
-$(INSTALL_DIR)/dir::
-	@mkdir -p $(INSTALL_DIR)/dir
-%FOREACH(file,toinstall,$(INSTALL_DIR)/dir/file: file
-	cp -p file $(INSTALL_DIR)/dir/file
-)
+ */
 
-install_only_local:: $(INSTALL_DIR)/dir
-	cp -p toinstall $(INSTALL_DIR)/dir
+#ifndef do_subdir_cmd
+#define do_subdir_cmd(make_cmd, subdirs)					\
+ifneq (,$(strip subdirs))							@@\
+ifneq (,$(filter s,$(MAKEFLAGS)))						@@\
+	$(ECHO) DOING TARGET $* FOR SUBDIRS subdirs				@@\
+endif										@@\
+	@$(foreach i, subdirs, make_cmd -C $(i) $* && ) NULL_CMD		@@\
+endif
+#endif  /* do_subdir_cmd */
 
-uninstall_local::
-	@echo "Uninstalling from dir: toinstall"
-	for i in toinstall; do %
-		$(RM) -f $(INSTALL_DIR)/dir/`basename $$i`; %
-	done
-%ENDDEF
+#ifndef do_subdirs
+#define do_subdirs(commands, presubdirs, postsubdirs)				@@\
+commands: %: %_postsubdir							@@\
+										@@\
+$(addsuffix _postsubdir, commands): %_postsubdir: %_localdir			@@\
+do_subdir_cmd($(MAKE_NO_PARALLEL_W_OPT), postsubdirs)				@@\
+$(addsuffix _localdir, commands): %_localdir: %_presubdir			@@\
+$(addsuffix _presubdir, commands): %_presubdir:					@@\
+do_subdir_cmd($(MAKE_NO_PARALLEL_W_OPT), presubdirs)
+#endif  /* do_subdirs */
 
-/****************************************************************
- * Install_check is like install except that the generated rules only
- * check for existence of the installed files; they do not try to copy them
- * from somewhere else.  
- * A typical use is
- *   %GEN merge_library($(INSTALL_DIR)/lib/libshore.a,,...)
- *   %GEN install_check(lib, libshore.a)
- * The install_check rule ensures that "make install" will try to make
- * $(INSTALL_DIR)/lib/libshore.a, and the merge_library rule explains how
- * to do that without creating a local copy of libshore.
- ****************************************************************/
-%DEF install_check(dir,toinstall)
-%NON_NULL toinstall
-install_only_local install_local:: $(INSTALL_DIR)/dir %CROSS($(INSTALL_DIR)/dir/, toinstall)
-$(INSTALL_DIR)/dir::
-	@mkdir -p $(INSTALL_DIR)/dir
+#ifndef remove_subdir_command
+#define remove_subdir_command(command)						@@\
+remove_values(SUBDIR_COMMANDS, command)						@@\
+command: %: %_localdir
+#endif  /* remove_subdir_command */
 
-uninstall_local::
-	@echo "Uninstalling from dir: toinstall"
-	for i in toinstall; do %
-		$(RM) -f $(INSTALL_DIR)/dir/`basename $$i`; %
-	done
-%ENDDEF
+#ifndef nondefault_dir_subdir_command
+#define nondefault_dir_subdir_command(command, newdirs)				@@\
+remove_values(SUBDIR_COMMANDS, command)						@@\
+do_subdirs(command, newdirs)
+#endif  /* nondefault_dir_subdir_command */
 
-/****************************************************************
- * Special version of install where the file changes name as it's installed:
- *
- * 'src' is installed as '$(INSTALL_DIR)/dir/dest'
- ****************************************************************/
-%DEF install_as(dir,dest,src)
-install_local:: $(INSTALL_DIR)/dir $(INSTALL_DIR)/dir/dest
-$(INSTALL_DIR)/dir::
-	@mkdir -p $(INSTALL_DIR)/dir
-$(INSTALL_DIR)/dir/dest: src
-	cp -p src $(INSTALL_DIR)/dir/dest
+#ifndef do_parallel_intrasubdirs
+#define do_parallel_intrasubdirs(commands, presubdirs, postsubdirs)		@@\
+commands: %: %_postsubdir							@@\
+										@@\
+$(addsuffix _postsubdir, commands): %_postsubdir: %_localdir			@@\
+do_subdir_cmd($(MAKE_W_OPT), postsubdirs)					@@\
+$(addsuffix _localdir, commands): %_localdir: %_presubdir			@@\
+$(addsuffix _presubdir, commands): %_presubdir:					@@\
+do_subdir_cmd($(MAKE_W_OPT), presubdirs)
+#endif  /* do_parallel_intrasubdirs */
 
-install_only_local:: $(INSTALL_DIR)/dir
-	cp -p src $(INSTALL_DIR)/dir/dest
+#ifndef remove_parallel_intrasubdir_command
+#define remove_parallel_intrasubdir_command(command)				@@\
+remove_values(PARALLEL_INTRASUBDIR_COMMANDS, command)				@@\
+command: %: %_localdir
+#endif  /* remove_parallel_intrasubdir_command */
 
-uninstall_local::
-	@echo "Uninstalling from dir: dest"
-	$(RM) -f $(INSTALL_DIR)/dir/dest
-%ENDDEF
+#ifndef nondefault_dir_parallel_intrasubdir_command
+#define nondefault_dir_parallel_intrasubdir_command(command, newdirs)		@@\
+remove_values(PARALLEL_INTRASUBDIR_COMMANDS, command)				@@\
+do_parallel_intrasubdirs(command, newdirs)
+#endif  /* nondefault_dir_parallel_intrasubdir_command */
 
-/****************************************************************
- * Mechanism for generating a recursive walk of a directory tree.
- * If "make commands" is invoked in this directory, it will cause
- * "make commands" to be recursively envoked in each of the directories
- * named in "subdirs".  The "set -e" is used to ensure that the loop
- * is immediately existed if any of the recursive MAKEs fails.
- * This rule is only explicitly used in Imake.targets in the config directory.
- ****************************************************************/
-%DEF do_subdirs(commands,subdirs)
-%NON_NULL subdirs
-commands::
-	@set -e; %
-	for i in subdirs; %
-	do %
-		if test -d $$i; %
-		then %
-			echo '===START' making $@ in `pwd`/$$i; %
-			$(MAKE) -C $$i --no-print-directory $@; %
-			echo '===END' making $@ in `pwd`/$$i; %
-		fi; %
-	done
-%ENDDEF
+#ifndef do_parallel_subdirs
+#define do_parallel_subdirs(commands, subdirs)					@@\
+commands: %: %_localdir								@@\
+do_subdir_cmd($(MAKE_W_OPT), subdirs)
+#endif  /* do_parallel_subdirs */
 
-/****************************************************************
- * Rule to replace all .C, .cc, and .c in a list of files with .o
- * Note that this depends on a rather special feature of GnuMake.
- ****************************************************************/
-%DEF c_to_o(obj,src)
-obj = $(patsubst %%.C,%%.o,$(patsubst %%.cc,%%.o,$(patsubst %%.c,%%.o,src)))
-%ENDDEF
+#ifndef remove_parallel_subdir_command
+#define remove_parallel_subdir_command(command)					@@\
+remove_values(PARALLEL_SUBDIR_COMMANDS, command)				@@\
+command %: %_localdir
+#endif  /* remove_parallel_subdir_command */
 
-%#<<<<<<<<<<<< end of Imake.rules
+#ifndef nondefault_dir_parallel_subdir_command
+#define nondefault_dir_parallel_subdir_command(command, newdirs)		@@\
+remove_values(PARALLEL_SUBDIR_COMMANDS, command)				@@\
+do_parallel_subdirs(command, newdirs)
+#endif  /* nodefault_dir_parallel_subdir_command */
+
+#ifndef nondefault_subdirs
+#define nondefault_subdirs(subdirs)						@@\
+NONDEFAULT_SUBDIRS += subdirs
+#endif
+
+#ifndef do_tags
+#define do_tags(srcs)								@@\
+tags: ctags etags								@@\
+										@@\
+CLEAN_TAG_FILES += $(CTAG_FILE) $(LOCAL_CTAG_FILE)				@@\
+ifeq (., $(TOP))								@@\
+CLEAN_TAG_FILES += $(TEMP_CTAG_FILE)						@@\
+endif										@@\
+CLEAN_TAG_FILES += $(ETAG_FILE) $(LOCAL_ETAG_FILE) 				@@\
+pristine_files($(CLEAN_TAG_FILES))						@@\
+										@@\
+ctags:										@@\
+	-$(RM_F) $(GLOBAL_CTAG_FILE)						@@\
+	$(TOUCH) $(TEMP_CTAG_FILE)						@@\
+	$(MAKE_W_OPT) -C $(TOP) automatic					@@\
+	$(MAKE_W_OPT) -C $(TOP) local_ctags					@@\
+	$(SORT_U) $(TEMP_CTAG_FILE) > $(GLOBAL_CTAG_FILE)			@@\
+	-$(RM_F) $(TEMP_CTAG_FILE)						@@\
+										@@\
+local_ctags_localdir: $(LOCAL_CTAG_FILE)					@@\
+ifneq (,$(strip srcs))								@@\
+	$(CAT) $(LOCAL_CTAG_FILE) >> $(TEMP_CTAG_FILE)				@@\
+endif										@@\
+										@@\
+$(LOCAL_CTAG_FILE): srcs							@@\
+ifneq (,$(strip srcs))								@@\
+	$(CTAGS) -f $(LOCAL_CTAG_FILE) full_file_names($^)			@@\
+endif										@@\
+										@@\
+etags:										@@\
+	-$(RM_F) $(GLOBAL_ETAG_FILE)						@@\
+	$(MAKE_W_OPT) -C $(TOP) automatic					@@\
+	$(MAKE_W_OPT) -C $(TOP) local_etags					@@\
+										@@\
+local_etags_localdir: $(LOCAL_ETAG_FILE)					@@\
+ifneq (,$(strip srcs))								@@\
+	$(CAT) $(LOCAL_ETAG_FILE) >> $(GLOBAL_ETAG_FILE)			@@\
+endif										@@\
+										@@\
+$(LOCAL_ETAG_FILE): srcs							@@\
+ifneq (,$(strip srcs))								@@\
+	$(ETAGS) -f $(LOCAL_ETAG_FILE) full_file_names($^)			@@\
+endif
+#endif /* do_tags */
+
+#ifndef remote_target
+#define remote_target(file)							@@\
+file::										@@\
+	$(MAKE_W_OPT) -C $(@D) $(@F)
+#endif
+
+
+#ifndef remove_values
+#define remove_values(variable, values) variable := $(filter-out values, $(variable))
+#endif

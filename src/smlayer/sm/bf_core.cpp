@@ -1,16 +1,42 @@
-/* --------------------------------------------------------------- */
-/* -- Copyright (c) 1994 Computer Sciences Department,          -- */
-/* -- University of Wisconsin -- Madison, subject to            -- */
-/* -- the terms and conditions given in the file COPYRIGHT.     -- */
-/* -- All Rights Reserved.                                      -- */
-/* --------------------------------------------------------------- */
+/*<std-header orig-src='shore'>
+
+ $Id: bf_core.cpp,v 1.54 1999/06/07 19:03:49 kupsch Exp $
+
+SHORE -- Scalable Heterogeneous Object REpository
+
+Copyright (c) 1994-99 Computer Sciences Department, University of
+                      Wisconsin -- Madison
+All Rights Reserved.
+
+Permission to use, copy, modify and distribute this software and its
+documentation is hereby granted, provided that both the copyright
+notice and this permission notice appear in all copies of the
+software, derivative works or modified versions, and any portions
+thereof, and that both notices appear in supporting documentation.
+
+THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+"AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+This software was developed with support by the Advanced Research
+Project Agency, ARPA order number 018 (formerly 8230), monitored by
+the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+Further funding for this work was provided by DARPA through
+Rome Research Laboratory Contract No. F30602-97-2-0247.
+
+*/
+
+#include "w_defines.h"
+
+/*  -- do not edit anything above this line --   </std-header>*/
+
+
+//  -=- /tor/src/smlayer/sm -=-
 
 #define TRYTHIS
 #define TRYTHIS6 0x1
 
-/*
- * $Id: bf_core.cc,v 1.32 1997/06/15 03:14:32 solomon Exp $
- */
 
 #ifndef BF_CORE_C
 #define BF_CORE_C
@@ -22,18 +48,16 @@
 #include <stdlib.h>
 #include "sm_int_0.h"
 
-#ifndef BF_S_H
 #include "bf_s.h"
-#endif
-#ifndef BF_CORE_H
 #include "bf_core.h"
-#endif
-#ifndef PAGE_S_H
 #include "page_s.h"
-#endif
+#include "vtable_info.h"
 
+#ifdef W_DEBUG
+extern "C" void dumpthreads();
+#endif /* W_DEBUG */
 
-#ifdef __GNUC__
+#ifdef EXPLICIT_TEMPLATE
 template class w_list_t<bfcb_t>;
 template class w_list_i<bfcb_t>;
 template class w_hash_t<bfcb_t, bfpid_t>;
@@ -67,6 +91,31 @@ w_list_t<bfcb_t>*		bf_core_m::_transit = 0;
 int				bf_core_m::_hand = 0; // hand of clock
 int				bf_core_m::_strategy = 0; 
 
+inline ostream&
+bfcb_t::print_frame(ostream& o, bool in_htab)
+{
+    if (in_htab) {
+        o << pid << '\t'
+	  << (dirty ? "X" : " ") << '\t'
+	  << rec_lsn << '\t'
+	  << pin_cnt << '\t'
+	  << latch_t::latch_mode_str[latch.mode()] << '\t'
+	  << latch.lock_cnt() << '\t'
+	  << latch.is_hot() << '\t'
+	  << refbit << '\t'
+#ifdef W_DEBUG
+	  << latch.holder() 
+#else
+	  << latch.id() 
+#endif /* W_DEBUG */
+	  << endl;
+    } else {
+	o << pid << '\t' 
+	  << " InTransit " << (old_pid_valid ? (lpid_t)old_pid : lpid_t::null)
+	  << endl << flush;
+    }
+    return o;
+}
 
 
 #ifdef NOTDEF
@@ -101,7 +150,7 @@ void glarch_check( bfcb_t* p, const char *c)
  *
  *********************************************************************/
 NORET
-bf_core_m::bf_core_m(uint4 n, char *bp, int stratgy, char* desc)
+bf_core_m::bf_core_m(uint4_t n, char *bp, int stratgy, const char* desc)
 {
     _num_bufs = n;
     _strategy = stratgy;
@@ -246,7 +295,7 @@ bf_core_m::grab(
     bool& 		found,
     bool& 		is_new,
     latch_mode_t 	mode,
-    int 		timeout)
+    timeout_in_ms	timeout)
 {
     w_assert3(cc_alg == t_cc_record || mode > 0);
     // Can't use macros, because we are using functions that assume
@@ -265,7 +314,7 @@ bf_core_m::grab(
 	w_assert3(MUTEX_IS_MINE(_mutex));
 	p = _htab->lookup(pid);
 	found = (p != 0);
-    
+
 	if (found) {
 	    hit_cnt++;
 	} else {
@@ -302,9 +351,9 @@ bf_core_m::grab(
 		    // could not find a replacement.
 		     w_assert3(MUTEX_IS_MINE(_mutex));
 		    _mutex.release();
-#ifdef DEBUG
-		    // cerr << *this << endl;
-#endif
+#ifdef W_DEBUG
+		    dumpthreads();
+#endif /* W_DEBUG */
 		    return RC(fcFULL);
 		}
 	    }
@@ -315,7 +364,7 @@ bf_core_m::grab(
 	    p->old_pid = p->pid;
 	    p->pid = pid;
 	    p->old_pid_valid = !is_new;
-#ifdef DEBUG
+#if defined(W_DEBUG) || defined(W_DEBUG_NAMES)
 	    {
 		char buf[64];
 		ostrstream s(buf, 64);
@@ -331,7 +380,10 @@ bf_core_m::grab(
 
 
 	rc_t rc;
-	if (mode != LATCH_NL) rc = p->latch.acquire(mode, 0);
+	if (mode != LATCH_NL)  {
+	    /* timeout is 0 --> no special handling;  wait once */
+	    rc = p->latch.acquire(mode, 0);
+	}
 
 	/* 
 	 *  we should be able to acquire the latch if "pid" is not found 
@@ -395,12 +447,13 @@ void __stop() {}
 w_rc_t 
 bf_core_m::find(
     bfcb_t*& 		ret,
-    const bfpid_t&	pid,
+    const bfpid_t&	_pid,
     latch_mode_t 	mode,
-    int 		timeout,
-    int4 		ref_bit
+    timeout_in_ms	timeout,
+    int4_t 		ref_bit
 )
 {
+    const bfpid_t		pid = _pid;
     w_assert3(ref_bit >= 0);
 
     // MUTEX_ACQUIRE(_mutex); can't use macro because
@@ -415,13 +468,14 @@ bf_core_m::find(
 	ref_cnt++;
 	w_assert3(MUTEX_IS_MINE(_mutex));
 	p = _htab->lookup(pid);
+
 	if (! p) {
 	    /* 
 	     *  not found ...
 	     *  check if the resource is in transit
 	     */
 	    {
-		w_list_i<bfcb_t> i(*_transit);
+ 		w_list_i<bfcb_t> i(*_transit);
 		while ((p = i.next()))  {
 		    if (p->pid == pid) break;
 		    if (p->old_pid_valid && p->old_pid == pid) break;
@@ -448,14 +502,17 @@ bf_core_m::find(
 	hit_cnt++;
 
 	rc_t rc;
-	if (mode != LATCH_NL) rc = p->latch.acquire(mode, 0);
+
+	if (mode != LATCH_NL)  {
+	    /* timeout is 0 --> no special handling;  wait once */
+	    rc = p->latch.acquire(mode, 0);
+	}
 
 
 	w_assert3(p->refbit >= 0);
 	if (p->refbit < ref_bit)  p->refbit = ref_bit;
 	w_assert3(p->refbit >= 0);
 
-	// p->pin_cnt++;
 	/*
 	 *  release monitor before we try a blocking latch acquire
 	 */
@@ -488,7 +545,7 @@ bf_core_m::find(
     p->pin_cnt++;
 
     ret = p;
-    w_assert3(pid == p->frame->pid && pid == p->pid);
+    w_assert3((pid == p->frame->pid) && (pid == p->pid));
     return RCOK;
 }
 
@@ -502,7 +559,7 @@ bf_core_m::find(
 bool 
 bf_core_m::latched_by_me( bfcb_t* p) const
 {
-    return (p->latch.held_by(me()))? true : false; 
+    return (p->latch.held_by(me()) > 0); 
 }
 
 /*********************************************************************
@@ -527,6 +584,8 @@ bf_core_m::publish( bfcb_t* p, bool error_occured)
 
     // The next assertion is not valid if pages can be pinned w/o being
     // latched, i.e. in the case of record-level locking
+    // NB: not possible to pin w/o latching.  There is a LATCH_NL
+    // but that amounts to no latch.
     w_assert3(cc_alg == t_cc_record || p->latch.is_locked());
 
     w_assert3(!p->old_pid_valid);
@@ -719,23 +778,31 @@ bf_core_m::pin(bfcb_t* p, latch_mode_t mode)
     rc_t rc;
     MUTEX_ACQUIRE(_mutex);
     w_assert3(p - _buftab >= 0 && p - _buftab < _num_bufs);
-    w_assert3(_in_htab(p));
-    //p->pin_cnt++;
-    if (mode != LATCH_NL) rc = p->latch.acquire(mode, 0);
+
+    /* Should pin iff in table */
+    if ( !_in_htab(p) ) {
+	MUTEX_RELEASE(_mutex);
+	return RC(fcNOTFOUND);
+    }
+
+    if (mode != LATCH_NL) {
+	/* timeout is 0 --> no special handling;  wait once */
+	rc = p->latch.acquire(mode, 0);
+    }
     MUTEX_RELEASE(_mutex);
 
+    /*
+     * If timed out, release mutex and wait indefinitely,
+     * then re-check
+     */
 
     if (rc) {
+	/* wait forever this time */
 	rc =  p->latch.acquire(mode) ;
 	if (rc) {
 	    W_FATAL(fcINTERNAL);
 	}
     }
-    // BUGBUG The following assert needs to be changed to
-    // code for handling the problem like at the end
-    // of find() and grab().  The problem is that
-    // the caller of this function doesn't handle any
-    // error case.
     if( ! _in_htab(p) ) {
 	p->latch.release();
 	return RC(fcNOTFOUND);
@@ -790,12 +857,8 @@ bf_core_m::pin_cnt(const bfcb_t* p)
  *  Unlatch the frame "p". 
  *
  *********************************************************************/
-#ifndef W_DEBUG
-#define in_htab /* in_htab not used */
-#endif
 void
-bf_core_m::unpin(bfcb_t*& p, int ref_bit, bool in_htab)
-#undef in_htab
+bf_core_m::unpin(bfcb_t*& p, int ref_bit, bool W_IFDEBUG(in_htab))
 {
     MUTEX_ACQUIRE(_mutex);
 
@@ -858,6 +921,17 @@ bf_core_m::_remove(bfcb_t*& p)
 
     if (p->pin_cnt != 1)  W_FATAL(fcINTERNAL);
     //if (p->latch.is_hot())  W_FATAL(fcINTERNAL);
+    // Get more info - since this seems to happen in some
+    // multi-user situation(s)
+    if (p->latch.is_hot())  {
+#ifdef W_DEBUG
+	cerr << "latch " << (unsigned int)&(p->latch) 
+	    << " is hot " <<endl;
+	dumpthreads();
+#endif /* W_DEBUG */
+
+	W_FATAL(fcINTERNAL);
+    }
     w_assert3( !p->latch.is_hot());
 
     p->pin_cnt = 0;
@@ -896,11 +970,12 @@ bf_core_m::_replacement()
 	    i = 0;
 	}
 	if (i == start && ++rounds == 4)  {
-	    /*
-	     * cerr << "bf_core_m: cannot find free resource" << endl;
-	     * cerr << *this;
-	     * W_FATAL(fcFULL);
-	     */
+	    
+	     cerr << "bf_core_m: cannot find free resource" << endl;
+	     cerr << *this;
+	     /*
+	      * W_FATAL(fcFULL);
+	      */
 	    return (bfcb_t*)0; 
 	}
 
@@ -924,27 +999,37 @@ bf_core_m::_replacement()
 	 * On the first partial-round, consider only clean pages.
 	 * After that, dirty ones are ok.
 	 */
-	if (
-#ifdef TRYTHIS
-#ifdef NOTDEF
-	    // After round 1 is done, dirty pages 
-	    // are considered
-	    (((_strategy & TRYTHIS6) && 
-#endif
-	    (rounds > 1 || !p->dirty)
-#ifdef NOTDEF
-	    )||
-	    ((_strategy & TRYTHIS6)==0)) 
-#endif
-	    &&
-
-#endif 
-	   // don't want to replace a hot page
-	   (!p->refbit && !p->hot && !p->pin_cnt && !p->latch.is_locked()) )  {
-	    /*
-	     *  Found one!
-	     */
-	    break;
+	{
+	    bool found =false;
+	    switch(rounds) {
+	    case 2:
+	   	 if(!p->refbit && !p->hot && 
+			!p->pin_cnt && !p->latch.is_locked()) {
+		    found=true; 
+		 }
+		 break;
+	    case 1:
+		 if( (!p->dirty) &&
+		     (!p->refbit && !p->hot && 
+			!p->pin_cnt && !p->latch.is_locked())) {
+		    found=true; 
+		 }
+		 break;
+	    case 0: 
+		 w_assert1(0); // should never get here
+		 break;
+	    default:
+	         if(!p->pin_cnt && !p->latch.is_locked()) {
+		    found=true; 
+		 }
+		 break;
+	    }
+	    if(found) {
+		/* 
+		 * Found one!
+		 */
+		break;
+	    }
 	}
 	
 	/*
@@ -979,7 +1064,7 @@ bf_core_m::_replacement()
 int 
 bf_core_m::audit() const
 {
-#ifdef DEBUG
+#ifdef W_DEBUG
     int total_locks=0 ;
 
     for (int i = 0; i < _num_bufs; i++)  {
@@ -998,7 +1083,7 @@ bf_core_m::audit() const
     return total_locks;
 #else 
 	return 0;
-#endif
+#endif /* W_DEBUG */
 }
 
 
@@ -1013,7 +1098,6 @@ bf_core_m::audit() const
 void
 bf_core_m::dump(ostream &o, bool /*debugging*/)const
 {
-    int n = 0;
 
     o << "pid" << '\t'
 	<< '\t' << "dirty?" 
@@ -1026,17 +1110,23 @@ bf_core_m::dump(ostream &o, bool /*debugging*/)const
 	<< '\t' << "l_id" 
 	<< endl << flush;
 
+    int n = 0;
+    int t = 0;
+    int pincnt = 0;
     for (int i = 0; i < _num_bufs; i++)  {
         bfcb_t* p = _buftab + i;
+	pincnt += p->pin_cnt;
         if (_in_htab(p))  {
 	    n++;
 	    p->print_frame(o, true);
         } else if (_in_transit(p)) {
-	   p->print_frame(o, false);
+	    t++;
+	    p->print_frame(o, false);
 	}
     }
-    o << "total number of frames in the hash table: " << n << endl;
-    o << "number of buffers: " << _num_bufs << endl;
+    o << "number of frames: " << _num_bufs << endl;
+    o << "number of frames in the HASH TABLE: " << n << endl;
+    o << "number of frames in TRANSIT: " << t << endl;
     o << "total_fix: " << _total_fix<< endl;
     o <<endl<<flush;
 }
@@ -1048,6 +1138,52 @@ operator<<(ostream& out, const bf_core_m& mgr)
     return out;
 }
 
+#include <vtable_info.h>
+#include <vtable_enum.h>
+#ifdef __GNUG__
+template class vtable_func<bfcb_t>;
+#endif /* __GNUG__ */
+
+void	
+bfcb_t::vtable_collect(vtable_info_t &t)
+{
+    if(pid) {
+	{
+	    // circumvent with const-ness
+	    char *p = (char *)t[bp_pid_attr];
+	    ostrstream o(p,vtable_info_t::vtable_value_size);
+	    o << pid <<  ends;
+	}
 
 
+	t.set_int(bp_pin_cnt_attr, pin_cnt);
+	t.set_string(bp_mode_attr, latch_t::latch_mode_str[latch.mode()] );
+	t.set_string(bp_dirty_attr, 
+		    (const char *) (dirty?"true":"false") );
+	t.set_string(bp_hot_attr, 
+		    (const char *)(latch.is_hot()?"true":"false"));
+    }
+}
+
+
+int
+bf_core_m::collect( vtable_info_array_t &res)
+{
+    int nt=_num_bufs; // larger than needed
+	// but we have no quick way to find out
+	// how many are empty/non-empty frames, so this
+	// is ok
+
+    if(res.init(nt, bp_last)) return -1;
+    vtable_func<bfcb_t> f(res);
+
+    for (int i = 0; i < _num_bufs; i++)  {
+	if(_buftab[i].pid) {
+	    f(_buftab[i]);
+	}
+    }
+    return 0; // no error
+
+}
 #endif /* BF_CORE_C */
+

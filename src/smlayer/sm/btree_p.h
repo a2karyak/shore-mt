@@ -1,15 +1,38 @@
-/* --------------------------------------------------------------- */
-/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
-/* -- University of Wisconsin-Madison, subject to the terms     -- */
-/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
-/* -- Reserved.                                                 -- */
-/* --------------------------------------------------------------- */
+/*<std-header orig-src='shore' incl-file-exclusion='BTREE_P_H'>
 
-/*
- *  $Id: btree_p.h,v 1.20 1997/05/19 19:46:56 nhall Exp $
- */
+ $Id: btree_p.h,v 1.32 1999/06/07 19:03:57 kupsch Exp $
+
+SHORE -- Scalable Heterogeneous Object REpository
+
+Copyright (c) 1994-99 Computer Sciences Department, University of
+                      Wisconsin -- Madison
+All Rights Reserved.
+
+Permission to use, copy, modify and distribute this software and its
+documentation is hereby granted, provided that both the copyright
+notice and this permission notice appear in all copies of the
+software, derivative works or modified versions, and any portions
+thereof, and that both notices appear in supporting documentation.
+
+THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+"AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+This software was developed with support by the Advanced Research
+Project Agency, ARPA order number 018 (formerly 8230), monitored by
+the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+Further funding for this work was provided by DARPA through
+Rome Research Laboratory Contract No. F30602-97-2-0247.
+
+*/
+
 #ifndef BTREE_P_H
 #define BTREE_P_H
+
+#include "w_defines.h"
+
+/*  -- do not edit anything above this line --   </std-header>*/
 
 #ifdef __GNUG__
 #pragma interface
@@ -33,18 +56,17 @@ public:
     
     smsize_t			klen() const	{ return _key.size(); }
     smsize_t			elen() const	{ return _elem.size(); }
+    smsize_t			plen() const	{ return (smsize_t)_prefix_bytes; }
 
     const cvec_t&		key() const	{ return _key; }
     const cvec_t&		elem() const 	{ return _elem; }
     shpid_t			child() const	{ return _child; }
 
-    NORET			operator const void*() const	{ 
-	return _key.size() ? (void*) this : 0; 
-    }
 private:
     shpid_t			_child;
     cvec_t			_key;
     cvec_t			_elem;
+    int				_prefix_bytes;
     friend class btree_p;
 
     // disabled
@@ -62,17 +84,21 @@ class btree_p : public zkeyed_p {
 public:
     friend class btrec_t;
 
-    struct btctrl_t {
-	shpid_t	root; 		// root page
-	shpid_t	pid0;		// first ptr in non-leaf nodes
-	int2	level;		// leaf if 1, non-leaf if > 1
-	int2	flags;
-    };
-
     enum flag_t{
 	t_none 		= 0x0,
 	t_smo 		= 0x01,
-	t_delete	= 0x02
+	t_delete	= 0x02,
+	t_compressed	= 0x10
+    };
+    struct btctrl_t {
+	shpid_t	root; 		// root page
+	shpid_t	pid0;		// first ptr in non-leaf nodes
+	int2_t	level;		// leaf if 1, non-leaf if > 1
+	uint2_t	flags;		// a mask of flags
+
+#ifdef notyet
+	btctrl_t() : root(0), pid0(0), level(1), flags(0) { }
+#endif
     };
 
     MAKEPAGE(btree_p, zkeyed_p, 1);
@@ -86,6 +112,7 @@ public:
     bool 			is_leaf_parent() const;
     bool 			is_node() const;
 
+    bool 			is_compressed() const;
     bool 			is_smo() const;
     bool 			is_delete() const;
     
@@ -93,7 +120,7 @@ public:
 	shpid_t			    root, 
 	int 			    level,
 	shpid_t 		    pid0,
-	uint2 			    flags);
+	uint2_t 			    flags);
     rc_t			set_pid0(shpid_t pid);
 
     rc_t 			set_delete();
@@ -208,7 +235,16 @@ inline shpid_t btree_p::pid0() const
  *--------------------------------------------------------------*/
 inline bool btree_p::is_delete() const
 {
-    return _hdr().flags & t_delete;
+    return (_hdr().flags & t_delete)!=0;
+}
+
+/*--------------------------------------------------------------*
+ *    btree_p::is_compressed()						*
+ *--------------------------------------------------------------*/
+inline bool btree_p::is_compressed() const
+{
+    // return _hdr().flags & t_compressed;
+    return (_hdr().flags & t_compressed) != 0;
 }
 
 /*--------------------------------------------------------------*
@@ -216,7 +252,7 @@ inline bool btree_p::is_delete() const
  *--------------------------------------------------------------*/
 inline bool btree_p::is_smo() const
 {
-    return _hdr().flags & t_smo;
+    return (_hdr().flags & t_smo)!=0;
 }
 
 /*--------------------------------------------------------------*
@@ -252,7 +288,7 @@ btree_p::shift(
     btree_p& 		rsib)  
 {
     w_assert3(level() == rsib.level());
-    return zkeyed_p::shift(snum, &rsib);
+    return zkeyed_p::shift(snum, &rsib, is_compressed());
 }
 
 inline int
@@ -267,4 +303,6 @@ btree_p::nrecs() const
     return zkeyed_p::nrecs();
 }
 
-#endif /*BTREE_P_H*/
+/*<std-footer incl-file-exclusion='BTREE_P_H'>  -- do not edit anything below this line -- */
+
+#endif          /*</std-footer>*/

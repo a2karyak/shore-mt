@@ -1,15 +1,38 @@
-/* --------------------------------------------------------------- */
-/* -- Copyright (c) 1994 Computer Sciences Department,          -- */
-/* -- University of Wisconsin -- Madison, subject to            -- */
-/* -- the terms and conditions given in the file COPYRIGHT.     -- */
-/* -- All Rights Reserved.                                      -- */
-/* --------------------------------------------------------------- */
+/*<std-header orig-src='shore' incl-file-exclusion='BF_CORE_H'>
 
-/*
- *  $Id: bf_core.h,v 1.14 1997/05/19 19:46:36 nhall Exp $
- */
+ $Id: bf_core.h,v 1.24 1999/06/07 19:03:50 kupsch Exp $
+
+SHORE -- Scalable Heterogeneous Object REpository
+
+Copyright (c) 1994-99 Computer Sciences Department, University of
+                      Wisconsin -- Madison
+All Rights Reserved.
+
+Permission to use, copy, modify and distribute this software and its
+documentation is hereby granted, provided that both the copyright
+notice and this permission notice appear in all copies of the
+software, derivative works or modified versions, and any portions
+thereof, and that both notices appear in supporting documentation.
+
+THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+"AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+This software was developed with support by the Advanced Research
+Project Agency, ARPA order number 018 (formerly 8230), monitored by
+the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+Further funding for this work was provided by DARPA through
+Rome Research Laboratory Contract No. F30602-97-2-0247.
+
+*/
+
 #ifndef BF_CORE_H
 #define BF_CORE_H
+
+#include "w_defines.h"
+
+/*  -- do not edit anything above this line --   </std-header>*/
 
 #ifdef __GNUG__
 #pragma interface
@@ -27,11 +50,13 @@ class bf_core_m : public smlevel_0 {
     friend class bf_cleaner_thread_t;
 public:
     NORET			bf_core_m(
-	uint4 			    n, 
+	uint4_t 		    n, 
 	char* 			    bp, 
 	int		            stratgy,
-	char*			    descriptor=0);
+	const char*		    descriptor=0);
     NORET			~bf_core_m();
+
+    static int   		collect(vtable_info_array_t&);
 
     bool			has_frame(const bfpid_t& p, bfcb_t*& ret);
 
@@ -41,14 +66,14 @@ public:
 	bool&			    found,
 	bool&			    is_new,
 	latch_mode_t		    mode = LATCH_EX,
-	int			    timeout = sthread_base_t::WAIT_FOREVER);
+	timeout_in_ms		    timeout = sthread_base_t::WAIT_FOREVER);
 
     w_rc_t 			find(
 	bfcb_t*&		    ret,
 	const bfpid_t& 		    p, 
 	latch_mode_t 		    mode = LATCH_EX,
-	int 			    timeout = sthread_base_t::WAIT_FOREVER,
-	int4 			    ref_bit = 0
+	timeout_in_ms		    timeout = sthread_base_t::WAIT_FOREVER,
+	int4_t 			    ref_bit = 0
 	);
 
     void			publish_partial(bfcb_t* p);
@@ -122,6 +147,6 @@ private:
 
 extern ostream& 	operator<<(ostream& out, const bf_core_m& mgr);
 
+/*<std-footer incl-file-exclusion='BF_CORE_H'>  -- do not edit anything below this line -- */
 
-
-#endif /*BF_CORE_H*/
+#endif          /*</std-footer>*/

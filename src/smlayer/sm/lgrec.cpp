@@ -1,13 +1,36 @@
-/* --------------------------------------------------------------- */
-/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
-/* -- University of Wisconsin-Madison, subject to the terms     -- */
-/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
-/* -- Reserved.                                                 -- */
-/* --------------------------------------------------------------- */
+/*<std-header orig-src='shore'>
 
-/*
- *  $Id: lgrec.cc,v 1.59 1997/06/15 03:13:13 solomon Exp $
- */
+ $Id: lgrec.cpp,v 1.70 1999/06/07 19:04:07 kupsch Exp $
+
+SHORE -- Scalable Heterogeneous Object REpository
+
+Copyright (c) 1994-99 Computer Sciences Department, University of
+                      Wisconsin -- Madison
+All Rights Reserved.
+
+Permission to use, copy, modify and distribute this software and its
+documentation is hereby granted, provided that both the copyright
+notice and this permission notice appear in all copies of the
+software, derivative works or modified versions, and any portions
+thereof, and that both notices appear in supporting documentation.
+
+THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+"AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+This software was developed with support by the Advanced Research
+Project Agency, ARPA order number 018 (formerly 8230), monitored by
+the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+Further funding for this work was provided by DARPA through
+Rome Research Laboratory Contract No. F30602-97-2-0247.
+
+*/
+
+#include "w_defines.h"
+
+/*  -- do not edit anything above this line --   </std-header>*/
+
 #define SM_SOURCE
 #define LGREC_C
 #ifdef __GNUG__
@@ -56,9 +79,10 @@
  * (implying that the record must be converted to indirect implmentation
  */
 rc_t
-lg_tag_chunks_h::append(uint num_pages, const lpid_t new_pages[])
+lg_tag_chunks_h::append(uint4_t num_pages, const lpid_t new_pages[])
 {
     FUNC(lg_tag_chunks_h::append);
+
 #ifdef notdef
     if (_cref.chunks[0].npages > 0) {
 	// TODO: FOR TESTING lg_tag_chunks_t::append returns eBADAPPEND
@@ -69,12 +93,13 @@ lg_tag_chunks_h::append(uint num_pages, const lpid_t new_pages[])
     int		chunk_loc[max_chunks+1]; 
 			// marks location of chunks in the list of pages
 			// +1 for marking end of chunks
-    uint	chunk_count;
+    uint4_t	chunk_count;
 
     // find the chunks in the list of pages
     chunk_loc[0] = 0;  // first chunk is at 0
     chunk_count = 1;
-    uint i;
+    uint4_t i;
+
     for (i = 1; i<num_pages && chunk_count<=max_chunks; i++) {
 	shpid_t curr_chunk_len = i - chunk_loc[chunk_count-1];
 	if (new_pages[i].page-curr_chunk_len != new_pages[chunk_loc[chunk_count-1]].page) {
@@ -97,6 +122,7 @@ lg_tag_chunks_h::append(uint num_pages, const lpid_t new_pages[])
     if (_cref.chunk_cnt == 0 ||
 	new_pages[0].page == _last_pid()+1) contig = 1;
 
+    DBG(<<" chunk_count = " << chunk_count << " contig=" << contig);
     /*
      * See if there are too many chunks for the record type.
      * The contig variable must be ignored if _chunk_cnt == 0. 
@@ -104,6 +130,14 @@ lg_tag_chunks_h::append(uint num_pages, const lpid_t new_pages[])
     if ((chunk_count + (_cref.chunk_cnt>0 ? _cref.chunk_cnt - contig : 0)) >
 	max_chunks) {
 	// too many chunks
+    
+#ifdef W_DEBUG
+	cerr << "too many chunks: " << chunk_count
+		<< " _cref.chunk_cnt " << _cref.chunk_cnt
+		<< " contig " << contig
+		<< " max_chunks " << int(max_chunks)
+		<< endl;
+#endif /* W_DEBUG */
 	return RC(smlevel_0::eBADAPPEND);
     }
 
@@ -121,10 +155,15 @@ lg_tag_chunks_h::append(uint num_pages, const lpid_t new_pages[])
     }
     for (i = contig; i < chunk_count; i++) {
 	_cref.chunks[_cref.chunk_cnt-contig+i].first_pid = new_pages[chunk_loc[i]].page;
+
 	_cref.chunks[_cref.chunk_cnt-contig+i].npages = chunk_loc[i+1] - chunk_loc[i];
+	DBG(<<" Added to chunk " << i << " page " << 
+	    _cref.chunks[_cref.chunk_cnt-contig+i].first_pid
+	    << " npages=" <<
+	    _cref.chunks[_cref.chunk_cnt-contig+i].npages );
     }
     w_assert3((_cref.chunk_cnt + chunk_count - contig) <= max_chunks);
-    _cref.chunk_cnt += chunk_count - contig;
+    _cref.chunk_cnt += w_base_t::uint2_t(chunk_count - contig);
     DBG(<<"ok");
     return RCOK;
 }
@@ -134,25 +173,29 @@ lg_tag_chunks_h::append(uint num_pages, const lpid_t new_pages[])
  * implemented as a set of chunks.
  */
 rc_t
-lg_tag_chunks_h::truncate(uint num_pages)
+lg_tag_chunks_h::truncate(uint4_t num_pages)
 {
     FUNC(lg_tag_chunks_h::truncate);
-    int i;
-    int first_dealloc = page_count()-num_pages;
-    int last_dealloc = page_count()-1;
-#ifdef DEBUG
-    uint4 check_dealloc = 0;
-#endif
+    smsize_t first_dealloc = page_count()-num_pages;
+    smsize_t last_dealloc = page_count()-1;
+#ifdef W_DEBUG
+    uint4_t check_dealloc = 0;
+#endif /* W_DEBUG */
 
-    for (i = first_dealloc; i <= last_dealloc; i++) {
+    { // without this bracketing, 
+      // VC++ thinks this smsize_t i is in the same
+      // scope as the int i in the next for loop
+    for (smsize_t i = first_dealloc; i <= last_dealloc; i++) {
+	DBG(<<"freeing page " << pid(i));
 	W_DO(smlevel_0::io->free_page(pid(i)));
-#ifdef DEBUG
+#ifdef W_DEBUG
 	check_dealloc++;
-#endif
+#endif /* W_DEBUG */
+    }
     }
     w_assert3(check_dealloc == num_pages);
 
-    for (i = _cref.chunk_cnt-1; i >= 0 && num_pages > 0; i--) {
+    for (int i = _cref.chunk_cnt-1; i >= 0 && num_pages > 0; i--) {
 
 	if (_cref.chunks[i].npages <= num_pages) {
 	    num_pages -= _cref.chunks[i].npages;
@@ -168,16 +211,16 @@ lg_tag_chunks_h::truncate(uint num_pages)
 }
 
 rc_t
-lg_tag_chunks_h::update(uint4 start_byte, const vec_t& data) const
+lg_tag_chunks_h::update(uint4_t start_byte, const vec_t& data) const
 {
     FUNC(lg_tag_chunks_h::update);
-    uint4 amount; // amount to update on page
-    uint4 pid_count = start_byte/lgdata_p::data_sz; // first page
-    uint4 data_size = data.size();
+    uint4_t amount; // amount to update on page
+    uint4_t pid_count = start_byte/lgdata_p::data_sz; // first page
+    uint4_t data_size = data.size();
 
     lpid_t curr_pid(_page.pid().vol(), _cref.store, 0);
-    uint4 offset = start_byte%lgdata_p::data_sz;
-    uint4 num_bytes = 0;
+    uint4_t offset = start_byte%lgdata_p::data_sz;
+    uint4_t num_bytes = 0;
     while (num_bytes < data_size) {
 	amount = MIN(lgdata_p::data_sz-offset, data_size-num_bytes);
 	curr_pid.page = _pid(pid_count); 
@@ -193,7 +236,7 @@ lg_tag_chunks_h::update(uint4 start_byte, const vec_t& data) const
     return RCOK;
 }
 
-shpid_t lg_tag_chunks_h::_pid(uint4 pid_num) const
+shpid_t lg_tag_chunks_h::_pid(uint4_t pid_num) const
 {
     FUNC(lg_tag_chunks_h::_pid);
     for (int i = 0; i < _cref.chunk_cnt; i++) {
@@ -206,24 +249,46 @@ shpid_t lg_tag_chunks_h::_pid(uint4 pid_num) const
     return 0;  // keep compiler quiet
 }
 
+void 	
+lg_tag_chunks_h::print(ostream &o) const
+{
+    w_assert1(_page.is_fixed());
+    for (smsize_t i = 0; 
+	i <_cref.chunk_cnt;
+	i++) {
+	o << _cref.chunks[i].first_pid
+	    << " -> " << _cref.chunks[i].first_pid + 
+		_cref.chunks[i].npages - 1 
+	    << " (" << _cref.chunks[i].npages << ")"
+	    <<endl;
+    }
+}
+
+ostream &operator<<(ostream& o, const lg_tag_chunks_h &l)
+{
+	l.print(o);
+	return o;
+}
+
 rc_t
 lg_tag_indirect_h::convert(const lg_tag_chunks_h& old_tag)
 {
     FUNC(lg_tag_indirect_h::convert);
-#ifdef DEBUG
-    const int max_pages = 2;
+#ifdef W_DEBUG
+    const smsize_t max_pages = 2;
 #else
-    const int max_pages = 64;
-#endif
+    const smsize_t max_pages = 64;
+#endif /* W_DEBUG */
     w_assert3(_iref.indirect_root == 0);
 
     lpid_t    page_list[max_pages];
 
-    uint4 old_cnt = old_tag.page_count();
+    smsize_t old_cnt = old_tag.page_count();
 
     for (_page_cnt = 0; _page_cnt < old_cnt; _page_cnt += max_pages) {
-	uint num_pages;
-	for (num_pages = 0; num_pages < MIN(max_pages, old_cnt-_page_cnt); num_pages++ ) {
+	uint4_t num_pages;
+	uint4_t maxpgs = MIN(uint4_t(max_pages), old_cnt - _page_cnt);
+	for (num_pages = 0; num_pages < maxpgs; num_pages++ ) {
 		page_list[num_pages] = old_tag.pid(_page_cnt+num_pages);
 	}
 	W_DO(append(num_pages, page_list));
@@ -232,7 +297,7 @@ lg_tag_indirect_h::convert(const lg_tag_chunks_h& old_tag)
 }
 
 rc_t
-lg_tag_indirect_h::append(uint num_pages, const lpid_t new_pages[])
+lg_tag_indirect_h::append(uint4_t num_pages, const lpid_t new_pages[])
 {
     FUNC(lg_tag_indirect_h::append);
     const uint max_pages = 64;
@@ -243,8 +308,13 @@ lg_tag_indirect_h::append(uint num_pages, const lpid_t new_pages[])
     if (_iref.indirect_root == 0) {
 	// allocate a root indirect page, near last page in store
 	lpid_t root_pid;
-	W_DO(smlevel_0::io->last_page(stid(), root_pid));
-	W_DO(smlevel_0::io->alloc_pages(stid(), root_pid, 1, &root_pid));
+	W_DO(smlevel_0::io->alloc_pages(stid(), 
+		lpid_t::eof,     // near hint
+		1, &root_pid, // npages, array for output pids
+		false, // not may_realloc
+		EX, 	// lock on the allocated pages
+		false	// do not search file for free pages
+		));
 	_iref.indirect_root = root_pid.page;
 	lgindex_p root;
 	W_DO( root.fix(root_pid, LATCH_EX, root.t_virgin) ); 
@@ -254,10 +324,10 @@ lg_tag_indirect_h::append(uint num_pages, const lpid_t new_pages[])
     // calculate the number of pages to append to last index page
     uint space_on_last = lgindex_p::max_pids-
 			_pages_on_last_indirect();
-    uint4 pages_on_last = MIN(num_pages, space_on_last);
+    uint4_t pages_on_last = MIN(num_pages, space_on_last);
 
     // number of pages to place on a new indirect_page
-    uint4 pages_on_new = num_pages - pages_on_last;
+    uint4_t pages_on_new = num_pages - pages_on_last;
 
     // append pages to 
     lpid_t last_index_pid(stid(), _last_indirect());
@@ -284,7 +354,7 @@ lg_tag_indirect_h::append(uint num_pages, const lpid_t new_pages[])
  * implemented as indirect blocks 
  */
 rc_t
-lg_tag_indirect_h::truncate(uint num_pages)
+lg_tag_indirect_h::truncate(uint4_t num_pages)
 {
     FUNC(lg_tag_indirect_h::truncate);
     int 	i;
@@ -390,16 +460,16 @@ lg_tag_indirect_h::truncate(uint num_pages)
 }
 
 rc_t
-lg_tag_indirect_h::update(uint4 start_byte, const vec_t& data) const
+lg_tag_indirect_h::update(uint4_t start_byte, const vec_t& data) const
 {
     FUNC(lg_tag_indirect_h::update);
-    uint4 amount; // amount to update on page
+    uint4_t amount; // amount to update on page
     uint   page_to_update = start_byte/lgdata_p::data_sz; // first page
-    uint4 data_size = data.size();
+    uint4_t data_size = data.size();
 
     lpid_t curr_pid(stid(), 0);
-    uint4 offset = start_byte%lgdata_p::data_sz;
-    uint4 num_bytes = 0;
+    uint4_t offset = start_byte%lgdata_p::data_sz;
+    uint4_t num_bytes = 0;
     while (num_bytes < data_size) {
 	amount = MIN(lgdata_p::data_sz-offset, data_size-num_bytes);
 	curr_pid.page = _pid(page_to_update); 
@@ -442,8 +512,13 @@ lg_tag_indirect_h::_add_new_indirect(lpid_t& new_pid)
     if (indirect_type(_page_cnt) == t_large_1) {
 	// must allocate a new root pid and point it to the current one
 	lpid_t root_pid;
-	W_DO(smlevel_0::io->last_page(stid(), root_pid));
-	W_DO(smlevel_0::io->alloc_pages(stid(), root_pid, 1, &root_pid));
+	W_DO(smlevel_0::io->alloc_pages(stid(), 
+		lpid_t::eof,  // near hint
+		1, &root_pid, // npages, array for output pids
+		false, // not may_realloc 
+		EX, // lock on pages
+		false	// do not search file for free pages
+		));
 
 	lgindex_p root;
 	W_DO( root.fix(root_pid, LATCH_EX, flags) );
@@ -454,8 +529,13 @@ lg_tag_indirect_h::_add_new_indirect(lpid_t& new_pid)
     }
 
     // allocate a new page and point to it from the root
-    W_DO(smlevel_0::io->last_page(stid(), new_pid));
-    W_DO(smlevel_0::io->alloc_pages(stid(), new_pid, 1, &new_pid));
+    W_DO(smlevel_0::io->alloc_pages(stid(), 
+		lpid_t::eof,  // near hint
+		1, &new_pid, // npages, array of output pids
+	    	false, 	// not may_realloc
+		EX,	// lock on new pages
+		false	// do not search file for free pages
+		));
     lgindex_p new_page;
     W_DO( new_page.fix(new_pid, LATCH_EX, flags) );  // format page
 
@@ -481,7 +561,7 @@ shpid_t lg_tag_indirect_h::_last_pid() const
     return last_indirect.last_pid();
 }
 
-shpid_t lg_tag_indirect_h::_pid(uint4 pid_num) const
+shpid_t lg_tag_indirect_h::_pid(uint4_t pid_num) const
 {
     FUNC(lg_tag_indirect_h::_pid);
 
@@ -498,7 +578,8 @@ shpid_t lg_tag_indirect_h::_pid(uint4 pid_num) const
     w_assert3(indirect_type(_page_cnt) == t_large_2);
 
     // find "slot" containing pointer to page with pid_num
-    slotid_t idx = pid_num/lgindex_p::max_pids;
+    w_assert3( (pid_num/lgindex_p::max_pids) < max_uint2);
+    slotid_t idx = (slotid_t)(pid_num/lgindex_p::max_pids);
     lpid_t indirect_pid(stid(), root.pids(idx));
     lgindex_p indirect;
     W_IGNORE( indirect.fix(indirect_pid, LATCH_SH) ); // PAGEFIXBUG
@@ -517,7 +598,7 @@ void lgdata_p::ntoh()
 
 rc_t
 lgdata_p::format(const lpid_t& pid, tag_t tag, 
-	uint4_t flags
+	uint4_t flags, store_flag_t store_flags
 	)
 {
     w_assert3(tag == t_lgdata_p);
@@ -526,7 +607,14 @@ lgdata_p::format(const lpid_t& pid, tag_t tag,
     // format, then create a 0-length slot
 
     /* Do the formatting and insert w/o logging them */
-    W_DO( page_p::format(pid, tag, flags, false) );
+    W_DO( page_p::format(pid, tag, flags, store_flags, false) );
+
+    // always set the store_flag here --see comments
+    // in bf::fix(), which sets the store flags to st_regular
+    // for all pages, and lets the type-specific store manager
+    // override (because only file pages can be insert_file)
+    persistent_part().store_flags = store_flags;
+
     W_COERCE( page_p::insert_expand(0, 1, &vec, false) );
 
 
@@ -537,24 +625,24 @@ lgdata_p::format(const lpid_t& pid, tag_t tag,
 }
 
 rc_t
-lgdata_p::append(const vec_t& data, uint4 start, uint4 amount)
+lgdata_p::append(const vec_t& data, uint4_t start, uint4_t amount)
 {
     FUNC(lgdata_p::append);
 
     // new vector at correct start and with correct size
     if(data.is_zvec()) {
-	W_DO(splice(0, tuple_size(0), 0, zvec_t(amount)));
+	W_DO(splice(0, (slot_length_t) tuple_size(0), 0, zvec_t(amount)));
     } else {
 	vec_t new_data(data, u4i(start), u4i(amount));
 	w_assert3(amount == new_data.size());
-	W_DO(splice(0, tuple_size(0), 0, new_data));
+	W_DO(splice(0, (slot_length_t) tuple_size(0), 0, new_data));
     }
     return RCOK;
 }
 
 rc_t
-lgdata_p::update(uint4 offset, const vec_t& data, uint4 start,
-		 uint4 amount)
+lgdata_p::update(uint4_t offset, const vec_t& data, uint4_t start,
+		 uint4_t amount)
 {
     FUNC(lgdata_p::update);
 
@@ -570,18 +658,18 @@ lgdata_p::update(uint4 offset, const vec_t& data, uint4 start,
 }
 
 rc_t
-lgdata_p::truncate(uint4 amount)
+lgdata_p::truncate(uint4_t amount)
 {
     FUNC(lgdata_p::truncate);
 
     vec_t       empty;  // zero length vector
-    W_DO(splice(0, tuple_size(0)-u4i(amount), u4i(amount), empty));
+    W_DO(splice(0, (slot_length_t)(tuple_size(0)-u4i(amount)), u4i(amount), empty));
     return RCOK;
 }
 
 rc_t
 lgindex_p::format(const lpid_t& pid, tag_t tag, 
-	uint4_t flags
+	uint4_t flags, store_flag_t store_flags
 	)
 {
     w_assert3(tag == t_lgindex_p);
@@ -590,7 +678,7 @@ lgindex_p::format(const lpid_t& pid, tag_t tag,
     vec_t vec;  // empty vector
 
     /* Do the formatting and insert w/o logging them */
-    W_DO( page_p::format(pid, tag, flags, false) );
+    W_DO( page_p::format(pid, tag, flags, store_flags, false) );
     W_COERCE(page_p::insert_expand(0, 1, &vec, false) );
 
     /* Now, log as one (combined) record: */
@@ -599,20 +687,20 @@ lgindex_p::format(const lpid_t& pid, tag_t tag,
 }
 
 rc_t
-lgindex_p::append(uint4 num_pages, const shpid_t new_pids[])
+lgindex_p::append(uint4_t num_pages, const shpid_t new_pids[])
 {
     // new vector at correct start and with correct size
     vec_t data(new_pids, u4i(num_pages)*sizeof(new_pids[0]));
-    W_DO(splice(0, tuple_size(0), 0, data));
+    W_DO(splice(0, (slot_length_t)(tuple_size(0)), 0, data));
     return RCOK;
 }
 
 rc_t
-lgindex_p::truncate(uint4 num_pages)
+lgindex_p::truncate(uint4_t num_pages)
 {
     vec_t     	empty;  		// zero length vector
     int 	bytes_to_trunc = u4i(num_pages) * sizeof(shpid_t);
-    W_DO(splice(0, tuple_size(0)-bytes_to_trunc, bytes_to_trunc, empty));
+    W_DO(splice(0, (slot_length_t)(tuple_size(0)-bytes_to_trunc), bytes_to_trunc, empty));
     return RCOK;
 }
 
@@ -626,3 +714,4 @@ void lgindex_p::ntoh()
 
 MAKEPAGECODE(lgdata_p, page_p);
 MAKEPAGECODE(lgindex_p, page_p);
+

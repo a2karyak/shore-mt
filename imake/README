@@ -1,0 +1,31 @@
+# --------------------------------------------------------------- #
+# -- Copyright (c) 1997       Computer Sciences Department,    -- #
+# -- University of Wisconsin-Madison, subject to the terms     -- #
+# -- and conditions given in the file COPYRIGHT.  All Rights   -- #
+# -- Reserved.                                                 -- #
+# --------------------------------------------------------------- #
+
+2-step process:
+
+1) if not on NT, edit Makefile.ini, and remove all ^M chars from the
+	ends of the lines: in vi, do as follows, where ^M means
+	<control-v><control-m>:
+		:%:s/^M//g
+    ALTERNATIVELY:
+	perl ../tools/ntclean.pl Makefile.ini
+
+
+Do this: 
+    chmod +x bootstrap.pl
+    bootstrap.pl
+
+or
+    chmod +x bootstrap.pl
+    perl bootstrap.pl
+
+
+NB: Look for XXXX_XXXX in imakemdefs.h : there I just
+overrode everything. You might have to fix this for other
+architectures.
+
+*******************************************************************************

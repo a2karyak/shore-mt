@@ -1,17 +1,39 @@
-/* --------------------------------------------------------------- */
-/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
-/* -- University of Wisconsin-Madison, subject to the terms     -- */
-/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
-/* -- Reserved.                                                 -- */
-/* --------------------------------------------------------------- */
+/*<std-header orig-src='shore' incl-file-exclusion='UNIX_STATS_H'>
 
-#ifndef __STATS_H__
-#define __STATS_H__
-/*
- *   $RCSfile: unix_stats.h,v $  
- *   $Revision: 1.10 $  
- *   $Date: 1996/10/28 17:51:53 $      
- */ 
+ $Id: unix_stats.h,v 1.20 1999/06/07 19:02:49 kupsch Exp $
+
+SHORE -- Scalable Heterogeneous Object REpository
+
+Copyright (c) 1994-99 Computer Sciences Department, University of
+                      Wisconsin -- Madison
+All Rights Reserved.
+
+Permission to use, copy, modify and distribute this software and its
+documentation is hereby granted, provided that both the copyright
+notice and this permission notice appear in all copies of the
+software, derivative works or modified versions, and any portions
+thereof, and that both notices appear in supporting documentation.
+
+THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+"AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+This software was developed with support by the Advanced Research
+Project Agency, ARPA order number 018 (formerly 8230), monitored by
+the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+Further funding for this work was provided by DARPA through
+Rome Research Laboratory Contract No. F30602-97-2-0247.
+
+*/
+
+#ifndef UNIX_STATS_H
+#define UNIX_STATS_H
+
+#include "w_defines.h"
+
+/*  -- do not edit anything above this line --   </std-header>*/
+
 /*
  * stats.h
  *
@@ -25,8 +47,7 @@
 #pragma interface
 #endif
 
-#include <stream.h>
-#include <iostream.h>
+#include <w_stream.h>
 
 /*
  * SGI machines differentiate between SysV and BSD
@@ -38,16 +59,8 @@
 #define _BSD_TIME
 #endif
 
-#include <sys/time.h>
-#include <sys/resource.h>
+#include <w_rusage.h>
 
-
-#ifdef HPUX8
-#include <sys/syscall.h>
-#define getrusage(a, b)  syscall(SYS_GETRUSAGE, a, b)
-
-extern "C" syscall(int, int, void*);
-#endif /* HPUX8 */
 
 /*
  * unix_stats objects are meant to be used as follows:
@@ -58,16 +71,17 @@ extern "C" syscall(int, int, void*);
  *        examine gathered unix_stats
  */
 
-#if defined(SOLARIS2) 
+#if defined(SOLARIS2)  && defined(USE_SLASH_PROC)
 #undef __STATS_H__
 #undef  _stats
 #include <solaris_stats.h>
-#else /* not SOLARIS2 */
+#else /* not SOLARIS2 or not defined USE_SLASH_PROC */
 #ifdef __GNUC__
 #pragma interface
 #endif
 
 
+#include <w_gettimeofday.h>
 
 /*
  * Stats for Unix processes.
@@ -79,7 +93,12 @@ protected:
     struct rusage   rusage1;	/* getrusage() buffer */
     struct rusage   rusage2;	/* getrusage() buffer */
     int	iterations;
-    int who;
+#ifdef Linux
+#define WHO enum __rusage_who
+#else
+#define WHO int
+#endif
+    WHO who;
 
 public:
     unix_stats();
@@ -118,15 +137,12 @@ public:
 extern ostream& operator<<(ostream&, const unix_stats &s);
 #endif
 
-#ifndef getrusage
-extern "C" int    getrusage(int, struct rusage*);
-#endif
 
-#if !defined(SOLARIS2) && !defined(AIX41) && !defined(AIX32)
-extern "C" int    gettimeofday(struct timeval*, struct timezone*);
-#endif
 
 float compute_time(const struct timeval *start_time, const struct timeval *end_time);
 
 #endif /*_stats*/
-#endif 
+
+/*<std-footer incl-file-exclusion='UNIX_STATS_H'>  -- do not edit anything below this line -- */
+
+#endif          /*</std-footer>*/

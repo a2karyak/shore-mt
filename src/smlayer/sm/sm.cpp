@@ -1,13 +1,36 @@
-/* --------------------------------------------------------------- */
-/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
-/* -- University of Wisconsin-Madison, subject to the terms     -- */
-/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
-/* -- Reserved.                                                 -- */
-/* --------------------------------------------------------------- */
+/*<std-header orig-src='shore'>
 
-/*
- * $Id: sm.cc,v 1.386 1997/06/15 03:13:35 solomon Exp $
- */
+ $Id: sm.cpp,v 1.458 1999/08/18 16:50:16 bolo Exp $
+
+SHORE -- Scalable Heterogeneous Object REpository
+
+Copyright (c) 1994-99 Computer Sciences Department, University of
+                      Wisconsin -- Madison
+All Rights Reserved.
+
+Permission to use, copy, modify and distribute this software and its
+documentation is hereby granted, provided that both the copyright
+notice and this permission notice appear in all copies of the
+software, derivative works or modified versions, and any portions
+thereof, and that both notices appear in supporting documentation.
+
+THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+"AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+This software was developed with support by the Advanced Research
+Project Agency, ARPA order number 018 (formerly 8230), monitored by
+the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+Further funding for this work was provided by DARPA through
+Rome Research Laboratory Contract No. F30602-97-2-0247.
+
+*/
+
+#include "w_defines.h"
+
+/*  -- do not edit anything above this line --   </std-header>*/
+
 #define SM_SOURCE
 #define SM_C
 
@@ -20,7 +43,6 @@ class prologue_rc_t;
 
 #include "w.h"
 #include "option.h"
-#include "opt_error_def.h"
 #include "sm_int_4.h"
 #include "pin.h"
 #include "chkpt.h"
@@ -35,22 +57,31 @@ class prologue_rc_t;
 
 #include "app_support.h"
 
+#ifdef EXPLICIT_TEMPLATE
+template class w_auto_delete_t<SmStoreMetaStats*>;
+#endif
+
 bool	smlevel_0::shutdown_clean = true;
 bool	smlevel_0::shutting_down = false;
-bool	smlevel_0::in_recovery = false;
-bool	smlevel_0::in_analysis = false;
+
+smlevel_0::operating_mode_t smlevel_0::operating_mode = smlevel_0::t_not_started;
+
 bool	smlevel_0::logging_enabled = true;
 bool	smlevel_0::do_prefetch = false;
 
 int	smlevel_0::dcommit_timeout = 0;
 
-// these are set when the logsize option is set
-uint4	smlevel_0::max_logsz = 0;
-uint4	smlevel_0::chkpt_displacement = 0;
+smlevel_0::fileoff_t	smlevel_0::log_warn_exceed = 0;
+int			smlevel_0::log_warn_exceed_percent = 0;
+ss_m::LOG_WARN_CALLBACK_FUNC smlevel_0::log_warn_callback = 0;
 
-int4	smlevel_0::defaultLockEscalateToPageThreshold = dontEscalate;
-int4	smlevel_0::defaultLockEscalateToStoreThreshold = dontEscalate;
-int4	smlevel_0::defaultLockEscalateToVolumeThreshold = dontEscalate;
+// these are set when the logsize option is set
+smlevel_0::fileoff_t	smlevel_0::max_logsz = 0;
+smlevel_0::fileoff_t	smlevel_0::chkpt_displacement = 0;
+
+int4_t	smlevel_0::defaultLockEscalateToPageThreshold = dontEscalate;
+int4_t	smlevel_0::defaultLockEscalateToStoreThreshold = dontEscalate;
+int4_t	smlevel_0::defaultLockEscalateToVolumeThreshold = dontEscalate;
 
 // Whenever a change is made to data structures stored on a volume,
 // volume_format_version be incremented so that incompatibilities
@@ -67,8 +98,18 @@ int4	smlevel_0::defaultLockEscalateToVolumeThreshold = dontEscalate;
 //  10 = extent link changed shape.
 //  11 = extent link changed, allowing concurrency in growing a store
 //  12 = dir btree contents changed (removed store flag and property)
+//  13 = Large volumes : changed size of snum_t and extnum_t
+//  14 = Changed size of lsn_t, hence log record headers were rearranged
+//       and page headers changed.  Small disk address
+//  15 = Same as 14, but with large disk addresses
 
-uint4	smlevel_0::volume_format_version = 12;
+#ifdef SM_ODS_COMPAT_13
+uint4_t	smlevel_0::volume_format_version = 13;
+#elif defined(SM_DISKADDR_LARGE)
+uint4_t	smlevel_0::volume_format_version = 15;
+#else
+uint4_t	smlevel_0::volume_format_version = 14;
+#endif
 
 // used to prevent xct creation during volume dismount
 smutex_t	ss_m::_begin_xct_mutex("begin_xct");
@@ -95,11 +136,17 @@ GlobalDeadlockClient* smlevel_0::global_deadlock_client = 0;
 DeadlockEventCallback* smlevel_0::deadlockEventCallback = 0;
 
 ErrLog* 	   smlevel_0::errlog;
-#ifdef DEBUG
-ErrLog* 	   smlevel_0::scriptlog;
-#endif
+
+#ifdef W_DEBUG
+ErrLog* 	   smlevel_0::scriptlog=0;
+#endif /* W_DEBUG */
+
+/*
+ * One static stats structure for the Storage Manager's
+ * static stats.
+ */
 sm_stats_info_t __stats__;
-sm_stats_info_t &smlevel_0::stats = __stats__;
+sm_stats_info_t& smlevel_0::stats = __stats__;
 
 char smlevel_0::zero_page[page_sz];
 
@@ -117,6 +164,15 @@ ss_m* smlevel_4::SSM = 0;
 
 // option related statics
 option_group_t* ss_m::_options = NULL;
+
+#if defined(Sparc) && defined(SOLARIS2) && defined(SOLARIS2_PSETS)
+#include <sys/types.h>
+#include <sys/processor.h>
+#include <sys/procset.h>
+#include <sys/pset.h>
+#endif
+option_t* ss_m::_processor_set = NULL;
+
 option_t* ss_m::_reformat_log = NULL;
 option_t* ss_m::_prefetch = NULL;
 option_t* ss_m::_bfm_strategy = NULL;
@@ -128,7 +184,6 @@ option_t* smlevel_0::_backgroundflush = NULL;
 option_t* ss_m::_logsize = NULL;
 option_t* ss_m::_logbufsize = NULL;
 option_t* ss_m::_diskrw = NULL;
-option_t* ss_m::_multiserver = NULL;
 option_t* ss_m::_error_log = NULL;
 option_t* ss_m::_error_loglevel = NULL;
 option_t* ss_m::_script_log = NULL;
@@ -139,6 +194,7 @@ option_t* ss_m::_lockEscalateToVolumeThreshold = NULL;
 option_t* ss_m::_numLidCacheEntries = NULL;
 option_t* ss_m::_dcommit_timeout = NULL;
 option_t* ss_m::_cc_alg_option = NULL;
+option_t* ss_m::_log_warn_percent = NULL;
 
 // Root index key for finding logical ID of the root index.
 // used to implement vol_root_index(lvid_t, serial_t&)
@@ -217,10 +273,14 @@ int ss_m::_instance_cnt = 0;
 
 // sm_einfo.i defines the w_error_info_t smlevel_0::error_info[]
 const
-#include <e_einfo.i>
+#include <e_einfo_gen.h>
 
 rc_t ss_m::setup_options(option_group_t* options)
 {
+    W_DO(options->add_option("sm_processor_set", "psetid_t", NULL,
+	    "SMP processor set (Solaris 2.6+ only)",
+	    false, option_t::set_value_long, _processor_set));
+
     W_DO(options->add_option("sm_reformat_log", "yes/no", "no",
 	    "yes will destroy your log",
 	    false, option_t::set_value_bool, _reformat_log));
@@ -233,7 +293,7 @@ rc_t ss_m::setup_options(option_group_t* options)
 	    "bitmask indicating buffer manager strategy",
 	    false, option_t::set_value_long, _bfm_strategy));
 
-    W_DO(options->add_option("sm_bufpoolsize", "#>64", NULL,
+    W_DO(options->add_option("sm_bufpoolsize", "#>=80", NULL,
 	    "size of buffer pool in Kbytes",
 	    true, option_t::set_value_long, _bufpoolsize));
 
@@ -253,7 +313,8 @@ rc_t ss_m::setup_options(option_group_t* options)
 	    "yes indicates background buffer pool flushing thread is enabled",
 	    false, option_t::set_value_bool, _backgroundflush));
 
-    W_DO(options->add_option("sm_logbufsize", "#>=64 and <=1024", "64",
+    W_DO(options->add_option("sm_logbufsize", "(>=4 and <=128)*(page size)", 
+	    "128",
 	    "size of log buffer Kbytes",
 	    false, option_t::set_value_long, _logbufsize));
 
@@ -265,12 +326,8 @@ rc_t ss_m::setup_options(option_group_t* options)
 	    "name of program to use for disk I/O",
 	    false, _set_option_diskrw, _diskrw));
 
-    W_DO(options->add_option("sm_multiserver", "yes/no", "no",
-	    "yes indicates support for accessing remote servers",
-	    false, option_t::set_value_bool, _multiserver));
-
     W_DO(options->add_option("sm_errlog", "string", "-",
-	    "- (stderr), syslogd (to syslog daemon), or <filename>",
+	    "- (stderr) or <filename>",
 	    false, option_t::set_value_charstr, _error_log));
 
     W_DO(options->add_option("sm_errlog_level", "string", "error",
@@ -314,29 +371,63 @@ rc_t ss_m::setup_options(option_group_t* options)
 	    "default locking for file data",
 	    false, option_t::set_value_charstr, _cc_alg_option));
 
+    W_DO(options->add_option("sm_log_warn", "0-100", "0",
+	    "% of log in use that triggers callback to server",
+	    false, option_t::set_value_long, _log_warn_percent));
     _options = options;
     return RCOK;
 }
 
-rc_t ss_m::_set_option_logsize(option_t* opt, const char* value, ostream* err_stream)
+rc_t ss_m::_set_option_logsize(
+	option_t* opt, 
+	const char* value, 
+	ostream* err_stream
+)
 {
     // the logging system should not be running.  if it is
     // then don't set the option
     if (smlevel_0::log) return RCOK;
 
     w_assert3(opt == _logsize);
-    W_DO(option_t::set_value_long(opt, value, err_stream));
-    long maxlogsize = strtol(_logsize->value(), NULL, 0) * 1024;
+
+    w_rc_t	e;
+    if (sizeof(fileoff_t) == 8)
+	e = option_t::set_value_int8(opt, value, err_stream);
+    else
+	e = option_t::set_value_int4(opt, value, err_stream);
+    W_DO(e);
+
+    fileoff_t maxlogsize = fileoff_t(
+#ifdef LARGEFILE_AWARE
+	   w_base_t::strtoi8(_logsize->value())
+#else
+	   atoi(_logsize->value())
+#endif
+	);
+
+    maxlogsize *= 1024;
+    if( maxlogsize > sthread_init_t::max_os_file_size) {
+	    *err_stream << "Log size (sm_logsize) (" << maxlogsize 
+		<< ") exceeds limit (" << sthread_init_t::max_os_file_size
+		<< ") imposed by the operating system."
+		<<endl;
+	return RC(OPT_BadValue);
+    }
 
     // maxlogsize == 0 signifies to use the size of the raw partition
     if (maxlogsize != 0 && maxlogsize < 1024*1024) {
-	*err_stream << "Log size (sm_logsize) must be more than 1024" 
-		    << endl; 
+        if (err_stream)
+		*err_stream << "Log size (sm_logsize) must be more than 1024"
+			<< endl; 
+	else
+		cerr << "Log size (sm_logsize) must be more than 1024" 
+			<< endl; 
+
 	return RC(OPT_BadValue);
     }
 
     // maximum size of a log file
-    max_logsz = maxlogsize / max_openlog;
+    max_logsz = fileoff_t(maxlogsize) / max_openlog;
 
     // take check points every 1Meg or 1/2 log file size.
     chkpt_displacement = MIN(max_logsz/2, 1024*1024);
@@ -400,6 +491,7 @@ rc_t ss_m::_set_option_diskrw(option_t* opt, const char* value, ostream* err_str
     return RCOK;
 }
 
+
 NORET
 xct_dependent_t::xct_dependent_t(xct_t* xd)
 {
@@ -423,7 +515,7 @@ xct_dependent_t::~xct_dependent_t()
 
 /* 
  * NB: reverse function, _make_store_property
- * is defined in dir.c -- so far, used only there
+ * is defined in dir.cpp -- so far, used only there
  */
 ss_m::store_flag_t
 ss_m::_make_store_flag(store_property_t property)
@@ -452,8 +544,14 @@ ss_m::_make_store_flag(store_property_t property)
     return flag;
 }
 
-ss_m::ss_m()
+ss_m::ss_m(
+    smlevel_0::LOG_WARN_CALLBACK_FUNC callback /* = 0 */
+)
 {
+    FUNC(ss_m::ss_m);
+
+    smlevel_0::log_warn_callback  = callback;
+
     static bool initialized = false;
     if (! initialized)  {
 	smlevel_0::init_errorcodes();
@@ -469,7 +567,8 @@ ss_m::ss_m()
     if (_instance_cnt++)  {
 	// errlog might not be null since in this case there was another instance.
 	if(errlog) {
-	    errlog->clog << error_prio << "ss_m:: cannot instantiate more than one ss_m object"
+	    errlog->clog << error_prio 
+		<< "ss_m cannot be instantiated more than once"
 	     << flushl;
 	}
 	W_FATAL(eINTERNAL);
@@ -478,7 +577,7 @@ ss_m::ss_m()
     /*
      *  Level 0
      */
-    errlog = new ErrLog("ss_m", log_to_unix_file, (void *)_error_log->value());
+    errlog = new ErrLog("ss_m", log_to_unix_file, _error_log->value());
     if(!errlog) {
 	W_FATAL(eOUTOFMEMORY);
     }
@@ -494,7 +593,7 @@ ss_m::ss_m()
 
     w_assert1(page_sz >= 1024);
 
-    pull_in_sm_export();	/* link in common/sm_export.C */
+    pull_in_sm_export();	/* link in common/sm_export.cpp */
 
     // make sure setup_options was called successfully
     w_assert1(_options);
@@ -506,11 +605,11 @@ ss_m::ss_m()
     shutdown_clean = true;
 
 
-#ifdef DEBUG
+#ifdef NOTDEF
     if(_script_log) {
 	// TODO: it would be better if this file didn't even get opened
 	// unless the log level were >= info.
-	scriptlog = new ErrLog("ssh", log_to_unix_file, (void *)_script_log->value());
+	scriptlog = new ErrLog("ssh", log_to_unix_file, _script_log->value());
 	if(!scriptlog) {
 	    W_FATAL(eOUTOFMEMORY);
 	}
@@ -518,7 +617,11 @@ ss_m::ss_m()
 	    scriptlog->setloglevel(ErrLog::parse(_script_loglevel->value()));
 	}
     }
-#endif
+#endif /* NOTDEF */
+    if(_log_warn_percent && _log_warn_percent->is_set())
+        smlevel_0::log_warn_exceed_percent = strtol(_log_warn_percent->value(), 
+		NULL, 0);
+
     if(_cc_alg_option) {
 	const char *cc = _cc_alg_option->value();
 	if(strcmp(cc, "record")==0) {
@@ -546,7 +649,7 @@ ss_m::ss_m()
     */
 
 
-    uint4  nbufpages = (strtol(_bufpoolsize->value(), NULL, 0) * 1024 - 1) / page_sz + 1;
+    uint4_t  nbufpages = (strtoul(_bufpoolsize->value(), NULL, 0) * 1024 - 1) / page_sz + 1;
     if (nbufpages < 10)  {
 	errlog->clog << error_prio << "ERROR: buffer size ("
 	     << _bufpoolsize->value() 
@@ -557,33 +660,49 @@ ss_m::ss_m()
     }
     int  space_needed = bf_m::shm_needed(nbufpages);
 
-    long logbufsize = strtol(_logbufsize->value(), NULL, 0) * 1024;
-    if ((int)logbufsize > 1024*1024) {
+
+
+    unsigned long logbufsize = strtoul(_logbufsize->value(), NULL, 0) * 1024;
+    // pretty big limit -- really, the limit is imposed by the OS's
+    // ability to read/write
+    if (int(logbufsize) < 4 * ss_m::page_sz) {
 	errlog->clog << error_prio 
-	<< "Log buf size (sm_logbufsize) too big" 
-	<< endl; 
+	<< "Log buf size (sm_logbufsize = " << (int)logbufsize
+	<< " ) is too small for pages of size " 
+	<< unsigned(ss_m::page_sz) << " bytes."
+	<< flushl; 
+	W_FATAL(OPT_BadValue);
+    }
+    if (w_base_t::uint8_t(logbufsize) > w_base_t::uint8_t(max_int4)) {
+	errlog->clog << error_prio 
+	<< "Log buf size (sm_logbufsize = " << (int)logbufsize
+	<< " ) is too big: individual log files can't be large files yet."
+	<< flushl; 
 	W_FATAL(OPT_BadValue);
     }
     DBG(<<"SHM Need " << space_needed << " for buffer pool" );
     space_needed += log_m::shm_needed(logbufsize);
 
     DBG(<<"SHM Need " << space_needed << " for log_m + buffer pool" );
+
     /*
      * Allocate the shared memory
      */ 
-    char *shmbase = smthread_t::set_bufsize( space_needed );
-    if(!shmbase) {
-	W_FATAL(eOUTOFMEMORY);
+    char	*shmbase;
+    w_rc_t	e;
+    e = smthread_t::set_bufsize(space_needed, shmbase);
+    if (e != RCOK) {
+	W_COERCE(e);
     }
     w_assert1(is_aligned(shmbase));
-    DBG(<<"SHM at address" << ::hex((unsigned int)shmbase));
+    DBG(<<"SHM at address" << ((unsigned int)shmbase));
 
 
     /*
      * Now we can create the buffer manager
      */ 
 
-    uint4  strat = strtol(_bfm_strategy->value(), NULL, 0); 
+    uint4_t  strat = strtoul(_bfm_strategy->value(), NULL, 0); 
 
     bf = new bf_m(nbufpages, shmbase, strat);
     if (! bf) {
@@ -612,6 +731,23 @@ ss_m::ss_m()
     /*
      *  Level 1
      */
+    if(_processor_set && _processor_set->value()) {
+#if defined(Sparc) && defined(SOLARIS2) && defined(SOLARIS2_PSETS)
+	    psetid_t pset = strtol(_processor_set->value(), NULL, 0);
+	    w_assert3(!badVal);
+	    if(pset_bind(pset, P_PID, P_MYID, 0) < 0){
+		    errlog->clog << error_prio 
+		    << "invalid processor set for ss_m:: sm_processor_set configuration option." 
+		    << flushl;
+		    W_FATAL(eNOTIMPLEMENTED);
+	    }
+#else
+	    errlog->clog << error_prio 
+		<< "Not configured for processor sets:"
+		<< " Configuration sm_processor_set ignored."
+		<< endl;
+#endif
+    }
     if (option_t::str_to_bool(_logging->value(), badVal))  {
 	w_assert3(!badVal);
 
@@ -619,17 +755,31 @@ ss_m::ss_m()
 		option_t::str_to_bool(_reformat_log->value(), badVal);
 	w_assert3(!badVal);
 
-	log = new log_m(_logdir->value(), 
-		max_logsz, logbufsize, logbufsize, shmbase,
-		reformat_log);
-	if (! log)  {
-	    W_FATAL(eOUTOFMEMORY);
+	rc_t	e;
+	e = log_m::new_log_m(log, _logdir->value(), 
+			     max_logsz, logbufsize, logbufsize, shmbase,
+			     reformat_log);
+	W_COERCE(e);
+
+	// log_warn_exceed is %; now convert it to raw # bytes
+	if (smlevel_0::log_warn_exceed_percent > 0) {
+		smlevel_0::log_warn_exceed  = (fileoff_t) (
+			log->limit() * max_openlog * 
+			(double)smlevel_0::log_warn_exceed_percent / 100.00);
 	}
+
+    } else {
+	/* Run without logging at your own risk. */
+	errlog->clog << error_prio << 
+	"WARNING: Running without a logging! Do so at YOUR OWN RISK. " 
+	<< flushl;
     }
+    DBG(<<"Level 2");
     
     /*
      *  Level 2
      */
+    
     bt = new btree_m;
     if (! bt) {
 	W_FATAL(eOUTOFMEMORY);
@@ -645,6 +795,7 @@ ss_m::ss_m()
 	W_FATAL(eOUTOFMEMORY);
     }
 
+    DBG(<<"Level 3");
     /*
      *  Level 3
      */
@@ -658,6 +809,7 @@ ss_m::ss_m()
 	W_FATAL(eOUTOFMEMORY);
     }
 
+    DBG(<<"Level 4");
     /*
      *  Level 4
      */
@@ -687,42 +839,59 @@ ss_m::ss_m()
     if (option_t::str_to_bool(_logging->value(), badVal))  {
 	w_assert3(!badVal);
 
-	in_recovery = true;
 	restart_m restart;
 	smlevel_0::redo_tid = restart.redo_tid();
 	restart.recover(log->master_lsn());
 
-	// record all the mounted volumes after recovery.
-        int num_volumes_mounted = 0;
-	char	dname[max_vols][smlevel_0::max_devname+1];
-	vid_t	vid[max_vols];
-	W_COERCE( io->get_vols(0, max_vols, dname, vid, num_volumes_mounted) );
-
-	// now dismount all of them at the io level, the level where they
-	// were mounted during recovery.
-	W_COERCE( io->dismount_all(true/*flush*/) );
-
-	// now mount all the volumes properly at the sm level.
-	// then dismount them and free temp files only if there
-	// are no locks held.
-	for (int i = 0; i < num_volumes_mounted; i++)  {
-            uint vol_cnt;
-	    rc_t rc;
-	    rc =  _mount_dev(dname[i], vol_cnt, vid[i]) ;
-	    if(rc) {
-		ss_m::errlog->clog  << error_prio
-		<< "Volume on device " << dname[i]
-		<< " was only partially formatted; cannot be recovered."
-		<< flushl;
-	    } else {
-		W_COERCE( _dismount_dev(dname[i], false));
+	{   // contain the scope of dname[]
+	    // record all the mounted volumes after recovery.
+	    int num_volumes_mounted = 0;
+	    int		i;
+	    char	**dname;
+	    dname = new char *[max_vols];
+	    if (!dname)
+		W_FATAL(fcOUTOFMEMORY);
+	    for (i = 0; i < max_vols; i++) {
+		dname[i] = new char[smlevel_0::max_devname+1];
+		if (!dname[i])
+			W_FATAL(fcOUTOFMEMORY);
 	    }
+	    vid_t	*vid = new vid_t[max_vols];
+	    if (!vid)
+		W_FATAL(fcOUTOFMEMORY);
+
+	    W_COERCE( io->get_vols(0, max_vols, dname, vid, num_volumes_mounted) );
+
+	    // now dismount all of them at the io level, the level where they
+	    // were mounted during recovery.
+	    W_COERCE( io->dismount_all(true/*flush*/) );
+
+	    // now mount all the volumes properly at the sm level.
+	    // then dismount them and free temp files only if there
+	    // are no locks held.
+	    for (i = 0; i < num_volumes_mounted; i++)  {
+		uint vol_cnt;
+		rc_t rc;
+		rc =  _mount_dev(dname[i], vol_cnt, vid[i]) ;
+		if(rc) {
+		    ss_m::errlog->clog  << error_prio
+		    << "Volume on device " << dname[i]
+		    << " was only partially formatted; cannot be recovered."
+		    << flushl;
+		} else {
+		    W_COERCE( _dismount_dev(dname[i], false));
+		}
+	    }
+	    delete [] vid;
+	    for (i = 0; i < max_vols; i++)
+		delete [] dname[i];
+	    delete [] dname;	
 	}
 
 	smlevel_0::redo_tid = 0;
-	in_recovery = false;
 
     }
+    smlevel_0::operating_mode = t_forward_processing;
 	
     chkpt->take();
     me()->check_pin_count(0);
@@ -740,6 +909,7 @@ ss_m::ss_m()
     do_prefetch = 
 	option_t::str_to_bool(_prefetch->value(), badVal);
     w_assert3(!badVal);
+    DBG(<<"constructor done");
 }
 
 ss_m::~ss_m()
@@ -834,11 +1004,11 @@ ss_m::~ss_m()
      *  Level 1
      */
 
-#ifdef DEBUG
+#ifdef NOTDEF
     if(scriptlog) {
 	delete scriptlog; scriptlog = 0;
     }
-#endif /* DEBUG */
+#endif /* NOTDEF */
     delete lm; lm = 0;
 
     delete global_deadlock_client; global_deadlock_client = 0;
@@ -858,7 +1028,11 @@ ss_m::~ss_m()
     /*
      *  free shared memory
      */
-     smthread_t::set_bufsize(0);
+     w_rc_t	e;
+     char	*unused;
+     e = smthread_t::set_bufsize(0, unused);
+     if (e != RCOK) 
+	cerr << "ss_m: Warning: set_bufsize(0):" << endl << e << endl;
 }
 
 void ss_m::set_shutdown_flag(bool clean)
@@ -880,12 +1054,23 @@ const char* ss_m::getenv(char* name)
  *  ss_m::begin_xct()						*
  *--------------------------------------------------------------*/
 rc_t 
-ss_m::begin_xct(long timeout)
+ss_m::begin_xct(
+	sm_stats_info_t* 	    stats, // allocated by caller
+	timeout_in_ms timeout)
 {
     SM_PROLOGUE_RC(ss_m::begin_xct, not_in_xct, 0);
     SMSCRIPT(<< "begin_xct");
     tid_t tid;
-    W_DO(_begin_xct(tid, timeout));
+    W_DO(_begin_xct(stats, tid, timeout));
+    return RCOK;
+}
+rc_t 
+ss_m::begin_xct(timeout_in_ms timeout)
+{
+    SM_PROLOGUE_RC(ss_m::begin_xct, not_in_xct, 0);
+    SMSCRIPT(<< "begin_xct");
+    tid_t tid;
+    W_DO(_begin_xct(0, tid, timeout));
     return RCOK;
 }
 
@@ -893,17 +1078,33 @@ ss_m::begin_xct(long timeout)
  *  ss_m::begin_xct() - for Markos' tests                       *
  *--------------------------------------------------------------*/
 rc_t
-ss_m::begin_xct(tid_t& tid, long timeout)
+ss_m::begin_xct(tid_t& tid, timeout_in_ms timeout)
 {
     SM_PROLOGUE_RC(ss_m::begin_xct, not_in_xct, 0);
     SMSCRIPT(<< "begin_xct");
-    W_DO(_begin_xct(tid, timeout));
+    W_DO(_begin_xct(0, tid, timeout));
     return RCOK;
 }
 
 /*--------------------------------------------------------------*
  *  ss_m::commit_xct()						*
  *--------------------------------------------------------------*/
+rc_t
+ss_m::commit_xct(sm_stats_info_t*& 	    stats, bool lazy)
+{
+    SM_PROLOGUE_RC(ss_m::commit_xct, commitable_xct, 0);
+    SMSCRIPT(<< "commit_xct");
+
+    smthread_t::yield();
+
+    W_DO(_commit_xct(stats, lazy));
+    prologue.no_longer_in_xct();
+
+    smthread_t::yield();
+
+    return RCOK;
+}
+
 rc_t
 ss_m::commit_xct(bool lazy)
 {
@@ -912,8 +1113,13 @@ ss_m::commit_xct(bool lazy)
 
     smthread_t::yield();
 
-    W_DO(_commit_xct(lazy));
+    sm_stats_info_t* 	    stats=0; 
+    W_DO(_commit_xct(stats,lazy));
     prologue.no_longer_in_xct();
+    /*
+     * throw away the stats, since user isn't harvesting... 
+     */
+    delete stats;
 
     smthread_t::yield();
 
@@ -926,27 +1132,37 @@ ss_m::commit_xct(bool lazy)
 rc_t
 ss_m::prepare_xct(vote_t &v)
 {
-    v = vote_bad;
-    {
-	// NB:special-case checks here !! we use "abortable_xct"
-	// because we want to allow this to be called mpl times
-	//
-	SM_PROLOGUE_RC(ss_m::prepare_xct, abortable_xct, 0);
-	xct_t& x = *xct();
-	if( x.is_extern2pc() && x.state()==xct_t::xct_prepared) {
-	    // already done
-	    v = (vote_t)x.vote();
-	    return RCOK;
-	}
-    }
-    SM_PROLOGUE_RC(ss_m::prepare_xct, in_xct, 0);
+    sm_stats_info_t* 	    stats=0;
+    rc_t e = prepare_xct(stats, v);
+    /*
+     * throw away the stats, since user isn't harvesting... 
+     */
+    delete stats;
+    return e;
+}
+rc_t
+ss_m::prepare_xct(sm_stats_info_t*&    stats, vote_t &v)
+{
     SMSCRIPT(<< "prepare_xct");
+    v = vote_bad;
+
+    // NB:special-case checks here !! we use "abortable_xct"
+    // because we want to allow this to be called mpl times
+    //
+    SM_PROLOGUE_RC(ss_m::prepare_xct, abortable_xct, 0);
+    xct_t& x = *xct();
+    if( x.is_extern2pc() && x.state()==xct_t::xct_prepared) {
+	// already done
+	v = (vote_t)x.vote();
+	return RCOK;
+    }
 
     // Special case:: ss_m::prepare_xct() is ONLY
     // for external 2pc transactions. That is enforced
-    // in ss_m::_prepare_xct()
+    // in ss_m::_prepare_xct(...)
 
-    w_rc_t rc = _prepare_xct(v);
+    w_rc_t rc = _prepare_xct(stats, v);
+
     // TODO: not quite sure how to handle all the
     // error cases...
     if(rc && !xct()) {
@@ -977,14 +1193,36 @@ ss_m::prepare_xct(vote_t &v)
  *  ss_m::abort_xct()						*
  *--------------------------------------------------------------*/
 rc_t
-ss_m::abort_xct()
+ss_m::abort_xct(sm_stats_info_t*& 	    stats)
 {
     SM_PROLOGUE_RC(ss_m::abort_xct, abortable_xct, 0);
     SMSCRIPT(<< "abort_xct");
 
+    // Temp removed for debugging purposes only
+    // want to see what happens if the abort proceeds (scripts/alloc.10)
+    // smthread_t::yield();
+
+    W_DO(_abort_xct(stats));
+    prologue.no_longer_in_xct();
+
     smthread_t::yield();
 
-    W_DO(_abort_xct());
+    return RCOK;
+}
+rc_t
+ss_m::abort_xct()
+{
+    SM_PROLOGUE_RC(ss_m::abort_xct, abortable_xct, 0);
+    SMSCRIPT(<< "abort_xct");
+    sm_stats_info_t* 	    stats;
+
+    smthread_t::yield();
+
+    W_DO(_abort_xct(stats));
+    /*
+     * throw away stats, since user is not harvesting them
+     */
+    delete stats;
     prologue.no_longer_in_xct();
 
     smthread_t::yield();
@@ -1141,11 +1379,24 @@ void ss_m::set_xct_lock_level(concurrency_t l)
  *  ss_m::chain_xct()						*
  *--------------------------------------------------------------*/
 rc_t
+ss_m::chain_xct( sm_stats_info_t*&  stats, bool lazy)
+{
+    SM_PROLOGUE_RC(ss_m::chain_xct, commitable_xct, 0);
+    SMSCRIPT(<< "chain_xct");
+    W_DO( _chain_xct(stats, lazy) );
+    return RCOK;
+}
+rc_t
 ss_m::chain_xct(bool lazy)
 {
     SM_PROLOGUE_RC(ss_m::chain_xct, commitable_xct, 0);
     SMSCRIPT(<< "chain_xct");
-    W_DO( _chain_xct(lazy) );
+    sm_stats_info_t*  stats;
+    W_DO( _chain_xct(stats, lazy) );
+    /*
+     * throw away the stats, since user isn't harvesting... 
+     */
+    delete stats;
     return RCOK;
 }
 
@@ -1200,9 +1451,29 @@ ss_m::force_store_buffers(const stid_t& stid, bool invalidate)
  *  ss_m::dump_buffers()					*
  *--------------------------------------------------------------*/
 rc_t
-ss_m::dump_buffers()
+ss_m::dump_buffers(ostream &o)
 {
-    bf->dump();
+    bf->dump(o);
+    return RCOK;
+}
+
+/*--------------------------------------------------------------*
+ *  ss_m::dump_exts()						*
+ *--------------------------------------------------------------*/
+rc_t
+ss_m::dump_exts(ostream &o, vid_t vid, extnum_t start, extnum_t end)
+{
+    W_DO( io->dump_exts(o, vid, start, end) );
+    return RCOK;
+}
+
+/*--------------------------------------------------------------*
+ *  ss_m::dump_stores()						*
+ *--------------------------------------------------------------*/
+rc_t
+ss_m::dump_stores(ostream &o, vid_t vid, int start, int end)
+{
+    W_DO( io->dump_stores(o, vid, start, end) );
     return RCOK;
 }
 
@@ -1223,7 +1494,7 @@ ss_m::snapshot_buffers(u_int& ndirty,
  *  ss_m::dump_copies                                           *
  *--------------------------------------------------------------*/
 void 
-ss_m::dump_copies()
+ss_m::dump_copies(ostream &)
 {
 }
 
@@ -1240,13 +1511,11 @@ ss_m::config_info(sm_config_info_t& info)
     info.buffer_pool_size = bf_m::npages() * ss_m::page_sz / 1024;
     info.lid_cache_size = lid->cache_size();
     info.max_btree_entry_size  = btree_m::max_entry_size();
-    info.exts_on_page  = extlink_p::max;
+    info.exts_on_page  = io->max_extents_on_page();
     info.pages_per_ext = smlevel_0::ext_sz;
 
-    info.logging  = (ss_m::log != 0) ? true : false;
+    info.logging  = (ss_m::log != 0);
 
-    info.object_cc  = false;
-    info.multi_server  = false;
 
 #ifdef BITS64
     info.serial_bits64  = true;
@@ -1312,6 +1581,10 @@ ss_m::format_dev(const char* device, smksize_t size_in_KB, bool force)
 {
      // SM_PROLOGUE_RC(ss_m::format_dev, not_in_xct, 0);
     FUNC(ss_m::format_dev); 					
+
+    if(size_in_KB > sthread_init_t::max_os_file_size / 1024) {
+	return RC(eDEVTOOLARGE);
+    }
     {
 	prologue_rc_t prologue(prologue_rc_t::not_in_xct, 0); 
 	if (prologue.error_occurred()) return prologue.rc();
@@ -1323,7 +1596,9 @@ ss_m::format_dev(const char* device, smksize_t size_in_KB, bool force)
 	}
 	DBG( << "already mounted=" << result );
 
-	W_DO(vol_t::format_dev(device, size_in_KB/(page_sz/1024), force));
+	W_DO(vol_t::format_dev(device, 
+		/* XXX possible loss of bits */
+		shpid_t(size_in_KB/(page_sz/1024)), force));
     }
     return RCOK;
 }
@@ -1505,7 +1780,10 @@ ss_m::destroy_vol(const lvid_t& lvid)
 	}
 	if (vid == vid_t::null)
 	    return RC(eBADVOL);
-	char dev_name[smlevel_0::max_devname+1];
+	char *dev_name = new char[smlevel_0::max_devname+1];
+        if (!dev_name)
+		W_FATAL(fcOUTOFMEMORY);
+	w_auto_delete_array_t<char> ad_dev_name(dev_name);
 	const char* dev_name_ptr = io->dev_name(vid);
 	w_assert1(dev_name_ptr != NULL);
 	strncpy(dev_name, dev_name_ptr, smlevel_0::max_devname);
@@ -1522,7 +1800,8 @@ ss_m::destroy_vol(const lvid_t& lvid)
 	// GROT
 
 	W_DO(dir->dismount(vid));
-	W_DO(vol_t::format_dev(dev_name, quota_KB/(page_sz/1024), true));
+	/* XXX possible loss of bits */
+	W_DO(vol_t::format_dev(dev_name, shpid_t(quota_KB/(page_sz/1024)), true));
 	// take a checkpoint to record the destroy (dismount)
 	chkpt->take();
 
@@ -1684,7 +1963,7 @@ ss_m::get_volume_quota(const lvid_t& lvid, smksize_t& quota_KB, smksize_t& quota
     SM_PROLOGUE_RC(ss_m::get_volume_quota, can_be_in_xct, 0);
     RES_SMSCRIPT(<< "get_volume_quota " << lvid );
     vid_t vid = io->get_vid(lvid);
-    uint4 dummy;
+    uint4_t dummy;
     W_DO(io->get_volume_quota(vid, quota_KB, quota_used_KB, dummy));
     return RCOK;
 }
@@ -1839,196 +2118,6 @@ ostream& operator<<(ostream& o, const smlevel_1::xct_state_t& xct_state)
 }
 #endif
 
-ostream& operator<<(ostream& o, const sm_stats_info_t& s)
-{
-    struct {
-	double lock_mean_bucket_len;
-	double lock_std_bucket_len;
-	double lock_var_bucket_len;
-    } tmp;
-    tmp.lock_mean_bucket_len = s.lock_mean_bucket_len; // float to double
-    tmp.lock_std_bucket_len = s.lock_std_bucket_len; // float to double
-    tmp.lock_var_bucket_len = s.lock_var_bucket_len; // float to double
-
-    return o
-	<< "SM STATS: " << endl << endl
-
-	<< "begin_xct_cnt         " << s.begin_xct_cnt << endl
-        << "commit_xct_cnt        " << s.commit_xct_cnt << endl
-        << "abort_xct_cnt         " << s.abort_xct_cnt << endl
-	<< "rollback_savept_cnt   " << s.rollback_savept_cnt << endl
-	<< "mlp_attach_cnt        " << s.mpl_attach_cnt << endl
-	<< "anchors               " << s.anchors << endl
-	<< "compensate_in_log     " << s.compensate_in_log << endl
-	<< "compensate_in_xct     " << s.compensate_in_xct << endl
-	<< "compensate_records    " << s.compensate_records << endl
-	<< "log_switches          " << s.log_switches << endl
-	<< "get_logbuf            " << s.get_logbuf << endl
-	<< "flush_logbuf          " << s.flush_logbuf << endl
-	<< "acquire_1thread_log   " << s.acquire_1thread_log << endl
-	<< "await_1thread_log     " << s.await_1thread_log << endl
-	<< "await_1thread_xct     " << s.await_1thread_xct << endl
-        << endl
-
-	<< "await_io_monitor      " << s.await_io_monitor << endl
-	<< "vol_reads             " << s.vol_reads << endl
-        << "vol_writes            " << s.vol_writes << endl
-        << "vol_blks_written      " << s.vol_blks_written << endl
-        << endl
-
-	<< "await_log_monitor     " << s.await_log_monitor << endl
-        << "log_records_generated " << s.log_records_generated << endl
-        << "log_bytes_generated   " << s.log_bytes_generated << endl
-        << "log_sync_cnt          " << s.log_sync_cnt << endl
-        << "log_dup_sync_cnt      " << s.log_dup_sync_cnt << endl
-
-        << "log_sync_nrec_max     " << s.log_sync_nrec_max << endl
-        << "log_sync_nbytes_max     " << s.log_sync_nbytes_max << endl
-        << "log_fsync_cnt          " << s.log_fsync_cnt << endl
-        << "log_chkpt_cnt          " << s.log_chkpt_cnt << endl
-	<< endl
-
-	<< "rec_pin_cnt           " <<  s.rec_pin_cnt << endl
-        << "rec_unpin_cnt         " << s.rec_unpin_cnt << endl
-	<< endl
-
-	<< "page_fix_cnt          " << s.page_fix_cnt << endl
-	<< "page_refix_cnt          " << s.page_refix_cnt << endl
-        << "page_unfix_cnt        " << s.page_unfix_cnt << endl
-	<< "page_alloc_cnt        " << s.page_alloc_cnt << endl
-	<< "page_dealloc_cnt      " << s.page_dealloc_cnt << endl
-        << "ext_lookup_hits       " << s.ext_lookup_hits << endl
-        << "ext_lookup_misses     " << s.ext_lookup_misses << endl
-        << "alloc_page_in_ext     " << s.alloc_page_in_ext << endl
-        << "ext_alloc             " << s.ext_alloc << endl
-        << "ext_free              " << s.ext_free << endl
-        << endl
-
-	<< "bt_find_cnt           " << s.bt_find_cnt << endl
-	<< "bt_insert_cnt         " << s.bt_insert_cnt << endl
-	<< "bt_remove_cnt         " << s.bt_remove_cnt << endl
-	<< "bt_traverse_cnt       " << s.bt_traverse_cnt << endl
-	<< "bt_partial_traverse_cnt " << s.bt_partial_traverse_cnt << endl
-	<< "bt_restart_traverse_cnt " << s.bt_restart_traverse_cnt << endl
-	<< "bt_scan_cnt           " << s.bt_scan_cnt << endl
-	<< "bt_links              " << s.bt_links << endl
-	<< "bt_shrinks            " << s.bt_shrinks << endl
-	<< "bt_grows              " << s.bt_grows << endl
-	<< "bt_cuts               " << s.bt_cuts << endl
-	<< "bt_splits             " << s.bt_splits << endl
-	<< "bt_posc               " << s.bt_posc << endl
-	<< endl
-
-	<< "lid_lookups           " << s.lid_lookups << endl
-	<< "lid_remote_lookups    " << s.lid_remote_lookups << endl
-	<< "lid_inserts           " << s.lid_inserts << endl
-	<< "lid_removes           " << s.lid_removes << endl
-	<< "lid_replace           " << s.lid_replace << endl
-	<< "lid_cache_hits        " << s.lid_cache_hits << endl
-	<< endl
-
-	<< "lock_query_cnt        " << s.lock_query_cnt << endl
-        << "unlock_request_cnt    " << s.unlock_request_cnt << endl
-        << "lock_request_cnt      " << s.lock_request_cnt << endl
-        << "lock_acquire_cnt      " << s.lock_acquire_cnt << endl
-        << "lk_vol_acq            " << s.lk_vol_acq << endl
-        << "lk_store_acq            " << s.lk_store_acq << endl
-        << "lk_page_acq            " << s.lk_page_acq << endl
-        << "lk_kvl_acq            " << s.lk_kvl_acq << endl
-        << "lk_rec_acq            " << s.lk_rec_acq << endl
-        << "lk_ext_acq            " << s.lk_ext_acq << endl
-
-	<< "lock_deadlock_cnt     " << s.lock_deadlock_cnt << endl
-
-	<< "lock_cache_hit_cnt    " << s.lock_cache_hit_cnt << endl
-        << "lock_head_t_cnt       " << s.lock_head_t_cnt << endl
-        << "lock_request_t_cnt    " << s.lock_request_t_cnt << endl
-        << "lock_extraneous_req_cnt    " << s.lock_extraneous_req_cnt << endl
-        << "lock_conversion_cnt    " << s.lock_conversion_cnt << endl
-	<< "lock_esc_to_page      " << s.lock_esc_to_page << endl
-	<< "lock_esc_to_store     " << s.lock_esc_to_store << endl
-	<< "lock_esc_to_volume    " << s.lock_esc_to_volume << endl
-	<< endl
-
-	<< "lock_max_bucket_len   " << s.lock_max_bucket_len << endl
-	<< "lock_min_bucket_len   " << s.lock_min_bucket_len << endl
-	<< "lock_mode_bucket_len  " << s.lock_mode_bucket_len << endl
-
-#ifdef NOTDEF
-	// floats: problems printing them with purify'ed executables
-	// hence use of ::form()
-	<< "lock_mean_bucket_len  " << 
-		::form("%f", tmp.lock_mean_bucket_len) << endl
-	// << "lock_var_bucket_len   " << tmp.lock_var_bucket_len << endl
-	<< "lock_std_bucket_len   " << 
-		::form("%f", tmp.lock_std_bucket_len) << endl
-	<< endl
-#endif
-
-        << "bf_replaced_dirty     " << s.bf_replaced_dirty << endl
-        << "bf_replaced_clean     " << s.bf_replaced_clean << endl
-        << "bf_write_out          " << s.bf_write_out << endl
-        << "bf_replace_out        " << s.bf_replace_out   << endl
-        << "bf_await_clean        " << s.bf_await_clean   << endl
-        << "bf_cleaner_sweeps     " << s.bf_cleaner_sweeps << endl
-        << "bf_cleaner_signalled  " << s.bf_cleaner_signalled << endl
-        << "bf_kick_full          " << s.bf_kick_full << endl
-        << "bf_kick_replacement   " << s.bf_kick_replacement << endl
-        << "bf_kick_threshhold    " << s.bf_kick_threshhold << endl
-        << "bf_kick_almost_full   " << s.bf_kick_almost_full << endl
-        << "bf_sweep_page_hot     " << s.bf_sweep_page_hot << endl
-        << "bf_log_flush_all      " << s.bf_log_flush_all << endl
-        << "bf_log_flush_lsn      " << s.bf_log_flush_lsn << endl
-        << "bf_prefetch_requests  " << s.bf_prefetch_requests   << endl
-        << "bf_prefetches         " << s.bf_prefetches   << endl
-	<< endl
-
-        << "bf_one_page_write     " << s.bf_one_page_write << endl
-        << "bf_two_page_write     " << s.bf_two_page_write << endl
-        << "bf_three_page_write   " << s.bf_three_page_write << endl
-        << "bf_four_page_write    " << s.bf_four_page_write << endl
-        << "bf_five_page_write    " << s.bf_five_page_write << endl
-        << "bf_six_page_write     " << s.bf_six_page_write << endl
-        << "bf_seven_page_write   " << s.bf_seven_page_write << endl
-        << "bf_eight_page_write   " << s.bf_eight_page_write << endl
-	<< endl 
-
-        << "s_prepared            " << s.s_prepared << endl
-        << "s_committed           " << s.s_committed << endl
-        << "s_aborted             " << s.s_aborted << endl
-        << "s_no_such             " << s.s_no_such << endl
-        << "s_prepare_recd        " << s.s_prepare_recd << endl
-        << "s_commit_recd         " << s.s_commit_recd << endl
-        << "s_abort_recd          " << s.s_abort_recd << endl
-        << "s_erros_recd          " << s.s_errors_recd << endl
-        << "s_acks_sent           " << s.s_acks_sent << endl
-        << "s_votes_sent          " << s.s_votes_sent << endl
-        << "s_status_sent          " << s.s_status_sent << endl
-        << "s_errors_sent          " << s.s_errors_sent << endl
-	<< endl
-
-        << "c_coordinated         " << s.c_coordinated << endl
-        << "c_resolved            " << s.c_resolved << endl
-        << "c_resolved_commit     " << s.c_resolved_commit << endl
-        << "c_resolved_abort      " << s.c_resolved_abort << endl
-        << "c_replies_dropped     " << s.c_replies_dropped << endl
-        << "c_retrans             " << s.c_retrans << endl
-        << "c_acks_recd           " << s.c_acks_recd << endl
-        << "c_votes_recd          " << s.c_votes_recd << endl
-        << "c_status_recd          " << s.c_status_recd << endl
-        << "c_errors_recd          " << s.c_errors_recd << endl
-        << "c_prepare_sent        " << s.c_prepare_sent << endl
-        << "c_commit_sent         " << s.c_commit_sent << endl
-        << "c_abort_sent          " << s.c_abort_sent << endl
-        << "c_errors_sent          " << s.c_errors_sent << endl
-	<< endl
-
-        << "idle_yield_return     " << s.idle_yield_return << endl
-        << "idle_wait_return      " << s.idle_wait_return << endl
-        << "fastpath     	  " << s.fastpath << endl
-	;
-}
-
 ostream& operator<<(ostream& o, const sm_config_info_t& s)
 {
     return o    << "  page_size " << s.page_size
@@ -2039,8 +2128,6 @@ ostream& operator<<(ostream& o, const sm_config_info_t& s)
                 << "  max_btree_entry_size " << s.max_btree_entry_size
 		<< "  exts_on_page " << s.exts_on_page
 		<< "  pages_per_ext " << s.pages_per_ext
-                << "  object_cc " << s.object_cc
-                << "  multi_server " << s.multi_server
                 << "  serial_bits64 " << s.serial_bits64
                 << "  preemptive " << s.preemptive
                 << "  multi_threaded_xct " << s.multi_threaded_xct
@@ -2052,9 +2139,9 @@ ostream& operator<<(ostream& o, const sm_config_info_t& s)
  *  ss_m::dump_locks()						*
  *--------------------------------------------------------------*/
 rc_t
-ss_m::dump_locks()
+ss_m::dump_locks(ostream &o)
 {
-    lm->dump();
+    lm->dump(o);
     return RCOK;
 }
 
@@ -2063,7 +2150,7 @@ ss_m::dump_locks()
  *--------------------------------------------------------------*/
 rc_t
 ss_m::lock(const lockid_t& n, lock_mode_t m,
-	   lock_duration_t d, long timeout)
+	   lock_duration_t d, timeout_in_ms timeout)
 {
     SM_PROLOGUE_RC(ss_m::lock, in_xct, 0);
     SMSCRIPT(<< "lock " << n <<" " << m <<" " << d <<" " 
@@ -2075,7 +2162,7 @@ ss_m::lock(const lockid_t& n, lock_mode_t m,
 
 rc_t
 ss_m::lock(const lvid_t& lvid, const serial_t& serial, lock_mode_t m,
-	   lock_duration_t d, long timeout)
+	   lock_duration_t d, timeout_in_ms timeout)
 {
     SM_PROLOGUE_RC(ss_m::lock, in_xct, 0);
     SMSCRIPT(<< "lock " << lvid <<" " <<serial 
@@ -2097,6 +2184,7 @@ ss_m::lock(const lvid_t& lvid, const serial_t& serial, lock_mode_t m,
 	lockid = stpgid_t(vid, lid_entry.spid().store, lid_entry.spid().page);
 	break;
     default:
+	DBG(<<"lock: " );
     	return RC(eBADLOGICALID);	
     }
     W_DO( lm->lock(lockid, m, d, timeout) );
@@ -2107,7 +2195,7 @@ ss_m::lock(const lvid_t& lvid, const serial_t& serial, lock_mode_t m,
 
 rc_t
 ss_m::lock(const lvid_t& lvid, lock_mode_t m,
-	   lock_duration_t d, long timeout)
+	   lock_duration_t d, timeout_in_ms timeout)
 {
     SM_PROLOGUE_RC(ss_m::lock, in_xct, 0);
     SMSCRIPT(<< "lock " << lvid <<" " <<m<<" "<<d 
@@ -2151,6 +2239,7 @@ ss_m::unlock(const lvid_t& lvid, const serial_t& serial)
 	lockid = stid_t(vid, lid_entry.snum());
 	break;
     default:
+	DBG(<<"unlock: " );
     	return RC(eBADLOGICALID);	
     }
     W_DO( lm->unlock(lockid) );
@@ -2195,6 +2284,7 @@ ss_m::dont_escalate(const lvid_t& lvid, const serial_t& serial, bool passOnToDes
 	lockid = stpgid_t(vid, lid_entry.spid().store, lid_entry.spid().page);
 	break;
     default:
+	DBG(<<"dont_escalate: " );
     	return RC(eBADLOGICALID);	
     }
     W_DO( lm->dont_escalate(lockid, passOnToDescendants) );
@@ -2219,7 +2309,7 @@ ss_m::dont_escalate(const lvid_t& lvid, bool passOnToDescendants)
  *  ss_m::get_escalation_thresholds()				*
  *--------------------------------------------------------------*/
 rc_t
-ss_m::get_escalation_thresholds(int4& toPage, int4& toStore, int4& toVolume)
+ss_m::get_escalation_thresholds(int4_t& toPage, int4_t& toStore, int4_t& toVolume)
 {
     SM_PROLOGUE_RC(ss_m::get_escalation_thresholds, in_xct, 0);
 
@@ -2233,7 +2323,7 @@ ss_m::get_escalation_thresholds(int4& toPage, int4& toStore, int4& toVolume)
  *  ss_m::set_escalation_thresholds()				*
  *--------------------------------------------------------------*/
 rc_t
-ss_m::set_escalation_thresholds(int4 toPage, int4 toStore, int4 toVolume)
+ss_m::set_escalation_thresholds(int4_t toPage, int4_t toStore, int4_t toVolume)
 {
     SM_PROLOGUE_RC(ss_m::set_escalation_thresholds, in_xct, 0);
 
@@ -2277,6 +2367,7 @@ ss_m::query_lock(const lvid_t& lvid, const serial_t& serial,
 	lockid = stid_t(vid, lid_entry.snum());
 	break;
     default:
+	DBG(<<"query_lock: " );
     	return RC(eBADLOGICALID);	
     }
 
@@ -2342,7 +2433,7 @@ ss_m::_add_lid_volume(vid_t vid)
 	lid_index.vol = vid;
 
 	if (found) {
-	    w_assert3(len = sizeof(lid_index.store));
+	    w_assert3(len == sizeof(lid_index.store));
 
 	    // get the lvid for the volume
 	    lvid_t  lvid;
@@ -2361,7 +2452,7 @@ ss_m::_add_lid_volume(vid_t vid)
 				len, found));
 	    remote_index.vol = vid;
 	    w_assert1(found);
-	    w_assert3(len = sizeof(lid_index.store));
+	    w_assert3(len == sizeof(lid_index.store));
 	    sdesc_t* sd_r;
 	    W_DO(dir->access(remote_index, sd_r, NL));
 
@@ -2382,18 +2473,15 @@ ss_m::_add_lid_volume(vid_t vid)
  *****************************************************************/
 
 /*--------------------------------------------------------------*
- *  ss_m::_begin_xct(long timeout)				*
+ *  ss_m::_begin_xct(sm_stats_info_t *stats, timeout_in_ms timeout)				*
  *--------------------------------------------------------------*/
 rc_t
-ss_m::_begin_xct(tid_t& tid, long timeout)
+ss_m::_begin_xct(sm_stats_info_t *stats, tid_t& tid, timeout_in_ms timeout)
 {
     w_assert3(xct() == 0);
-    if (xct_t::num_active_xcts() >= max_xcts) {
-	return RC(eTOOMANYTRANS);
-    }
 
     W_COERCE(_begin_xct_mutex.acquire());
-    xct_t* x = new xct_t(timeout);
+    xct_t* x = new xct_t(stats, timeout);
     _begin_xct_mutex.release();
 
     if (!x) 
@@ -2411,7 +2499,7 @@ ss_m::_begin_xct(tid_t& tid, long timeout)
  *  ss_m::_prepare_xct()						*
  *--------------------------------------------------------------*/
 rc_t
-ss_m::_prepare_xct(vote_t &v)
+ss_m::_prepare_xct(sm_stats_info_t*& stats, vote_t &v)
 {
     w_assert3(xct() != 0);
     xct_t& x = *xct();
@@ -2423,6 +2511,8 @@ ss_m::_prepare_xct(vote_t &v)
     }
 
     W_DO( x.prepare() );
+    if(x.is_instrumented()) stats = x.steal_stats();
+
     v = (vote_t)x.vote();
     if(v == vote_readonly) {
 	SSMTEST("prepare.readonly.1");
@@ -2447,12 +2537,13 @@ ss_m::_prepare_xct(vote_t &v)
  *  ss_m::_commit_xct()						*
  *--------------------------------------------------------------*/
 rc_t
-ss_m::_commit_xct(bool lazy)
+ss_m::_commit_xct(sm_stats_info_t*& 	    stats, bool lazy)
 {
     w_assert3(xct() != 0);
     xct_t& x = *xct();
 
     DBG(<<"commit " << ((char *)lazy?" LAZY":"") << x );
+
 
     if(x.is_extern2pc()) {
 	w_assert3(x.state()==xct_prepared);
@@ -2468,6 +2559,7 @@ ss_m::_commit_xct(bool lazy)
     } else {
 	W_DO( x.commit(lazy) );
     }
+    if(x.is_instrumented()) stats = x.steal_stats();
     delete &x;
     w_assert3(xct() == 0);
 
@@ -2621,7 +2713,7 @@ class DeadlockEventPrinter : public DeadlockEventCallback
 	ostream&	out;
 
 			DeadlockEventPrinter(ostream& o);
-	void		LocalDeadlockDetected(					// see sm.c
+	void		LocalDeadlockDetected(					// see sm.cpp
 				XctWaitsForLockList&	waitsForList,
 				const xct_t*		current,
 				const xct_t*		victim);
@@ -2690,8 +2782,11 @@ DeadlockEventPrinter::GlobalDeadlockVictimSelected(const gtid_t& gtid)
  *  ss_m::_chain_xct()						*
  *--------------------------------------------------------------*/
 rc_t
-ss_m::_chain_xct(bool lazy)
+ss_m::_chain_xct(
+	sm_stats_info_t*&  stats, /* pass in a new one, get back the old */
+	bool lazy)
 {
+    sm_stats_info_t*  new_stats = stats;
     w_assert3(xct() != 0);
     xct_t* x = xct();
 
@@ -2700,6 +2795,8 @@ ss_m::_chain_xct(bool lazy)
     }
     W_DO( x->chain(lazy) );
     w_assert3(xct() == x);
+    if(x->is_instrumented()) stats = x->steal_stats();
+    x->give_stats(new_stats);
 
     return RCOK;
 }
@@ -2708,12 +2805,13 @@ ss_m::_chain_xct(bool lazy)
  *  ss_m::_abort_xct()						*
  *--------------------------------------------------------------*/
 rc_t
-ss_m::_abort_xct()
+ss_m::_abort_xct(sm_stats_info_t*& 	    stats)
 {
     w_assert3(xct() != 0);
     xct_t& x = *xct();
 
-    W_DO( x.abort() );
+    W_DO( x.abort(true /* save stats structure */) );
+    stats = (x.is_instrumented() ? x.steal_stats() : 0);
 
     delete &x;
     w_assert3(xct() == 0);
@@ -2844,8 +2942,9 @@ rc_t
 ss_m::_create_vol(const char* dev_name, const lvid_t& lvid, 
 		  smksize_t quota_KB, bool skip_raw_init)
 {
-    W_DO(vol_t::format_vol(dev_name, lvid, quota_KB/(page_sz/1024), 
-			     skip_raw_init));
+    W_DO(vol_t::format_vol(dev_name, lvid, 
+	/* XXX possible loss of bits */
+	shpid_t(quota_KB/(page_sz/1024)), skip_raw_init));
 
     vid_t tmp_vid;
     W_DO(io->get_new_vid(tmp_vid));
@@ -3001,6 +3100,11 @@ rc_t
 ss_m::_get_du_statistics( const stpgid_t& stpgid, sm_du_stats_t& du, bool audit)
 {
     sdesc_t* sd;
+    /*
+     *  NB: the ONLY safe way to use this is with audit ON,
+     *  because in that case, the SH lock protects the file
+     *  from ongoing changes in the midst of the stats-gathering
+     */
 
     if (audit) {
 	W_DO(dir->access(stpgid, sd, SH));
@@ -3011,6 +3115,7 @@ ss_m::_get_du_statistics( const stpgid_t& stpgid, sm_du_stats_t& du, bool audit)
     switch(sd->sinfo().stype) {
     case t_file:  
 	{
+	    DBG(<<"t_file");
 	    file_stats_t file_stats;
 	    W_DO( fi->get_du_statistics(stpgid, sd->large_stid(), 
 					file_stats, audit));
@@ -3022,10 +3127,13 @@ ss_m::_get_du_statistics( const stpgid_t& stpgid, sm_du_stats_t& du, bool audit)
 	}
 	break;
     case t_index:
+	    DBG(<<"t_index");
     case t_1page:
 	switch(sd->sinfo().ntype) {
 	case t_btree: 
+	    DBG(<<"t_btree");
 	case t_uni_btree:
+	    DBG(<<"t_uni_btree");
 	    {
 	        btree_stats_t btree_stats;
 	        W_DO( bt->get_du_statistics(sd->root(), btree_stats, audit));
@@ -3038,6 +3146,7 @@ ss_m::_get_du_statistics( const stpgid_t& stpgid, sm_du_stats_t& du, bool audit)
 	    break;
 
 	case t_rtree:
+	    DBG(<<"t_rtree");
 	case t_rdtree:
 	    {
 	        rtree_stats_t rtree_stats;
@@ -3060,7 +3169,7 @@ ss_m::_get_du_statistics( const stpgid_t& stpgid, sm_du_stats_t& du, bool audit)
     default:
 	W_FATAL(eINTERNAL);
     }
-    DBG(<<"ss_m::_get_du_statistics: du= " << du);
+    DBG(<<"");
     return RCOK;
 }
 
@@ -3070,6 +3179,13 @@ ss_m::_get_du_statistics( const stpgid_t& stpgid, sm_du_stats_t& du, bool audit)
 rc_t
 ss_m::_get_du_statistics(vid_t vid, sm_du_stats_t& du, bool audit)
 {
+    /*
+     * Cannot call this during recovery, even for 
+     * debugging purposes
+     */
+    if(smlevel_0::in_recovery()) {
+	return RCOK;
+    }
     if (audit) {
         W_DO(lm->lock(vid, SH, t_long, WAIT_SPECIFIED_BY_XCT));
     } else {
@@ -3211,7 +3327,10 @@ ss_m::_get_du_statistics(vid_t vid, sm_du_stats_t& du, bool audit)
 
     rc_t rc;
     // get du stats on every store
-    for (stid_t s(vid, skip+1); s.store != 0; s.store++) {
+    snum_t last ;
+    W_DO(io->max_store_id_in_use(vid, last));
+    for (stid_t s(vid, skip+1); s.store <= last; s.store++) {
+	DBG(<<"look at store " << s << " last=" << last );
 	
 	// skip lid indexes
 	if (s == lid_index || s == lid_remote_index) {
@@ -3222,14 +3341,17 @@ ss_m::_get_du_statistics(vid_t vid, sm_du_stats_t& du, bool audit)
         rc = io->get_store_flags(s, flags);
         if (rc) {
             if (rc.err_num() == eBADSTID) {
+		DBG(<<"skipping bad STID " << s );
                 continue;  // skip any stores that don't exist
             } else {
                 return rc;
             }
         }
-        rc = _get_du_statistics(s, new_stats, audit);
+	DBG(<<" getting stats for store " << s << " flags=" << flags);
+	rc = _get_du_statistics(s, new_stats, audit);
         if (rc) {
             if (rc.err_num() == eBADSTID) {
+		DBG(<<"skipping large object or missing store " << s );
                 continue;  // skip any stores that don't show
                            // up in the directory index
                            // in this case it this means stores for
@@ -3238,6 +3360,7 @@ ss_m::_get_du_statistics(vid_t vid, sm_du_stats_t& du, bool audit)
                 return rc;
             }
         }
+	DBG(<<"end for loop with s=" << s );
     }
 
     W_DO( io->get_du_statistics(vid, new_stats.volume_hdr, audit));
@@ -3250,11 +3373,209 @@ ss_m::_get_du_statistics(vid_t vid, sm_du_stats_t& du, bool audit)
     return RCOK;
 }
 
+
+/*--------------------------------------------------------------*
+ *  ss_m::get_volume_meta_stats()	                        *	
+ *--------------------------------------------------------------*/
+rc_t
+ss_m::get_volume_meta_stats(vid_t vid, SmVolumeMetaStats& volume_stats, concurrency_t cc)
+{
+    SM_PROLOGUE_RC(ss_m::get_volume_meta_stats, in_xct, 0);
+    W_DO( _get_volume_meta_stats(vid, volume_stats, cc) );
+    return RCOK;
+}
+
+/*--------------------------------------------------------------*
+ *  ss_m::_get_volume_meta_stats()	                        *	
+ *--------------------------------------------------------------*/
+rc_t
+ss_m::_get_volume_meta_stats(vid_t vid, SmVolumeMetaStats& volume_stats, concurrency_t cc)
+{
+    if (cc == t_cc_vol)  {
+	W_DO( lm->lock(vid, SH, t_long, WAIT_SPECIFIED_BY_XCT) );
+    }  else if (cc != t_cc_none)  {
+	return RC(eBADCCLEVEL);
+    }
+
+    W_DO( io->get_volume_meta_stats(vid, volume_stats) );
+
+    return RCOK;
+}
+
+/*--------------------------------------------------------------*
+ *  ss_m::get_file_meta_stats()				     	*	
+ *--------------------------------------------------------------*/
+rc_t
+ss_m::get_file_meta_stats(vid_t vid, uint4_t num_files, SmFileMetaStats* file_stats,
+				bool batch_calculate, concurrency_t cc)
+{
+    SM_PROLOGUE_RC(ss_m::get_file_meta_stats, in_xct, 0);
+    W_DO(_get_file_meta_stats(vid, num_files, file_stats, batch_calculate, cc) );
+    return RCOK;
+}
+
+/*--------------------------------------------------------------*
+ *  ss_m::_get_file_meta_stats()			     	*	
+ *--------------------------------------------------------------*/
+rc_t
+ss_m::_get_file_meta_stats(vid_t vid, uint4_t num_files, SmFileMetaStats* file_stats,
+				bool batch_calculate, concurrency_t cc)
+{
+    lock_mode_t mode = NL;
+    if (cc == t_cc_file)  {
+	mode = SH;
+    }  else if (cc != t_cc_none)  {
+	return RC(eBADCCLEVEL);
+    }
+
+    // find the large store ids and the max snum wanted
+    snum_t max_store = 0;
+    stpgid_t stpgid(vid, 0, 0);
+    for (uint4_t i = 0; i < num_files; ++i)  {
+	stpgid.lpid._stid.store = file_stats[i].smallSnum;
+	sdesc_t* sd;
+	W_DO( dir->access(stpgid, sd, mode) );
+	file_stats[i].largeSnum = sd->large_stid().store;
+
+	if (max_store < file_stats[i].smallSnum)  {
+	    max_store = file_stats[i].smallSnum;
+	}
+
+	if (max_store < file_stats[i].largeSnum)  {
+	    max_store = file_stats[i].largeSnum;
+	}
+    }
+
+    // get the stats, make map first if doing batch
+    if (batch_calculate)  {
+	++max_store;
+
+	SmStoreMetaStats** mapping = new SmStoreMetaStats*[max_store];
+	{
+	    unsigned int i;
+	    for (i = 0; i < max_store; ++i)  {
+		mapping[i] = 0;
+	    }
+	}
+	w_auto_delete_t<SmStoreMetaStats*> auto_delete(mapping);
+
+	{
+	    uint4_t i;
+	    for (i = 0; i < num_files; ++i)  {
+		w_assert3( file_stats[i].smallSnum != 0 );
+		w_assert3( mapping[file_stats[i].smallSnum] == 0 );
+		mapping[file_stats[i].smallSnum] = &file_stats[i].small;
+
+		if (file_stats[i].largeSnum)  {
+		    w_assert3( mapping[file_stats[i].largeSnum] == 0 );
+		    mapping[file_stats[i].largeSnum] = &file_stats[i].large;
+		}
+	    }
+	}
+
+	W_DO( io->get_file_meta_stats_batch(vid, max_store, mapping) );
+    }  else  {
+	W_DO( io->get_file_meta_stats(vid, num_files, file_stats) );
+    }
+
+    return RCOK;
+}
+
 #include <sthread_stats.h>
 
 /*--------------------------------------------------------------*
  *  ss_m::gather_stats()					*
+ *  ss_m::gather_xct_stats()					*
  *--------------------------------------------------------------*/
+rc_t
+ss_m::gather_xct_stats(sm_stats_info_t& stats, bool reset)
+{
+    SM_PROLOGUE_RC(ss_m::gather_xct_stats, commitable_xct, 0);
+    SMSCRIPT(<< "gather_xct_stats");
+
+    smthread_t::yield();
+
+    w_assert3(xct() != 0);
+    xct_t& x = *xct();
+
+    if(x.is_instrumented()) {
+	// detach_xct has the code to update the 
+	// summary xct stats 
+	// from the thread stats
+	me()->detach_xct(&x);
+	me()->attach_xct(&x);
+	stats = x.const_stats_ref(); // copy
+
+#ifdef COMMENT
+	/* help debugging sort stuff -see also code in bf.cpp  */
+	{
+	    // print -grot
+	    extern int bffix_SH[];
+	    extern int bffix_EX[];
+	    static const char *names[] = {
+		"t_bad_p",
+		"t_extlink_p",
+		"t_stnode_p",
+		"t_keyed_p",
+		"t_zkeyed_p",
+		"t_btree_p",
+		"t_file_p",
+		"t_rtree_base_p",
+		"t_rtree_p",
+		"t_rdtree_p",
+		"t_lgdata_p",
+		"t_lgindex_p",
+		"t_store_p",
+		"t_any_p",
+		"none"
+		};
+
+	    cout << "PAGE FIXES " <<endl;
+	    for (int i=0; i<=14; i++) {
+		    cout  << names[i] << "="  
+		    	<< '\t' << bffix_SH[i] << "+" 
+			<< '\t' << bffix_EX[i] << "=" 
+			<< '\t' << bffix_EX[i] + bffix_SH[i]
+			 << endl;
+
+	    }
+	    int sumSH=0, sumEX=0;
+	    for (int i=0; i<=14; i++) {
+	    	sumSH += bffix_SH[i];
+	    	sumEX += bffix_EX[i];
+	    }
+	    cout  << "TOTALS" << "="  
+		    	<< '\t' << sumSH<< "+" 
+			<< '\t' << sumEX << "=" 
+			<< '\t' << sumSH+sumEX
+			 << endl;
+	}
+#endif /* COMMENT */
+	if(reset) {
+	    DBG(<<"clearing stats " );
+	    // clear
+	    x.clear_stats();
+#ifdef COMMENT
+	    {
+		extern int bffix_SH[];
+		extern int bffix_EX[];
+		for (int i=0; i<=14; i++) {
+			bffix_SH[i] = 0;
+			bffix_EX[i] = 0;
+		}
+	    }
+#endif /* COMMENT */
+
+
+	}
+    } else {
+	DBG(<<"xct not instrumented");
+    }
+    smthread_t::yield();
+
+    return RCOK;
+}
+
 rc_t
 ss_m::gather_stats(sm_stats_info_t& stats, bool reset)
 {
@@ -3263,31 +3584,29 @@ ss_m::gather_stats(sm_stats_info_t& stats, bool reset)
     if(reset) {
 	// clear
 	memset(&smlevel_0::stats, '\0', sizeof(smlevel_0::stats));
-	log_m::reset_stats();
 
+	/* XXX This is a race condition */
+
+	// restore log_bytes_active, since the SM uses it
+	smlevel_0::stats.sm.log_bytes_active = stats.sm.log_bytes_active;
+
+	/* Don't clear thread stats, need global info,  Deltas would
+	   be better. */
+#if 0
 	SthreadStats.clear();
+#endif
     }
     return RCOK;
 }
 
-void 
-sm_stats_info_t::compute()
+ostream &
+operator<<(ostream &o, const sm_stats_info_t &s) 
 {
-    smlevel_0::lm->stats(
-		smlevel_0::stats.lock_bucket_cnt,
-		smlevel_0::stats.lock_max_bucket_len, 
-		smlevel_0::stats.lock_min_bucket_len, 
-		smlevel_0::stats.lock_mode_bucket_len, 
-		smlevel_0::stats.lock_mean_bucket_len, 
-		smlevel_0::stats.lock_var_bucket_len,
-		smlevel_0::stats.lock_std_bucket_len
-    );
-
-    smlevel_0::stats.idle_yield_return = SthreadStats.idle_yield_return;
-    smlevel_0::stats.idle_wait_return = SthreadStats.selects;
-    smlevel_0::stats.fastpath = SthreadStats.fastpath;
+    o << s.sm;
+    o << s.summary_thread;
+    o << s.summary_2pc;
+    return o;
 }
-
 
 /*--------------------------------------------------------------*
  *  ss_m::get_store_info()					*
@@ -3321,20 +3640,40 @@ ss_m::get_store_info(
 ostream&
 operator<<(ostream& o, smlevel_3::sm_store_property_t p)
 {
-    return o << (p == smlevel_3::t_regular ? "regular" : 
-		  (p == smlevel_3::t_temporary ? "temporary" :
-		  (p == smlevel_3::t_insert_file ? "insert_file" : "")));
+    if (p == smlevel_3::t_regular)		o << "regular";
+    if (p == smlevel_3::t_temporary)		o << "temporary";
+    if (p == smlevel_3::t_load_file)		o << "load_file";
+    if (p == smlevel_3::t_insert_file)		o << "insert_file";
+    if (p == smlevel_3::t_bad_storeproperty)	o << "bad_storeproperty";
+    if (p & !(smlevel_3::t_regular
+		| smlevel_3::t_temporary
+		| smlevel_3::t_load_file
+		| smlevel_3::t_insert_file
+		| smlevel_3::t_bad_storeproperty))  {
+	o << "unknown_property";
+	w_assert3(1);
+    }
+    return o;
 }
 
 ostream&
 operator<<(ostream& o, smlevel_0::store_flag_t flag)
 {
-    if (flag & smlevel_0::st_bad)		o << "|bad";
-    if (flag & smlevel_0::st_regular)	o << "|regular";
-    if (flag & smlevel_0::st_tmp)		o << "|tmp";
-    if (flag & smlevel_0::st_load_file)	o << "|load_file";
-    if (flag & smlevel_0::st_insert_file)	o << "|insert_file";
-    if (flag & smlevel_0::st_empty)	o << "|empty";
+    if (flag == smlevel_0::st_bad)	    o << "|bad";
+    if (flag & smlevel_0::st_regular)	    o << "|regular";
+    if (flag & smlevel_0::st_tmp)	    o << "|tmp";
+    if (flag & smlevel_0::st_load_file)	    o << "|load_file";
+    if (flag & smlevel_0::st_insert_file)   o << "|insert_file";
+    if (flag & smlevel_0::st_empty)	    o << "|empty";
+    if (flag & !(smlevel_0::st_bad
+		| smlevel_0::st_regular
+		| smlevel_0::st_tmp
+		| smlevel_0::st_load_file 
+		| smlevel_0::st_insert_file 
+		| smlevel_0::st_empty))  {
+	o << "|unknown";
+	w_assert3(1);
+    }
 
     return o << "|";
 }
@@ -3342,20 +3681,145 @@ operator<<(ostream& o, smlevel_0::store_flag_t flag)
 ostream& 
 operator<<(ostream& o, const smlevel_0::store_operation_t op)
 {
-    char *names[] = {"delete_store", 
-	"create_store", 
-	"set_deleting", 
-	"set_store_flags", 
-	"set_first_ext"};
-    return o << names[op];
+    const char *names[] = {"delete_store", 
+			    "create_store", 
+			    "set_deleting", 
+			    "set_store_flags", 
+			    "set_first_ext"};
+
+    if (op <= smlevel_0::t_set_first_ext)  {
+	return o << names[op];
+    }  else  {
+	return o << "unknown";
+	w_assert3(1);
+    }
 }
 
 ostream& 
 operator<<(ostream& o, const smlevel_0::store_deleting_t value)
 {
-    char *names[] = { "not_deleting_store", 
-	"deleting_store", 
-	"store_freeing_exts", 
-	"unknown_deleting"};
-    return o << names[value];
+    const char *names[] = { "not_deleting_store", 
+			    "deleting_store", 
+			    "store_freeing_exts", 
+			    "unknown_deleting"};
+    
+    if (value <= smlevel_0::t_unknown_deleting)  {
+	return o << names[value];
+    }  else  {
+	return o << "unknown_deleting_store_value";
+	w_assert3(1);
+    }
+}
+
+
+/*--------------------------------------------------------------*
+ *  ss_m::lock_collect()					*
+ *  ss_m::bp_collect()					        *
+ *  ss_m::thread_collect()					*
+ *  ss_m::class_factory_collect()				*
+ *  ss_m::class_factory_collect_histogram()			*
+ *  ss_m::xct_collect()					        *
+ *  ss_m::stats_collect()				        *
+ *  ss_m::io_collect()					        *
+ *  wrappers for hidden things                                  *
+ *--------------------------------------------------------------*/
+rc_t
+ss_m::class_factory_collect( vtable_info_array_t & res) 
+{
+    if(w_factory_t::collect(res) == 0) return RCOK;
+    return RC(eOUTOFMEMORY);
+}
+
+rc_t
+ss_m::class_factory_collect_histogram( vtable_info_array_t & res) 
+{
+    if(w_factory_t::collect_histogram(res) == 0) return RCOK;
+    return RC(eOUTOFMEMORY);
+}
+rc_t
+ss_m::xct_collect( vtable_info_array_t & res) 
+{
+    if(xct_t::collect(res) == 0) return RCOK;
+    return RC(eOUTOFMEMORY);
+}
+rc_t
+ss_m::lock_collect( vtable_info_array_t& res) 
+{
+    if(lm->collect(res)==0) return RCOK;
+    return RC(eOUTOFMEMORY);
+}
+rc_t
+ss_m::bp_collect( vtable_info_array_t & res) 
+{
+    if(bf->collect(res)==0) return RCOK;
+    return RC(eOUTOFMEMORY);
+}
+rc_t
+ss_m::thread_collect( vtable_info_array_t & res) 
+{
+    // this calls sthread_t::collect,
+    // which goes through all threads, calling
+    // each thread's virtual collect function
+
+    if(smthread_t::collect(res)==0) return RCOK;
+    return RC(eOUTOFMEMORY);
+}
+
+rc_t
+ss_m::stats_collect( vtable_info_array_t & res) 
+{
+    if(res.init(1, sm_last)) return RC(eOUTOFMEMORY);
+
+    vtable_info_t &t = res[0];
+
+#define TMP_GET_STAT(x) GET_STAT(x)
+#include "sm_stats_t_collect_gen.cpp"
+
+    return RCOK; // no error
+}
+
+rc_t
+ss_m::io_collect( vtable_info_array_t & res) 
+{
+    if(io_m::collect(res) == 0) return RCOK;
+    return RC(eOUTOFMEMORY);
+}
+
+extern "C" {
+/* Debugger-callable functions to dump various SM tables. */
+
+void	sm_dumplocks()
+{
+	if (smlevel_0::lm) {
+		W_IGNORE(ss_m::dump_locks(cout));
+	}
+	else
+		cout << "no smlevel_0::lm" << endl;
+	cout << flush;
+}
+
+void	sm_dumpxcts()
+{
+	W_IGNORE(ss_m::dump_xcts(cout));
+	cout << flush;
+}
+
+void	sm_dumpbuffers()
+{
+	W_IGNORE(ss_m::dump_buffers(cout));
+	cout << flush;
+}
+
+void 	sm_dumpexts(int vol, extnum_t start, extnum_t end)
+{
+	W_IGNORE( ss_m::dump_exts(cout, vol, start, end) );
+	cout << flush;
+}
+
+void 	sm_dumpstores(int vol, int start, int end)
+{
+	W_IGNORE( ss_m::dump_stores(cout, vol, start, end) );
+	cout << flush;
+}
+
 }

@@ -1,19 +1,40 @@
-/* --------------------------------------------------------------- */
-/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
-/* -- University of Wisconsin-Madison, subject to the terms     -- */
-/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
-/* -- Reserved.                                                 -- */
-/* --------------------------------------------------------------- */
+/*<std-header orig-src='shore' incl-file-exclusion='LOG_H'>
 
-/*
- *  $Id: log.h,v 1.55 1997/06/13 19:30:14 solomon Exp $
- */
+ $Id: log.h,v 1.75 1999/08/06 19:53:46 bolo Exp $
+
+SHORE -- Scalable Heterogeneous Object REpository
+
+Copyright (c) 1994-99 Computer Sciences Department, University of
+                      Wisconsin -- Madison
+All Rights Reserved.
+
+Permission to use, copy, modify and distribute this software and its
+documentation is hereby granted, provided that both the copyright
+notice and this permission notice appear in all copies of the
+software, derivative works or modified versions, and any portions
+thereof, and that both notices appear in supporting documentation.
+
+THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+"AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+This software was developed with support by the Advanced Research
+Project Agency, ARPA order number 018 (formerly 8230), monitored by
+the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+Further funding for this work was provided by DARPA through
+Rome Research Laboratory Contract No. F30602-97-2-0247.
+
+*/
+
 #ifndef LOG_H
 #define LOG_H
 
-#ifndef SPIN_H
+#include "w_defines.h"
+
+/*  -- do not edit anything above this line --   </std-header>*/
+
 #include <spin.h>
-#endif
 #undef ACQUIRE
 
 #ifdef __GNUG__
@@ -36,10 +57,14 @@ class log_buf;
 
 
 class log_base : public smlevel_0 {
-    friend 	class log_i;
+    friend 		class log_i;
 
 public:
-    const int XFERSIZE =	8192;
+    static lsn_t	first_lsn(uint4_t pnum);
+
+    enum { XFERSIZE =	SM_PAGESIZE };
+    // const int XFERSIZE =	SM_PAGESIZE;
+	
     virtual void                check_wal(const lsn_t &ll) ;
     virtual void                compute_space() ;
     virtual
@@ -57,7 +82,6 @@ public:
     // This is an abstract class; represents interface common to client
     // and server sides
     //////////////////////////////////////////////////////////////////////
-#undef VIRTUAL
 #define VIRTUAL(x) virtual x = 0;
 #define NULLARG = 0
 
@@ -98,8 +122,8 @@ protected:
 
     struct _shared_log_info {
 	bool			_log_corruption_on;
-	uint4			_max_logsz;	// input param from cli -- partition size
-	uint4			_maxLogDataSize;// _max_logsz - sizeof(skiplog record)
+	fileoff_t _max_logsz;	// input param from cli -- partition size
+	fileoff_t  _maxLogDataSize;// _max_logsz - sizeof(skiplog record)
 
 	lsn_t			_curr_lsn;	// lsn of next record
 	lsn_t			_append_lsn;    // max lsn appended to file 
@@ -118,7 +142,7 @@ protected:
 	// a number computed occasionally, used for log-space computations
 	// computed by client using info in partitions
 	///////////////////////////////////////////////////////////////////////
-	uint4_t			_space_available;// in freeable or freed partitions
+	fileoff_t		_space_available;// in freeable or freed partitions
 
     };
     struct _shared_log_info  *	_shared;
@@ -166,7 +190,8 @@ public:
     ////////////////////////////////////////////////////////////////////////
     // MISC:
     ////////////////////////////////////////////////////////////////////////
-    const			max_open_log = smlevel_0::max_openlog;
+    enum { max_open_log = smlevel_0::max_openlog };
+    // const	max_open_log = smlevel_0::max_openlog;
 
     ////////////////////////////////////////////////////////////////////////
     // check_raw_device: static and used elsewhere in sm. Should really
@@ -176,26 +201,79 @@ public:
 				    const char* devname,
 				    bool&	raw
 				    );
+    
+
+    static uint4_t		version_major;
+    static uint4_t		version_minor;
+
+    static rc_t			check_version(
+				    uint4_t	major,
+				    uint4_t	minor
+				    );
+    static rc_t			parse_master_chkpt_string(
+				    istream& 		s,
+				    lsn_t&		master_lsn,
+				    lsn_t&		min_chkpt_rec_lsn,
+				    int&		number_of_others,
+				    lsn_t*		others,
+				    bool&		old_style
+				    );
+    static rc_t			parse_master_chkpt_contents(
+				    istream&	    s,
+				    int&		    listlength,
+				    lsn_t*		    lsnlist
+				    );
+    static void			create_master_chkpt_string(
+				    ostream&		o,
+				    int			arraysize,
+				    const lsn_t*	array,
+				    bool		old_style = false
+				    );
+    static void			create_master_chkpt_contents(
+				    ostream&	s,
+				    int		arraysize,
+				    const lsn_t*	array
+				    );
 };
 
+inline lsn_t 
+log_base::first_lsn(uint4_t pnum) { 
+    return lsn_t(pnum, 0); 
+}
+
+
+struct log_stats_t
+{
+    w_base_t::uint8_t 	log_reads;		// number of log reads
+    w_base_t::uint8_t 	log_bytes_read;		// log bytes read
+    w_base_t::uint8_t 	log_writes;		// number of log writes
+    w_base_t::uint8_t 	log_bytes_written;	// log bytes written
+};
 
 
 class log_m : public log_base {
 
-public:
-    void 	check_wal(const lsn_t &) ;
-    void 	compute_space() ;
-    rc_t   	flush_all() { return flush(curr_lsn()); }
-    static void reset_stats();
-    static int  shm_needed(int n);
-	
     NORET log_m(const char *path, 
-	uint4 max_logsz, 
+	fileoff_t max_logsz, 
 	int rdlogbufsize,
 	int wrlogbufsize,
 	char *shmbase,
 	bool reformat);
 
+public:
+    void 	check_wal(const lsn_t &) ;
+    void 	compute_space() ;
+    rc_t   	flush_all() { return flush(curr_lsn()); }
+    static int  shm_needed(int n);
+	
+
+    static	rc_t	new_log_m(log_m		*&the_log,
+				  const char	*path,
+				  fileoff_t	max_logsz,
+				  int		rdlogbufsize,
+				  int		wrlogbufsize,
+				  char		*shmbase,
+				  bool		reformat);
     NORET ~log_m();
 
 #define VIRTUAL(x) x;
@@ -204,7 +282,7 @@ public:
 #undef VIRTUAL
 #undef NULLARG
 
-    uint4_t 		 space_left() { return _shared->_space_available; }
+    fileoff_t 		 space_left() { return _shared->_space_available; }
 			
     void 		 set_master(
 	const lsn_t& 		    lsn,
@@ -212,23 +290,19 @@ public:
         const lsn_t&		    min_xct_lsn);
 
     rc_t		wait( 
-	uint4_t 		nbytes,
+	fileoff_t 		nbytes,
 	sevsem_t&		sem,
-	int4_t 			timeout = WAIT_FOREVER);
+	timeout_in_ms		timeout = WAIT_FOREVER);
 
     /*
      * Logging stats
      */
-    static void 	incr_log_rec_cnt() {
-				smlevel_0::stats.log_records_generated++;
-    }
-    static void 	incr_log_byte_cnt(int cnt) {
-				smlevel_0::stats.log_bytes_generated += cnt;
-    }
-    static void 	incr_log_sync_cnt(unsigned int lsncnt, unsigned int reccnt);
-
     void 		release(); // release mutex acquired by fetch()
     w_rc_t 		acquire(); // reacquire mutex acquired by fetch()
+
+    static log_stats_t	stats;	// log io statistics
+
+    fileoff_t		limit() const;
 
 private:
     rc_t		_update_shared();
@@ -243,7 +317,7 @@ private:
     ///////////////////////////////////////////////////////////////////////
     // Kept entirely on client side:
     ///////////////////////////////////////////////////////////////////////
-    uint4_t		_countdown;	// # bytes to go
+    fileoff_t		_countdown;	// # bytes to go
     sevsem_t*		_countdown_expired;
 };
 
@@ -264,8 +338,9 @@ inline NORET
 log_i::log_i(log_m& l, const lsn_t& lsn) 
     : log(l), cursor(lsn)
 {
+    DBG(<<"creating log_i with cursor " << lsn);
 }
 
+/*<std-footer incl-file-exclusion='LOG_H'>  -- do not edit anything below this line -- */
 
-#endif /* LOG_H */
-
+#endif          /*</std-footer>*/

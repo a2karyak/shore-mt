@@ -1,22 +1,41 @@
-/* --------------------------------------------------------------- */
-/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
-/* -- University of Wisconsin-Madison, subject to the terms     -- */
-/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
-/* -- Reserved.                                                 -- */
-/* --------------------------------------------------------------- */
+/*<std-header orig-src='shore' incl-file-exclusion='SORT_H'>
 
-#ifndef _SORT_H_
-#define _SORT_H_
+ $Id: sort.h,v 1.27 1999/06/07 19:04:42 kupsch Exp $
 
-typedef int  (*PFC) (uint4 kLen1, const void* kval1, uint4 kLen2, const void*
-kval22, const void* cdata);
+SHORE -- Scalable Heterogeneous Object REpository
 
-#ifndef LEXIFY_H
+Copyright (c) 1994-99 Computer Sciences Department, University of
+                      Wisconsin -- Madison
+All Rights Reserved.
+
+Permission to use, copy, modify and distribute this software and its
+documentation is hereby granted, provided that both the copyright
+notice and this permission notice appear in all copies of the
+software, derivative works or modified versions, and any portions
+thereof, and that both notices appear in supporting documentation.
+
+THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+"AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+This software was developed with support by the Advanced Research
+Project Agency, ARPA order number 018 (formerly 8230), monitored by
+the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+Further funding for this work was provided by DARPA through
+Rome Research Laboratory Contract No. F30602-97-2-0247.
+
+*/
+
+#ifndef SORT_H
+#define SORT_H
+
+#include "w_defines.h"
+
+/*  -- do not edit anything above this line --   </std-header>*/
+
 #include <lexify.h>
-#endif
-#ifndef SORT_S_H
 #include <sort_s.h>
-#endif
 
 struct sort_desc_t;
 class run_scan_t;
@@ -34,7 +53,7 @@ struct s_chunk  {
     s_chunk* next;
 
     NORET s_chunk() { data = 0; next = 0; };
-    NORET s_chunk(uint4 size, s_chunk* tail) { 
+    NORET s_chunk(uint4_t size, s_chunk* tail) { 
 		      data = new char[size];
 		      next = tail;
 		};
@@ -62,12 +81,29 @@ public:
 
     void  reset() { _free_all(); head = 0; };
 
-    void* alloc(uint4 size) {
+    void* alloc(uint4_t size) {
 	      s_chunk* curr = new s_chunk(size, head);
 	      head = curr;
  	      return (void*) curr->data;
 	  };
 };
+
+#if (defined(_AIX) || defined(mips) || defined(__cplusplus) || \
+     defined(c_plusplus) || defined(__GNUC__))
+#       define PROTOTYPE(_parms) _parms
+#else
+/*
+ *      Turn it off for everything else
+ */
+#       define PROTOTYPE(_parms) ()
+#endif
+
+#ifndef PFCDEFINED
+
+#define PFCDEFINED
+typedef int  (*PFC) PROTOTYPE((uint4_t kLen1, const void* kval1, uint4_t kLen2, const void* kval2));
+
+#endif
 
 class sort_stream_i : public smlevel_top, public xct_dependent_t {
 
@@ -79,6 +115,8 @@ class sort_stream_i : public smlevel_top, public xct_dependent_t {
     NORET	sort_stream_i(const key_info_t& k,
 			const sort_parm_t& s, uint est_rec_sz=0);
     NORET	~sort_stream_i();
+
+    static PFC  get_cmp_func(key_info_t::key_type_t type, bool up);
 
     void	init(const key_info_t& k, const sort_parm_t& s,
 			uint est_rec_sz=0);
@@ -101,12 +139,13 @@ class sort_stream_i : public smlevel_top, public xct_dependent_t {
 				_property = prop; _logical_id = lid; }
     rc_t	file_put(const cvec_t& key, const void* rec, uint rlen,
 				uint hlen, const rectag_t* tag);
-    rc_t	file_get_next(vec_t& key, vec_t& elem, uint4& blen, bool& eof);
+    rc_t	file_get_next(vec_t& key, vec_t& elem, uint4_t& blen, bool& eof);
 
     rc_t        flush_run();		// sort and flush one run
 
     rc_t	flush_one_rec(const record_t *rec, rid_t& rid,
-				const stid_t& out_fid, file_p& last_page);
+				const stid_t& out_fid, file_p& last_page,
+				bool to_final_file);
 
     rc_t	remove_duplicates();	// remove duplicates for unique sort
     rc_t	merge(bool skip_last_pass);
@@ -126,10 +165,10 @@ class sort_stream_i : public smlevel_top, public xct_dependent_t {
   
     bool		_file_sort;	// true if sorting a file
 
-    int2*		heap;	   	// heap array
+    int2_t*		heap;	   	// heap array
     int			heap_size; 	// heap size
     run_scan_t* 	sc;	   	// scan descriptor array	
-    uint4 		num_runs;  	// # of runs for each merge
+    uint4_t 		num_runs;  	// # of runs for each merge
     int			r;	   	// run index
 
     chunk_mgr_t		buf_space;	// in-memory storage
@@ -140,7 +179,6 @@ class sort_stream_i : public smlevel_top, public xct_dependent_t {
     serial_t		_logical_id;	// logical id
 };
 
-
 class file_p;
 
 //
@@ -149,28 +187,33 @@ class file_p;
 class run_scan_t {
     lpid_t pid;         // current page id
     file_p* fp;         // page buffer (at most fix two pages for unique sort)
-    int2   i;           // toggle between two pages
-    int2   slot;        // slot for current record
+    int2_t   i;           // toggle between two pages
+    int2_t   slot;        // slot for current record
     record_t* cur_rec;  // pointer to current record
     bool eof;         // end of run
     key_info_t kinfo;   // key description (location, len, type)
-    int2   toggle_base; // default = 1, unique sort = 2
+    int2_t   toggle_base; // default = 1, unique sort = 2
     bool   single;	// only one page
     bool   _unique;	// unique sort
-    PFC cmp;            // The comparison function
-    const void *cdata;  // A handle on any extra data the cmp function needs
+
 public:
+    PFC cmp;
+
     NORET run_scan_t();
     NORET ~run_scan_t();
 
-    rc_t init(rid_t& begin, const key_info_t& k, bool unique);
+    rc_t init(rid_t& begin, PFC c, const key_info_t& k, bool unique);
     rc_t current(const record_t*& rec);
     rc_t next(bool& eof);
 
-    is_eof()   { return eof; }
+    bool is_eof()   { return eof; }
 
-    friend operator>(run_scan_t& s1, run_scan_t& s2);
-    friend operator<(run_scan_t& s1, run_scan_t& s2);
+    friend bool operator>(run_scan_t& s1, run_scan_t& s2);
+    friend bool operator<(run_scan_t& s1, run_scan_t& s2);
+
+    const lpid_t& page() const { return pid; }
 };
 
-#endif // _SORT_H_
+/*<std-footer incl-file-exclusion='SORT_H'>  -- do not edit anything below this line -- */
+
+#endif          /*</std-footer>*/

@@ -1,15 +1,38 @@
-/* --------------------------------------------------------------- */
-/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
-/* -- University of Wisconsin-Madison, subject to the terms     -- */
-/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
-/* -- Reserved.                                                 -- */
-/* --------------------------------------------------------------- */
+/*<std-header orig-src='shore' incl-file-exclusion='LID_T_H'>
 
-/*
- *  $Header: /p/shore/shore_cvs/src/common/lid_t.h,v 1.23 1997/05/19 19:41:04 nhall Exp $
- */
+ $Id: lid_t.h,v 1.33 1999/06/07 19:02:26 kupsch Exp $
+
+SHORE -- Scalable Heterogeneous Object REpository
+
+Copyright (c) 1994-99 Computer Sciences Department, University of
+                      Wisconsin -- Madison
+All Rights Reserved.
+
+Permission to use, copy, modify and distribute this software and its
+documentation is hereby granted, provided that both the copyright
+notice and this permission notice appear in all copies of the
+software, derivative works or modified versions, and any portions
+thereof, and that both notices appear in supporting documentation.
+
+THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+"AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+This software was developed with support by the Advanced Research
+Project Agency, ARPA order number 018 (formerly 8230), monitored by
+the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+Further funding for this work was provided by DARPA through
+Rome Research Laboratory Contract No. F30602-97-2-0247.
+
+*/
+
 #ifndef LID_T_H
 #define LID_T_H
+
+#include "w_defines.h"
+
+/*  -- do not edit anything above this line --   </std-header>*/
 
 /*
  * NB -- THIS FILE MUST BE LEGITIMATE INPUT TO cc and RPCGEN !!!!
@@ -39,7 +62,7 @@
     logical volume IDs.  This is a temporary hack which we support with
     this typedef:
 */
-typedef uint2 VID_T;
+typedef uint2_t VID_T;
 
 	/* 
 	// logical volume ID 
@@ -48,25 +71,25 @@ typedef uint2 VID_T;
 #define LVID_T
 struct lvid_t {
     /* usually generated from net addr of creating server */
-    uint4 high;
+    uint4_t high;
     /* usually generated from timeofday when created */
-    uint4 low;
+    uint4_t low;
 
 #ifdef __cplusplus
     /* do not want constructors for things embeded in objects. */
     lvid_t() : high(0), low(0) {}
-    lvid_t(uint4 hi, uint4 lo) : high(hi), low(lo) {}
+    lvid_t(uint4_t hi, uint4_t lo) : high(hi), low(lo) {}
 	
-    operator==(const lvid_t& s) const
+    bool operator==(const lvid_t& s) const
 			{return (low == s.low) && (high == s.high);}
-    operator!=(const lvid_t& s) const
+    bool operator!=(const lvid_t& s) const
 			{return (low != s.low) || (high != s.high);}
 
-    // in lid_t.c:
+    // in lid_t.cpp:
     friend ostream& operator<<(ostream&, const lvid_t&);
     friend istream& operator>>(istream&, lvid_t&);
 
-    // defined in lid_t.c
+    // defined in lid_t.cpp
     static const lvid_t null;
 #endif 
 };
@@ -76,7 +99,8 @@ struct lvid_t {
 // defined in serial_t.h
 */
 
-struct lid_t {
+class lid_t {
+public:
     lvid_t	lvid;
     serial_t    serial;
 
@@ -87,18 +111,18 @@ struct lid_t {
 		lvid(lvid_), serial(serial_)
     {};
 
-    lid_t(uint4 hi, uint4 lo, uint4 ser, bool remote) :
+    lid_t(uint4_t hi, uint4_t lo, uint4_t ser, bool remote) :
 		lvid(hi, lo), serial(ser, remote)
     {};
 
-    inline operator==(const lid_t& s) const { 
+    inline bool operator==(const lid_t& s) const { 
 		return ( (lvid == s.lvid) && (serial == s.serial)) ;
 	};
-    inline operator!=(const lid_t& s) const {
+    inline bool operator!=(const lid_t& s) const {
 		return (serial != s.serial) || (lvid != s.lvid);
 	};
 
-	// in lid_t.c:
+	// in lid_t.cpp:
     friend ostream& operator<<(ostream&, const lid_t& s);
     friend istream& operator>>(istream&, lid_t& s);
 
@@ -125,4 +149,6 @@ inline u_long hash(const lid_t& l)
 }
 #endif /*__cplusplus*/
 
-#endif /*LID_T_H*/
+/*<std-footer incl-file-exclusion='LID_T_H'>  -- do not edit anything below this line -- */
+
+#endif          /*</std-footer>*/

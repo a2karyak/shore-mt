@@ -1,15 +1,38 @@
-/* --------------------------------------------------------------- */
-/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
-/* -- University of Wisconsin-Madison, subject to the terms     -- */
-/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
-/* -- Reserved.                                                 -- */
-/* --------------------------------------------------------------- */
+/*<std-header orig-src='shore' incl-file-exclusion='BTCURSOR_H'>
 
-/*
- *  $Id: btcursor.h,v 1.2 1997/05/02 22:18:26 nhall Exp $
- */
-#ifndef BTCURSOR_T_H
-#define BTCURSOR_T_H
+ $Id: btcursor.h,v 1.9 1999/06/07 19:03:51 kupsch Exp $
+
+SHORE -- Scalable Heterogeneous Object REpository
+
+Copyright (c) 1994-99 Computer Sciences Department, University of
+                      Wisconsin -- Madison
+All Rights Reserved.
+
+Permission to use, copy, modify and distribute this software and its
+documentation is hereby granted, provided that both the copyright
+notice and this permission notice appear in all copies of the
+software, derivative works or modified versions, and any portions
+thereof, and that both notices appear in supporting documentation.
+
+THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+"AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+This software was developed with support by the Advanced Research
+Project Agency, ARPA order number 018 (formerly 8230), monitored by
+the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+Further funding for this work was provided by DARPA through
+Rome Research Laboratory Contract No. F30602-97-2-0247.
+
+*/
+
+#ifndef BTCURSOR_H
+#define BTCURSOR_H
+
+#include "w_defines.h"
+
+/*  -- do not edit anything above this line --   </std-header>*/
 
 #ifdef __GNUG__
 #pragma interface
@@ -19,9 +42,10 @@
 class btree_p;
 class btrec_t;
 
-class bt_cursor_t : smlevel_2 {
+class bt_cursor_t : smlevel_2 
+{
 public:
-    NORET			bt_cursor_t();
+    NORET			bt_cursor_t(bool include_nulls);
     NORET			~bt_cursor_t() ;
 
     rc_t			check_bounds();
@@ -70,12 +94,14 @@ public:
     void 			free_rec();
     void 			update_lsn(const btree_p&page);
     int 			klen() const   { return _klen; } 
-    char*			key()	 { return _klen ? _space : 0; }
+    char*			key()	 { return _eof ? 0 : _space; }
+    bool			eof()	 { return _eof;  }
     int				elen() const	 { return _elen; }
-    char*			elem()	 { return _klen ? _space + _klen : 0; }
+    char*			elem()	 { return _eof ? 0 :  _space + _klen; }
 
     void			delegate(void*& ptr, int& kl, int& el);
 
+    NORET			W_FASTNEW_CLASS_DECL(bt_cursor_t);
 private:
     lpid_t			_root;
     bool			_unique;
@@ -102,13 +128,16 @@ private:
     cvec_t			_bound2_tmp; // used if cond2 is not
     					     // pos or neg_infinity
     bool			_backward; // for backward scans
+    bool			_eof; // no element left
+    bool			_include_nulls; 
 };
 
 inline NORET
-bt_cursor_t::bt_cursor_t()
+bt_cursor_t::bt_cursor_t(bool include_nulls)
     : first_time(false), keep_going(true), _slot(-1), 
       _space(0), _splen(0), _klen(0), _elen(0), 
-      _bound1_buf(0), _bound2_buf(0), _backward(false)
+      _bound1_buf(0), _bound2_buf(0), _backward(false), _eof(false),
+      _include_nulls(include_nulls)
 {
 }
 
@@ -135,6 +164,7 @@ bt_cursor_t::~bt_cursor_t()
 inline void 
 bt_cursor_t::free_rec()
 {
+    _eof = true;
     _klen = _elen = 0;
     _slot = -1;
     _pid = lpid_t::null;
@@ -149,4 +179,6 @@ bt_cursor_t::delegate(void*& ptr, int& kl, int& el)
     _space = 0; _splen = 0;
 }
 
-#endif  /*BTCURSOR_T_H*/
+/*<std-footer incl-file-exclusion='BTCURSOR_H'>  -- do not edit anything below this line -- */
+
+#endif          /*</std-footer>*/

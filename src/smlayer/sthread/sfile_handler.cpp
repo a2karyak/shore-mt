@@ -1,130 +1,72 @@
-/* --------------------------------------------------------------- */
-/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
-/* -- University of Wisconsin-Madison, subject to the terms     -- */
-/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
-/* -- Reserved.                                                 -- */
-/* --------------------------------------------------------------- */
+/*<std-header orig-src='shore'>
 
-#include <strstream.h>
-#include <w_workaround.h>
-#include <w_signal.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <string.h>
+ $Id: sfile_handler.cpp,v 1.21 1999/06/07 19:06:05 kupsch Exp $
 
-#include <sys/time.h>
-#include <fcntl.h>
-#include <sys/wait.h>
-#include <new.h>
-#include <sys/uio.h>
+SHORE -- Scalable Heterogeneous Object REpository
+
+Copyright (c) 1994-99 Computer Sciences Department, University of
+                      Wisconsin -- Madison
+All Rights Reserved.
+
+Permission to use, copy, modify and distribute this software and its
+documentation is hereby granted, provided that both the copyright
+notice and this permission notice appear in all copies of the
+software, derivative works or modified versions, and any portions
+thereof, and that both notices appear in supporting documentation.
+
+THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+"AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+This software was developed with support by the Advanced Research
+Project Agency, ARPA order number 018 (formerly 8230), monitored by
+the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+Further funding for this work was provided by DARPA through
+Rome Research Laboratory Contract No. F30602-97-2-0247.
+
+*/
+
+#include "w_defines.h"
+
+/*  -- do not edit anything above this line --   </std-header>*/
+
+
+/*
+ *   NewThreads is Copyright 1992, 1993, 1994, 1995, 1996, 1997, 1998 by:
+ *
+ *	Josef Burger	<bolo@cs.wisc.edu>
+ *	Dylan McNamee	<dylan@cse.ogi.edu>
+ *      Ed Felten       <felten@cs.princeton.edu>
+ *
+ *   All Rights Reserved.
+ *
+ *   NewThreads may be freely used as long as credit is given
+ *   to the above authors and the above copyright is maintained.
+ */
 
 #ifdef __GNUC__
 #pragma implementation "sfile_handler.h"
 #endif
 
-#define DBGTHRD(arg)
-#define DBG(arg)
-#define FUNC(arg)
-
 #define W_INCL_LIST
 #include <w.h>
+#include <w_strstream.h>
 #include <sthread.h>
+
 #include <sfile_handler.h>
 
 #include <w_statistics.h>
-#ifdef SOLARIS2
-#include <solaris_stats.h>
-#else
 #include <unix_stats.h>
-#endif
 #include "sthread_stats.h"
-#include <unix_error.h>
 extern class sthread_stats SthreadStats;
 
-#ifdef __GNUC__
+#ifdef EXPLICIT_TEMPLATE
 template class w_list_t<sfile_hdl_base_t>;
 template class w_list_i<sfile_hdl_base_t>;
 #endif
 
-
-#define FD_NONE	-1	/* invalid unix file descriptor */
-
-#ifdef HPUX8
-inline int select(int nfds, fd_set* rfds, fd_set* wfds, fd_set* efds,
-	      struct timeval* t)
-{
-    return select(nfds, (int*) rfds, (int*) wfds, (int*) efds, t);
-}
-#else
-
-#if !defined(AIX32) && !defined(AIX41)
-extern "C" int select(int, fd_set *, fd_set *, fd_set *, struct timeval *);
-#endif
-
-#endif /*HPUX8*/
-
-/*
- *  operator<<(o, fd_set)
- *
- *  Print an fd_set.
- */
-
-ostream& operator<<(ostream& o, const fd_set &s) 
-{
-#ifdef FD_SETSIZE
-	int	maxfds = FD_SETSIZE;
-#else
-	static int maxfds = 0;
-	if (maxfds == 0) {
-		maxfds = sysconf(_SC_OPEN_MAX);
-	}
-#endif
-	for (int n = 0; n < maxfds; n++)  {
-		if (FD_ISSET(n, &s))  {
-			o << ' ' << n;
-		}
-	}
-	return o;
-}
-
-#ifdef DEBUG
-/*********************************************************************
- *
- *  check for all-zero mask
- *
- *  For debugging.
- *
- *********************************************************************/
-
-bool
-fd_allzero(const fd_set *s)
-{
-#ifdef FD_SETSIZE
-	int	maxfds = FD_SETSIZE;
-#else
-	static long maxfds = 0;
-	if (maxfds == 0) {
-		maxfds = sysconf(_SC_OPEN_MAX);
-	}
-#endif
-
-	// return true if s is null ptr or it
-	// points to an empty mask
-	if (s==0)
-		return true;
-
-	for (int n = 0; n < maxfds; n++)  {
-		if (FD_ISSET(n, s))
-			return false;
-	}
-	return true;
-}
-
-#endif /*DEBUG*/
-
-#ifdef DEBUG
-static int gotenv;	// hold over from sthreads integration
-#endif
+#define	FD_NONE	(-1)	/* an invalid file descriptor value */
 
 
 /*
@@ -138,31 +80,17 @@ static int gotenv;	// hold over from sthreads integration
 sfile_handler_t::sfile_handler_t()
 : _list(offsetof(sfile_hdl_base_t, _link))
 {
-	memset(masks, '\0', sizeof(masks));
-	memset(ready, '\0', sizeof(ready));
-
-	any[0] = any[1] = any[2] = 0;
-
-	direction = 0;
-	rc = wc = ec = 0;
-
-	dtbsz = 0;
-
-	tvp = 0;
-	tval.tv_sec = tval.tv_usec = 0;
 }
 
-
 /*
- *  sfile_handler_t::enable()
+ *  sfile_handler_t::_start()
  *
- * Allow this sfile to receive events.
+ *  Add the file handle to the list of handles controlled by
+ *  this handler.
  */
 
-w_rc_t sfile_handler_t::start(sfile_hdl_base_t &hdl)
+w_rc_t sfile_handler_t::_start(sfile_hdl_base_t &hdl)
 {
-	DBG(<<"sfile_hdl_t::enable(" << hdl << ")");
-
 	if (hdl.fd == FD_NONE)
 		return RC(sthread_t::stBADFD);
 
@@ -178,267 +106,86 @@ w_rc_t sfile_handler_t::start(sfile_hdl_base_t &hdl)
 	_list.append(&hdl);
 	hdl._owner = this;
 	
-	if (hdl.fd >= dtbsz)
-		dtbsz = hdl.fd + 1;
-
 	return RCOK;
 }
 
 
 /*
- *  sfile_handler_t::disable()
+ *  sfile_handler_t::_stop()
  *
- *  Stop dispatching events for a sfile.
+ *  Remove the file handle from the list of handles controlled
+ *  by this handler.
  */
 
-void sfile_handler_t::stop(sfile_hdl_base_t &hdl)
+w_rc_t	sfile_handler_t::_stop(sfile_hdl_base_t &hdl)
 {
-	DBG(<<"sfile_hdl_base_t::disable(" << hdl << ")");
-
 	void	*owner = hdl._link.member_of();
 	if (!owner)
-		return;
+		return RC(sthread_t::stBADFD);	/*XXX overloaded*/
 	else if (owner != &_list) {
 		cerr.form("sfile_handler_t(%#lx): handle %#lx doesn't belong to me!\n",
 			  (long) this, (long) &hdl);
-		return;
+		return RC(sthread_t::stINUSE);
 	}
 
 	hdl.disable();
 	hdl._link.detach();
 	hdl._owner = 0;
 
-#if 0
-	/* XXX what if there is another event on the same descriptor ? */
-	if (hdl.fd == dtbsz - 1)
-		--dtbsz;
-#endif
-}
-
-
-void sfile_handler_t::enable(sfile_hdl_base_t &hdl)
-{
-	if (hdl._mode & rd) {
-		rc++;
-		FD_SET(hdl.fd, &masks[0]);
-	}
-	if (hdl._mode & wr) {
-		wc++;
-		FD_SET(hdl.fd, &masks[1]);
-	}
-	if (hdl._mode & ex) {
-		ec++;
-		FD_SET(hdl.fd, &masks[2]);
-	}
-}
-
-
-void sfile_handler_t::disable(sfile_hdl_base_t &hdl)
-{
-	if (hdl._mode & rd) {
-		rc--;
-		FD_CLR(hdl.fd, &masks[0]);
-	}
-	if (hdl._mode & wr) {
-		wc--;
-		FD_CLR(hdl.fd, &masks[1]);
-	}
-	if (hdl._mode & ex) {
-		ec--;
-		FD_CLR(hdl.fd, &masks[2]);
-	}
-}
-	
-
-
-/*
- *  sfile_handler_t::prepare(timeout)
- *
- *  Prepare the sfile to wait on file events for timeout milliseconds.
- */
-
-w_rc_t sfile_handler_t::prepare(const stime_t &timeout, bool forever)
-{
-	if (forever)
-		tvp = 0;
-	else {
-		tval = timeout;
-		tvp = &tval;
-	}
-
-	fd_set *rset = rc ? &ready[0] : 0;
-	fd_set *wset = wc ? &ready[1] : 0;
-	fd_set *eset = ec ? &ready[2] : 0;
-
-	if (rset || wset || eset)
-		memcpy(ready, masks, sizeof(masks));
-	w_assert1(dtbsz <= FD_SETSIZE);
-
-#ifdef DEBUG
-	if (gotenv > 1) {
-		gotenv = 0;
-		cerr << "select():" << endl;
-		if (rset)
-			cerr << "\tread_set:" << *rset << endl; 
-		if (wset)
-			cerr << "\twrite_set:" << *wset << endl;
-		if (eset)
-			cerr << "\texcept_set:" << *eset << endl;
-
-		cerr << "\ttimeout= ";
-		if (tvp)
-			cerr << timeout;
-		else
-			cerr << "INDEFINITE";
-		if (timeout==0)
-			cerr << " (POLL)";
-		cerr << endl << endl;
-	}
-	if (fd_allzero(rset) && fd_allzero(wset) && fd_allzero(eset)) {
-		w_assert1(tvp!=0);
-	}
-#else
-	w_assert1(rset || wset || eset || tvp);
-#endif
-
-	any[0] = rset;
-	any[1] = wset;
-	any[2] = eset;
-
 	return RCOK;
 }
 
 
 /*
- *  sfile_handler_t::wait()
+ * Common accounting of events waited for and found.  Otherwise the
+ * code is duplicated into each implementation.
  *
- *  Wait for any file events or for interrupts to occur.
+ * XXX This would be faster if stats allowed arrays.
  */
-w_rc_t sfile_handler_t::wait()
+
+void	sfile_handler_t::stats_wait(unsigned waiting)
 {
-	fd_set *rset = any[0];
-	fd_set *wset = any[1];
-	fd_set *eset = any[2];
-
-	SthreadStats.selects++;
-
-	int n = select(dtbsz, rset, wset, eset, tvp);
-	int select_errno = ::errno;
-	
-	switch (n)  {
-	case -1:
-		if (select_errno != EINTR)  {
-			cerr << "select(): "<< ::strerror(select_errno) << endl;
-			if (rset)
-				cerr << "\tread_set:" << *rset << endl;
-			if (wset)
-				cerr << "\twrite_set:" << *wset << endl;
-			if (eset)
-				cerr << "\texcept_set:" << *eset << endl;
-			cerr << endl;
-		} else {
-			// cerr << "EINTR " << endl;
-			SthreadStats.eintrs++;
-		}
-		return RC(sthread_t::stOS);
-		break;
-
+	switch (waiting) {
 	case 0:
-		return RC(sthread_base_t::stTIMEOUT);
+		SthreadStats.selw0++;
 		break;
-
+	case 1:
+		SthreadStats.selw1++;
+		break;
+	case 2:
+		SthreadStats.selw2++;
+		break;
+	case 3:
+		SthreadStats.selw3++;
+		break;
+	case 4:
+		SthreadStats.selw4++;
+		break;
 	default:
-		SthreadStats.selfound++;
+		SthreadStats.selwX++;
 		break;
 	}
-
-	return RCOK;
 }
 
-
-/*
- *  sfile_handler_t::dispatch()
- *
- *  Dispatch select() events to individual file handles.
- *
- *  Events are processed in order of priority.  At current, only two
- *  priorities, "read"==0 and "write"==1 are supported, rather crudely
- */
-
-void sfile_handler_t::dispatch()
+void	sfile_handler_t::stats_found(unsigned found)
 {
-	/* any events to dispatch? */
-	if (!(any[0] || any[1] || any[2]))
-		return;
-
-	direction = (direction == 0) ? 1 : 0;
-	
-	sfile_hdl_base_t *p;
-
-	w_list_i<sfile_hdl_base_t> i(_list, direction);
-
-	bool active[3];
-
-	while ((p = i.next()))  {
-		/* an iterator across priority would do better */
-		if (p->priority() != 0)
-			continue;
-
-		active[0] = any[0] && FD_ISSET(p->fd, ready+0);
-		active[1] = any[1] && FD_ISSET(p->fd, ready+1);
-		active[2] = any[2] && FD_ISSET(p->fd, ready+2);
-
-		if (active[0] || active[1] || active[2])
-			p->dispatch(active[0], active[1], active[2]);
+	switch (found) {
+	case 1:
+		SthreadStats.self1++;
+		break;
+	case 2:
+		SthreadStats.self2++;
+		break;
+	case 3:
+		SthreadStats.self3++;
+		break;
+	case 4:
+		SthreadStats.self4++;
+		break;
+	default:
+		SthreadStats.selfX++;
+		break;
 	}
-	
-	for (i.reset(_list);  (p = i.next()); )  {
-		if (p->priority() != 1)
-			continue;
-
-		active[0] = any[0] && FD_ISSET(p->fd, ready+0);
-		active[1] = any[1] && FD_ISSET(p->fd, ready+1);
-		active[2] = any[2] && FD_ISSET(p->fd, ready+2);
-
-		if (active[0] || active[1] || active[2])
-			p->dispatch(active[0], active[1], active[2]);
-	}
-}
-
-
-/*
- *  sfile_handler_t::is_active(fd)
- *
- *  Return true if there is an active file handler for fd.
- */
-
-bool sfile_handler_t::is_active(int fd)
-{
-	w_list_i<sfile_hdl_base_t> i(_list);
-	sfile_hdl_base_t *p; 
-
-	while ((p = i.next()))  {
-		if (p->fd == fd)
-			break;
-	}
-
-	return p != 0;
-}
-
-
-ostream &sfile_handler_t::print(ostream &o)
-{
-	w_list_i<sfile_hdl_base_t> i(_list);
-	sfile_hdl_base_t* f = i.next();
-
-	if (f)  {
-		o << "waiting on FILE EVENTS:" << endl;
-		do {
-			f->print(o);
-		} while ((f = i.next()));
-	}
-
-	return o;
 }
 
 ostream &operator<<(ostream &o, sfile_handler_t &h)
@@ -455,9 +202,10 @@ ostream &operator<<(ostream &o, sfile_handler_t &h)
 sfile_hdl_base_t::sfile_hdl_base_t(int f, int m)
 : fd(f),
   _mode(m),
-  _enabled(false)
+  _enabled(false),
+  _hits(0)
 {
-}    
+}
 
 
 /*
@@ -535,44 +283,45 @@ bool sfile_hdl_base_t::is_active(int fd)
  *  Execute the appropriate callbacks for the sfile event.
  */
 
-void sfile_hdl_base_t::dispatch(bool read, bool write, bool except)
+void sfile_hdl_base_t::dispatch(const stime_t &at,
+				bool read, bool write, bool except)
 {
-    if (read && (_mode & rd))
-	    read_ready();
+	_hits++;
+	_last_event = at;
 
-    if (write && (_mode & wr))
-	    write_ready();
+	if (read && (_mode & rd))
+		read_ready();
 
-    if (except && (_mode & ex))
-	    exception_ready();
+	if (write && (_mode & wr))
+		write_ready();
+
+	if (except && (_mode & ex))
+		exception_ready();
+}
+
+
+bool	sfile_hdl_base_t::probe()
+{
+	return _owner ? _owner->probe(*this) : false;
 }
 
 
 ostream &sfile_hdl_base_t::print(ostream &s) const
 {
-	s.form("sfile=%#lx [%sed] fd=%d mask=%s%s%s", 
-	       (long)this,
-	       enabled() ? "enabl" : "disabl",
-	       fd,
-	       (_mode & rd) ? " rd" : "",
-	       (_mode & wr) ? " wr" : "",
-	       (_mode & ex) ? " ex" : "");
-
-#if 0
-	if (enabled()) {
-		s.form("ready[%s%s%s ]  masks[%s%s%s ]",
-	       (_mode & rd) && FD_ISSET(fd, &ready[0]) ? " rd" : "",
-	       (_mode & wr) && FD_ISSET(fd, &ready[1]) ? " wr" : "",
-	       (_mode & ex) && FD_ISSET(fd, &ready[2]) ? " ex" : "",
-	       (_mode & rd) && FD_ISSET(fd, &masks[0]) ? " rd" : "",
-	       (_mode & wr) && FD_ISSET(fd, &masks[1]) ? " wr" : "",
-	       (_mode & ex) && FD_ISSET(fd, &masks[2]) ? " ex" : ""
-	       );
+	W_FORM(s)("sfile(%#lx, fd %d, %s%s%s, %d hits", 
+		  (long)this,
+		  fd,
+		  ((_mode & rd) ? (enabled() ? " READ" : " read") : ""),
+		  ((_mode & wr) ? (enabled() ? " WRITE" : " write") : ""),
+		  ((_mode & ex) ? (enabled() ? " EXCEPT" : " except") : ""),
+		  _hits);
+	if (_hits) {
+		sinterval_t	delta(stime_t::now() - _last_event);
+	    	s << ", " << delta << " seconds ago";
 	}
-#endif
-
-	return s << '\n';
+	return s << ')';
 }
+
 
 ostream &operator<<(ostream &o, sfile_hdl_base_t &h)
 {
@@ -586,8 +335,16 @@ sfile_safe_hdl_t::sfile_safe_hdl_t(int fd, int mode)
 {
 	char buf[20];
 	ostrstream s(buf, sizeof(buf));
-	s << fd << ends;
-	sevsem.setname("sfile ", buf);
+	s << fd << "_";
+	if (_mode & rd)
+		s << "R";
+	if (_mode & wr)
+		s << "W";
+	if (_mode & ex)
+		s << "X";
+	s << ")" << ends;
+	buf[sizeof(buf)-1] = '\0';
+	sevsem.setname("sfile(", buf);
 }
 
 
@@ -595,6 +352,26 @@ sfile_safe_hdl_t::~sfile_safe_hdl_t()
 {
 } 
 
+
+w_rc_t	sfile_safe_hdl_t::change(int new_fd)
+{
+	W_DO(sfile_hdl_base_t::change(new_fd));
+
+	char buf[40];
+	ostrstream s(buf, sizeof(buf));
+	s << fd << "_";
+	if (_mode & rd)
+		s << "R";
+	if (_mode & wr)
+		s << "W";
+	if (_mode & ex)
+		s << "X";
+	s << ")" << ends;
+	buf[sizeof(buf)-1] = '\0';
+	sevsem.setname("sfile(", buf);
+
+	return RCOK;
+}
 
 w_rc_t 
 sfile_safe_hdl_t::wait(long timeout)

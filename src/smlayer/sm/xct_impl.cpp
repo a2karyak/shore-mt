@@ -1,17 +1,40 @@
-/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
-/* -- University of Wisconsin-Madison, subject to the terms     -- */
-/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
-/* -- Reserved.                                                 -- */
-/* --------------------------------------------------------------- */
+/*<std-header orig-src='shore'>
 
-/*
- *  $Id: xct_impl.cc,v 1.16 1997/06/15 03:13:55 solomon Exp $
- */
+ $Id: xct_impl.cpp,v 1.51 1999/06/07 19:04:51 kupsch Exp $
+
+SHORE -- Scalable Heterogeneous Object REpository
+
+Copyright (c) 1994-99 Computer Sciences Department, University of
+                      Wisconsin -- Madison
+All Rights Reserved.
+
+Permission to use, copy, modify and distribute this software and its
+documentation is hereby granted, provided that both the copyright
+notice and this permission notice appear in all copies of the
+software, derivative works or modified versions, and any portions
+thereof, and that both notices appear in supporting documentation.
+
+THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+"AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+This software was developed with support by the Advanced Research
+Project Agency, ARPA order number 018 (formerly 8230), monitored by
+the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+Further funding for this work was provided by DARPA through
+Rome Research Laboratory Contract No. F30602-97-2-0247.
+
+*/
+
+#include "w_defines.h"
+
+/*  -- do not edit anything above this line --   </std-header>*/
+
 #define SM_SOURCE
 #define XCT_C
 #define XCT_IMPL_C
 
-#define DBGTHRD(arg) DBG(<<" th."<< me()->id << " " arg)
 
 /* NB: OLD_LOG_FLUSH2 are being
 * used to phase out the old way of logging compensations.
@@ -28,10 +51,10 @@
 * the xct-thread structure, so that we can multi-thread the
 * log.
 */
-#define OLD_LOG_FLUSH2
+// #define OLD_LOG_FLUSH2
 
-// #undef OLD_LOG_FLUSH2
-// Can't remove this yet.
+#undef OLD_LOG_FLUSH2
+// Can't remove this yet. WHY?
 
 
 #ifdef __GNUG__
@@ -40,34 +63,34 @@
 #endif
 
 #include <new.h>
-#include "sm_int_2.h"
+
+#include <sm_int_4.h>
+#include <sm.h>
+
 #include "xct_dependent.h"
 #include "chkpt_serial.h"
 #include "lock_x.h"
-
-#ifdef __GNUG__
-#include <iomanip.h>
-#endif
-#include <new.h>
 
 #include "crash.h"
 #include "xct_impl.h"
 
 #define LOGTRACE(x)	DBG(x)
 #define DBGX(arg) DBG(<<" th."<<me()->id << " " << "tid." << tid()  arg)
+#define DBGX2(arg) DBG(<<" th." << me()->id  arg)
 
 
-#ifdef DEBUG
+#ifdef W_TRACE
 extern "C" void debugflags(const char *);
 void
 debugflags(const char *a) 
 {
    _debug.setflags(a);
 }
-#endif
+#endif /* W_TRACE */
 
-#ifdef __GNUG__
+#ifdef EXPLICIT_TEMPLATE
 template class w_auto_delete_array_t<lockid_t>;
+// template class w_auto_delete_array_t<lock_mode_t>; in xct.cpp
 template class w_auto_delete_array_t<stid_t>;
 template class w_list_t<xct_dependent_t>;
 template class w_list_i<xct_dependent_t>;
@@ -77,6 +100,7 @@ template class w_list_i<xct_dependent_t>;
  *
  *  _1thread_name is the name of the mutex protecting the xct_t from
  *  	multi-thread access
+ * NB: there is a _1thread_xct_mutex for each of xct_impl and xct_t
  *
  *********************************************************************/
 const char* 			xct_impl::_1thread_xct_name = "1thXI";
@@ -108,7 +132,7 @@ operator<<(ostream& o, const xct_impl& x)
 	o << "<NONE>";
     }
 
-    o << " state=" << x.state() << " num_threads=" << x._threads_attached << endl << "   ";
+    o << endl << " state=" << x.state() << " num_threads=" << x._threads_attached << endl << "   ";
 
     o << " defaultTimeout=";
     print_timeout(o, x.timeout_c());
@@ -159,11 +183,10 @@ xct_impl::xct_impl(xct_t* that)
 	_alloced_page(false),
 	_freed_page(false),
 	_in_compensated_op(0),
-	_last_heard_from_coord(0),
-	_latch_held(lpid_t::null)
+	_last_heard_from_coord(0)
 {
-    _log_buf = new logrec_t;
-#ifdef PURIFY
+    _log_buf = new logrec_t; // deleted when xct goes away
+#ifdef PURIFY_ZERO
     memset(_log_buf, '\0', sizeof(logrec_t));
 #endif
 
@@ -175,7 +198,8 @@ xct_impl::xct_impl(xct_t* that)
 
     lock_info()->lock_level = convert(cc_alg);
     
-    incr_begin_cnt();
+    INC_TSTAT(begin_xct_cnt);
+
 }
 
 
@@ -215,11 +239,10 @@ xct_impl::xct_impl(xct_t* that,
 	_alloced_page(false),
 	_freed_page(false),
 	_in_compensated_op(0),
-	_last_heard_from_coord(0),
-	_latch_held(lpid_t::null)
+	_last_heard_from_coord(0)
 {
 
-    _log_buf = new logrec_t;
+    _log_buf = new logrec_t; // deleted when xct goes away
     if (!_log_buf)  W_FATAL(eOUTOFMEMORY);
 
     lock_info()->lock_level = convert(cc_alg);
@@ -283,7 +306,7 @@ xct_impl::set_coordinator(const server_handle_t &h)
      * Make a copy 
      */
     if(!_coord_handle) {
-	_coord_handle = new server_handle_t;
+	_coord_handle = new server_handle_t; // deleted when xct goes way
 	if(!_coord_handle) {
 	    W_FATAL(eOUTOFMEMORY);
 	}
@@ -417,7 +440,7 @@ xct_impl::prepare()
     if(_read_only || forced_readonly()) {
 	_vote = vote_readonly;
 	// No need to log prepare record
-#ifdef DEBUG
+#ifdef W_DEBUG
 	// This is really a bogus assumption,
 	// since a tx could have explicitly
 	// forced an EX lock and then never
@@ -431,16 +454,23 @@ xct_impl::prepare()
 	if(!forced_readonly()) {
 	    int	total_EX, total_IX, total_SIX, num_extents;
 	    W_DO(lock_info()->get_lock_totals(total_EX, total_IX, total_SIX, num_extents));
-	    w_assert3(total_EX == 0);
+	    if(total_EX != 0) {
+            cout 
+               << "WARNING: " << total_EX 
+               << " write locks held by a read-only transaction thread. "
+               << " ****** voting read-only ***** "
+               << endl;
+	     }
+	    // w_assert3(total_EX == 0);
 	}
-#endif
+#endif /* W_DEBUG */
 	// If commit is done in the readonly case,
 	// it's done by ss_m::_prepare_xct(), NOT HERE
 
 	change_state(xct_prepared);
 	// Let the stat indicate how many prepare records were
 	// logged
-	// smlevel_0::stats.s_prepared++;
+	// INC_TSTAT(s_prepared);
 	return RCOK;
     }
 
@@ -466,7 +496,7 @@ xct_impl::prepare()
     ******************************************/
 
     change_state(xct_prepared);
-    smlevel_0::stats.s_prepared++;
+    INC_TSTAT(s_prepared);
 
     _vote = vote_commit;
     return RCOK;
@@ -490,7 +520,7 @@ rc_t
 xct_impl::log_prepared(bool in_chkpt)
 {
     FUNC(xct_t::log_prepared);
-    w_assert1(_state == in_chkpt?xct_prepared:xct_active);
+    w_assert1(_state == (in_chkpt?xct_prepared:xct_active));
 
     w_rc_t rc;
 
@@ -511,8 +541,6 @@ xct_impl::log_prepared(bool in_chkpt)
 
     SSMTEST("prepare.unfinished.1");
     {
-	lockid_t	*space_l=0;
-	lock_mode_t	*space_m=0;
 
 	rc = lock_info()->
 	    get_lock_totals(total_EX, total_IX, total_SIX, num_extents);
@@ -557,7 +585,7 @@ xct_impl::log_prepared(bool in_chkpt)
 	    // EX ONLY
 	    // we can fit them *all* in one record
 	    */
-	    space_l = new lockid_t[i];
+	    lockid_t* space_l = new lockid_t[i]; // auto-del
 	    w_auto_delete_array_t<lockid_t> auto_del_l(space_l);
 
 	    rc = lock_info()-> get_locks(EX, i, space_l);
@@ -573,7 +601,7 @@ xct_impl::log_prepared(bool in_chkpt)
 	    // the rest in one or more records
 
 	    /* EX only */
-	    space_l = new lockid_t[i];
+	    lockid_t* space_l = new lockid_t[i]; // auto-del
 	    w_auto_delete_array_t<lockid_t> auto_del_l(space_l);
 
 	    rc = lock_info()-> get_locks(EX, i, space_l);
@@ -604,8 +632,8 @@ xct_impl::log_prepared(bool in_chkpt)
 	{
 	    /* Now log the extent locks */
 	    i = num_extents;
-	    space_l = new lockid_t[i];
-	    space_m = new lock_mode_t[i];
+	    lockid_t* space_l = new lockid_t[i]; // auto-del
+	    lock_mode_t* space_m = new lock_mode_t[i]; // auto-del
 
 	    w_auto_delete_array_t<lockid_t> auto_del_l(space_l);
 	    w_auto_delete_array_t<lock_mode_t> auto_del_m(space_m);
@@ -614,16 +642,19 @@ xct_impl::log_prepared(bool in_chkpt)
 	    if (rc) { RC_AUGMENT(rc); goto done; }
 
 	    SSMTEST("prepare.unfinished.4");
-	    while (i >= prepare_lock_t::max_locks_logged)  {
-		rc = log_xct_prepare_alk(prepare_lock_t::max_locks_logged, space_l, space_m);
+	    int limit = prepare_all_lock_t::max_locks_logged;
+	    int k=0;
+	    while (i >= limit)  {
+		rc = log_xct_prepare_alk(limit, &space_l[k], &space_m[k]);
 		if (rc)  {
 		    RC_AUGMENT(rc);
 		    goto done;
 		}
-		i -= prepare_lock_t::max_locks_logged;
+		i -= limit;
+		k += limit;
 	    }
 	    if (i > 0)  {
-		rc = log_xct_prepare_alk(i, space_l, space_m);
+		rc = log_xct_prepare_alk(i, &space_l[k], &space_m[k]);
 		if (rc)  {
 		    RC_AUGMENT(rc);
 		    goto done;
@@ -740,7 +771,7 @@ xct_impl::_commit(uint4_t flags)
 	 *  Free all locks. Do not free locks if chaining.
 	 */
 	if (! (flags & xct_t::t_chain))  {
-	    W_COERCE( lm->unlock_duration(t_long, true) )
+	    W_COERCE( lm->unlock_duration(t_long, true) );
 	}
 
 	// don't allow a chkpt to occur between changing the state and writing
@@ -763,12 +794,13 @@ xct_impl::_commit(uint4_t flags)
 	 *  Don't free exts as there shouldn't be any to free.
 	 */
 	if (! (flags & xct_t::t_chain))  {
-	    W_COERCE( lm->unlock_duration(t_long, true, true) )
+	    W_COERCE( lm->unlock_duration(t_long, true, true) );
 	}
     }
 
     me()->detach_xct(_that);	// no transaction for this thread
-    incr_commit_cnt();
+    INC_TSTAT(commit_xct_cnt);
+
 
     /*
      *  Xct is now committed
@@ -793,14 +825,8 @@ xct_impl::_commit(uint4_t flags)
 	w_assert3( _in_compensated_op==0 );
 
         me()->attach_xct(_that);
-        incr_begin_cnt();
+	INC_TSTAT(begin_xct_cnt);
         change_state(xct_active);
-    }
-
-    if (_freed_page) {
-	// this transaction allocated pages, so the abort will
-	// free them, invalidating the io managers cache.
-	io->invalidate_free_page_cache();
     }
 
     return RCOK;
@@ -826,12 +852,6 @@ xct_impl::abort()
     w_assert1(_state == xct_active || _state == xct_prepared);
 
     change_state(xct_aborting);
-
-    /*
-     * Clear the list of stores to free.
-     * It will be recomputed to a new list during rollback
-     */
-    ClearAllStoresToFree();
 
     /*
      * clear the list of load stores as they are going to be destroyed
@@ -889,7 +909,8 @@ xct_impl::abort()
     }
 
     me()->detach_xct(_that);	// no transaction for this thread
-    incr_abort_cnt();
+    INC_TSTAT(abort_xct_cnt);
+
 
     DBGX(<< "Ratio:"
 	<< " bFwd: " << _log_bytes_fwd << " bBwd: " << _log_bytes_bwd
@@ -918,7 +939,7 @@ xct_impl::enter2pc(const gtid_t &g)
     if(is_extern2pc()) {
 	return RC(eEXTERN2PCTHREAD);
     }
-    _global_tid = new gtid_t;
+    _global_tid = new gtid_t; //deleted when xct goes away
     if(!_global_tid) {
 	W_FATAL(eOUTOFMEMORY);
     }
@@ -986,7 +1007,7 @@ xct_impl::flush_logbuf()
     // let only the thread that did the update
     // do the flushing
     */
-#ifdef DEBUG
+#ifdef W_DEBUG
     if( _threads_attached < 2) {
         w_assert3(_threads_attached == 1);
     }
@@ -996,7 +1017,7 @@ xct_impl::flush_logbuf()
         w_assert3(_1thread_log.is_mine() || ! _1thread_log.is_locked());
     }
 
-#endif /* DEBUG */
+#endif /* W_DEBUG */
 
     if(_threads_attached == 1) 
     {
@@ -1022,7 +1043,6 @@ xct_impl::_flush_logbuf( bool sync )
     w_assert3( _1thread_log.is_mine() || one_thread_attached());
 
     if (_last_log)  {
-	smlevel_0::stats.flush_logbuf++;
 
 	DBGTHRD ( << " xct_t::_flush_logbuf " << _last_lsn);
 	_last_log->fill_xct_attr(tid(), _last_lsn);
@@ -1031,8 +1051,9 @@ xct_impl::_flush_logbuf( bool sync )
 	// debugging prints a * if this record was written
 	// during rollback
 	//
-	DBGX( << "logging" << ((char *)(state()==xct_aborting)?"*":" ")
-		<< " lsn:" << log->curr_lsn() 
+	DBGX2( << " " 
+		<< ((char *)(state()==xct_aborting)?"RB":"FW")
+		<< " approx lsn:" << log->curr_lsn() 
 		<< " rec:" << *_last_log 
 		<< " size:" << _last_log->length()  
 		<< " prevlsn:" << _last_log->prev() 
@@ -1049,9 +1070,7 @@ xct_impl::_flush_logbuf( bool sync )
 	 *  will be corrupted beyond repair.
 	 */
 
-	if (_last_log->pid().vol().is_remote()) {
-	    W_FATAL(eINTERNAL);
-	} else {
+	{
 	    W_COERCE( log->insert(*_last_log, &_last_lsn) );
 	    if ( ! _first_lsn)  
 	        _first_lsn = _last_lsn;
@@ -1063,7 +1082,7 @@ xct_impl::_flush_logbuf( bool sync )
 	    _last_log = 0;
 
 #ifdef OLD_LOG_FLUSH2
-	    if (_last_mod_page)  {
+	    if (_last_mod_page.is_fixed())  {
 	        _last_mod_page.set_lsn(_last_lsn);
 	        _last_mod_page.unfix_dirty();
 	    }
@@ -1074,15 +1093,15 @@ xct_impl::_flush_logbuf( bool sync )
 	W_COERCE( log->flush(_last_lsn) );
     }
 #ifdef OLD_LOG_FLUSH2
-    w_assert3( !_last_mod_page );
+    w_assert3( !_last_mod_page.is_fixed() );
 #endif
 }
 
 
 /*********************************************************************
  *
- *  xct_t::get_logbuf(ret)
- *  xct_t::give_logbuf(ret, page)
+ *  xct_t,xct_impl::get_logbuf(ret)
+ *  xct_t,xct_impl::give_logbuf(ret, page)
  *
  *  Flush the logbuf and return it in "ret" for use. Caller must call
  *  give_logbuf(ret) to free it after use.
@@ -1103,7 +1122,7 @@ xct_impl::get_logbuf(logrec_t*& ret)
     // PROTECT
     ret = 0;
     acquire_1thread_log_mutex();
-    smlevel_0::stats.get_logbuf++;
+    INC_TSTAT(get_logbuf);
 
     // Instead of flushing here, we'll flush at the end of give_logbuf()
     // and assert here that we've got nothing buffered:
@@ -1148,7 +1167,7 @@ xct_impl::get_logbuf(logrec_t*& ret)
 void 
 xct_impl::give_logbuf(logrec_t* l, const page_p *page)
 {
-    FUNC(xct_t::give_logbuf);
+    FUNC(xct_impl::give_logbuf);
     DBG(<<"_last_log contains: "   << *l );
 	
     // ALREADY PROTECTED from get_logbuf() call
@@ -1165,24 +1184,36 @@ xct_impl::give_logbuf(logrec_t* l, const page_p *page)
 	// Should already be EX-latched since it's the last modified page!
 	w_assert1(page->latch_mode() == LATCH_EX);
 
-	_last_mod_page = *page;
+	_last_mod_page = *page; // refixes
 
-    } else 
-    if (l->pid())  {
+    } 
+    else if (l->shpid())  {
+	w_assert3(0); // we shouldn't get here: only
+	// those with page ids stuffed in with fill() should
+	// call this method with a page in the 2nd argument.
+	// TODO: remove code below
+
 	/* generic page fix: */
 	store_flag_t store_flags = st_bad;
-	W_COERCE(_last_mod_page.fix(l->pid(), 
+	W_COERCE(_last_mod_page.fix(l->construct_pid(), 
 		(page_p::tag_t) l->tag(), LATCH_EX, TMP_NOFLAG,
 		store_flags));
 
-
+    } else {
+	// This log record doesn't use a page.
+	w_assert1(l->tag() == 0);
     }
     w_assert3(_1thread_log.is_mine());
 
 #ifdef OLD_LOG_FLUSH2
 #else
-    w_assert3(_last_mod_page.is_fixed());
-    w_assert3(_last_mod_page.latch_mode() == LATCH_EX);
+    if(_last_mod_page.is_fixed()) { // i.e., is  fixed
+    	w_assert3(l->tag());
+	w_assert3(_last_mod_page.latch_mode() == LATCH_EX);
+    } else {
+    	w_assert3(l->tag()==0);
+	w_assert3(_last_mod_page.latch_mode() == LATCH_NL);
+    }
 #endif
 
     _flush_logbuf(); // stuffs tid, _last_lsn into our record,
@@ -1190,10 +1221,11 @@ xct_impl::give_logbuf(logrec_t* l, const page_p *page)
 
 #ifdef OLD_LOG_FLUSH2
 #else
-    w_assert3(_last_mod_page.is_fixed());
-    w_assert3(_last_mod_page.latch_mode() == LATCH_EX);
-    _last_mod_page.set_lsn(_last_lsn);
-    _last_mod_page.unfix_dirty();
+    if(_last_mod_page.is_fixed() ) {
+	w_assert3(_last_mod_page.latch_mode() == LATCH_EX);
+	_last_mod_page.set_lsn(_last_lsn);
+	_last_mod_page.unfix_dirty();
+    }
 #endif
 
     release_1thread_log_mutex();
@@ -1217,6 +1249,8 @@ xct_impl::release_anchor( bool and_compensate )
     DBGX(    
 	    << " RELEASE ANCHOR " 
 	    << " in compensated op==" << _in_compensated_op
+            << " holds xct_mutex_1==" 
+	    << (const char *)(_1thread_xct.is_mine()? "true" : "false")
     );
 
     w_assert3(_in_compensated_op>0);
@@ -1247,10 +1281,10 @@ xct_impl::release_anchor( bool and_compensate )
 	       DBG(<<"no _last_log:" << _anchor);
 	       /* perhaps we can update the log record in the log buffer */
 	       if( log && (log->compensate(_last_lsn, _anchor) == RCOK)) {
-		    smlevel_0::stats.compensate_in_log++;
+		    INC_TSTAT(compensate_in_log);
 	       } else {
-		   W_COERCE(log_compensate(_anchor));
-		   smlevel_0::stats.compensate_records++;
+		    W_COERCE(log_compensate(_anchor));
+		    INC_TSTAT(compensate_records);
 	       }
 	    }
 	}
@@ -1263,6 +1297,8 @@ xct_impl::release_anchor( bool and_compensate )
 
     DBGX(    
 	<< " out compensated op=" << _in_compensated_op
+        << " holds xct_mutex_1==" 
+        << (const char *)(_1thread_xct.is_mine()? "true" : "false")
     );
     release_1thread_log_mutex();
 }
@@ -1285,7 +1321,7 @@ xct_impl::anchor(bool grabit)
     acquire_1thread_log_mutex();
     _in_compensated_op ++;
 
-    smlevel_0::stats.anchors++;
+    INC_TSTAT(anchors);
     DBGX(    
 	    << " GRAB ANCHOR " 
 	    << " in compensated op==" << _in_compensated_op
@@ -1328,41 +1364,8 @@ xct_impl::compensate_undo(const lsn_t& lsn)
     w_assert3(_in_compensated_op);
     // w_assert3(state() == xct_aborting); it's active if in sm::rollback_work
 
-    bool done = false;
-    if ( _last_log ) {
-	if (! _last_log->is_undoable_clr()) {
-	    // We still have the log record here, and
-	    // we can compensate it.
-	    w_assert3(lsn <= _last_lsn);
-	    _last_log->set_clr(lsn);
-	    smlevel_0::stats.compensate_in_xct++;
-	    done = true;
-	}
-    } else {
-	/* 
-	// perhaps we can update the log record in the log buffer
-	*/
-	if(log) {
-	    if(log->compensate(_last_lsn, lsn) == RCOK) {
-		smlevel_0::stats.compensate_in_log++;
-		done = true;
-	    }
-	}
-    }
-    if( (!done) && (lsn < _last_lsn)) {
-	/*
-	// If we've actually written some log records since
-	// this anchor (lsn) was grabbed, 
-	//
-	// force it to write a compensation-only record
-	// either because there's no record on which to 
-	// piggy-back the compensation, or because the record
-	// that's there is an undoable/compensation and will be
-	// undone (and we *really* want to compensate around it)
-	*/
-	W_COERCE(log_compensate(lsn));
-	smlevel_0::stats.compensate_records++;
-    }
+    _compensate(lsn, _last_log?_last_log->is_undoable_clr() : false);
+
     _flush_logbuf();
     release_1thread_log_mutex();
 }
@@ -1375,9 +1378,6 @@ xct_impl::compensate_undo(const lsn_t& lsn)
  *  started at "lsn" (commit a top level action).
  *  Generates a new log record only if it has to do so.
  *
- *  Special case of undoable compensation records is handled by the
- *  boolean argument.
- *
  *********************************************************************/
 void 
 xct_impl::compensate(const lsn_t& lsn, bool undoable)
@@ -1387,34 +1387,77 @@ xct_impl::compensate(const lsn_t& lsn, bool undoable)
     // acquire_1thread_mutex(); should already be mine
     w_assert3(_1thread_log.is_mine());
 
+    _compensate(lsn, undoable);
+
+    w_assert3(_1thread_log.is_mine());
+    release_anchor();
+}
+
+/*********************************************************************
+ *
+ *  xct_t::_compensate(lsn, bool undoable)
+ *
+ *  
+ *  Generate a compensation log record to compensate actions 
+ *  started at "lsn" (commit a top level action).
+ *  Generates a new log record only if it has to do so.
+ *
+ *  Special case of undoable compensation records is handled by the
+ *  boolean argument. (NOT USED FOR NOW)
+ *
+ *********************************************************************/
+void 
+xct_impl::_compensate(const lsn_t& lsn, bool undoable)
+{
+    DBGX(    << "_compensate(" << lsn << ") -- state=" << state());
+
     bool done = false;
     if ( _last_log ) {
+#ifdef UNDOABLE_CLRS
 	if ( undoable ) {
 	    _last_log->set_undoable_clr(lsn);
-	    smlevel_0::stats.compensate_in_xct++;
+	    INC_TSTAT(compensate_in_xct);
 	    done = true;
-	} else {
+	} else 
+#endif /* UNDOABLE_CLRS */
+	{
 	    // We still have the log record here, and
 	    // we can compensate it.
+
+	    /*
+	     * lsn is got from anchor(), and anchor() returns _last_lsn.
+	     * _last_lsn is the lsn of the last log record
+	     * inserted into the log, and, since
+	     * this log record hasn't been inserted yet, this
+	     * function can't make a log record compensate to itself.
+	     */
 	    w_assert3(lsn <= _last_lsn);
 	    _last_log->set_clr(lsn);
-	    smlevel_0::stats.compensate_in_xct++;
+	    INC_TSTAT(compensate_in_xct);
 	    done = true;
 	}
     } else {
 	/* 
-	// perhaps we can update the log record in the log buffer
+	// Log record has already been inserted into the buffer.
+	// Perhaps we can update the log record in the log buffer.
+	// However,  it's conceivable that nothing's been written
+	// since _last_lsn, and we could be trying to compensate
+	// around nothing.  This indicates an error in the calling
+	// code.
 	*/
-	if( log && ! undoable) {
+	if( lsn >= _last_lsn) {
+	    INC_TSTAT(compensate_skipped);
+	}
+	if( log && (! undoable) && (lsn < _last_lsn)) {
 	    if(log->compensate(_last_lsn, lsn) == RCOK) {
-		smlevel_0::stats.compensate_in_log++;
+		INC_TSTAT(compensate_in_log);
 		done = true;
 	    }
 	}
     }
     w_assert3(_1thread_log.is_mine());
 
-    if( (!done) && (lsn < _last_lsn)) {
+    if( !done && (lsn < _last_lsn) ) {
 	/*
 	// If we've actually written some log records since
 	// this anchor (lsn) was grabbed, 
@@ -1426,10 +1469,8 @@ xct_impl::compensate(const lsn_t& lsn, bool undoable)
 	// undone (and we *really* want to compensate around it)
 	*/
 	W_COERCE(log_compensate(lsn));
-	smlevel_0::stats.compensate_records++;
+	INC_TSTAT(compensate_records);
     }
-    w_assert3(_1thread_log.is_mine());
-    release_anchor();
 }
 
 
@@ -1473,10 +1514,17 @@ xct_impl::rollback(lsn_t save_pt)
 	<< flushl; 
     }
 
+    { // Contain the scope of the following __copy__buf:
+
+    logrec_t* __copy__buf = new logrec_t; // auto-del
+    if(! __copy__buf) { W_FATAL(eOUTOFMEMORY); }
+    w_auto_delete_t<logrec_t> auto_del(__copy__buf);
+    logrec_t& 	copy = *__copy__buf;
+
     bool released;
 
     while (save_pt < nxt)  {
-	rc =  log->fetch(nxt, buf);
+	rc =  log->fetch(nxt, buf, 0);
 	// WE HAVE THE LOG_M MUTEX
 	released = false;
 
@@ -1496,11 +1544,11 @@ xct_impl::rollback(lsn_t save_pt)
 		      << resetiosflags(ios::right) << " U: " << r 
 		      << " ... " );
 
-#ifdef DEBUG
+#ifdef W_DEBUG
 	    u_int	 bbwd = _log_bytes_bwd;
 	    u_int	 bfwd = _log_bytes_fwd;
-#endif
-	    lpid_t pid = r.pid();
+#endif /* W_DEBUG */
+	    lpid_t pid = r.construct_pid();
 	    page_p page;
 
 	    /*
@@ -1514,7 +1562,9 @@ xct_impl::rollback(lsn_t save_pt)
 	     * try to fix a page.
 	     */
 
-	    logrec_t 	copy = r;
+	    /* Only copy the valid portion of the log record. */
+	    memcpy(__copy__buf, &r, r.length());
+
 	    log->release();
 	    released = true;
 
@@ -1529,9 +1579,9 @@ xct_impl::rollback(lsn_t save_pt)
 	    }
 
 
-	    copy.undo(page ? &page : 0);
+	    copy.undo(page.is_fixed() ? &page : 0);
 
-#ifdef DEBUG
+#ifdef W_DEBUG
 	    bbwd = _log_bytes_bwd - bbwd;
 	    bfwd = _log_bytes_fwd - bfwd;
 	    if(bbwd  > copy.length()) {
@@ -1542,7 +1592,7 @@ xct_impl::rollback(lsn_t save_pt)
 		  LOGTRACE( << " undone" << " F=" << bfwd << " B=" << bbwd );
 	    }
 	    */
-#endif
+#endif /* W_DEBUG */
 	    if(copy.is_cpsn()) {
 		LOGTRACE( << " compensating to" << copy.undo_nxt() );
 		nxt = copy.undo_nxt();
@@ -1570,6 +1620,11 @@ xct_impl::rollback(lsn_t save_pt)
 	    log->release();
 	}
     }
+
+    // close scope so the
+    // auto-release will free the log rec copy buffer, __copy__buf
+    }
+
     _undo_nxt = nxt;
 
     /*
@@ -1597,7 +1652,7 @@ done:
     release_1thread_log_mutex();
 
     if(save_pt != lsn_t::null) {
-	smlevel_0::stats.rollback_savept_cnt++;
+	INC_TSTAT(rollback_savept_cnt);
     }
 
     return rc;
@@ -1659,19 +1714,40 @@ xct_impl::FreeAllStoresToFree()
     }
 }
 
+/*
+ * this method returns the # extents allocated to stores
+ * marked for deletion by this xct
+ */
+void
+xct_impl::num_extents_marked_for_deletion(base_stat_t &num)
+{
+    stid_list_elem_t*	s = 0;
+    w_list_i<stid_list_elem_t>	i(_storesToFree);
+    num = 0;
+    SmStoreMetaStats stats;
+    base_stat_t j;
+    while ((s = i.next()))  {
+	stats.Clear();
+	W_COERCE( io->get_store_meta_stats(s->stid, stats) );
+	j = stats.numReservedPages; 
+	w_assert3((j % ss_m::ext_sz) == 0);
+	j /= ss_m::ext_sz;
+	num += j;
+    }
+}
 
 rc_t
 xct_impl::PrepareLogAllStoresToFree()
 {
-    stid_t* stids = new stid_t[prepare_stores_to_free_t::max];
+    stid_t* stids = new stid_t[prepare_stores_to_free_t::max]; // auto-del
     w_auto_delete_array_t<stid_t> auto_del_stids(stids);
 
     stid_list_elem_t*		e;
-    w_list_i<stid_list_elem_t>	i;
-    uint4			num = 0;
+    w_list_i<stid_list_elem_t>	i(_storesToFree);
+    uint4_t			num = 0;
 
     while ((e = i.next()))  {
-	e[num++] = e->stid;
+	stids[num++] = e->stid;
 	if (num >= prepare_stores_to_free_t::max)  {
 	    W_DO( log_xct_prepare_stores(num, stids) );
 	    num = 0;
@@ -1700,45 +1776,49 @@ xct_impl::DumpStoresToFree()
     cout << endl;
 }
 
+/*
+ * Moved here to work around a gcc/egcs bug that
+ * caused compiler to choke.
+ */
+class VolidCnt {
+    private:
+	int unique_vols;
+	int vol_map[xct_t::max_vols];
+	snum_t vol_cnts[xct_t::max_vols];
+    public:
+	VolidCnt() : unique_vols(0) {};
+	int Lookup(int vol)
+	    {
+		for (int i = 0; i < unique_vols; i++)
+		    if (vol_map[i] == vol)
+			return i;
+		
+		w_assert3(unique_vols < xct_t::max_vols);
+		vol_map[unique_vols] = vol;
+		vol_cnts[unique_vols] = 0;
+		return unique_vols++;
+	    };
+	int Increment(int vol)
+	    {
+		return ++vol_cnts[Lookup(vol)];
+	    };
+	int Decrement(int vol)
+	    {
+		w_assert3(vol_cnts[Lookup(vol)]);
+		return --vol_cnts[Lookup(vol)];
+	    };
+#ifdef W_DEBUG
+	~VolidCnt()
+	    {
+		for (int i = 0; i < unique_vols; i ++)
+		    w_assert3(vol_cnts[i] == 0);
+	    };
+#endif /* W_DEBUG */
+};
 
 rc_t
 xct_impl::ConvertAllLoadStoresToRegularStores()
 {
-    class VolidCnt {
-	public:
-	    VolidCnt() : unique_vols(0) {};
-	    int VolidCnt::Lookup(int vol)
-		{
-		    for (int i = 0; i < unique_vols; i++)
-			if (vol_map[i] == vol)
-			    return i;
-		    
-		    w_assert3(unique_vols < xct_t::max_vols);
-		    vol_map[unique_vols] = vol;
-		    vol_cnts[unique_vols] = 0;
-		    return unique_vols++;
-		};
-	    int VolidCnt::Increment(int vol)
-		{
-		    return ++vol_cnts[Lookup(vol)];
-		};
-	    int VolidCnt::Decrement(int vol)
-		{
-		    w_assert3(vol_cnts[Lookup(vol)]);
-		    return --vol_cnts[Lookup(vol)];
-		};
-#if DEBUG
-	    ~VolidCnt()
-		{
-		    for (int i = 0; i < unique_vols; i ++)
-			w_assert3(vol_cnts[i] == 0);
-		};
-#endif
-	private:
-	    int unique_vols;
-	    int vol_map[max_vols];
-	    snum_t vol_cnts[max_vols];
-    };
 
 
     stid_list_elem_t*	s = 0;
@@ -1752,7 +1832,12 @@ xct_impl::ConvertAllLoadStoresToRegularStores()
 
     while ((s = _loadStores.pop()))  {
 	bool sync_volume = (cnt.Decrement(s->stid.vol) == 0);
-	W_DO( io->set_store_flags(s->stid, st_regular, sync_volume) );
+	store_flag_t f;
+	W_DO( io->get_store_flags(s->stid, f));
+	// if any combo of  st_tmp, st_insert_file, st_load_file, convert
+	if(f != st_regular) {
+	    W_DO( io->set_store_flags(s->stid, st_regular, sync_volume) );
+	}
 	delete s;
     }
 
@@ -1783,7 +1868,7 @@ xct_impl::ClearAllLoadStores()
  *  of xct_t::timeout() in the lock manager, and
  *  we don't have to acquire the mutex here either.
 void			
-xct_impl::set_timeout(long t) 
+xct_impl::set_timeout(timeout_in_ms t) 
 { 
     // acquire_1thread_xct_mutex();
     w_assert3(one_thread_attached());
@@ -1845,12 +1930,12 @@ xct_impl::attach_thread()
 
 	    /////////////////////////////////////////////////
 	    // NB: this check is not safe for preemptive threads
-	    // w_assert3(smlevel_3::chkpt->taking()==true);
+	    // w_assert3(smlevel_3::chkpt->taking());
 	    // and in any case, smlevel_3::chkpt is not known here
 	    /////////////////////////////////////////////////
 
 	}
-	smlevel_0::stats.mpl_attach_cnt++;
+	INC_TSTAT(mpl_attach_cnt);
     } else {
 	w_assert3( ! _waiters.is_hot());
     }
@@ -1871,7 +1956,7 @@ xct_impl::detach_thread()
 }
 
 w_rc_t
-xct_impl::lockblock(long timeout)
+xct_impl::lockblock(timeout_in_ms timeout)
 {
     acquire_1thread_xct_mutex();
     DBGTHRD(<<"blocking on condn variable");
@@ -1933,9 +2018,9 @@ xct_impl::acquire_1thread_log_mutex() // default: true
 	return;
     }
     if(_1thread_log.is_locked()) {
-	smlevel_0::stats.await_1thread_log++;
+	INC_TSTAT(await_1thread_log);
     }
-    smlevel_0::stats.acquire_1thread_log++;
+    INC_TSTAT(acquire_1thread_log);
 
     W_COERCE(_1thread_log.acquire());
     DBGX(    << " acquired log mutex: " << _in_compensated_op);
@@ -1948,7 +2033,7 @@ xct_impl::acquire_1thread_xct_mutex() // default: true
 	return;
     }
     if(_1thread_xct.is_locked()) {
-	smlevel_0::stats.await_1thread_xct++;
+	INC_TSTAT(await_1thread_xct);
     }
     W_COERCE(_1thread_xct.acquire());
     DBGX(    << " acquired xct mutex");
@@ -1969,8 +2054,10 @@ xct_impl::release_1thread_log_mutex()
 {
     w_assert3(_1thread_log.is_mine());
 
-    DBGX( << " release log mutex: " << _in_compensated_op);
-
+    DBGX( << " release log mutex: " << _in_compensated_op
+        << " holds xct_mutex_1==" 
+        << (const char *)(_1thread_xct.is_mine()? "true" : "false")
+    );
 
     if(_in_compensated_op==0 ) {
 	_1thread_log.release();
@@ -1985,7 +2072,7 @@ xct_impl::commit(bool lazy)
     // w_assert3(one_thread_attached());
     // removed because a checkpoint could
     // be going on right now.... see comments
-    // in log_prepared and chkpt.c
+    // in log_prepared and chkpt.cpp
 
     return _commit(xct_t::t_normal | (lazy ? xct_t::t_lazy : xct_t::t_normal));
 }
@@ -2066,33 +2153,3 @@ xct_impl::convert(lockid_t::name_space_t n)
     return t_cc_bad;
 }
 
-
-/*
- * NB: this is NOT SUFFICIENT to deal with the
- * restart-undo processing of btrees, but it
- * reduces the window of opportunity for multi-user
- * crash problems.  The ONLY real fix is for restart-undo 
- * to guarantee processing in reverse chronological order.
- */
-rc_t			
-xct_impl::recover_latch(lpid_t& pid, bool unlatch)
-{
-    /*
-     * Grab a latch on the page (e.g., root of btree
-     * for btree recovery).
-     * So far, this is only for restart-redo.
-     */
-    if(smlevel_0::in_recovery) {
-	if(unlatch) {
-	    if(_latch_held.page == pid.page) {
-		_latch_held = lpid_t::null;
-	    } else {
-		DBG(<<"not held: skipped");
-	    }
-	} else {
-	    // w_assert3(!_latch_held.page);
-	    _latch_held = pid;
-	}
-    }
-    return RCOK;
-}

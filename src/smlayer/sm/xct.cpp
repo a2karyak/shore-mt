@@ -1,14 +1,36 @@
-/* --------------------------------------------------------------- */
-/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
-/* -- University of Wisconsin-Madison, subject to the terms     -- */
-/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
-/* -- Reserved.                                                 -- */
-/* --------------------------------------------------------------- */
+/*<std-header orig-src='shore'>
 
-#define DBGTHRD(arg) DBG(<<" th."<< me()->id << " " arg)
-/*
- *  $Id: xct.cc,v 1.167 1997/06/15 03:13:48 solomon Exp $
- */
+ $Id: xct.cpp,v 1.196 1999/08/20 15:31:16 nhall Exp $
+
+SHORE -- Scalable Heterogeneous Object REpository
+
+Copyright (c) 1994-99 Computer Sciences Department, University of
+                      Wisconsin -- Madison
+All Rights Reserved.
+
+Permission to use, copy, modify and distribute this software and its
+documentation is hereby granted, provided that both the copyright
+notice and this permission notice appear in all copies of the
+software, derivative works or modified versions, and any portions
+thereof, and that both notices appear in supporting documentation.
+
+THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+"AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+This software was developed with support by the Advanced Research
+Project Agency, ARPA order number 018 (formerly 8230), monitored by
+the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+Further funding for this work was provided by DARPA through
+Rome Research Laboratory Contract No. F30602-97-2-0247.
+
+*/
+
+#include "w_defines.h"
+
+/*  -- do not edit anything above this line --   </std-header>*/
+
 #define SM_SOURCE
 #define XCT_C
 
@@ -20,15 +42,13 @@
 #include "sm_int_1.h"
 #include "sdesc.h"
 
-#ifdef __GNUG__
-#include <iomanip.h>
-#endif
 
 #include "sm_escalation.h"
+#include "xct_dependent.h"
 #include "xct_impl.h"
 
 
-#ifdef __GNUG__
+#ifdef EXPLICIT_TEMPLATE
 template class w_list_t<xct_t>;
 template class w_list_i<xct_t>;
 template class w_keyed_list_t<xct_t, tid_t>;
@@ -86,7 +106,11 @@ W_FASTNEW_STATIC_DECL(xct_t, 32);
  *  Constructors and destructor
  *
  *********************************************************************/
-xct_t::xct_t(long timeout, type_t type) : 
+xct_t::xct_t(
+	sm_stats_info_t* stats, 
+	timeout_in_ms timeout) : 
+    __stats(stats),
+    __log_bytes_generated(0),
     __saved_lockid_t(0),
     __saved_sdesc_cache_t(0),
     __saved_xct_log_t(0),
@@ -95,15 +119,19 @@ xct_t::xct_t(long timeout, type_t type) :
     i_this(0),    
     _lock_info(0),    
     _lock_cache_enable(true),
+    _lock_cache_enable_mutex("lock_cache_enable"),
     _1thread_xct(_1thread_xct_name)
 {
     w_assert3(tid() <= _nxt_tid);
 
+    DBG(<<"tid= " << tid()
+	<< " __log_bytes_generated is " << __log_bytes_generated);
+
     // Must be done before creating xct_impl
-    _lock_info = new xct_lock_info_t(type);
+    _lock_info = new xct_lock_info_t(); // deleted when xct ends
     if (! _lock_info)  W_FATAL(eOUTOFMEMORY);
 
-    i_this = new xct_impl(this);
+    i_this = new xct_impl(this); // deleted when xct finishes
     put_in_order();
     me()->attach_xct(this);
 
@@ -113,11 +141,17 @@ xct_t::xct_t(long timeout, type_t type) :
 	set_timeout(me()->lock_timeout());
     }
     w_assert3(timeout_c() >= 0 || timeout_c() == WAIT_FOREVER);
+
+#ifndef SDESC_CACHE_PER_THREAD
+    __saved_sdesc_cache_t = new_sdesc_cache_t(); // deleted when xct finishes
+#endif /* SDESC_CACHE_PER_THREAD */
 }
 
 xct_t::xct_t(const tid_t& t, state_t s, const lsn_t& last_lsn,
-	     const lsn_t& undo_nxt, long timeout) 
+	     const lsn_t& undo_nxt, timeout_in_ms timeout) 
     :
+    __stats(0),
+    __log_bytes_generated(0),
     __saved_lockid_t(0),
     __saved_sdesc_cache_t(0),
     __saved_xct_log_t(0),
@@ -126,16 +160,20 @@ xct_t::xct_t(const tid_t& t, state_t s, const lsn_t& last_lsn,
     i_this(0),    
     _lock_info(0),    
     _lock_cache_enable(true),
+    _lock_cache_enable_mutex("lock_cache_enable"),
     _1thread_xct(_1thread_xct_name)
 {
     // Uses user(recovery)-provided tid 
     if (tid() > _nxt_tid)   _nxt_tid = tid();
 
+    DBG(<<"tid= " << tid()
+	<< " __log_bytes_generated is " << __log_bytes_generated);
+
     // Must be done before creating xct_impl
-    _lock_info = new xct_lock_info_t(t_master);
+    _lock_info = new xct_lock_info_t(); // deleted when xct finishes
     if (! _lock_info)  W_FATAL(eOUTOFMEMORY);
 
-    i_this = new xct_impl(this, s , last_lsn, undo_nxt);
+    i_this = new xct_impl(this, s , last_lsn, undo_nxt); //deleted when xct ends
     put_in_order();
     /// Don't attach
     // sm.tcb()->xct = 0;
@@ -146,11 +184,29 @@ xct_t::xct_t(const tid_t& t, state_t s, const lsn_t& last_lsn,
 	set_timeout(me()->lock_timeout());
     }
     w_assert3(timeout_c() >= 0 || timeout_c() == WAIT_FOREVER);
+
+#ifndef SDESC_CACHE_PER_THREAD
+    __saved_sdesc_cache_t = new_sdesc_cache_t(); // deleted when thread detaches or xct finishes
+#endif /* SDESC_CACHE_PER_THREAD */
 }
+
 
 xct_t::~xct_t() 
 { 
     W_COERCE(_xlist_mutex.acquire());
+    w_assert3(__stats == 0);
+
+    /* update global log_bytes_active */
+    /* XXX multi-thread race condition */
+    base_stat_t tmp = GET_STAT(log_bytes_active);
+    tmp -= __log_bytes_generated;
+    SET_STAT(log_bytes_active,tmp);
+    DBG(<<"xct_t::~xct_t(" << this
+	    << ") log_bytes_active is now " << tmp
+	<< " after subtracting " << __log_bytes_generated
+	<< " for xct " << tid()
+	);
+
     _xlink.detach();
     _xlist_mutex.release();
 
@@ -186,6 +242,37 @@ operator<<(ostream& o, const xct_t& x)
 
     return o;
 }
+
+#ifdef W_DEBUG
+/* debugger-callable */
+extern "C" void dumpXct(const xct_t *x) { if(x) { cout << *x <<endl;} }
+
+/* help for debugger-callable dumpThreadById() below */
+class PrintSmthreadById : public SmthreadFunc
+{
+    public:
+	PrintSmthreadById(ostream& out, int i ) : o(out), _i(0) {
+		_i = sthread_base_t::id_t(i);
+	};
+	void operator()(const smthread_t& smthread);
+    private:
+	ostream&	o;
+	sthread_base_t::id_t 		_i;
+};
+void PrintSmthreadById::operator()(const smthread_t& smthread)
+{
+    if (smthread.id == _i)  {
+	o << "--------------------" << endl << smthread;
+    }
+}
+
+/* debugger-callable */
+extern "C" void 
+dumpThreadById(int i) { 
+    PrintSmthreadById f(cout, i);
+    smthread_t::for_each_smthread(f);
+}
+#endif W_DEBUG
 
 xct_t::state_t
 xct_t::state() const
@@ -401,8 +488,12 @@ xct_t::log_prepared(bool in_chkpt)
 }
 
 rc_t
-xct_t::abort()
+xct_t::abort(bool save_stats_structure /* = false */)
 {
+    if(is_instrumented() && !save_stats_structure) {
+	delete __stats;
+	__stats = 0;
+    }
     return i_this->abort();
 }
 
@@ -525,6 +616,8 @@ xct_t::save_point(lsn_t& lsn)
 rc_t
 xct_t::dispose()
 {
+    delete __stats;
+    __stats = 0;
     return i_this->dispose();
 }
 
@@ -656,6 +749,7 @@ xct_t::num_threads()
 int 
 xct_t::attach_thread() 
 {
+    DBG(<<"xct has generated " << __log_bytes_generated);
     return i_this->attach_thread();
 }
 
@@ -667,7 +761,7 @@ xct_t::detach_thread()
 }
 
 w_rc_t
-xct_t::lockblock(long timeout)
+xct_t::lockblock(timeout_in_ms timeout)
 {
     return i_this->lockblock(timeout);
 }
@@ -681,12 +775,14 @@ xct_t::lockunblock()
 void
 xct_t::acquire_1thread_xct_mutex() // default: true
 {
+    DBGTHRD(<<"xct has generated " << __log_bytes_generated);
     if(_1thread_xct.is_mine()) {
 	return;
     }
     if(_1thread_xct.is_locked()) {
-	smlevel_0::stats.await_1thread_xct++;
+	INC_TSTAT(await_1thread_xct);
     }
+    DBGX(    << " awaiting xct mutex");
     W_COERCE(_1thread_xct.acquire());
     DBGX(    << " acquired xct mutex");
 }
@@ -707,7 +803,7 @@ xct_t::commit(bool lazy)
     // w_assert3(one_thread_attached());
     // removed because a checkpoint could
     // be going on right now.... see comments
-    // in log_prepared and chkpt.c
+    // in log_prepared and chkpt.cpp
 
     return i_this->_commit(t_normal | (lazy ? t_lazy : t_normal));
 }
@@ -726,9 +822,9 @@ xct_t::lock_cache_enabled()
 {
     //PROTECT
     bool result;
-    acquire_1thread_xct_mutex();
+    W_COERCE(_lock_cache_enable_mutex.acquire());
     result =  _lock_cache_enable;
-    release_1thread_xct_mutex();
+    _lock_cache_enable_mutex.release();
     return result;
 }
 
@@ -736,9 +832,9 @@ bool
 xct_t::set_lock_cache_enable(bool enable)
 {
     //PROTECT
-    acquire_1thread_xct_mutex();
+    W_COERCE(_lock_cache_enable_mutex.acquire());
     _lock_cache_enable = enable;
-    release_1thread_xct_mutex();
+    _lock_cache_enable_mutex.release();
     return _lock_cache_enable;
 }
 
@@ -769,49 +865,83 @@ xct_t::new_lock_hierarchy()
     return l;
 }
 
-void			
-xct_t::steal(lockid_t*&l, sdesc_cache_t*&s, xct_log_t*&x)
+sdesc_cache_t*    		
+xct_t::sdesc_cache() const
 {
+#ifdef SDESC_CACHE_PER_THREAD
+    return me()->sdesc_cache();
+#else
+    return __saved_sdesc_cache_t;
+#endif /* SDESC_CACHE_PER_THREAD */
+}
+
+void			
+xct_t::steal(lockid_t*&l, sdesc_cache_t*&
+#ifdef SDESC_CACHE_PER_THREAD
+	s
+#endif
+	, xct_log_t*&x)
+{
+    /* See comments in smthread_t::new_xct() */
     acquire_1thread_xct_mutex();
-    if( (l = __saved_lockid_t) ) {
+    if( (l = __saved_lockid_t) != 0 ) {
 	__saved_lockid_t = 0;
     } else {
-	l = new_lock_hierarchy();
+	l = new_lock_hierarchy(); // deleted when thread detaches or
+				  // xct goes away
     }
+
+#ifdef SDESC_CACHE_PER_THREAD
     if( (s = __saved_sdesc_cache_t) ) {
 	 __saved_sdesc_cache_t = 0;
     } else {
-	s = new_sdesc_cache_t();
+	s = new_sdesc_cache_t(); // deleted when thread detaches or xct finishes
     }
+#endif /* SDESC_CACHE_PER_THREAD */
+
     if( (x = __saved_xct_log_t) ) {
 	__saved_xct_log_t = 0;
     } else {
-	x = new_xct_log_t();
+	x = new_xct_log_t(); // deleted when thread detaches or xct finishes
     }
     release_1thread_xct_mutex();
 }
 
 void			
-xct_t::stash(lockid_t*&l, sdesc_cache_t*&s, xct_log_t*&x)
+xct_t::stash(lockid_t*&l, sdesc_cache_t*&
+#ifdef SDESC_CACHE_PER_THREAD
+	s
+#endif
+	, xct_log_t*&x)
 {
+    /* See comments in smthread_t::new_xct() */
     acquire_1thread_xct_mutex();
-    if(__saved_lockid_t)  { 
-	    DBG(<<"stash: delete " << l);
+    if(__saved_lockid_t != (lockid_t *)0)  { 
+	DBGX(<<"stash: delete " << l);
+	if(l) {
 	    delete[] l; 
-	} else { __saved_lockid_t = l; }
-	l = 0;
-    if(__saved_sdesc_cache_t) { 
-	    DBG(<<"stash: delete " << s);
-	    delete s; 
 	}
-	else { __saved_sdesc_cache_t = s;}
-	s = 0;
-    if(__saved_xct_log_t) { 
-	    DBG(<<"stash: delete " << x);
-	    delete x; 
-	}
-	else { __saved_xct_log_t = x; }
-	x = 0;
+    } else { 
+	__saved_lockid_t = l; 
+	DBGX(<<"stash: allocated " << l);
+    }
+    l = 0;
+
+#ifdef SDESC_CACHE_PER_THREAD
+    if(__saved_sdesc_cache_t) {
+	DBGX(<<"stash: delete " << s);
+	delete s; 
+    }
+    else { __saved_sdesc_cache_t = s;}
+    s = 0;
+#endif /* SDESC_CACHE_PER_THREAD */
+
+    if(__saved_xct_log_t) {
+	DBGX(<<"stash: delete " << x);
+	delete x; 
+    }
+    else { __saved_xct_log_t = x; }
+    x = 0;
     release_1thread_xct_mutex();
 }
     
@@ -823,9 +953,9 @@ xct_t::check_lock_totals(int nex, int nix, int nsix, int nextents) const
     int	num_EX, num_IX, num_SIX, num_extents;
     W_DO(lock_info()->get_lock_totals( num_EX, num_IX, num_SIX, num_extents));
     if( nex != num_EX || nix != num_IX || nsix != num_SIX) {
-#ifdef DEBUG
+#ifdef W_DEBUG
 	// lm->dump();
-#endif
+#endif /* W_DEBUG */
 	// IX and SIX are the same for this purpose,
 	// but whereas what was SH+IX==SIX when the
 	// prepare record was written, will be only
@@ -835,9 +965,16 @@ xct_t::check_lock_totals(int nex, int nix, int nsix, int nextents) const
 	// in the absence of escalation, and if it's
 	// not doing a lock_force, the numbers could be off.
 
-	w_assert1(nix + nsix <= num_IX + num_SIX );
+	// w_assert1(nix + nsix <= num_IX + num_SIX );
 	w_assert1(nex <= num_EX);
 
+	if(nextents != num_extents) {
+		cerr 
+		<< "FATAL: " <<endl
+		<< "nextents logged in xct_prepare_fi_log:" << nextents <<endl
+		<< "num_extents (extents locked) via xct_prepare_lk_log and xct_prepare_alk_logs : " << num_extents
+			<< endl;
+	}
 	w_assert1(nextents == num_extents);
     }
     return RCOK;
@@ -850,26 +987,26 @@ xct_t::obtain_locks(lock_mode_t mode, int num, const lockid_t *locks)
     // so the assertions will work.
     sm_escalation_t SAVE;
 
-#ifdef DEBUG
+#ifdef W_DEBUG
     int	b_EX, b_IX, b_SIX, b_extents;
     W_DO(lock_info()->get_lock_totals(b_EX, b_IX, b_SIX, b_extents));
     DBG(<< b_EX << "+" << b_IX << "+" << b_SIX << "+" << b_extents);
-#endif 
+#endif  /* W_DEBUG */
 
     int  i;
     rc_t rc;
 
     for (i=0; i<num; i++) {
-	DBG(<<"Obtaining lock : " << locks[i] << " in mode " << mode);
-#ifdef DEBUG
+	DBG(<<"Obtaining lock : " << locks[i] << " in mode " << int(mode));
+#ifdef W_DEBUG
 	int	bb_EX, bb_IX, bb_SIX, bb_extents;
 	W_DO(lock_info()->get_lock_totals(bb_EX, bb_IX, bb_SIX, bb_extents));
-    DBG(<< bb_EX << "+" << bb_IX << "+" << bb_SIX << "+" << bb_extents);
-#endif
+	DBG(<< bb_EX << "+" << bb_IX << "+" << bb_SIX << "+" << bb_extents);
+#endif /* W_DEBUG */
 
 	rc =lm->lock(locks[i], mode, t_long, WAIT_IMMEDIATE);
 	if(rc) {
-	    lm->dump();
+	    lm->dump(cerr);
 	    cerr << "can't obtain lock " <<rc <<endl;
 	    W_FATAL(eINTERNAL);
 	}
@@ -900,22 +1037,22 @@ xct_t::obtain_one_lock(lock_mode_t mode, const lockid_t &lock)
 {
     // Turn off escalation for recovering prepared xcts --
     // so the assertions will work.
-    DBG(<<"Obtaining 1 lock : " << lock << " in mode " << mode);
+    DBG(<<"Obtaining 1 lock : " << lock << " in mode " << int(mode));
 
     sm_escalation_t SAVE;
     rc_t rc;
-#ifdef DEBUG
+#ifdef W_DEBUG
     int	b_EX, b_IX, b_SIX, b_extents;
     W_DO(lock_info()->get_lock_totals(b_EX, b_IX, b_SIX, b_extents));
     DBG(<< b_EX << "+" << b_IX << "+" << b_SIX << "+" << b_extents);
-#endif 
+#endif  /* W_DEBUG */
     rc = lm->lock(lock, mode, t_long, WAIT_IMMEDIATE);
     if(rc) {
-	lm->dump();
+	lm->dump(cerr);
 	cerr << "can't obtain lock " <<rc <<endl;
 	W_FATAL(eINTERNAL);
     }
-#ifdef DEBUG
+#ifdef W_DEBUG
     {
 	int	a_EX, a_IX, a_SIX, a_extents;
 	W_DO(lock_info()->get_lock_totals(a_EX, a_IX, a_SIX, a_extents));
@@ -923,7 +1060,7 @@ xct_t::obtain_one_lock(lock_mode_t mode, const lockid_t &lock)
 
 	// It could be a repeat, so let's do this:
 	if(b_EX + b_IX + b_SIX == a_EX + a_IX + a_SIX) {
-	    DBG(<<"DIDN'T GET LOCK " << lock << " in mode " << mode);
+	    DBG(<<"DIDN'T GET LOCK " << lock << " in mode " << int(mode));
 	} else  {
 	    switch(mode) {
 		case EX:
@@ -940,7 +1077,7 @@ xct_t::obtain_one_lock(lock_mode_t mode, const lockid_t &lock)
 	    }
 	}
     }
-#endif
+#endif /* W_DEBUG */
     return RCOK;
 }
 
@@ -958,14 +1095,14 @@ xct_t::clear_deadlock_check_ids()
 
 
 NORET
-sm_escalation_t::sm_escalation_t( int4 p, int4 s, int4 v) 
+sm_escalation_t::sm_escalation_t( int4_t p, int4_t s, int4_t v) 
 {
     w_assert3(me()->xct());
     me()->xct()->GetEscalationThresholds(_p, _s, _v);
     me()->xct()->SetEscalationThresholds(p, s, v);
 }
 NORET
-sm_escalation_t::~sm_escalation_t( int4 p, int4 s, int4 v) 
+sm_escalation_t::~sm_escalation_t() 
 {
     w_assert3(me()->xct());
     me()->xct()->SetEscalationThresholds(_p, _s, _v);
@@ -1017,7 +1154,7 @@ xct_t::put_in_order() {
     _xlist.put_in_order(this);
     _xlist_mutex.release();
 
-#ifdef DEBUG
+#ifdef W_DEBUG
     W_COERCE(_xlist_mutex.acquire());
     {
 	// make sure that _xlist is in order
@@ -1030,17 +1167,17 @@ xct_t::put_in_order() {
 	w_assert1(t <= _nxt_tid);
     }
     _xlist_mutex.release();
-#endif /*DEBUG*/
+#endif /*W_DEBUG*/
 }
 
 void			
-xct_t::SetEscalationThresholds(int4 toPage, int4 toStore, int4 toVolume)
+xct_t::SetEscalationThresholds(int4_t toPage, int4_t toStore, int4_t toVolume)
 {
     i_this->SetEscalationThresholds(toPage, toStore, toVolume);
 }
 
 void			
-xct_t::GetEscalationThresholds(int4 &toPage, int4 &toStore, int4 &toVolume)
+xct_t::GetEscalationThresholds(int4_t &toPage, int4_t &toStore, int4_t &toVolume)
 {
     i_this->GetEscalationThresholds(toPage, toStore, toVolume);
 }
@@ -1111,21 +1248,10 @@ xct_t::AddLoadStore(const stid_t& stid)
     i_this->AddLoadStore(stid);
 }
 
-const int4 *
+const int4_t *
 xct_t::GetEscalationThresholdsArray()
 {
     return i_this->GetEscalationThresholdsArray();
-}
-
-rc_t			
-xct_t::recover_latch(lpid_t& root, bool unlatch)
-{
-    return i_this->recover_latch(root, unlatch);
-}
-int				
-xct_t::recovery_latches()const 
-{
-    return i_this->recovery_latches();
 }
 
 void
@@ -1142,7 +1268,104 @@ xct_t::dump(ostream &out)
 }
 
 void			
-xct_t::set_timeout(long t) 
+xct_t::set_timeout(timeout_in_ms t) 
 { 
     _timeout = t; 
+}
+
+#include <vtable_info.h>
+#include <vtable_enum.h>
+
+#ifdef __GNUG__ 
+template class vtable_func<xct_t>;
+#endif /* __GNUG__ */
+
+int
+xct_t::collect(
+    vtable_info_array_t& v
+)
+{
+    int n=0;
+    W_COERCE(_xlist_mutex.acquire());
+    {
+	w_list_i<xct_t> i(_xlist);
+	while (i.next())  { n++; }
+    }
+
+    if(v.init(n, xct_last)) return -1;
+    vtable_func<xct_t> f(v);
+
+    {
+	w_list_i<xct_t> i(_xlist);
+	while (i.next())  { 
+	    f( *i.curr());
+	}
+    }
+    _xlist_mutex.release();
+    return 0; //no error
+}
+
+void	
+xct_t::vtable_collect(vtable_info_t &t)
+{
+    t.set_int(xct_nthreads_attr, num_threads());
+
+    if(is_extern2pc()) {
+	ostrstream	s;
+	s << *gtid() << ends;
+	t.set_string(xct_gtid_attr, s.str());
+	delete [] s.str();
+    }
+    {
+	char *p = (char *)t[xct_state_attr];
+	ostrstream o(p, vtable_info_t::vtable_value_size);
+	o << state() << ends;
+    }
+
+    if(state() == xct_prepared) {
+	ostrstream	s;
+	s << get_coordinator() << ends;
+	t.set_string(xct_coordinator_attr, s.str());
+	delete [] s.str();
+    }
+
+    t.set_string(xct_forced_readonly_attr, 
+	    (i_this->forced_readonly()?"true":"false"));
+
+    {
+	char *p = (char *)t[xct_tid_attr];
+	ostrstream o(p, vtable_info_t::vtable_value_size);
+	o << tid() << ends;
+    }
+}
+
+void 			
+xct_t::num_extents_marked_for_deletion( base_stat_t &num) const
+{
+    i_this->num_extents_marked_for_deletion(num);
+}
+
+w_rc_t 
+xct_log_warn_check_t::check(xct_t *& _victim) 
+{
+    _victim = 0;
+    w_base_t::base_stat_t	a = GET_STAT(log_bytes_active);
+    if( log_warn_exceed > 0
+	    && 
+	a > w_base_t::base_stat_t(log_warn_exceed)) {
+	if(log_warn_callback) {
+	    xct_t *v = xct();
+	    xct_i i;
+	    w_rc_t rc = (*log_warn_callback)(&i, v,
+		a,  w_base_t::base_stat_t(log_warn_exceed)
+		);
+	    if(rc && (rc.err_num() == eUSERABORT)) {
+		_victim = v;
+	    }
+	    return rc;
+	} else {
+	    return  RC(eLOGSPACEWARN);
+	}
+    }
+    return RCOK;
 }

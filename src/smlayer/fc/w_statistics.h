@@ -1,17 +1,39 @@
-/* --------------------------------------------------------------- */
-/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
-/* -- University of Wisconsin-Madison, subject to the terms     -- */
-/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
-/* -- Reserved.                                                 -- */
-/* --------------------------------------------------------------- */
+/*<std-header orig-src='shore' incl-file-exclusion='W_STATISTICS_H'>
 
-/*
- *  $Header: /p/shore/shore_cvs/src/fc/w_statistics.h,v 1.15 1997/05/19 19:39:28 nhall Exp $
- */
+ $Id: w_statistics.h,v 1.24 1999/06/07 19:02:57 kupsch Exp $
 
+SHORE -- Scalable Heterogeneous Object REpository
+
+Copyright (c) 1994-99 Computer Sciences Department, University of
+                      Wisconsin -- Madison
+All Rights Reserved.
+
+Permission to use, copy, modify and distribute this software and its
+documentation is hereby granted, provided that both the copyright
+notice and this permission notice appear in all copies of the
+software, derivative works or modified versions, and any portions
+thereof, and that both notices appear in supporting documentation.
+
+THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+"AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+This software was developed with support by the Advanced Research
+Project Agency, ARPA order number 018 (formerly 8230), monitored by
+the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+Further funding for this work was provided by DARPA through
+Rome Research Laboratory Contract No. F30602-97-2-0247.
+
+*/
 
 #ifndef W_STATISTICS_H
 #define W_STATISTICS_H
+
+#include "w_defines.h"
+
+/*  -- do not edit anything above this line --   </std-header>*/
+
 #ifdef __GNUG__
 #pragma interface
 #endif
@@ -23,10 +45,9 @@
 #include <w_rc.h>
 #endif
 #ifndef W_FASTNEW_H
-#include <w_fastnew.h>
+#include <w_factory_fast.h>
 #endif
-#include <iostream.h>
-#include <stdio.h>
+
 
 /*
 // This is a generic class for collecting and
@@ -265,7 +286,7 @@ protected:
 	w_rc_t copy_descriptors_from( const w_stat_module_t &from); 
 
 	bool	operator==(const w_stat_module_t&) const;
-	W_FASTNEW_CLASS_DECL; 
+	W_FASTNEW_CLASS_DECL(w_stat_module_t); 
 };
 
 
@@ -402,7 +423,7 @@ public:
 
 	// for setting characteristics of print
 	enum printflags	{
-		print_nonzero_only=0x1,
+		print_nonzero_only=0x1
 	};
 	void			addflag(printflags x) { _print_flags |= (unsigned int)x;}
 	void			rmflag(printflags x){_print_flags &= ~((unsigned int)x);}
@@ -541,4 +562,7 @@ public:
 	}
 };
 #endif
-#endif /* W_STATISTICS_H */
+
+/*<std-footer incl-file-exclusion='W_STATISTICS_H'>  -- do not edit anything below this line -- */
+
+#endif          /*</std-footer>*/

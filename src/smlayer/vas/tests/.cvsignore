@@ -1,7 +1,0 @@
-Makefile
-.gdbinit
-.purify
-.pure
-NO_G_FILES
-tags
-vas.rc

@@ -1,15 +1,38 @@
-/* --------------------------------------------------------------- */
-/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
-/* -- University of Wisconsin-Madison, subject to the terms     -- */
-/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
-/* -- Reserved.                                                 -- */
-/* --------------------------------------------------------------- */
+/*<std-header orig-src='shore' incl-file-exclusion='LOCK_S_H'>
 
-/*
- *  $Id: lock_s.h,v 1.53 1997/04/22 14:59:55 nhall Exp $
- */
+ $Id: lock_s.h,v 1.66 1999/06/07 19:04:12 kupsch Exp $
+
+SHORE -- Scalable Heterogeneous Object REpository
+
+Copyright (c) 1994-99 Computer Sciences Department, University of
+                      Wisconsin -- Madison
+All Rights Reserved.
+
+Permission to use, copy, modify and distribute this software and its
+documentation is hereby granted, provided that both the copyright
+notice and this permission notice appear in all copies of the
+software, derivative works or modified versions, and any portions
+thereof, and that both notices appear in supporting documentation.
+
+THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+"AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+This software was developed with support by the Advanced Research
+Project Agency, ARPA order number 018 (formerly 8230), monitored by
+the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+Further funding for this work was provided by DARPA through
+Rome Research Laboratory Contract No. F30602-97-2-0247.
+
+*/
+
 #ifndef LOCK_S_H
 #define LOCK_S_H
+
+#include "w_defines.h"
+
+/*  -- do not edit anything above this line --   </std-header>*/
 
 #ifdef __GNUG__
 #pragma interface
@@ -24,7 +47,7 @@ public:
 	t_converting = 2,
 	t_waiting = 4,
 	t_aborted = 8,
-	t_denied = 16
+	t_aborted_convert = 16
     };
 
     typedef lock_mode_t mode_t;
@@ -34,11 +57,10 @@ public:
     enum {
 	MIN_MODE = NL, MAX_MODE = EX,
 	NUM_MODES = MAX_MODE - MIN_MODE + 1,
-	NUM_DURATIONS = 5
     };
 
     static const char* const 	mode_str[NUM_MODES];
-    static const char* const 	duration_str[NUM_DURATIONS];
+    static const char* const 	duration_str[t_num_durations];
     static const bool 		compat[NUM_MODES][NUM_MODES];
     static const mode_t 	supr[NUM_MODES][NUM_MODES];
 };
@@ -46,7 +68,7 @@ public:
 #ifndef LOCK_S
 /*
 typedef lock_base_t::duration_t lock_duration_t;
-typedef lock_base_t::mode_t lock_mode_t;
+// typedef lock_base_t::mode_t lock_mode_t; lock_mode_t defined in basics.h
 typedef lock_base_t::status_t status_t;
 
 #define LOCK_NL 	lock_base_t::NL
@@ -65,24 +87,9 @@ typedef lock_base_t::status_t status_t;
 */
 #endif
 
-struct lockid_t {
-    union {
-	uint4 w[4];
-	uint2 s[8];
-	char  c[16];
-    };
-
-    // The lock type (name_space_t, lspace) is stored in s[0].
-    // s[1] contains a word which is only used in extent locks
-    // and is set if the extent is not freeable.
-
-    void 			zero();
-    u_long 			hash() const;
-
-    bool operator==(const lockid_t& p) const;
-    bool operator!=(const lockid_t& p) const;
-    friend ostream& operator<<(ostream& o, const lockid_t& i);
-
+class lockid_t {
+public:
+    NORET			W_FASTNEW_CLASS_DECL(lockid_t);
     //
     // The lock graph consists of 6 node: volumes, stores, pages, key values,
     // records, and extents. The first 5 of these form a tree of 4 levels.
@@ -101,15 +108,157 @@ struct lockid_t {
 	t_page		= 2,	// parent is 2/2 = 1 t_store
 	t_kvl		= 3,	// parent is 3/2 = 1 t_store
 	t_record	= 4,	// parent is 4/2 = 2 t_page
-	t_extent	= 5
+	t_extent	= 5,
+	t_user1		= 6,
+	t_user2		= 7,	// parent is t_user1
+	t_user3		= 8,	// parent is t_user2
+	t_user4		= 9	// parent is t_user3
     };
 
-    char*			name();
-    const char* 		name() const;
-    void	 		set_lspace(lockid_t::name_space_t value);
+    struct user1_t  {
+	uint2_t		u1;
+			user1_t() : u1(0)  {}
+			user1_t(uint2_t v1) : u1(v1)  {}
+    };
+
+    struct user2_t : public user1_t  {
+	uint4_t		u2;
+			user2_t() : u2(0)  {}
+			user2_t(uint2_t v1, uint4_t v2): user1_t(v1), u2(v2)  {}
+    };
+
+    struct user3_t : public user2_t  {
+	uint4_t		u3;
+			user3_t() : u3(0)  {}
+			user3_t(uint2_t v1, uint4_t v2, uint4_t v3)
+				: user2_t(v1, v2), u3(v3)  {}
+    };
+
+    struct user4_t : public user3_t  {
+	uint4_t		u4;
+			user4_t() : u4(0)  {}
+			user4_t(uint2_t v1, uint4_t v2, uint4_t v3, uint4_t v4)
+				: user3_t(v1, v2, v3), u4(v4)  {}
+    };
+
+private:
+    union {
+	uint4_t w[4]; 
+		      // w[0] == s[0,1] see below
+		      // w[1] == store or extent or user2
+		      // w[2] == page or user3
+		      // w[3] contains slot (in s[6]) or user4
+	uint2_t s[8]; 
+		      // s[0] high byte == lspace (lock type)
+		      // s[0] low byte == boolean used for extent-not-freeable
+		      // s[1] vol or user1
+		      // s[2,3]==w[1] 
+		      // s[4,5]== w[2] see above
+		      // s[6] == slot 
+		      // s[7] not used or 1/2 user4
+    };
+
+public:
+    bool operator==(const lockid_t& p) const;
+    bool operator!=(const lockid_t& p) const;
+    friend ostream& operator<<(ostream& o, const lockid_t& i);
+public:
+    uint4_t 			hash() const;
+    void 			zero();
+
+private:
+
+    //
+    // lspace -- contains enum for type of lockid_t
+    //
+public:
     name_space_t	 	lspace() const;
-    bool			ext_has_page_alloc() const;
+private:
+    void	 		set_lspace(lockid_t::name_space_t value);
+    uint1_t		 	lspace_bits() const;
+
+    //
+    // vid - volume
+    //
+public:
+    vid_t	 		vid() const;
+private:
+    void	 		set_vid(const vid_t & v);
+    uint2_t		 	vid_bits() const;
+
+    //
+    // store - stid
+    //
+public:
+    const snum_t&	 	store() const;
+private:
+    void	 		set_snum(const snum_t & s);
+    void	 		set_store(const stid_t & s);
+    uint4_t		 	store_bits() const;
+
+    //
+    // extent -- used only when lspace() == t_extent
+    //
+public:
+    const extnum_t&	 	extent() const;
+private:
+    void	 		set_extent(const extnum_t & e);
+    uint4_t	 		extent_bits() const;
+
+    //
+    // page id
+    //
+public:
+    const shpid_t&	 	page() const;
+private:
+    void	 		set_page(const shpid_t & p);
+    uint4_t	 		page_bits() const ;
+    //
+    // slot id
+    //
+public:
+    const slotid_t&	 	slot() const;
+private:
+    void	 		set_slot(const slotid_t & e);
+    uint2_t	 		slot_bits() const;
+    uint4_t	 		slot_kvl_bits() const;
+
+    //
+    // user1
+    //
+public:
+    uint2_t			u1() const;
+private:
+    void			set_u1(uint2_t i);
+
+    //
+    // user2
+    //
+public:
+    uint4_t			u2() const;
+private:
+    void			set_u2(uint4_t i);
+
+    //
+    // user3
+    //
+public:
+    uint4_t			u3() const;
+private:
+    void			set_u3(uint4_t i);
+
+    //
+    // user4
+    //
+public:
+    uint4_t			u4() const;
+private:
+    void			set_u4(uint4_t i);
+
+public:
+
     void			set_ext_has_page_alloc(bool value);
+    bool			ext_has_page_alloc() const ;
 
     NORET			lockid_t() ;    
     NORET			lockid_t(const vid_t& vid);
@@ -120,279 +269,49 @@ struct lockid_t {
     NORET			lockid_t(const rid_t& rid);
     NORET			lockid_t(const kvl_t& kvl);
     NORET			lockid_t(const lockid_t& i);	
+    NORET			lockid_t(const user1_t& u);	
+    NORET			lockid_t(const user2_t& u);	
+    NORET			lockid_t(const user3_t& u);	
+    NORET			lockid_t(const user4_t& u);	
 
-    const rid_t&		lockid_t::rid() const;
-    rid_t&			lockid_t::rid();
-    const lpid_t&               lockid_t::pid() const;
-    lpid_t&			lockid_t::pid();
-    const vid_t&                lockid_t::vid() const;
-    vid_t&			lockid_t::vid();
+    void			extract_extent(extid_t &e) const;
+    void			extract_stid(stid_t &s) const;
+    void			extract_lpid(lpid_t &p) const;
+    void			extract_rid(rid_t &r) const;
+    void			extract_kvl(kvl_t &k) const;
+    void			extract_user1(user1_t &u) const;
+    void			extract_user2(user2_t &u) const;
+    void			extract_user3(user3_t &u) const;
+    void			extract_user4(user4_t &u) const;
+
+    bool			IsUserLock() const;
 
     void			truncate(name_space_t space);
-    int                         page() const;
 
     lockid_t& 			operator=(const lockid_t& i);
 
 };
 
+ostream& operator<<(ostream& o, const lockid_t::user1_t& u);
+ostream& operator<<(ostream& o, const lockid_t::user2_t& u);
+ostream& operator<<(ostream& o, const lockid_t::user3_t& u);
+ostream& operator<<(ostream& o, const lockid_t::user4_t& u);
 
-inline bool
-lockid_t::operator==(const lockid_t& l) const
-{
-    // the lock type (lspace) is stored in s[0], s[1] is true if extent has pages allocated
-    // s[1] does not participate in testing for equality
-    return !((s[0] ^ l.s[0]) | (w[1] ^ l.w[1]) | (w[2] ^ l.w[2]) | (w[3] ^ l.w[3]));
-
-    // the above is the same as this but runs faster since it doesn't have conditions on the &&
-    //    return (s[0] == l.s[0]) && (w[1] == l.w[1]) &&
-    //	   (w[2] == l.w[2]) && (w[3] == l.w[3]);
-}
-
-inline bool
-lockid_t::operator!=(const lockid_t& l) const
-{
-    return ! (*this == l);
-}
+istream& operator>>(istream& o, lockid_t::user1_t& u);
+istream& operator>>(istream& o, lockid_t::user2_t& u);
+istream& operator>>(istream& o, lockid_t::user3_t& u);
+istream& operator>>(istream& o, lockid_t::user4_t& u);
 
 
-inline void
-lockid_t::zero()
-{
-    w[0] = w[1] = w[2] = w[3] = 0;
-}
 
-#define HASH_FUNC 3
-// 3 seems to be the best combination, so far
-
-#undef DEBUG_HASH
-
-#if HASH_FUNC>=3
-inline u_long
-lockid_t::hash() const
-{
-    return s[0] ^ w[1] ^ w[2] ^ w[3];
-}
+#ifndef W_DEBUG
+#include "lock_s_inline.h"
 #endif
 
-/*
- * Lock ID hashing functions
- */
-#if HASH_FUNC<3
-inline u_long
-lockid_t::hash() const
-{
-    u_long t;
-    bool        iskvl= lspace()==t_kvl;
-
-    // volume + store
-    t = s[2]^s[3];
-
-    if(iskvl)
-        return t ^ w[2] + w[3];
-
-    // type
-    t ^= lspace()<<2;
-
-    // page
-    t ^= w[2] ;
-
-    // slot
-    t ^= w[3];
-
-    return t;
-}
-#endif
-
-
-
-inline char*
-lockid_t::name()
-{
-    return (char*) &w[1];
-}
-
-inline const char*
-lockid_t::name() const
-{
-    return (char*) &w[1];
-}
-
-inline void
-lockid_t::set_lspace(lockid_t::name_space_t value)
-{
-    s[0] = value;
-}
-
-inline lockid_t::name_space_t
-lockid_t::lspace() const
-{
-    return  (name_space_t) s[0];
-}
-
-inline bool
-lockid_t::ext_has_page_alloc() const
-{
-    w_assert3(lspace() == t_extent);
-    return s[1];
-}
-
-inline void
-lockid_t::set_ext_has_page_alloc(bool value)
-{
-    w_assert3(lspace() == t_extent);
-    s[1] = value;
-}
-
-inline NORET
-lockid_t::lockid_t()
-{
-    zero(); 
-    set_lspace(t_bad);
-}
-
-inline NORET
-lockid_t::lockid_t(const vid_t& vid)
-{
-    zero();
-    set_lspace(t_vol);
-    s[2] = vid;
-}
-
-inline NORET
-lockid_t::lockid_t(const extid_t& extid)
-{
-    zero();
-    set_lspace(t_extent);
-    s[2] = extid.vol;
-    s[3] = extid.ext;
-}
-
-inline NORET
-lockid_t::lockid_t(const stid_t& stid)
-{
-    zero();
-    set_lspace(t_store);
-    s[2] = stid.vol;
-    s[3] = stid.store;
-}
-
-inline NORET
-lockid_t::lockid_t(const stpgid_t& stpgid)
-{
-    zero();
-    if (stpgid.is_stid()) {
-	set_lspace(t_store);
-	s[2] = stpgid.vol();
-	s[3] = stpgid.store();
-    } else {
-	set_lspace(t_page);
-	s[2] = stpgid.lpid.vol();
-	s[3] = stpgid.lpid.store();
-	w[2] = stpgid.lpid.page;
-    }
-}
-
-inline NORET
-lockid_t::lockid_t(const lpid_t& lpid)
-{
-    zero();
-    set_lspace(t_page);
-    s[2] = lpid.vol();
-    s[3] = lpid.store();
-    w[2] = lpid.page;
-}
-
-inline NORET
-lockid_t::lockid_t(const rid_t& rid)
-{
-    zero();
-    set_lspace(t_record);
-    // w[1-3] is assumed (elsewher) to
-    // look just like the following sequence
-    // (which is the beginning of a rid_t-- see sm_s.h):
-    // shpid_t	page;
-    // snum_t	store;
-    // slotid_t	slot;
-    s[2] = rid.pid.vol();
-    s[3] = rid.pid.store();
-    w[2] = rid.pid.page;
-    s[6] = rid.slot;
-}
-
-inline NORET
-lockid_t::lockid_t(const kvl_t& kvl)
-{
-    zero();
-    set_lspace(t_kvl);
-    memcpy(name(), &kvl, sizeof(kvl));
-}
-
-inline NORET
-lockid_t::lockid_t(const lockid_t& i)
-{
-    w[0] = i.w[0], w[1] = i.w[1], w[2] = i.w[2], w[3] = i.w[3];
-}
-
-inline lockid_t&
-lockid_t::operator=(const lockid_t& i)
-{
-    w[0] = i.w[0], w[1] = i.w[1], w[2] = i.w[2], w[3] = i.w[3];
-    return *this;
-}
-
-inline const rid_t&
-lockid_t::rid() const
-{
-    w_assert3(lspace() == t_record);
-    return *(rid_t*)&w[1];
-}
-
-inline rid_t&
-lockid_t::rid()
-{
-    w_assert3(lspace() == t_record);
-    return *(rid_t*)&w[1];
-}
-
-inline const lpid_t&
-lockid_t::pid() const
-{
-    w_assert3(lspace() == t_page || lspace() == t_record);
-    return *(lpid_t*)&w[1];
-}
-
-inline lpid_t&
-lockid_t::pid()
-{
-    w_assert3(lspace() == t_page || lspace() == t_record);
-    return *(lpid_t*)&w[1];
-}
-
-inline const vid_t&
-lockid_t::vid() const
-{
-   w_assert3(lspace() != t_bad);
-   return *(vid_t*)&w[1];
-}
-
-inline vid_t&
-lockid_t::vid()
-{
-   w_assert3(lspace() != t_bad);
-   return *(vid_t*)&w[1];
-}
-
-inline int
-lockid_t::page() const
-{
-    return *(int *)&s[4];
-}
-
-inline u_long hash(const lockid_t& id)
+inline uint4_t hash(const lockid_t& id)
 {
     return id.hash();
 }
-
 
 struct locker_mode_t {
     tid_t	tid;
@@ -411,4 +330,6 @@ struct lock_info_t {
     int			count;
 };
 
-#endif /*LOCK_S_H*/
+/*<std-footer incl-file-exclusion='LOCK_S_H'>  -- do not edit anything below this line -- */
+
+#endif          /*</std-footer>*/

@@ -1,16 +1,45 @@
-/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
-/* -- University of Wisconsin-Madison, subject to the terms     -- */
-/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
-/* -- Reserved.                                                 -- */
-/* --------------------------------------------------------------- */
+/*<std-header orig-src='shore'>
+
+ $Id: sdisk_unix_sun.cpp,v 1.16 1999/06/07 19:06:04 kupsch Exp $
+
+SHORE -- Scalable Heterogeneous Object REpository
+
+Copyright (c) 1994-99 Computer Sciences Department, University of
+                      Wisconsin -- Madison
+All Rights Reserved.
+
+Permission to use, copy, modify and distribute this software and its
+documentation is hereby granted, provided that both the copyright
+notice and this permission notice appear in all copies of the
+software, derivative works or modified versions, and any portions
+thereof, and that both notices appear in supporting documentation.
+
+THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+"AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+This software was developed with support by the Advanced Research
+Project Agency, ARPA order number 018 (formerly 8230), monitored by
+the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+Further funding for this work was provided by DARPA through
+Rome Research Laboratory Contract No. F30602-97-2-0247.
+
+*/
+
+#include "w_defines.h"
+
+/*  -- do not edit anything above this line --   </std-header>*/
+
 #include <w.h>
-#include <sdisk.hh>
+#include <sdisk.h>
+#include <sdisk_unix.h>
 
 #include <iostream.h>
-#include <fcntl.h>
+#include <os_fcntl.h>
 #include <sys/stat.h>
 
-#include <st_error.h>	/* XXX */
+#include <st_error_enum_gen.h>	/* XXX */
 
 #if defined(SOLARIS2)
 #include <sys/dkio.h>
@@ -34,13 +63,16 @@ struct dk_map {
 extern "C" int ioctl(int, int, ...);
 #endif
 
-w_rc_t	sdisk_getgeometry(int fd, struct disk_geometry &dg)
+#include <os_interface.h>
+
+
+w_rc_t	sdisk_getgeometry(int fd, sdisk_t::disk_geometry_t &dg)
 {
 	w_rc_t	e;
 	int	n;
-	struct	stat	st;
+	os_stat_t	st;
 
-	n = fstat(fd, &st);
+	n = ::os_fstat(fd, &st);
 	if (n == -1)
 		return RC(fcOS);
 
@@ -53,6 +85,12 @@ w_rc_t	sdisk_getgeometry(int fd, struct disk_geometry &dg)
 	struct dk_cinfo		cinfo;
 	struct dk_allmap	allmap;
 	struct vtoc		vtoc;
+
+#ifdef PURIFY_ZERO
+	memset(&cinfo, '\0', sizeof(cinfo));
+	memset(&allmap, '\0', sizeof(allmap));
+	memset(&vtoc, '\0', sizeof(vtoc));
+#endif
 	
 	n = ioctl(fd, DKIOCINFO, &cinfo);
 	if (n == -1) {
@@ -77,11 +115,16 @@ w_rc_t	sdisk_getgeometry(int fd, struct disk_geometry &dg)
 	
 	dg.block_size = vtoc.v_sectorsz;
 	dg.blocks = allmap.dka_map[cinfo.dki_partition].dkl_nblk;
-#endif
 
-#if defined(SUNOS41)
+#elif defined(SUNOS41)
+
 	struct dk_info	info;
 	struct dk_map	map;
+
+#ifdef PURIFY_ZERO
+	memset(&info, '\0', sizeof(info));
+	memset(&map, '\0', sizeof(map));
+#endif
 
 	n = ioctl(fd, DKIOCINFO, &info);
 	if (n == -1) {
@@ -111,6 +154,10 @@ w_rc_t	sdisk_getgeometry(int fd, struct disk_geometry &dg)
 #if defined(SUNOS41) || defined(SOLARIS2) 
 	struct dk_geom      geom;
 
+#ifdef PURIFY_ZERO
+	memset(&geom, '\0', sizeof(geom));
+#endif
+
 	n = ioctl(fd, DKIOCGGEOM, &geom);
 	if (n == -1) {
 		e = RC(fcOS);
@@ -121,6 +168,12 @@ w_rc_t	sdisk_getgeometry(int fd, struct disk_geometry &dg)
 	dg.sectors = geom.dkg_nsect;
 	dg.tracks = geom.dkg_nhead;
 	dg.cylinders = geom.dkg_ncyl;	// only valid for 'c' or 'd'
+
+#ifdef DK_LABEL_SIZE
+	dg.label_size = DK_LABEL_SIZE;
+#else
+	dg.label_size = 512;	/* XXX check for SunOS */
+#endif
 #endif
 
 #ifdef HAVE_GEOMETRY
@@ -137,7 +190,18 @@ w_rc_t	sdisk_getgeometry(int fd, struct disk_geometry &dg)
 	dg.sectors = 0;
 	dg.block_size = 0;
 	dg.blocks = 0;
+	dg.label_size = 0;
 #endif
 	return e;
 }
 
+
+#if defined(SOLARIS2) || defined(SUNOS41)
+w_rc_t	sdisk_unix_t::getGeometry(disk_geometry_t &dg)
+{
+	if (_fd == FD_NONE)
+		return RC(stBADFD);
+
+	return sdisk_getgeometry(_fd, dg);
+}
+#endif

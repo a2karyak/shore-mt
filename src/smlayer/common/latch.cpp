@@ -1,60 +1,88 @@
-/* --------------------------------------------------------------- */
-/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
-/* -- University of Wisconsin-Madison, subject to the terms     -- */
-/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
-/* -- Reserved.                                                 -- */
-/* --------------------------------------------------------------- */
+/*<std-header orig-src='shore'>
 
-/*
- *  $Id: latch.cc,v 1.28 1997/06/15 02:36:03 solomon Exp $
- */
+ $Id: latch.cpp,v 1.38 1999/06/07 19:02:25 kupsch Exp $
+
+SHORE -- Scalable Heterogeneous Object REpository
+
+Copyright (c) 1994-99 Computer Sciences Department, University of
+                      Wisconsin -- Madison
+All Rights Reserved.
+
+Permission to use, copy, modify and distribute this software and its
+documentation is hereby granted, provided that both the copyright
+notice and this permission notice appear in all copies of the
+software, derivative works or modified versions, and any portions
+thereof, and that both notices appear in supporting documentation.
+
+THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+"AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+This software was developed with support by the Advanced Research
+Project Agency, ARPA order number 018 (formerly 8230), monitored by
+the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+Further funding for this work was provided by DARPA through
+Rome Research Laboratory Contract No. F30602-97-2-0247.
+
+*/
+
+#include "w_defines.h"
+
+/*  -- do not edit anything above this line --   </std-header>*/
 
 #ifdef __GNUC__
-#   pragma implementation
+#pragma implementation
 #endif
 
 #include "sthread.h"
 #include "latch.h"
-#include "auto_release.h"
-#include "debug.h"
+#include "w_debug.h"
 
 #include <memory.h>
 #include <w_statistics.h>
 #include <sthread_stats.h>
 
 
-#ifdef __GNUC__
-// this template is not used by sthread, but is so common that
-// we instantiate it here
-template class auto_release_t<smutex_t>;
-#endif
-
-#define DBGTHRD(arg) DBG(<<" th."<<sthread_t::me()->id << " " arg)
 
 const char* const  latch_t::latch_mode_str[3] = { "NL", "SH", "EX" };
 
 
 latch_t::latch_t(const char* const desc)
-: 
-	sthread_named_base_t(desc?"l:":0, desc),
-	_mutex(desc),
-	_mode(LATCH_NL), _waiters(desc)
+: _mode(LATCH_NL)
 {
-#if notdef
-    /* General purpose implementation */
+    setname(desc);
+
+    unsigned i;
     for (i = 0; i < max_sh; i++) {
 	    _cnt[i] = 0;
 	    _holder[i] = 0;
     }
-#else
-    w_assert3(max_sh == 4);
-    _cnt[0] = _cnt[1] = _cnt[2] = _cnt[3] = 0;
-    _holder[0] = _holder[1] = _holder[2] = _holder[3] = 0;
-#endif
 }
 
+
+latch_t::~latch_t()
+{
+	unsigned	errors = 0;
+
+	for (unsigned i = 0; i < max_sh; i++) {
+		if (!_holder[i])
+			continue;
+		errors++;
+		if (errors == 1)
+			cerr << "Latch busy at destruction:" << endl
+				<< *this << endl;
+
+		cerr << "\tslot[" << i << "]  holds thread:" << endl
+			<< *_holder[i] << endl;
+	}
+	if (errors)
+		W_FATAL(fcINTERNAL);
+}
+
+
 w_rc_t
-latch_t::acquire(latch_mode_t m, int timeout)
+latch_t::acquire(latch_mode_t m, sthread_t::timeout_in_ms timeout)
 {
     FUNC(latch_t::acquire);
     w_assert3(m != LATCH_NL);
@@ -62,8 +90,7 @@ latch_t::acquire(latch_mode_t m, int timeout)
     W_COERCE(_mutex.acquire());
     sthread_t* self = sthread_t::me();
 
-    DBGTHRD(<< "want to acquire in mode " << m << " latch:" << this 
-	<< " " << *this);
+    DBGTHRD(<< "want to acquire in mode " << int(m) << *this);
 
     // note that if no thread holds the latch, then the while is skipped
     while (_cnt[0]) {  // while some thread holds a latch
@@ -109,7 +136,7 @@ latch_t::acquire(latch_mode_t m, int timeout)
 	    }
 	    // else we don't hold it, so fall through an wait
 	}
-	DBGTHRD(<<"about to await latch:" << this << " " << *this);
+	DBGTHRD(<<"about to await " << *this);
 
 	w_assert3(num_holders() > 0);
 	w_assert3(_cnt[0] > 0);
@@ -117,7 +144,7 @@ latch_t::acquire(latch_mode_t m, int timeout)
 
 // temporary for debugging
  //cerr << "thread " 
- //<< sthread_t::me()->name() 
+ //<< self->name() 
  //<< " awaits latch with mutex " << _mutex.name() << endl;
 
 	w_rc_t rc = _waiters.wait(_mutex, timeout);
@@ -132,10 +159,11 @@ latch_t::acquire(latch_mode_t m, int timeout)
 	h = 0;
     }
 
-    w_assert3(h < max_sh);
+    w_assert1(h < max_sh);
+
     _mode = m;
     _holder[h] = self;
-#ifdef DEBUG
+#if defined(W_DEBUG) || defined(SHORE_TRACE)
     // us the address of the condition variable so that it matches
     // the id that shows up in "blocked on..." in a thread dump
     // if some thread is blocked on the variable
@@ -144,11 +172,11 @@ latch_t::acquire(latch_mode_t m, int timeout)
     _cnt[h]++;
     _mutex.release();
 
-#if defined(DEBUG) || defined(SHORE_TRACE)
+#if defined(W_DEBUG) || defined(SHORE_TRACE)
     self->push_resource_alloc(name(), (void *)this, true);
 #endif
 
-    DBGTHRD(<< "acquired latch:" << this << " " << *this);
+    DBGTHRD(<< "acquired " << *this);
 
     return RCOK;
 }
@@ -162,7 +190,7 @@ latch_t::upgrade_if_not_block(bool& would_block)
     W_COERCE(_mutex.acquire());
     sthread_t* self = sthread_t::me();
 
-    DBGTHRD(<< "want to upgrade latch:" << this << " " << *this );
+    DBGTHRD(<< "want to upgrade " << *this );
 
     w_assert3(_cnt[0]);  // someone (we) must hold the latch
     int	num_holders;
@@ -191,12 +219,12 @@ latch_t::release()
     W_COERCE(_mutex.acquire());
     sthread_t* self = sthread_t::me();
 
-    DBGTHRD(<< "want to release latch:" << this  << " " << *this );
+    DBGTHRD(<< "want to release " << *this );
 
     // check for the common case of being the only holder
     if (_holder[0] == self) {
 	_cnt[0]--;
-#ifdef DEBUG
+#if defined(W_DEBUG) || defined(SHORE_TRACE)
 	self->pop_resource_alloc(id());
 #endif
 	if (_cnt[0] == 0) {
@@ -208,7 +236,7 @@ latch_t::release()
 	    } else {
 		_mode = LATCH_NL;
 	    }
-	    DBGTHRD(<< "releasing (broadcast) latch:" << this );
+	    DBGTHRD(<< "releasing latch:" << this );
 	    _waiters.broadcast();
 	} else {
 	    DBGTHRD(<< "Did not release latch:" << this );
@@ -217,13 +245,13 @@ latch_t::release()
 	// handle the general case
 	uint2_t h;	// index into _holder and _cnt
 	int	  num_holders;
-	h = _held_by(sthread_t::me(), num_holders);
-	w_assert3(h < max_sh);
+	h = _held_by(self, num_holders);
+	w_assert1(h < max_sh);
 	w_assert3(_cnt[h] > 0);
 	w_assert3(num_holders > 1);
 	DBGTHRD( << "h=" << h << ", num_holders=" <<num_holders);
 	_cnt[h]--;
-#ifdef DEBUG
+#if defined(W_DEBUG) || defined(SHORE_TRACE)
 	self->pop_resource_alloc(id());
 #endif
 	if (_cnt[h] == 0) {
@@ -233,17 +261,17 @@ latch_t::release()
 		_fill_slot(h); 	// move other shared holder to slot 0
 				    // to maintain constraint in latch_t	
 	    }
-	    DBGTHRD(<< "releasing (broadcast) latch:" << this);
+	    DBGTHRD(<< "releasing latch:" << this);
 	    _waiters.broadcast();
 	} else {
-	    DBGTHRD(<< "Did not release latch: " << this  << " " << *this );
+	    DBGTHRD(<< "Did not release " << *this );
 	    DBGTHRD(<< " h=" << h << ", _cnt[h]=" << _cnt[h]);
 	}
     }
     _mutex.release();
-    DBGTHRD(<< "exiting latch::release" << this << " " << *this);
+    DBGTHRD(<< "exiting latch::release " << *this);
 
-#if defined(DEBUG) || defined(SHORE_TRACE)
+#if defined(W_DEBUG) || defined(SHORE_TRACE)
     self->pop_resource_alloc((void *)this);
 #endif
 }
@@ -332,25 +360,26 @@ latch_t::_fill_slot(uint2_t hole)
     }
 }
 
-#ifdef DEBUG
+
 ostream &latch_t::print(ostream &out) const
 {
 	register int i;
 	sthread_t	*t;
 
-	out <<	" name: " << _mutex.name();
+	out <<	"latch(" << this << "): " << name();
 
 	for(i=0; i< max_sh; i++) {
-	    out << "\t _cnt[" << i << "]=" << _cnt[i];
-	    if((t = _holder[i])) {
-		out << "\t _holder[" << i << "]=" << t->id << endl;
+	    out << "\t_cnt[" << i << "]=" << _cnt[i];
+	    if ((t = _holder[i])) {
+		out << "\t_holder[" << i << "]=" << t->id << endl;
 	    }
 	}
 	return out;
 }
 
+
 ostream& operator<<(ostream& out, const latch_t& l)
 {
 	return l.print(out);
 }
-#endif
+

@@ -1,13 +1,36 @@
-/* --------------------------------------------------------------- */
-/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
-/* -- University of Wisconsin-Madison, subject to the terms     -- */
-/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
-/* -- Reserved.                                                 -- */
-/* --------------------------------------------------------------- */
+/*<std-header orig-src='shore'>
 
-/*
- *  $Id: smfile.cc,v 1.44 1997/06/15 03:13:45 solomon Exp $
- */
+ $Id: smfile.cpp,v 1.57 1999/06/07 19:04:39 kupsch Exp $
+
+SHORE -- Scalable Heterogeneous Object REpository
+
+Copyright (c) 1994-99 Computer Sciences Department, University of
+                      Wisconsin -- Madison
+All Rights Reserved.
+
+Permission to use, copy, modify and distribute this software and its
+documentation is hereby granted, provided that both the copyright
+notice and this permission notice appear in all copies of the
+software, derivative works or modified versions, and any portions
+thereof, and that both notices appear in supporting documentation.
+
+THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+"AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+This software was developed with support by the Advanced Research
+Project Agency, ARPA order number 018 (formerly 8230), monitored by
+the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+Further funding for this work was provided by DARPA through
+Rome Research Laboratory Contract No. F30602-97-2-0247.
+
+*/
+
+#include "w_defines.h"
+
+/*  -- do not edit anything above this line --   </std-header>*/
+
 #define SM_SOURCE
 #define SMFILE_C
 
@@ -20,7 +43,6 @@
 #include "app_support.h"
 #include "sm.h"
 
-#define DBGTHRD(arg) DBG(<<" th."<<me()->id<<" tid."<<xct()->tid()<<" " arg)
 
 /*==============================================================*
  *  Physical ID version of all the storage operations           *
@@ -58,11 +80,13 @@ ss_m::create_file(
     vid_t 			vid, 
     stid_t& 			fid, 
     store_property_t 		property,
-    const serial_t& 		serial)
+    const serial_t& 		serial,
+    shpid_t			cluster_hint // = 0
+)
 {
     SM_PROLOGUE_RC(ss_m::create_file, in_xct, 0);
-    RES_SMSCRIPT(<<"create_file " <<vid << " " << property << " " << serial );
-    W_DO(_create_file(vid, fid, property, serial));
+    DBGTHRD(<<"create_file " <<vid << " " << property << " " << serial );
+    W_DO(_create_file(vid, fid, property, serial, cluster_hint));
     DBGTHRD(<<"create_file returns " << fid);
     return RCOK;
 }
@@ -104,7 +128,7 @@ rc_t
 ss_m::destroy_rec(const rid_t& rid)
 {
     SM_PROLOGUE_RC(ss_m::destroy_rec, in_xct, 0);
-    RES_SMSCRIPT(<<"destroy_rec " <<rid);
+    DBG(<<"destroy_rec " <<rid);
     W_DO(_destroy_rec(rid, serial_t::null));
     return RCOK;
 }
@@ -211,8 +235,12 @@ ss_m::get_store_property(
  *  ss_m::create_file()						*
  *--------------------------------------------------------------*/
 rc_t
-ss_m::create_file(const lvid_t& lvid, serial_t& lfid,
-		  store_property_t property)
+ss_m::create_file(
+    const lvid_t& 		lvid, 
+    serial_t& 			lfid,
+    store_property_t 		property,
+    shpid_t			cluster_hint // = 0
+)
 {
     SM_PROLOGUE_RC(ss_m::create_file, in_xct, 0);
     vid_t  vid;  // physical volume ID (returned by generate_new_serial)
@@ -226,7 +254,7 @@ ss_m::create_file(const lvid_t& lvid, serial_t& lfid,
 
 //TODO: begin rollback
 DBG( << "TODO: put in rollback mechanism" );
-    W_DO(_create_file(vid, fid, property, lfid));
+    W_DO(_create_file(vid, fid, property, lfid, cluster_hint));
     W_DO(lid->associate(lvid, lfid, fid));
 
     return RCOK;
@@ -388,7 +416,8 @@ ss_m::_create_rec_id(const lvid_t& lvid, const serial_t& lfid,
     stid_t fid;  // physical file ID
     lid_t  id(lvid, lfid);
 
-    LID_CACHE_RETRY_DO(id, stid_t, fid, _create_rec(fid, hdr, len_hint, data, rid, lrid));
+    LID_CACHE_RETRY_DO(id, stid_t, fid, 	
+	_create_rec(fid, hdr, len_hint, data, rid, lrid));
 
     W_DO(lid->associate(lvid, lrid, rid));
     return RCOK;
@@ -508,6 +537,7 @@ ss_m::truncate_rec(const lvid_t& lvid, const serial_t& lrid, smsize_t amount)
     return RCOK;
 }
 
+#ifdef OLDSORT_COMPATIBILITY
 /*--------------------------------------------------------------*
  *  ss_m::sort_file()						*
  *--------------------------------------------------------------*/
@@ -516,13 +546,19 @@ ss_m::sort_file(const lvid_t& lvid, const serial_t& serial,
 		const lvid_t& s_lvid, serial_t& s_serial,
 		store_property_t property,
 		const key_info_t& key_info, int run_size,
-		bool unique, bool destructive)
+		bool ascending, bool unique, bool destructive,
+		bool use_new_sort)
 {
     SM_PROLOGUE_RC(ss_m::sort_file, in_xct, 0);
     stid_t in_fid; 
     stid_t out_fid; 
     vid_t  out_vid;
     lid_t  id(lvid, serial);
+
+    if(use_new_sort) {
+	// logical backwd compat not avail
+    	return RC(eNOTIMPLEMENTED);
+    }
 
     LID_CACHE_RETRY_VALIDATE_STID_DO(id, in_fid);
 
@@ -531,7 +567,8 @@ ss_m::sort_file(const lvid_t& lvid, const serial_t& serial,
 //TODO: begin rollback
 DBG( << "TODO: put in rollback mechanism" );
     W_DO(_sort_file(in_fid, out_vid, out_fid, property, key_info, 
-		run_size, unique, destructive, s_serial, s_lvid));
+		run_size, ascending, unique, destructive, s_serial, 
+		s_lvid));
     W_DO(lid->associate(s_lvid, s_serial, out_fid));
 
     if (destructive) {
@@ -540,6 +577,7 @@ DBG( << "TODO: put in rollback mechanism" );
 
     return RCOK;
 }
+#endif /* OLDSORT_COMPATIBILITY */
 
 /*--------------------------------------------------------------*
  *  ss_m::Link_to_remote_id()					*
@@ -700,11 +738,9 @@ ss_m::_set_store_property(
 	 *
 	 */
 	W_DO( io->set_store_flags(stid, newflags) );
-	W_DO( bf->force_store(stid, true) );
 
 	if (sd->large_stid())  {
 	    W_DO( io->set_store_flags(sd->large_stid(), newflags) ) ;
-	    W_DO( bf->force_store(sd->large_stid(), true) );
 	}
     }  else if (newflags == st_insert_file)  {
 	// only allow the changing for a regular file, not indices
@@ -755,24 +791,31 @@ ss_m::_get_store_property(
 rc_t
 ss_m::_create_file(vid_t vid, stid_t& fid,
 		   store_property_t property,
-		   const serial_t& logical_id)
+		   const serial_t& logical_id,
+		   shpid_t	cluster_hint // = 0
+		   )
 {
     FUNC(ss_m::_create_file);
     DBG( << "Attempting to create a file on volume " << vid.vol );
 
     store_flag_t st_flag = _make_store_flag(property);
+    extnum_t first_extent = extnum_t(cluster_hint? cluster_hint / ss_m::ext_sz : 0);
 
-    DBGTHRD(<<"about to create a store");
-    W_DO( io->create_store(vid, 100/*unused*/, st_flag, fid) );
+    DBGTHRD(<<"about to create a store starting about extent " << first_extent);
+    W_DO( io->create_store(vid, 100/*unused*/, st_flag, fid, first_extent) );
 
     DBGTHRD(<<"created store " << fid);
 
     /*
     // create a store for holding large record pages 
     // Don't allocate any extents for it yet (num_exts == 0)
+    // unless the cluster hint is used.
+    // NB: disabled: always allocates 1 extent -- otherwise
+    // asserts fail elsewhere
     */
     stid_t lg_stid;
-    W_DO( io->create_store(vid, 100/*unused*/, st_flag, lg_stid, 0) );
+    W_DO( io->create_store(vid, 100/*unused*/, 
+		st_flag, lg_stid, first_extent, 1) );
 
     DBGTHRD(<<"created 2nd store (for lg recs) " << lg_stid);
 
@@ -788,7 +831,7 @@ ss_m::_create_file(vid_t vid, stid_t& fid,
 
     lpid_t first;
     W_DO( fi->create(fid, first) );
-    DBGTHRD(<<"locked &created " << fid);
+    DBGTHRD(<<"locked &created -- put in store directory: " << fid);
 
     sinfo_s sinfo(fid.store, t_file, 100/*unused*/, 
 	   t_bad_ndx_t, t_cc_none/*not used*/, first.page, logical_id, 0, 0);
@@ -839,6 +882,8 @@ ss_m::_create_file_id(vid_t vid, extnum_t first_ext, stid_t& fid,
     return RCOK;
 }
 
+#include "histo.h"
+
 /*--------------------------------------------------------------*
  *  ss_m::_destroy_file()					*
  *--------------------------------------------------------------*/
@@ -857,8 +902,13 @@ ss_m::_destroy_file(const stid_t& fid)
     store_flag_t store_flags;
     W_DO( io->get_store_flags(fid, store_flags) );
    
-    DBGTHRD(<<"destroying store " << fid);
+    DBGTHRD(<<"destroying store " << fid << " store_flags " << store_flags);
     W_DO( io->destroy_store(fid) );
+    /* 
+     * small-record file page utilization might be cached -
+     * so clean up...
+     */
+    histoid_t::destroyed_store(fid, sd);
 
     DBGTHRD(<<"destroying store " << sd->large_stid());
     // destroy the store containing large record pages
@@ -901,6 +951,7 @@ ss_m::_destroy_n_swap_file(const stid_t& old_fid, const stid_t& new_fid)
    
     // destroy the old
     W_DO( io->destroy_store(old_fid) );
+    histoid_t::destroyed_store(old_fid, sd1);
 
     // destroy the store containing large record pages for new file
     W_DO( io->destroy_store(sd2->large_stid()) );
@@ -985,7 +1036,8 @@ ss_m::_remove_file_lids(const stid_t& fid, const lvid_t& lvid)
 rc_t
 ss_m::_create_rec(const stid_t& fid, const vec_t& hdr, smsize_t len_hint, 
 		 const vec_t& data, rid_t& new_rid,
-		 const serial_t& serial, bool forward_alloc)
+		 const serial_t& serial, bool 
+		 )
 {
     FUNC(ss_m::_create_rec);
     sdesc_t* sd;
@@ -993,17 +1045,10 @@ ss_m::_create_rec(const stid_t& fid, const vec_t& hdr, smsize_t len_hint,
 
     DBG( << "create in fid " << fid << " data.size " << data.size());
 
-    W_DO( fi->create_rec(fid, hdr, len_hint, data, serial, *sd, new_rid, forward_alloc) );
-    // NOTE: new_rid need not be locked, since file_m::create_rec
-    // locks it (actually, it locks the entire page)l
-#ifdef DEBUG
-    /*
-      not a valid test.... e.g. file locked in EX (no lock for pid)
-    lock_mode_t m_p;  // mode for page id
-    rc = lm->query(new_rid.pid, m_p);
-    w_assert3(m_p == EX);
-    */
-#endif
+    W_DO( fi->create_rec(fid, len_hint, hdr, data, serial, *sd, new_rid) );
+
+    // NOTE: new_rid need not be locked, since lock escalation
+    // or explicit file/page lock might obviate it.
 
     //cout << "sm create_rec " << new_rid << " size(hdr, data) " << hdr.size() <<  " " << data.size() << endl;
 
@@ -1016,6 +1061,7 @@ ss_m::_create_rec(const stid_t& fid, const vec_t& hdr, smsize_t len_hint,
 rc_t
 ss_m::_destroy_rec(const rid_t& rid, const serial_t& verify)
 {
+    DBG(<<"_destroy_rec " << rid);
     W_DO(lm->lock(rid, EX, t_long, WAIT_SPECIFIED_BY_XCT));
     W_DO(fi->destroy_rec(rid, verify));
     //cout << "sm destroy_rec " << rid << endl;
@@ -1121,16 +1167,16 @@ ss_m::_forward_rec(const lvid_t& lvid, const serial_t& lrid,
     // NOTE: old_rid has already been locked, 
     // since _forward_rec only
     // called by _append_rec or pin_i::append_rec
-#ifdef DEBUG
+#ifdef W_DEBUG
     lock_mode_t m_r;  // mode for record id
     W_DO( lm->query(old_rid, m_r, xct()->tid(), true) );
     DBG(<< "lock mgr says for old_rid " << old_rid 
-		<< ": m_r=" << m_r
+		<< ": m_r=" << int(m_r)
 	);
     w_assert3(m_r == EX);
-#endif
-    W_DO( fi->create_rec(old_rid.stid(), hdr, len_hint, 
-			   alldata, lrid, *sd, new_rid) );
+#endif /* W_DEBUG */
+    W_DO( fi->create_rec(old_rid.stid(), 
+		    len_hint, hdr, alldata, lrid, *sd, new_rid) );
     W_DO( fi->destroy_rec(old_rid, serial_t::null) );
 
     // replace the logical ID entry
@@ -1138,4 +1184,3 @@ ss_m::_forward_rec(const lvid_t& lvid, const serial_t& lrid,
 
     return RCOK;
 }
-

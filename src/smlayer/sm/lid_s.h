@@ -1,12 +1,38 @@
-/* --------------------------------------------------------------- */
-/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
-/* -- University of Wisconsin-Madison, subject to the terms     -- */
-/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
-/* -- Reserved.                                                 -- */
-/* --------------------------------------------------------------- */
+/*<std-header orig-src='shore' incl-file-exclusion='LID_S_H'>
+
+ $Id: lid_s.h,v 1.28 1999/06/07 19:04:09 kupsch Exp $
+
+SHORE -- Scalable Heterogeneous Object REpository
+
+Copyright (c) 1994-99 Computer Sciences Department, University of
+                      Wisconsin -- Madison
+All Rights Reserved.
+
+Permission to use, copy, modify and distribute this software and its
+documentation is hereby granted, provided that both the copyright
+notice and this permission notice appear in all copies of the
+software, derivative works or modified versions, and any portions
+thereof, and that both notices appear in supporting documentation.
+
+THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+"AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+This software was developed with support by the Advanced Research
+Project Agency, ARPA order number 018 (formerly 8230), monitored by
+the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+Further funding for this work was provided by DARPA through
+Rome Research Laboratory Contract No. F30602-97-2-0247.
+
+*/
 
 #ifndef LID_S_H
 #define LID_S_H
+
+#include "w_defines.h"
+
+/*  -- do not edit anything above this line --   </std-header>*/
 
 #ifdef __GNUG__
 #pragma interface
@@ -18,7 +44,8 @@
  * stored in lid_m for each volume mounted.
  */
 #define VOL_LID_INFO_T
-struct vol_lid_info_t {
+class vol_lid_info_t {
+public:
 
     lvid_t      lvid;
     vid_t	vid;
@@ -94,17 +121,18 @@ public:
     void set_type(entry_type_t type) { _type = type; }
 
     // amount of entry that must be saved in the lid mapping index
-    save_size() const;
+    int save_size() const;
 
     enum { max_id_size = sizeof(lid_t) };
     // verify that lid_entry_t::_id has the correct size
     static void check_id_size()
 	{ size_t sizeof_lid = sizeof(lid_t);  // for gcc warning bug
 					      // must match max_id_size
-	    w_assert1(((size_t)max_id_size) ==
-		    MAX(sizeof_lid,
-			MAX(sizeof(shrid_t),
-			    MAX(sizeof(spid_t), sizeof(snum_t)))));
+	    size_t a = sizeof(shrid_t);
+	    size_t b = sizeof(spid_t);
+	    size_t c = sizeof(snum_t);
+	    size_t d = MAX(sizeof_lid, MAX(a, MAX(b, c)));
+	    w_assert1(((size_t)max_id_size) == d);
 	}
 
     friend ostream& operator<<(ostream& o, const lid_entry_t& entry);
@@ -149,14 +177,16 @@ typedef lid_t lid_cache_key_t;
 // instead of an lvid_t.  However, there is a performance
 // tradeoff in converting from lvid_t to vid_t, so the
 // above typedef is used instead.
-struct lid_cache_key_t {
+class lid_cache_key_t {
 public:
     lid_cache_key_t(vid_t vid_, const serial_t& serial_) :
  	vid(vid_), serial(serial_)	{};
     vid_t vid;
     serial_t serial;
 }
-inline uint4 hash(const lid_cache_key_t& k) {return hash}
+inline uint4_t hash(const lid_cache_key_t& k) {return hash}
 #endif
 
-#endif /*LID_S_H*/
+/*<std-footer incl-file-exclusion='LID_S_H'>  -- do not edit anything below this line -- */
+
+#endif          /*</std-footer>*/

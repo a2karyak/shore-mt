@@ -1,13 +1,35 @@
-/* --------------------------------------------------------------- */
-/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
-/* -- University of Wisconsin-Madison, subject to the terms     -- */
-/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
-/* -- Reserved.                                                 -- */
-/* --------------------------------------------------------------- */
+/*<std-header orig-src='shore'>
 
-/*
- *  $Header: /p/shore/shore_cvs/src/common/vec_t.cc,v 1.55 1997/09/19 11:50:06 solomon Exp $
- */
+ $Id: vec_t.cpp,v 1.69 1999/06/07 19:02:35 kupsch Exp $
+
+SHORE -- Scalable Heterogeneous Object REpository
+
+Copyright (c) 1994-99 Computer Sciences Department, University of
+                      Wisconsin -- Madison
+All Rights Reserved.
+
+Permission to use, copy, modify and distribute this software and its
+documentation is hereby granted, provided that both the copyright
+notice and this permission notice appear in all copies of the
+software, derivative works or modified versions, and any portions
+thereof, and that both notices appear in supporting documentation.
+
+THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+"AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+This software was developed with support by the Advanced Research
+Project Agency, ARPA order number 018 (formerly 8230), monitored by
+the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+Further funding for this work was provided by DARPA through
+Rome Research Laboratory Contract No. F30602-97-2-0247.
+
+*/
+
+#include "w_defines.h"
+
+/*  -- do not edit anything above this line --   </std-header>*/
 
 #ifdef __GNUC__
 #pragma implementation "vec_t.h"
@@ -16,16 +38,16 @@
 #define VEC_T_C
 #include <stdlib.h>
 #include <memory.h>
-#include <iostream.h>
-#include "w_base.h"
-#include "w_minmax.h"
+#include <w_stream.h>
+#include <w_base.h>
+#include <w_minmax.h>
 #include "basics.h"
 #include "dual_assert.h"
 #include "vec_t.h"
 #include "umemcmp.h"
 
 
-#ifdef __GNUC__
+#ifdef EXPLICIT_TEMPLATE
 // these templates are not used by vec_t, but are so common that
 // we instantiate them here
 template class w_auto_delete_array_t<cvec_t>;
@@ -35,7 +57,7 @@ template class w_auto_delete_array_t<vec_t>;
 
 cvec_t		cvec_t::pos_inf;
 cvec_t		cvec_t::neg_inf;
-void		*cvec_t::zero_location=(void *)&(cvec_t::neg_inf);
+CADDR_T		cvec_t::zero_location=(CADDR_T)&(cvec_t::neg_inf);
 vec_t&		vec_t::pos_inf = *(vec_t*) &cvec_t::pos_inf;
 vec_t&		vec_t::neg_inf = *(vec_t*) &cvec_t::neg_inf;
 
@@ -158,7 +180,7 @@ const vec_t& vec_t::copy_from(
     size_t limit,
     size_t offset)		 const// offset in the vector
 {
-    dual_assert1(! is_pos_inf() && ! is_neg_inf() );
+    dual_assert1(! is_pos_inf() && ! is_neg_inf() && !is_null() );
     dual_assert1( _base[0].ptr != zero_location );
 
     char* s = (char*) p;
@@ -349,6 +371,11 @@ int cvec_t::cmp(const void* s, size_t l) const
 {
     if (is_pos_inf()) return 1;
     if (is_neg_inf()) return -1;
+    if (is_null()) {
+	if(l==0) return 0;
+	// l > 0 means this < l
+	return -1;
+    }
 
     size_t acc = 0;
     for (int i = 0; i < _cnt && acc < l; i++)  {
@@ -371,7 +398,8 @@ int cvec_t::cmp(const cvec_t& v, size_t* common_size) const
 	return 0; 
     }
 
-    // Common size is not set when one of operands is infinity 
+    // Common size is not set when one of operands is infinity or null
+    if (is_null() && !v.is_null())  return -1;
     if (is_neg_inf() || v.is_pos_inf())  return -1;
     if (is_pos_inf() || v.is_neg_inf())  return 1;
 
@@ -438,27 +466,27 @@ int cvec_t::cmp(const cvec_t& v, size_t* common_size) const
 int cvec_t::checksum() const 
 {
     int sum = 0;
-    dual_assert1(! is_pos_inf() && ! is_neg_inf() );
+    dual_assert1(! is_pos_inf() && ! is_neg_inf());
     for (int i = 0; i < _cnt; i++) {
 	for(size_t j=0; j<_base[i].len; j++) sum += ((char*)_base[i].ptr)[j];
     }
     return sum;
 }
 
-void cvec_t::calc_kvl(uint4& rh) const
+void cvec_t::calc_kvl(uint4_t& rh) const
 {
-    if (size() <= sizeof(uint4))  {
+    if (size() <= sizeof(uint4_t))  {
 	rh = 0;
 	copy_to(&rh, size());
     } else {
-	register h, g;
-	h = g = 0;
+	uint4_t h = 0;
 	for (int i = 0; i < _cnt; i++)  {
-	    register const unsigned char* s = _base[i].ptr;
-	    for (size_t j = 0; j < _base[i].len; j++) {
-		h = (h << 4) + *s++;
-		if ((g = h & 0xf000000)) h ^= g >> 24;
-		h &= ~g;
+	    const unsigned char* s = _base[i].ptr;
+	    for (size_t j = 0; j < _base[i].len; j++)  {
+		if (h & 0xf8000000)  {
+		    h = (h & ~0xf8000000) + (h >> 27);
+		}
+		h = (h << 5) + *s++;
 	    }
 	}
 	rh = h;
@@ -476,14 +504,14 @@ void cvec_t::_grow(int total_cnt)
 	// overflow will occur
 
 	int grow_to = MAX(prev_max*2, total_cnt);
-	vec_pair_t* tmp = 0;
+	vec_pair_t* tmp = NULL;
 
 	if (_is_large()) {
 	    tmp = (vec_pair_t*) realloc((char*)_base, grow_to * sizeof(*_base));
-	    if (!tmp) W_FATAL(fcOUTOFMEMORY)
+	    if (!tmp) W_FATAL(fcOUTOFMEMORY);
 	} else {
 	    tmp = (vec_pair_t*) malloc(grow_to * sizeof(*_base));
-	    if (!tmp) W_FATAL(fcOUTOFMEMORY)
+	    if (!tmp) W_FATAL(fcOUTOFMEMORY);
 	    for (int i = 0; i < prev_max; i++) {
 		tmp[i] = _base[i];
 	    }
@@ -498,7 +526,8 @@ void cvec_t::_grow(int total_cnt)
 ostream& operator<<(ostream& o, const cvec_t& v)
 {
     char	*p;
-    u_char 	c;
+    u_char 	c, oldc;
+    int		repeated;
     int		nparts = v.count();
     int		i = 0;
     size_t	j = 0;
@@ -510,26 +539,41 @@ ostream& operator<<(ostream& o, const cvec_t& v)
 	l = (i < v._cnt) ? v._base[i].len : 0;
 
 	// p = (char *)v.ptr(i);
-	p = (i < v._cnt) ? (char *)v._base[i].ptr : 0; 
+	p = (i < v._cnt) ? (char *)v._base[i].ptr : (char *)NULL; 
 
 	o << "{" << l << " " << "\"" ;
 
+	repeated=0;
+	oldc = '\0';
 	for(j=0; j<l; j++,p++) {
 	    c = *p;
-	    if( c == '"' ) {
-		o << "\\\"" ;
-	    } else if( isprint(c) ) {
-		if( isascii(c) ) {
-		    o << c ;
-		} else {
-		    // high bit set: print its octal value
-		    o << "\\0" << oct << c << dec ;
-		}
-	    } else if(c=='\0') {
-		o << "\\0" ;
+	    if(c == oldc) {
+		repeated++;
 	    } else {
-		o << "\\0" << oct << (unsigned int)c << dec ;
+		if(repeated>0) {
+		    o << "<" <<repeated << " times>";
+		    repeated = 0;
+		}
+		if( c == '"' ) {
+		    o << "\\\"" ;
+		} else if( isprint(c) ) {
+		    if( isascii(c) ) {
+			o << c ;
+		    } else {
+			// high bit set: print its octal value
+			o << "\\0" << oct << c << dec ;
+		    }
+		} else if(c=='\0') {
+		    o << "\\0" ;
+		} else {
+		    o << "\\0" << oct << (unsigned int)c << dec ;
+		}
 	    }
+	    oldc = c;
+	}
+	if(repeated>0) {
+	    o << "<" <<repeated << " times>";
+	    repeated = 0;
 	}
 	o <<"\" }";
 	w_assert3(j==l);
@@ -659,7 +703,10 @@ istream& operator>>(istream& is, cvec_t& v)
 	    */
 	}
 	if(err >0) {
+#if !defined(_MSC_VER)		/* XXX really MS c-lib bug */
+	    // TODO: _WINDOWS should have definition of set()
 	    is.set(ios::badbit);
+#endif
 	    state = done;
 	    err = is.tellg();
 	    //cerr << "error at byte #" << err <<endl;

@@ -1,13 +1,36 @@
-/* --------------------------------------------------------------- */
-/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
-/* -- University of Wisconsin-Madison, subject to the terms     -- */
-/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
-/* -- Reserved.                                                 -- */
-/* --------------------------------------------------------------- */
+/*<std-header orig-src='shore'>
 
-/*
- *  $Id: lock_core.cc,v 1.66 1997/06/15 03:13:18 solomon Exp $
- */
+ $Id: lock_core.cpp,v 1.94 1999/06/07 19:04:10 kupsch Exp $
+
+SHORE -- Scalable Heterogeneous Object REpository
+
+Copyright (c) 1994-99 Computer Sciences Department, University of
+                      Wisconsin -- Madison
+All Rights Reserved.
+
+Permission to use, copy, modify and distribute this software and its
+documentation is hereby granted, provided that both the copyright
+notice and this permission notice appear in all copies of the
+software, derivative works or modified versions, and any portions
+thereof, and that both notices appear in supporting documentation.
+
+THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+"AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+This software was developed with support by the Advanced Research
+Project Agency, ARPA order number 018 (formerly 8230), monitored by
+the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+Further funding for this work was provided by DARPA through
+Rome Research Laboratory Contract No. F30602-97-2-0247.
+
+*/
+
+#include "w_defines.h"
+
+/*  -- do not edit anything above this line --   </std-header>*/
+
 #define LOCK_CORE_C
 #define SM_SOURCE
 
@@ -17,18 +40,18 @@
 #pragma implementation "lock_core.h"
 #endif
 
-#include "st_error.h"
+#include "st_error_enum_gen.h"
 #include "sm_int_1.h"
 #include "kvl_t.h"
 #include "lock_s.h"
 #include "lock_x.h"
 #include "lock_core.h"
 
-#ifdef __GNUG__
+#ifdef EXPLICIT_TEMPLATE
 template class w_list_const_i<lock_request_t>;
+template class w_auto_delete_array_t<u_int>;
 #endif
 
-#define DBGTHRD(arg) DBG(<<" th."<<me()->id << " " arg)
 
 W_FASTNEW_STATIC_DECL(lock_request_t, 2048);
 W_FASTNEW_STATIC_DECL(lock_head_t, 256);
@@ -51,7 +74,7 @@ const lock_base_t::mode_t lock_m::parent_mode[NUM_MODES] = {
  *   mode_str[i]:	string describing lock mode i
  *
  *********************************************************************/
-const char* const lock_base_t::duration_str[NUM_DURATIONS] = {
+const char* const lock_base_t::duration_str[t_num_durations] = {
     "INSTANT", "SHORT", "MEDIUM", "LONG", "VERY_LONG"
 };
 
@@ -101,7 +124,8 @@ const lock_base_t::mode_t lock_base_t::supr[NUM_MODES][NUM_MODES] = {
     { EX,   EX,   EX,   EX,   EX,   EX,   EX }
 };
 
-struct bucket_t {
+class bucket_t {
+public:
 
 #ifndef NOT_PREEMPTIVE
 #ifndef ONE_MUTEX
@@ -130,7 +154,7 @@ struct bucket_t {
  *  xct_lock_info_t::xct_lock_info_t()
  *
  *********************************************************************/
-xct_lock_info_t::xct_lock_info_t(uint2 type)
+xct_lock_info_t::xct_lock_info_t()
 :
     mutex("xct_lock_info"),
     wait(0),
@@ -139,7 +163,7 @@ xct_lock_info_t::xct_lock_info_t(uint2 type)
     quark_marker(0),
     lock_level(lockid_t::t_record)
 {
-    for (int i = 0; i < NUM_DURATIONS; i++)  {
+    for (int i = 0; i < t_num_durations; i++)  {
 	list[i].set_offset(offsetof(lock_request_t, xlink));
     }
 }
@@ -152,13 +176,13 @@ xct_lock_info_t::xct_lock_info_t(uint2 type)
  *********************************************************************/
 xct_lock_info_t::~xct_lock_info_t()
 {
-#ifdef DEBUG
-    for (int i = 0; i < NUM_DURATIONS; i++)  {
+#ifdef W_DEBUG
+    for (int i = 0; i < t_num_durations; i++)  {
 	if (! list[i].is_empty() ) {
 	    DBGTHRD(<<"memory leak: non-empty list in xct_lock_info_t: " <<i);
 	}
     }
-#endif /* DEBUG */
+#endif /* W_DEBUG */
 }
 
 ostream &			
@@ -167,7 +191,7 @@ xct_lock_info_t::dump_locks(ostream &out) const
     const lock_request_t 	*req;
     const lock_head_t 		*lh;
     int						i;
-    for(i=0; i< lock_base_t::NUM_DURATIONS; i++) {
+    for(i=0; i< t_num_durations; i++) {
 	out << "***Duration " << i <<endl;
 
 	w_list_const_i<lock_request_t> iter(list[i]);
@@ -175,8 +199,8 @@ xct_lock_info_t::dump_locks(ostream &out) const
 	    w_assert3(req->xd == xct());
 	    lh = req->get_lock_head();
 	    out << "Lock: " << lh->name 
-		<< " Mode: " << req->mode 
-		<< " State: " << req->status() <<endl;
+		<< " Mode: " << int(req->mode)
+		<< " State: " << int(req->status()) <<endl;
 	}
     }
     return out;
@@ -200,7 +224,7 @@ xct_lock_info_t::get_lock_totals(
     total_extent = 0;
 
     // Start only with t_long locks
-    for(i=0; i< lock_base_t::NUM_DURATIONS; i++) {
+    for(i=0; i< t_num_durations; i++) {
 	w_list_const_i<lock_request_t> iter(list[i]);
 	while ((req = iter.next())) {
 	    ////////////////////////////////////////////
@@ -239,19 +263,14 @@ xct_lock_info_t::get_lock_totals(
  *   gathered, regardless of their granularity
  */
 
-#ifndef W_DEBUG
-#define numslots /* numslots not used */
-#endif
-
 rc_t
 xct_lock_info_t::get_locks(
     lock_mode_t		mode,
-    int			numslots,
+    int			W_IFDEBUG(numslots),
     lockid_t *		space_l,
     lock_mode_t *	space_m,
     bool                extents // == false; true means get only extent locks
 ) const
-#undef numslots
 {
     const lock_request_t 	*req;
     const lock_head_t 		*lh=0;
@@ -264,7 +283,7 @@ xct_lock_info_t::get_locks(
     // count only long-held locks
 
     int j=0;
-    for(i= t_short; i< lock_base_t::NUM_DURATIONS; i++) {
+    for(i= t_short; i< t_num_durations; i++) {
 	w_list_const_i<lock_request_t> iter(list[i]);
 	while ((req = iter.next())) {
 	    ////////////////////////////////////////////
@@ -340,29 +359,56 @@ operator<<(ostream &o, const xct_lock_info_t &x)
  *
  *********************************************************************/
 
+
+#ifdef W_DEBUG
+#include "lock_s_inline.h"
+#endif /* W_DEBUG */
+
 void
 lockid_t::truncate(name_space_t space)
 {
+    DBG(<< "truncating " << unsigned(this) 
+    << "=" <<*this 
+    << " to " << int(space));
     w_assert3(lspace() >= space && lspace() != t_extent && lspace() != t_kvl);
+    w_assert3((space >= t_user1 && space <= t_user4) == IsUserLock());
 
     switch (space) {
     case t_vol:
-	s[3] = 0;
-	w[2] = w[3] = 0;
+	set_snum(0);
+	set_page(0);
+	set_slot(0);
 	break;
     case t_store:
-	w[2] = w[3] = 0;
+	set_page(0);
+	set_slot(0);
 	break;
     case t_page:
-	w[3] = 0;
+	set_slot(0);
 	break;
     case t_record:
+	break;
+
+    case t_user1:
+	set_u2(0);
+	set_u3(0);
+	set_u4(0);
+	break;
+    case t_user2:
+	set_u3(0);
+	set_u4(0);
+	break;
+    case t_user3:
+	set_u4(0);
+	break;
+    case t_user4:
 	break;
 
     default:
 	W_FATAL(smlevel_0::eINTERNAL);
     }
     set_lspace(space);
+    DBG(<<"truncated to " << *this);
 }
 
 /*********************************************************************
@@ -418,13 +464,27 @@ lock_request_t::lock_request_t(xct_t* x, mode_t m, duration_t d)
     xd(x),
     numChildren(0)
 {
-    smlevel_0::stats.lock_request_t_cnt++;
+    INC_TSTAT(lock_request_t_cnt);
 
     // since d is unsigned, the >= comparison must be split to avoid
     // gcc warning.
-    w_assert1((d == 0 || d > 0) && d < lock_base_t::NUM_DURATIONS);
+    w_assert1((d == 0 || d > 0) && d < t_num_durations);
 
     x->lock_info()->list[d].push(this);
+#ifdef W_DEBUG
+    {
+	lock_head_t*lock = this->get_lock_head();
+	if(lock) {
+	    DBGTHRD(<<"pushed lock request " << this << " " 
+		<< lock->name
+		<< " on list["<<int(duration)<<"] : " << *this);
+	} else {
+	    DBGTHRD(<<"pushed lock request " << this << " " 
+		<< "NO NAME"
+		<< " on list["<<int(duration)<<"] : " << *this);
+	}
+    }
+#endif /* W_DEBUG */
 }
 
 /*********************************************************************
@@ -432,21 +492,26 @@ lock_request_t::lock_request_t(xct_t* x, mode_t m, duration_t d)
  *  special constructor to make a marker for open quarks
  *
  *********************************************************************/
-#ifndef W_DEBUG
-#define quark_marker
-#endif
-lock_request_t::lock_request_t(xct_t* x, bool quark_marker)
+lock_request_t::lock_request_t(xct_t* x, bool W_IFDEBUG(quark_marker))
     : mode(NL), convert_mode(NL),
       count(0), duration(t_short), thread(0), xd(x)
-#undef quark_marker
 {
     FUNC(lock_request_t::lock_request_t(make marker));
     // since the only purpose of this constructor is to make a quark
     // marker, is_quark_marker should be true
-    w_assert3(quark_marker == true);
+    w_assert3(quark_marker);
 
     // a quark marker simply has an empty rlink 
 
+#ifdef W_TRACE
+    {
+	lock_head_t*lock = this->get_lock_head();
+	DBGTHRD(<<"pushing lock request "
+		<< lock->name
+		<< " on list[" << int(duration)
+		<<"] : " << *this);
+    }
+#endif
     x->lock_info()->list[duration].push(this);
 }
 
@@ -470,31 +535,31 @@ lock_request_t::is_quark_marker() const
 // hash table option size is 64.
 
 static const u_long primes[] = {
-	/* 0x40, 64*/ 61,
-	/* 0x80, 128 */ 127,
-	/* 0x100, 256 */ 251,
-	/* 0x200, 512 */ 509,
-	/* 0x400, 1024 */ 1021,
-	/* 0x800, 2048 */ 2039,
-	/* 0x1000, 4096 */ 4093,
-	/* 0x2000, 8192 */ 8191,
-	/* 0x4000, 16384 */ 16381,
-	/* 0x8000, 32768 */ 32749,
-	/* 0x10000, 65536 */ 65521,
-	/* 0x20000, 131072 */ 131071,
-	/* 0x40000, 262144 */ 262139,
-	/* 0x80000, 524288 */ 524287,
-	/* 0x100000, 1048576 */ 1048573,
-	/* 0x200000, 2097152 */ 2097143,
-	/* 0x400000, 4194304 */ 4194301,
-	/* 0x800000, 8388608   */ 8388593
+	/* 0x40, 64, 2**6 */ 61,
+	/* 0x80, 128, 2**7  */ 127,
+	/* 0x100, 256, 2**8 */ 251,
+	/* 0x200, 512, 2**9 */ 509,
+	/* 0x400, 1024, 2**10 */ 1021,
+	/* 0x800, 2048, 2**11 */ 2039,
+	/* 0x1000, 4096, 2**12 */ 4093,
+	/* 0x2000, 8192, 2**13 */ 8191,
+	/* 0x4000, 16384, 2**14 */ 16381,
+	/* 0x8000, 32768, 2**15 */ 32749,
+	/* 0x10000, 65536, 2**16 */ 65521,
+	/* 0x20000, 131072, 2**17 */ 131071,
+	/* 0x40000, 262144, 2**18 */ 262139,
+	/* 0x80000, 524288, 2**19 */ 524287,
+	/* 0x100000, 1048576, 2**20 */ 1048573,
+	/* 0x200000, 2097152, 2**21 */ 2097143,
+	/* 0x400000, 4194304, 2**22 */ 4194301,
+	/* 0x800000, 8388608, 2**23   */ 8388593
 };
 #endif
 
 lock_head_t*
 lock_core_m::find_lock(const lockid_t& n, bool create)
 {
-    uint4 idx = _hash(hash(n));
+    uint4_t idx = _hash(hash(n));
 
     ACQUIRE(idx);
     lock_head_t* lock = 0;
@@ -508,12 +573,15 @@ lock_core_m::find_lock(const lockid_t& n, bool create)
 
     if (lock) { MUTEX_ACQUIRE(lock->mutex); }
     RELEASE(idx);
+    DBGTHRD(<< " find_lock returns " << lock);
+    if(lock) { DBGTHRD(<< "=" << *lock); }
     return lock;
 }
 
 lock_core_m::lock_core_m(uint sz) : 
 	deadlock_check_id(0), _htab(0), _htabsz(0), _hashmask(0), _hashshift(0)
-	, lockHeadPool(offsetof(lock_head_t, chain))
+	, lockHeadPool(offsetof(lock_head_t, chain)),
+	_requests_allocated(0)
 {
     /* round up to the next power of 2 */
     int b=0; // count bits shifted
@@ -566,17 +634,20 @@ lock_core_m::lock_core_m(uint sz) :
 
 lock_core_m::~lock_core_m()
 {
-#ifdef DEBUG
+    DBG( << " lock_core_m::~lock_core_m()" );
+
+#ifdef W_DEBUG
     for (uint i = 0; i < _htabsz; i++)  {
 	ACQUIRE(i);
 	w_assert3( _htab[i].chain.is_empty() );
 	RELEASE(i);
     }
-#endif
+#endif /* W_DEBUG */
 
     // free the all the lock_head_t's in the pool
     LOCK_HEAD_POOL_ACQUIRE(lockHeadPoolMutex);
-    while (lock_head_t* theLockHead = lockHeadPool.pop())  {
+    lock_head_t* theLockHead;
+    while ( (theLockHead = lockHeadPool.pop()) )  {
 	delete theLockHead;
     }
     LOCK_HEAD_POOL_RELEASE(lockHeadPoolMutex);
@@ -599,15 +670,19 @@ lock_core_m::acquire(
     mode_t 		mode,
     mode_t&		prev_mode,
     duration_t		duration,
-    long 		timeout,
+    timeout_in_ms 	timeout,
     mode_t&		ret)
 {
     FUNC(lock_core_m::acquire);
     lock_request_t*	req = reqPtr ? *reqPtr : 0;
 
-#ifdef DEBUG
-    DBGTHRD(<<"lock_core_m::acquire " <<" lockid=" << name << " tid=" << xd->tid()
-		<< " mode=" << mode << " duration=" << duration << " timeout=" << timeout);
+#ifdef W_DEBUG
+    DBGTHRD(<<"lock_core_m::acquire " 
+	<<" lockid=" << name 
+	<< " tid=" << xd->tid()
+	<< " mode=" << int(mode)
+	<< " duration=" << int(duration)
+	<< " timeout=" << timeout);
     if (lock)  {
 	DBGTHRD(<< " lock=" << *lock);
     }
@@ -621,19 +696,34 @@ lock_core_m::acquire(
     if (lock) {
 	w_assert3(MUTEX_IS_MINE(lock->mutex));
     }
-#endif /* DEBUG */
+#endif /* W_DEBUG */
 
     bool acquired_lock_mutex = false;
     ret = NL;
 
     if (!lock) {
 	lock = find_lock(name, true);
+#ifdef W_DEBUG
+	if (lock)  {
+	    DBGTHRD(<< " find_lock returns " << lock <<"=" << *lock);
+	} else {
+	    DBGTHRD(<< " STILL NO LOCK" );
+	}
+	w_assert3(lock);
+#endif /* W_DEBUG */
 	acquired_lock_mutex = true;
     }
 
     if (!req) {
 	w_list_i<lock_request_t> iter(lock->queue);
 	while ((req = iter.next()) && req->xd != xd);
+#ifdef W_DEBUG
+        if (req)  {
+            DBGTHRD(<< " request=" << *req);
+        } else {
+            DBGTHRD(<< " STILL NO REQUEST" );
+        }
+#endif /* W_DEBUG */
     }
 
     {
@@ -641,8 +731,10 @@ lock_core_m::acquire(
     /*
      *  See if this is a conversion request
      */
-    if (req) {		// conversion
+    if (req) {
+	// conversion
 	DBGTHRD(<< "conversion from req=" << *req);
+	if(lock) { DBGTHRD(<< " check lock again " << lock <<"=" << *lock); }
 	prev_mode = req->mode;
 
 	if (req->status() == lock_m::t_waiting)  {
@@ -655,10 +747,12 @@ lock_core_m::acquire(
     
 	    // optimization: case of re-request of an equivalent or lesser mode
 	    if (req->mode == mode)  { 
-	        smlevel_0::stats.lock_extraneous_req_cnt++;
+		INC_TSTAT(lock_extraneous_req_cnt);
+		if(lock) {DBGTHRD(<< " check lock again " << lock <<"=" << *lock); }
+		DBGTHRD(<<"goto success");
 	        goto success; 
 	    }
-	    smlevel_0::stats.lock_conversion_cnt++;
+	    INC_TSTAT(lock_conversion_cnt);
     
 	    mode_t granted_mode_other = lock->granted_mode_other(req);
 	    w_assert3(lock->granted_mode == supr[granted_mode_other][req->mode]);
@@ -667,6 +761,7 @@ lock_core_m::acquire(
 	        /* compatible --> no wait */
 	        req->mode = mode;
 	        lock->granted_mode = supr[mode][granted_mode_other];
+		DBGTHRD(<<"goto success");
 	        goto success;
 	    }
 	    /*
@@ -682,10 +777,14 @@ lock_core_m::acquire(
 	        req->thread = me();
 	    }
         }
-    } else {		// it is a new request
+    } else {
+	// it is a new request
 	prev_mode = NL;
 
 	req = new lock_request_t(xd, mode, duration);
+	_requests_allocated++;
+	DBG(<< "appending request " << req << " to lock " << lock
+		<< " lock name=" << lock->name);
 	lock->queue.append(req);
 
 	if ((!lock->waiting) && compat[mode][lock->granted_mode]) {
@@ -693,6 +792,7 @@ lock_core_m::acquire(
 	    req->status(lock_m::t_granted);
 	    lock->granted_mode = supr[mode][lock->granted_mode];
 
+	    DBGTHRD(<<"goto success");
 	    goto success;
 	}
 
@@ -702,17 +802,17 @@ lock_core_m::acquire(
 
     /* need to wait */
 
-#ifdef DEBUG
+#ifdef W_DEBUG
     w_assert3(ret == NL);
     DBGTHRD(<<" will wait");
     if (xd->lock_info()->wait) {
 	// the multi-thread case 
 	w_assert3(xd->num_threads()>1);
-	// w_assert3(lock->waiting==true); could be waiting on a different lock
+	// w_assert3(lock->waiting); could be waiting on a different lock
     }
     // request should match
     w_assert3(req->xd == xd);
-#endif
+#endif /* W_DEBUG */
 
     if (timeout && xd->lock_info()->wait) {
 	// Another thread in our xct is blocking. We're going to have to
@@ -720,12 +820,15 @@ lock_core_m::acquire(
 	// and then try again.
 
 	DBGTHRD(<< "waiting for other thread in :"
-	<< " xd=" << xd->tid() << " name=" << name << " mode=" << mode
-	<< " duration=" << duration << " timeout=" << timeout );
+	<< " xd=" << xd->tid() 
+	<< " name=" << name 
+	<< " mode=" << int(mode)
+	<< " duration=" << int(duration) << " timeout=" << timeout );
 
 	// if this was not a conversion, delete the (new) request
 	if (prev_mode == NL)
 	    delete req;
+	    _requests_allocated--;
 
 	if (lock)  {
 	    MUTEX_RELEASE(lock->mutex);
@@ -767,12 +870,15 @@ lock_core_m::acquire(
 	    MUTEX_RELEASE(xd->lock_info()->mutex);
 
 	    DBGTHRD(<< "waiting (blocking) for:"
-	          << " xd=" << xd->tid() << " name=" << name << " mode=" << mode
-		  << " duration=" << duration << " timeout=" << timeout );
+	          << " xd=" << xd->tid() 
+		  << " name=" << name 
+		  << " mode=" << int(mode)
+		  << " duration=" << int(duration)
+		  << " timeout=" << timeout );
 
 	    if (xd->is_extern2pc() && timeout == WAIT_FOREVER && global_deadlock_client)  {
                 const char* blockname = "gxct-lock";
-#ifdef DEBUG
+#if defined(W_DEBUG) || defined(W_DEBUG_NAMES)
                 char buf[64];
                 ostrstream s(buf, 64);
                 s << "gxct-lock(name=" << name << ")" << ends;
@@ -781,20 +887,23 @@ lock_core_m::acquire(
 		rc = global_deadlock_client->GlobalXctLockWait(req, blockname);
 	    }  else  {
                 const char* blockname = "lock";
-#ifdef DEBUG
+#if defined(W_DEBUG) || defined(W_DEBUG_NAMES)
                 char buf[64];
                 ostrstream s(buf, 64);
                 s << "lock(name=" << name << ")" << ends;
                 blockname = buf;
-#endif
+#endif /* W_DEBUG */
                 rc = me()->block(timeout, 0, blockname);
 	    }
 
 	    DBGTHRD(<< "acquired (unblocked):"
-		    << " xd=" << xd->tid() << " name="<< name << " mode="<< mode
-		    << " duration=" << duration << " timeout=" << timeout );
+		    << " xd=" << xd->tid() 
+		    << " name="<< name 
+		    << " mode="<< int(mode)
+		    << " duration=" << int(duration) 
+			<< " timeout=" << timeout );
 
-#ifdef DEBUG
+#ifdef W_DEBUG
 #ifndef MULTISERVER
 	    if (rc) {
 		w_assert3(rc.err_num() == stTIMEOUT || rc.err_num() == eDEADLOCK);
@@ -804,7 +913,7 @@ lock_core_m::acquire(
 		w_assert3(rc.err_num() == ePREEMPTED);
 		w_assert3(name.lspace() == lockid_t::t_record);
 	    }
-#endif
+#endif /* W_DEBUG */
 #endif
 
 	    // unblock any other thread waitiers
@@ -829,7 +938,7 @@ lock_core_m::acquire(
 	xd->lock_info()->wait = 0;
     }
     w_assert3(xd->lock_info()->cycle == 0);
-    DBGTHRD(<<" request->status()=" << req->status());
+    DBGTHRD(<<" request->status()=" << int(req->status()));
 
     if (!rc || rc.err_num() == stTIMEOUT || rc.err_num() == eDEADLOCK)  {
 	//
@@ -840,6 +949,7 @@ lock_core_m::acquire(
 	//
 	switch (req->status()) {
 	    case lock_m::t_granted:
+		DBGTHRD(<<"goto success");
 	        goto success;
 	    case lock_m::t_waiting:
 	    case lock_m::t_converting:
@@ -847,7 +957,8 @@ lock_core_m::acquire(
 	        rc = RC(eLOCKTIMEOUT);
 	        break;
 	    case lock_m::t_aborted:
-		smlevel_0::stats.lock_deadlock_cnt++;
+	    case lock_m::t_aborted_convert:
+		INC_TSTAT(lock_deadlock_cnt);
 	        rc = RC(eDEADLOCK);
 	        break;
 	    default:
@@ -859,19 +970,22 @@ lock_core_m::acquire(
      *  the lock request was unsuccessful due to either a deadlock or a 
      *  timeout; so cancel it.
      */
-    DBGTHRD(<<" request->status()=" << req->status());
+    DBGTHRD(<<" request->status()=" << int(req->status()));
     switch (req->status())  {
         case lock_m::t_converting:
             req->status(lock_m::t_granted);        // revert to granted
             break;
         case lock_m::t_waiting:
             delete req;
+	    _requests_allocated--;
             req = 0;
             w_assert3(lock->queue.num_members() > 0);
             break;
         case lock_m::t_aborted:
+        case lock_m::t_aborted_convert:
 	    if (req->convert_mode == NL) {	// aborted while waiting
 	        delete req;
+		_requests_allocated--;
 	        req = 0;
 	    } else {				// aborted while converting
 	        ;
@@ -881,7 +995,7 @@ lock_core_m::acquire(
 	        // and forms two cycles simultaneously. If both T1 and T2 are
 	        // victimized, then lock will remain without requests.
 	        lock->granted_mode = NL;
-	        w_assert3(lock->waiting == false);
+	        w_assert3(!lock->waiting);
 	    }
 	    break;
         default:
@@ -901,12 +1015,21 @@ lock_core_m::acquire(
     }
 
   success:
+    DBGTHRD(<< " success: check lock again " << lock <<"=" << *lock);
     w_assert3(req->status() == lock_m::t_granted);
     w_assert3(lock);
 
     if (req->duration < duration) {
 	req->duration = duration;
 	req->xlink.detach();
+#ifdef W_TRACE
+	{
+	    lock_head_t*lock = req->get_lock_head();
+	    DBGTHRD(<<"pushing lock request "
+		    << lock->name
+		    << " on list["<<int(duration)<<"] : " << *req);
+	}
+#endif /* W_DEBUG */
 	xd->lock_info()->list[duration].push(req);
     }
 
@@ -915,28 +1038,40 @@ lock_core_m::acquire(
 	*reqPtr = req;
     ++req->count;
     MUTEX_RELEASE(lock->mutex);
-    smlevel_0::stats.lock_acquire_cnt++;
+    INC_TSTAT(lock_acquire_cnt);
 
     switch(name.lspace()) {
     case lockid_t::t_bad:
 	break;
     case lockid_t::t_vol:
-	smlevel_0::stats.lk_vol_acq++; 
+	INC_TSTAT(lk_vol_acq);
 	break;
     case lockid_t::t_store:
-	smlevel_0::stats.lk_store_acq++; 
+	INC_TSTAT(lk_store_acq);
 	break;
     case lockid_t::t_page:
-	smlevel_0::stats.lk_page_acq++; 
+	INC_TSTAT(lk_page_acq);
 	break;
     case lockid_t::t_kvl:
-	smlevel_0::stats.lk_kvl_acq++; 
+	INC_TSTAT(lk_kvl_acq);
 	break;
     case lockid_t::t_record:
-	smlevel_0::stats.lk_rec_acq++; 
+	INC_TSTAT(lk_rec_acq);
 	break;
     case lockid_t::t_extent:
-	smlevel_0::stats.lk_ext_acq++; 
+	INC_TSTAT(lk_ext_acq);
+	break;
+    case lockid_t::t_user1:
+	INC_TSTAT(lk_user1_acq);
+	break;
+    case lockid_t::t_user2:
+	INC_TSTAT(lk_user2_acq);
+	break;
+    case lockid_t::t_user3:
+	INC_TSTAT(lk_user3_acq);
+	break;
+    case lockid_t::t_user4:
+	INC_TSTAT(lk_user4_acq);
 	break;
     }
 
@@ -959,7 +1094,7 @@ lock_core_m::release(
 
     w_assert3(xd == me()->xct());
     w_assert3(MUTEX_IS_MINE(xd->lock_info()->mutex));
-    uint4 idx = _hash(hash(name));
+    uint4_t idx = _hash(hash(name));
 
     if (!lock) {
 	ACQUIRE(idx);
@@ -987,7 +1122,8 @@ lock_core_m::release(
 
     w_assert3(lock == request->get_lock_head());
     w_assert3(request->status() == lock_m::t_granted || request->status() == lock_m::t_aborted
-   		 || xd->state() == xct_ended || xd->state() == xct_freeing_space);
+    		|| request->status() == lock_m::t_aborted_convert
+   		|| xd->state() == xct_ended || xd->state() == xct_freeing_space);
 
     if (!force && (request->duration >= t_long || request->count > 1)) {
         if (request->count > 1) --request->count;
@@ -997,6 +1133,7 @@ lock_core_m::release(
     }
 
     delete request;
+    _requests_allocated--;
     request = 0;
     _update_cache(xd, name, NL);
 
@@ -1071,11 +1208,17 @@ lock_core_m::downgrade(
 void
 lock_core_m::wakeup_waiters(lock_head_t*& lock)
 {
+#ifdef EGCS_BUG_2
+    uint4_t idx = 0; // moved decl here to get around EGCS_BUG
+#endif
     if (lock->queue.num_members() == 0) {
 	lockid_t name = lock->name;
 	MUTEX_RELEASE(lock->mutex);
 
-	uint4 idx = _hash(hash(name));
+#ifndef EGCS_BUG_2
+        uint4_t idx; // belongs here
+#endif
+	idx = _hash(hash(name));
 	ACQUIRE(idx);
 	lock = find_lock(_htab[idx].chain, name);
 
@@ -1126,6 +1269,7 @@ lock_core_m::wakeup_waiters(lock_head_t*& lock)
             lock->waiting = ! wake_up;
 	    break;
 	case lock_m::t_aborted:
+	case lock_m::t_aborted_convert:
 	case lock_m::t_granted:
 	    break;
         default:
@@ -1167,13 +1311,14 @@ lock_core_m::release_duration(
     extid_t*		ext_to_free)
 {
     FUNC(lock_core_m::release_duration);
+    DBG(<<"%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%");
     DBGTHRD(<<"lock_core_m::release_duration "
 		<< " tid=" << xd->tid()
-		<< " duration=" << duration
+		<< " duration=" << int(duration)
 		<< " all_less_than=" << all_less_than  );
     lock_head_t* lock = 0;
     lock_request_t* request = 0;
-    w_assert1((duration == 0 || duration > 0) && duration < NUM_DURATIONS);
+    w_assert1((duration == 0 || duration > 0) && duration < t_num_durations);
 
     /*
      *  If all_less_than is set, then release from 0 to "duration",
@@ -1183,8 +1328,10 @@ lock_core_m::release_duration(
 
 	if (i < t_long || !ext_to_free)  {
 	    while ((request = xd->lock_info()->list[i].pop()))  {
+		DBG(<<"popped request "  << request << "==" << *request);
 		if (request->is_quark_marker()) {
 		    delete request;
+		    _requests_allocated--;
 		    continue;
 		}
 		lock = request->get_lock_head();
@@ -1196,25 +1343,36 @@ lock_core_m::release_duration(
 	    while ((request = xd->lock_info()->list[i].top()))  {
 		if (request->is_quark_marker()) {
 		    request = xd->lock_info()->list[i].pop();
+		    DBG(<<"popped quark_marker request "<< request<<"==" << *request);
 		    delete request;
+		    _requests_allocated--;
 		    continue;
 		}
 		lock = request->get_lock_head();
+		DBG(<<"top request is " << request << "=="
+			<< *request << " lock " << lock << "=" << lock->name );
+
 		ACQUIRE(_hash(hash(lock->name)));
 		MUTEX_ACQUIRE(lock->mutex);
-		if (!(lock->name.lspace() == lockid_t::t_extent && upgrade_ext_req_to_EX_if_should_free(request)))  {
+		DBG(<<"lock->name = " << lock->name);
+		if (!(lock->name.lspace() == lockid_t::t_extent && 
+			upgrade_ext_req_to_EX_if_should_free(request)))  {
 		    request = xd->lock_info()->list[i].pop();
+    DBGTHRD(<<"popped lock request " << request<< "on list["<<i<<"] : " << *request);
 		    W_COERCE(release(xd, lock->name, lock, request, true) );
 		}  else  {
-		    ext_to_free->vol = lock->name.s[2];
-		    ext_to_free->ext = lock->name.s[3];
+		    lock->name.extract_extent(*ext_to_free);
 		    MUTEX_RELEASE(lock->mutex);
 		    RELEASE(_hash(hash(lock->name)));
+		    DBG(<<" found extent to free : "<< *ext_to_free );
+	DBG(<<"#########################################################");
 		    return RC(eFOUNDEXTTOFREE);
 		}
 	    }
 	}
     }
+    DBGTHRD(<<"lock_core_m::release_duration DONE");
+    DBG(<<"#########################################################");
 
     return RCOK;
 }
@@ -1234,6 +1392,7 @@ lock_core_m::open_quark(
     }
 
     xd->lock_info()->quark_marker = new lock_request_t(xd, true /*is marker*/);
+    _requests_allocated++;
     if (xd->lock_info()->quark_marker == NULL) return RC(fcOUTOFMEMORY);
     return RCOK;
 }
@@ -1257,6 +1416,7 @@ lock_core_m::close_quark(
 
 	xd->lock_info()->quark_marker->xlink.detach();
 	delete xd->lock_info()->quark_marker;
+	_requests_allocated--;
 	xd->lock_info()->quark_marker = NULL;
 	return RCOK;
     }
@@ -1272,8 +1432,10 @@ lock_core_m::close_quark(
 	if (request->is_quark_marker()) {
 	    w_assert3(request == xd->lock_info()->quark_marker);
 	    request->xlink.detach();
+    DBGTHRD(<<"detached lock request in close_quark");
 	    xd->lock_info()->quark_marker = NULL;
 	    delete request;
+	    _requests_allocated--;
 	    found_marker = true;
 	    break;  // finished
 	}
@@ -1338,7 +1500,8 @@ rc_t lock_core_m::_check_deadlock(xct_t* self, bool* deadlock_found)
 		    xd = xd->lock_info()->cycle;
 		}  while (xd != last_waiter);
 		deadlockEventCallback->LocalDeadlockDetected(list, self, victim);
-		while (XctWaitsForLockElem* elem = list.pop())  {
+		XctWaitsForLockElem* elem;
+		while ((elem = list.pop()))  {
 		    delete elem;
 		}
 	    }
@@ -1379,7 +1542,11 @@ rc_t lock_core_m::_check_deadlock(xct_t* self, bool* deadlock_found)
 	    if (victim_xd == self) {
 		w_assert1(self->lock_info()->wait->status() == lock_m::t_waiting || 
 			  self->lock_info()->wait->status() == lock_m::t_converting);
-	        self->lock_info()->wait->status(lock_m::t_aborted);
+		if (self->lock_info()->wait->status() != lock_m::t_converting)  {
+		    self->lock_info()->wait->status(lock_m::t_aborted);
+		}  else  {
+		    self->lock_info()->wait->status(lock_m::t_aborted_convert);
+		}
 	        self->lock_info()->wait = 0;
 	        return RC(eDEADLOCK);
 
@@ -1397,7 +1564,11 @@ rc_t lock_core_m::_check_deadlock(xct_t* self, bool* deadlock_found)
 	        lock_request_t* req = victim_xd->lock_info()->wait;
 		w_assert1(req->status() == lock_m::t_waiting ||
 			  req->status() == lock_m::t_converting);
-		req->status(lock_m::t_aborted);
+		if (req->status() != lock_m::t_converting)  {
+		    req->status(lock_m::t_aborted);
+		}  else  {
+		    req->status(lock_m::t_aborted_convert);
+		}
 		victim_xd->lock_info()->wait = 0;
 
 	        if (req->thread) {
@@ -1478,8 +1649,8 @@ lock_core_m::_find_cycle(xct_t* self)
 
 		if (him->lock_info()->cycle)  {
 
-		    TRACE(401, "DEADLOCK DEADLOCK!!!!!");
-		    TRACE(401,
+		    DBG(<<"DEADLOCK DEADLOCK!!!!!");
+		    DBG(<<
 			"xct " << self->tid() << " waiting for xct " << him->tid()
 			<< " on " << *(self->lock_info()->wait->get_lock_head())
 		    );
@@ -1490,7 +1661,7 @@ lock_core_m::_find_cycle(xct_t* self)
 		rc_t rc = _find_cycle(him);	// look deeper
 		
 		if (rc)  {
-		    TRACE(401,
+		    DBG(<<
                         "xct " << self->tid() << " waiting for xct " << him->tid()
 			<< " on " << *(self->lock_info()->wait->get_lock_head())
                     );
@@ -1520,8 +1691,8 @@ lock_core_m::_find_cycle(xct_t* self)
 
 		    DBGTHRD(<<"DEADLOCK with " << him->tid() );
 
-		    TRACE(401, "DEADLOCK DEADLOCK!!!!!");
-                    TRACE(401,
+		    DBG(<< "DEADLOCK DEADLOCK!!!!!");
+                    DBG(<<
                         "xct " << self->tid() << " waiting for xct " << him->tid()
 			<< " on " << *(self->lock_info()->wait->get_lock_head())
                     );
@@ -1537,10 +1708,6 @@ lock_core_m::_find_cycle(xct_t* self)
 			<< " on " << *(self->lock_info()->wait->get_lock_head())
                     );
 
-		     TRACE(401,
-                        "xct " << self->tid() << " waiting for xct " << him->tid()
-			<< " on " << *(self->lock_info()->wait->get_lock_head())
-                    );
 		    return rc.reset();
 		}
 	    }
@@ -1582,7 +1749,7 @@ lock_core_m::_update_cache(xct_t *xd, const lockid_t& name, mode_t m)
  *
  *********************************************************************/
 void
-lock_core_m::dump()
+lock_core_m::dump(ostream &o)
 {
     for (uint h = 0; h < _htabsz; h++)  {
 	ACQUIRE(h);
@@ -1590,15 +1757,15 @@ lock_core_m::dump()
         lock_head_t* lock;
         lock = i.next();
 	if (lock) {
-            cout << h << ": ";
+            o << h << ": ";
 	}
         while (lock)  {
 	    MUTEX_ACQUIRE(lock->mutex);
-            cout << "\t " << *lock << endl;
+            o << "\t " << *lock << endl;
             lock_request_t* request;
             w_list_i<lock_request_t> r(lock->queue);
             while ((request = r.next()))  {
-                cout << "\t\t" << *request << endl;
+                o << "\t\t" << *request << endl;
             }
 	    MUTEX_RELEASE(lock->mutex);
 	    lock = i.next();
@@ -1618,26 +1785,56 @@ lock_core_m::dump()
  *
  *********************************************************************/
 void
-lock_core_m::_dump()
+lock_core_m::_dump(ostream &o)
 {
     for (uint h = 0; h < _htabsz; h++)  {
         w_list_i<lock_head_t> i(_htab[h].chain);
         lock_head_t* lock;
         lock = i.next();
 	if (lock) {
-            cout << h << ": ";
+            o << h << ": ";
 	}
         while (lock)  {
-            cout << "\t " << *lock << endl;
+            o << "\t " << *lock << endl;
             lock_request_t* request;
             w_list_i<lock_request_t> r(lock->queue);
             while ((request = r.next()))  {
-                cout << "\t\t" << *request << endl;
+                o << "\t\t" << *request << endl;
             }
 	    lock = i.next();
         }
     }
 }
+
+
+
+/*********************************************************************
+ *
+ *  lock_core_m::ForEachLockGranteeXctWithoutMutexes
+ *
+ *  Apply the function f to each of the xct's which has been granted
+ *  the lockid n.
+ *
+ *********************************************************************/
+void
+lock_core_m::ForEachLockGranteeXctWithoutMutexes(const lockid_t& n, LockCoreFunc& f)
+{
+    uint4_t idx = _hash(hash(n));
+
+    lock_head_t* lock = 0;
+    w_list_i<lock_head_t> lockIter(_htab[idx].chain);
+    while ((lock = lockIter.next()) && lock->name != n)
+	;
+
+    w_list_i<lock_request_t> requestIter(lock->queue);
+    lock_request_t* request;
+    while ((request = requestIter.next()))  {
+	if (request->status() == t_granted || request->status() == t_converting)  {
+	    f(request->xd);
+	}
+    }
+}
+
 
 
 
@@ -1669,14 +1866,15 @@ operator<<(ostream& o, const lock_request_t& r)
     case lock_m::t_waiting:
         o << 'W';
         break;
-    case lock_m::t_denied:
-        o << 'D';
-        break;
-	case lock_m::t_aborted:
+    case lock_m::t_aborted:
         o << 'A';
-		break;
+	break;
+    case lock_m::t_aborted_convert:
+        o << "AU";
+	break;
     default:
-        W_FATAL(smlevel_0::eINTERNAL);
+        o << "BAD STATE (" << int(r.status()) << ")"  ;
+        // W_FATAL(smlevel_0::eINTERNAL);
     }
 
     return o;
@@ -1715,30 +1913,152 @@ operator<<(ostream& o, const lockid_t& i)
     o << "L(";
     switch (i.lspace())  {
     case i.t_vol:
-	o << * (vid_t*) i.name();
+	o << i.vid();
 	break;
-    case i.t_store:
-	o << * (stid_t*) i.name();
+    case i.t_store: {
+	stid_t s;
+	i.extract_stid(s);
+	o << s;
+	}
 	break;
-    case i.t_extent:
-	o << * (extid_t*) i.name() << (i.ext_has_page_alloc() ? "[PageAllocs]" : "[NoPageAllocs]");
+    case i.t_extent: {
+	extid_t e;
+	i.extract_extent(e);
+	o << e << (i.ext_has_page_alloc() ? "[PageAllocs]" : "[NoPageAllocs]");
+	}
 	break;
-    case i.t_page:
-	o << * (lpid_t*) i.name();
+    case i.t_page: {
+	lpid_t p;
+	i.extract_lpid(p);
+	o << p;
+	}
 	break;
-    case i.t_kvl:
-	o << * (kvl_t*) i.name();
+    case i.t_kvl: {
+	kvl_t k;
+	i.extract_kvl(k);
+	o << k;
+	}
 	break;
-    case i.t_record:
-	o << * (rid_t*) i.name();
+    case i.t_record: {
+	rid_t r;
+	i.extract_rid(r);
+	o << r;
+	}
+	break;
+    case i.t_user1: {
+	lockid_t::user1_t u;
+	i.extract_user1(u);
+	o << u;
+	}
+	break;
+    case i.t_user2: {
+	lockid_t::user2_t u;
+	i.extract_user2(u);
+	o << u;
+	}
+	break;
+    case i.t_user3: {
+	lockid_t::user3_t u;
+	i.extract_user3(u);
+	o << u;
+	}
+	break;
+    case i.t_user4: {
+	lockid_t::user4_t u;
+	i.extract_user4(u);
+	o << u;
+	}
 	break;
     default:
-	W_FATAL(smlevel_0::eINTERNAL);
+	//
+	o << "t_bad";
+	// W_FATAL(smlevel_0::eINTERNAL);
     }
     return o << ')';
 }
 
+/*********************************************************************
+ *
+ *  operator>>(istream, lockid_t::user1_t)
+ *
+ *  Read lockid_t::user1_t from an istream
+ *
+ *********************************************************************/
 
+istream&
+operator>>(istream& i, lockid_t::user1_t& u)
+{
+    char cU, c1, cLParen, cRParen;
+    i >> cU >> c1 >> cLParen >> u.u1 >> cRParen;
+    w_assert3(cU == 'u' && c1 == '1' && cLParen == '(' && cRParen == ')');
+    return i;
+}
+
+/*********************************************************************
+ *
+ *  operator>>(istream, lockid_t::user2_t)
+ *
+ *  Read lockid_t::user2_t from an istream
+ *
+ *********************************************************************/
+
+istream&
+operator>>(istream& i, lockid_t::user2_t& u)
+{
+    char cU, c2, cLParen, cSep1, cRParen;
+    i >> cU >> c2 >> cLParen >> u.u1 >> cSep1 >> u.u2 >> cRParen;
+    w_assert3(cU == 'u' && c2 == '2' && cLParen == '(' && cSep1 == '.' && cRParen == ')');
+    return i;
+}
+
+/*********************************************************************
+ *
+ *  operator>>(istream, lockid_t::user3_t)
+ *
+ *  Read lockid_t::user3_t from an istream
+ *
+ *********************************************************************/
+
+istream&
+operator>>(istream& i, lockid_t::user3_t& u)
+{
+    char cU, c3, cLParen, cSep1, cSep2, cRParen;
+    i >> cU >> c3 >> cLParen >> u.u1 >> cSep1 >> u.u2 >> cSep2 >> u.u3 >> cRParen;
+    w_assert3(cU == 'u' && c3 == '3' && cLParen == '(' && cSep1 == '.' && cSep2 == '.' && cRParen == ')');
+    return i;
+}
+
+/*********************************************************************
+ *
+ *  operator>>(istream, lockid_t::user4_t)
+ *
+ *  Read lockid_t::user4_t from an istream
+ *
+ *********************************************************************/
+
+istream&
+operator>>(istream& i, lockid_t::user4_t& u)
+{
+    char cU, c4, cLParen, cSep1, cSep2, cSep3, cRParen;
+    i >> cU >> c4 >> cLParen >> u.u1 >> cSep1 >> u.u2 >> cSep2 >> u.u3 >> cSep3 >> u.u4 >> cRParen;
+    w_assert3(cU == 'u' && c4 == '4' && cLParen == '(' && cSep1 == '.'
+		&& cSep2 == '.' && cSep3 == '.' && cRParen == ')');
+    return i;
+}
+
+#ifdef EXPENSIVE_LOCK_STATS
+/*
+ * If you want to re-install this stuff, you have to add the
+ * following stats to the storage manager stats in the .dat file,
+ * as well as in sm.cpp (output operator)
+    smlevel_0::stats.lock_bucket_cnt,
+    smlevel_0::stats.lock_max_bucket_len,
+    smlevel_0::stats.lock_min_bucket_len,
+    smlevel_0::stats.lock_mode_bucket_len,
+    smlevel_0::stats.lock_mean_bucket_len,
+    smlevel_0::stats.lock_var_bucket_len,
+    smlevel_0::stats.lock_std_bucket_len
+ */
 extern "C" double sqrt(double);
 void		
 lock_core_m::stats(
@@ -1752,7 +2072,7 @@ lock_core_m::stats(
 ) const
 {
     FUNC(lock_core_m::stats);
-    register u_long 	used=0, mn=uint4_max, mx=0, t=0, md=0;
+    register u_long 	used=0, mn=uint4_t, mx=0, t=0, md=0;
     float   		var = 0.0;
     float		abl = 0.0;
     double 		stddev=0.0;
@@ -1780,9 +2100,11 @@ lock_core_m::stats(
     }
     if (used > 0) {
 	// space for computing mode
-	u_int	mode[mx+1];
+	u_int*	mode = new u_int[mx+1];
+	w_auto_delete_array_t<u_int> auto_del_mode(mode);
 
-	for(i=0; i<=mx; i++) mode[i]=0;
+	for(i=0; i<=mx; i++)
+	    mode[i]=0;
 
 	// average bucket len
 	abl = (float)t/(float)used;
@@ -1874,7 +2196,7 @@ lock_core_m::stats(
     mode_bucket_len = md;
     buckets_used = used;
     max_bucket_len =mx;
-    if (mn == uint4_max)
+    if (mn == uint4_t)
 	mn=0;
     min_bucket_len = mn;
     avg_bucket_len = abl;
@@ -1934,6 +2256,7 @@ lock_core_m::stats(
     }
 #endif
 }
+#endif /* EXPENSIVE_LOCK_STATS */
 
 #if HASH_FUNC==1
 u_long	
@@ -2000,3 +2323,110 @@ lock_core_m::_hash(u_long id) const
     return	res & _hashmask;
 }
 #endif
+
+#include <vtable_info.h>
+#include <vtable_enum.h>
+
+int
+lock_core_m::collect( vtable_info_array_t& res) 
+{
+    int n = _requests_allocated;
+    w_assert1(_requests_allocated>=0);
+    int found = 0;
+    int per_bucket = 0;
+
+    if(res.init(n, lock_last)) return -1;
+
+    vtable_func<lock_request_t> f(res);
+
+    if (n > 0) {
+	for (uint h = 0; h < _htabsz; h++)  {
+	    w_assert3(res.size() == n);
+	    per_bucket=0;
+	    lock_head_t* lock;
+	    ACQUIRE(h);
+	    w_list_i<lock_head_t> i(_htab[h].chain);
+	    lock = i.next();
+	    while (lock)  {
+		MUTEX_ACQUIRE(lock->mutex);
+		lock_request_t* request;
+		w_list_i<lock_request_t> r(lock->queue);
+		while ((request = r.next()))  {
+		    if(found <= n)  {
+			f(*request);
+			per_bucket++;
+			found++;
+		    } else {
+			// back out of this bucket
+			f.back_out(per_bucket);
+			break;
+		    }
+		}
+		MUTEX_RELEASE(lock->mutex);
+		if(found <= n)  {
+		    lock = i.next();
+		} else {
+		    lock = 0;
+		}
+	    }
+	    RELEASE(h);
+	    if(found > n)  {
+		// realloc and re-start with same bucket
+		if(f.realloc()<0) return -1;
+		h--;
+		found -= per_bucket;
+		n = res.size(); // get new size
+	    }
+	}
+    }
+    w_assert3(found <= n);
+    return 0;
+}
+
+#ifdef __GNUG__
+template class vtable_func<lock_request_t>;
+#endif /* __GNUG__ */
+
+
+void	
+lock_request_t::vtable_collect(vtable_info_t &t)
+{
+    const lock_head_t 		*lh = get_lock_head();
+
+    {
+	ostrstream o(t[lock_name_attr], vtable_info_t::vtable_value_size);
+	o<< lh->name <<ends;
+    }
+    t.set_string(lock_mode_attr, lock_base_t::mode_str[mode]);
+    t.set_string(lock_duration_attr, lock_base_t::duration_str[duration] );
+    t.set_int(lock_children_attr, numChildren);
+
+    {
+	ostrstream o(t[lock_tid_attr], vtable_info_t::vtable_value_size);
+	o << xd->tid() <<  ends;
+    }
+
+    const char *c=0;
+    switch (status()) {
+    case lock_m::t_granted:
+        c = "G";
+        break;
+    case lock_m::t_converting:
+        c = "U";
+	// TODO: add attribute for mode to which we're converting
+        break;
+    case lock_m::t_aborted_convert:
+	c = "AU";
+	break;
+    case lock_m::t_waiting:
+        c = "W";
+        break;
+    case lock_m::t_aborted:
+        c = "A";
+	break;
+    default:
+        W_FATAL(smlevel_0::eINTERNAL);
+    }
+    t.set_string(lock_status_attr, c);
+}
+

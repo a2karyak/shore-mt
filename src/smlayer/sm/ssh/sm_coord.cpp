@@ -1,13 +1,35 @@
-/* --------------------------------------------------------------- */
-/* -- Copyright (c) 1994,5,6,7 Computer Sciences Department,    -- */
-/* -- University of Wisconsin-Madison, subject to the terms     -- */
-/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
-/* -- Reserved.                                                 -- */
-/* --------------------------------------------------------------- */
+/*<std-header orig-src='shore'>
 
-/*
- *  $Id: sm_coord.cc,v 1.31 1997/06/15 10:30:23 solomon Exp $
- */
+ $Id: sm_coord.cpp,v 1.60 1999/06/07 19:04:59 kupsch Exp $
+
+SHORE -- Scalable Heterogeneous Object REpository
+
+Copyright (c) 1994-99 Computer Sciences Department, University of
+                      Wisconsin -- Madison
+All Rights Reserved.
+
+Permission to use, copy, modify and distribute this software and its
+documentation is hereby granted, provided that both the copyright
+notice and this permission notice appear in all copies of the
+software, derivative works or modified versions, and any portions
+thereof, and that both notices appear in supporting documentation.
+
+THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+"AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+This software was developed with support by the Advanced Research
+Project Agency, ARPA order number 018 (formerly 8230), monitored by
+the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+Further funding for this work was provided by DARPA through
+Rome Research Laboratory Contract No. F30602-97-2-0247.
+
+*/
+
+#include "w_defines.h"
+
+/*  -- do not edit anything above this line --   </std-header>*/
 
 /* 
  * Code for testing the functions of the 2PC coordinator 
@@ -15,24 +37,24 @@
  * Part of ssh
  */
 #include <sm_coord.h>
-#include <debug.h>
+#include <w_debug.h>
+#undef EXTERN
 #include <tcl.h>
 #include "tcl_thread.h"
-#include "st_error_def.h"
-#include "ns_error_def.h"
+#include "st_error_def_gen.h"
+#include "ns_error_def_gen.h"
 
-#include <sys/time.h>
-#if !defined(SOLARIS2) && !defined(AIX41)
-extern "C" {
-	int gettimeofday(struct timeval *tv, struct timezone *tz);
-}
-#endif
 
 extern "C" void ip_eval(void *ip, char *c, char *const&, int, int&);
 // hack for aborting:
 extern int t_abort_xct(Tcl_Interp* ip, int ac, char* /*av*/[]);
 
 static Endpoint	nullep;
+static EndpointBox	emptyBox;
+
+/* Seconds -> microseconds for timer stuff */
+#define	SECONDS(n)	((n) * 1000)
+
 
 /*
  * There are two kinds of threads that block on
@@ -63,6 +85,29 @@ enum tcl_message_type_t {
     tcl_death_notice
 };
 
+
+ostream &operator<<(ostream &o, const tcl_message_type_t t)
+{
+	if (t < tcl_command)
+		return o << (message_type_t)t;
+	
+
+	int	i = t - tcl_command;
+	static	const char *names[] = {
+		"tcl_command", "tcl_reply",
+		"tcl_rendezvous", "tcl_rendezvous_rpely",
+		"tcl_cancel", "tcl_death_notice"
+	};
+
+	if (i < 0 || i > tcl_death_notice)
+		o << "<unknown tcl_message_type_t " << i << ">";
+	else
+		o << names[i];
+	
+	return o;
+}
+
+
 class		tcl_message_t : public message_t {
     /* derived from message_t; we overlay message_t::tid's _data with
      * short msgid, char data[]
@@ -89,13 +134,13 @@ public:
 				}
 
     void  		clear() { 
-			    ((message_t *)this)->clear();
+			    message_t::clear();
 			    set_msgid(0);
 			}
     const tcl_message_type_t	tcltype() const { 	
-				return (tcl_message_type_t)typ; }
+				return (tcl_message_type_t)type(); }
 
-    void		set_tcltype(tcl_message_type_t t) { typ = (message_type_t)t; }
+    void		set_tcltype(tcl_message_type_t t) { setType((message_type_t)t); }
 
     NORET 		tcl_message_t() { clear();}
     NORET 		tcl_message_t(tcl_message_type_t t) {
@@ -106,11 +151,13 @@ public:
 
 public:
 
+    /* With the new fixed-length message_t, the +2 for the short
+       isn't needed. */
     int 	minlength() const {
-		    return ((message_t *)this)->minlength() + 2;
+		    return message_t::minlength();
 		}
     int 	wholelength() const {
-		    return ((message_t *)this)->wholelength();
+		    return message_t::wholelength();
 		}
     void 	audit() const; 
 };
@@ -118,7 +165,7 @@ public:
 static tcl_message_t death_message(tcl_death_notice);
 static Buffer DeathMessage(&death_message, sizeof(death_message)); // max
 
-#ifdef __GNUG__
+#ifdef EXPLICIT_TEMPLATE
 template class w_auto_delete_t<tcl_message_t>;
 #endif
 
@@ -135,7 +182,7 @@ tcl_message_t::audit() const
 	 cerr << "tcl_message_t::audit failed: typ" <<endl;
 	 w_assert1(0);
      }
-     ((message_t *)this)->audit(false);
+     message_t::audit(false);
 }
 
 // CASE1 is VAS listens and passes on messages
@@ -228,13 +275,15 @@ sm_rendezvous_thread::sm_rendezvous_thread(
     Endpoint &myep,
     ep_map*	epm,
     const char *myname
-) : _epmap(epm), sm_coord_thread(c,myep,0)
+) : 
+	sm_coord_thread(c,myep,0),
+	_epmap(epm)
 {
-#ifdef DEBUG
+#ifdef W_TRACE
     DBGTHRD(<<"self() :");
     if(_debug.flag_on("SELF",__FILE__)) {
-	_debug.clog << ": SELF IS ... " ;
-	self().print(_debug.clog); _debug.clog << flushl;
+	_debug.clog << ": SELF IS ... " 
+		<< self() << flushl;
     }
 #endif
     if(myname) {
@@ -285,17 +334,22 @@ sm_rendezvous_thread::gist()
 	    DBGTHRD(<< "RENDEZVOUS TARGET IS " << s );
 	    w_assert3(ep);
 
-	    if(ep.is_valid() && ! ep.mep()->isDead() ) {
-		W_IGNORE(coord()->send_tcl(
+	    if(ep.is_valid() && ! ep.isDead() ) {
+		w_rc_t	e;
+		ostrstream ss;
+		ss << _myname << ends;
+		e = coord()->send_tcl(
 		    selfbox(), /* send self in box for rendezvous */
 		    tcl_rendezvous, 
 		    0, /* msgid */
 		    seq, 
 		    0, /* err */
 		    ep, 	/* destination */
-		    (const char *)_myname, /* duplicates m.sender in VERSION 2 */
+		    ss.str(),
 		    false /* do not retransmit */
-		    ));
+		    );
+		W_IGNORE(e);
+		delete [] ss.str();
 	    }
 
 	    W_COERCE(_mutex.acquire());
@@ -339,11 +393,11 @@ sm_command_timeout_thread::sm_command_timeout_thread(
      * _my endpoint doesn't have to be named
      */
     w_assert1(c);
-#ifdef DEBUG
+#ifdef W_TRACE
     DBGTHRD(<<"self() :");
     if(_debug.flag_on("SELF",__FILE__)) {
-	_debug.clog << ": SELF IS ... " ;
-	self().print(_debug.clog); _debug.clog << flushl;
+	_debug.clog << ": SELF IS ... " 
+		<< self() << flushl;
     }
 #endif
     _timeout = WAIT_FOREVER;
@@ -409,9 +463,10 @@ sm_command_timeout_thread::run()
 	     */
 
 #	    ifdef DEBUG
-	    DBGTHRD(<< "at " << time(0) <<"TIMER AWAITING... " << timeout);
+	    DBGTHRD(<< "at " << stime_t::now().secs()
+			<<"TIMER AWAITING... " << timeout);
 	    ss_m::errlog->clog << info_prio 
-		<< time(0) 
+		<< stime_t::now().secs()
 		<< " " << me()->id
 		<<  ": TIMER AWAITING ... " << timeout << flushl;
 #	    endif
@@ -421,12 +476,13 @@ sm_command_timeout_thread::run()
 	    _mutex.release();
 
 #	    ifdef DEBUG
-	    DBGTHRD(<< "at " << time(0) <<": TIMER STOPPED... because " 
+	    DBGTHRD(<< "at " << stime_t::now().secs()
+		<<": TIMER STOPPED... because " 
 		<< "awakened=" << awakened()
 		<< " rc=" << rc
 		);
 	    ss_m::errlog->clog << info_prio 
-		<< time(0) 
+		<< stime_t::now().secs()
 		<< " " << me()->id
 		<<  ": TIMER STOPPED ... " 
 		<< "awakened=" << awakened()
@@ -442,9 +498,9 @@ sm_command_timeout_thread::run()
 #		ifdef DEBUG
 		DBGTHRD(<<"cancel_receive and re-allowing : ");
 		ss_m::errlog->clog <<error_prio 
-		    << time(0) <<  ": Command timed out. cancel-> " ;
-		    self().print(ss_m::errlog->clog); 
-		    ss_m::errlog->clog << flushl;
+			<< stime_t::now().secs()
+			<<  ": Command timed out. cancel-> "
+			<< self() << flushl;
 #		endif
 
 
@@ -572,7 +628,7 @@ sm_coordinator::start_coord(const char *myname)
 
     W_COERCE(comm()->make_endpoint(remote_tcl_service_ep()));
     remote_tcl_service_ep().acquire();
-    W_COERCE(remote_tcl_service_box().insert(0,remote_tcl_service_ep()));
+    W_COERCE(remote_tcl_service_box().set(0,remote_tcl_service_ep()));
     return RCOK;
 }
 
@@ -627,7 +683,6 @@ sm_coordinator::init_either(const char *myname, Endpoint*& named)
     {
 	server_handle_t s = myname;
 	death_message.put_sender(s);
-	DeathMessage.set(death_message.wholelength());
 	death_message.hton(); // ONCE ONLY
     }
 #endif
@@ -762,8 +817,8 @@ sm_coordinator::start_subord(const char *myname, const char *coord_name)
 		rc = RCOK;
 	    }
 	} else {
-	    w_assert3( ! ep.mep()->isDead() );
-	    w_assert3(ep.mep()->refs() >= 1);
+	    w_assert3( ! ep.isDead() );
+	    w_assert3(ep.refs() >= 1);
 	    W_COERCE(ep.release());
 	}
 	w_assert3(_rendezvous);
@@ -785,7 +840,7 @@ sm_coordinator::~sm_coordinator()
     /* 
      * ****** RETIRE PHASE - retire all threads
      */
-    DBG(<<"RETIRE PHASE " << time(0));
+    DBG(<<"RETIRE PHASE " << stime_t::now().secs());
     if(_rendezvous) {
 	DBGTHRD(<<"~sm_coordinator retiring _rendezvous"); 
 	_rendezvous->retire();
@@ -807,12 +862,11 @@ sm_coordinator::~sm_coordinator()
 
 	    _tclhandler[i]->retire();
 	    {   /* send tcl_cancel */
-#	    	ifdef DEBUG
+#ifdef DEBUG
 	    	ss_m::errlog->clog << info_prio 
-			<< time(0) <<  ": CANCELLING ON... " ;
-	    	_tclhandler[i]->self().print(ss_m::errlog->clog); 
-	    	ss_m::errlog->clog << flushl;
-#	    	endif
+			<< stime_t::now().secs() <<  ": CANCELLING ON... " 
+			<< _tclhandler[i]->self() << flushl;
+#endif
 
 		EndpointBox &box =
 #ifdef VERSION_2
@@ -833,7 +887,7 @@ sm_coordinator::~sm_coordinator()
     /* 
      * ****** WAIT PHASE
      */
-    DBG(<<"WAIT PHASE " << time(0));
+    DBG(<<"WAIT PHASE " << stime_t::now().secs());
 
     if(_rendezvous) {
 	DBGTHRD(<<"sm_coordinator::~sm_coordinator awaits _rendezvous"); 
@@ -842,7 +896,7 @@ sm_coordinator::~sm_coordinator()
 	delete _rendezvous;
 	_rendezvous = 0;
     }
-    DBG(<< time(0));
+    DBG(<< stime_t::now().secs());
 
     if(_tcltimer) {
 	DBGTHRD(<<"sm_coordinator::~sm_coordinator awaits _tcltimer"); 
@@ -850,7 +904,7 @@ sm_coordinator::~sm_coordinator()
 	delete _tcltimer;
 	_tcltimer = 0;
     }
-    DBG(<< time(0));
+    DBG(<< stime_t::now().secs());
 
     for(i=0; i<NCMDTHREADS; i++) {
 	if(_tclhandler[i]) {
@@ -861,45 +915,45 @@ sm_coordinator::~sm_coordinator()
 	    _tclhandler[i] = 0;
 	}
     }
-    DBG(<< time(0));
+    DBG(<< stime_t::now().secs());
 
 
     if(_mesub) {
 
-	w_assert3( ! _mesub->mep()->isDead() );
-	w_assert3(_mesub->mep()->refs() >= 1);
+	w_assert3( ! _mesub->isDead() );
+	w_assert3(_mesub->refs() >= 1);
 	W_IGNORE(_mesub->release());
 	delete _mesub;
 	_mesub = 0;
     }
-    DBG(<< time(0));
+    DBG(<< stime_t::now().secs());
 
     if(_meco) {
 
-	w_assert3( ! _meco->mep()->isDead() );
-	w_assert3(_meco->mep()->refs() >= 1);
+	w_assert3( ! _meco->isDead() );
+	w_assert3(_meco->refs() >= 1);
 	W_IGNORE(_meco->release());
 	DBG(<<" ~sm_coordinator deleting _meco");
 	delete _meco;
 	_meco = 0;
     }
-    DBG(<<" ~sm_coordinator deleting _subord " << time(0) );
+    DBG(<<" ~sm_coordinator deleting _subord " << stime_t::now().secs() );
 
     if(_subord) {
 	delete _subord;
 	_subord = 0;
     }
-    DBG(<<" ~sm_coordinator deleting _coord " << time(0));
+    DBG(<<" ~sm_coordinator deleting _coord " << stime_t::now().secs());
     if(_coord) {
 	delete _coord;
 	_coord = 0;
     }
-    DBG(<<" ~sm_coordinator deleting _ep_map " << time(0));
+    DBG(<<" ~sm_coordinator deleting _ep_map " << stime_t::now().secs());
     if(_ep_map) {
 	delete _ep_map;
 	_ep_map = 0;
     }
-    DBG(<<" ~sm_coordinator deleting _tid_map " << time(0));
+    DBG(<<" ~sm_coordinator deleting _tid_map " << stime_t::now().secs());
     if(_tid_map) {
 	delete _tid_map;
 	_tid_map = 0;
@@ -911,19 +965,25 @@ sm_coordinator::~sm_coordinator()
     if(ns()) {
 	if(_mesub) {
 	    // cancel its NS entry and release the endpoint
-	    W_IGNORE(_ns->cancel((const char *)_myname));
+	    ostrstream s;
+	    s << _myname << ends;
+	    W_IGNORE(_ns->cancel(s.str()));
+	    delete [] s.str();
 	}
 
 	if(_meco) {
 	    // cancel its NS entry and release the endpoint
-	    W_IGNORE(_ns->cancel((const char *)_myname));
+	    ostrstream s;
+	    s << _myname << ends;
+	    W_IGNORE(_ns->cancel(s.str()));
+	    delete [] s.str();
 	}
 
-	DBG(<<" ~sm_coordinator shutting down ns " << time(0));
+	DBG(<<" ~sm_coordinator shutting down ns " << stime_t::now().secs());
 	delete ns();
 	_ns = 0;
     }
-    DBG(<<" ~sm_coordinator shutting down comm() " << time(0));
+    DBG(<<" ~sm_coordinator shutting down comm() " << stime_t::now().secs());
     if(comm()) {
 	comm()->shutdown();
 	_comm = 0;
@@ -968,7 +1028,7 @@ sm_coordinator::remote_tcl_command(
 	    }
 	    w_assert3(ep);
 	    w_assert3(ep.is_valid());
-	    w_assert3( ep.mep()->isDead() || ep.mep()->refs() >= 1);
+	    w_assert3( ep.isDead() || ep.refs() >= 1);
 
 
 	    // Do NOT have send_tcl reXmit -- we handle that here
@@ -981,7 +1041,7 @@ sm_coordinator::remote_tcl_command(
 
 	    // BUGBUG: should be able to release here even if 
 	    // ep is dead:
-	    w_assert3(ep.mep()->isDead() || ep.mep()->refs() >= 1);
+	    w_assert3(ep.isDead() || ep.refs() >= 1);
 	    W_COERCE(ep.release());
  	    if(rc) { 
 		cerr << __LINE__ << " " << __FILE__ << " rc=" 
@@ -1119,36 +1179,40 @@ sm_coordinator::dump(ostream &o)
 	    W_COERCE(_coord->status(numtids));
 	    cerr << numtids << " TRANSACTIONS "<<endl;
 	    if(numtids > 0) {
-		gtid_t 		g[numtids];
-		coord_state 	states[numtids];
+		gtid_t*		g = new gtid_t[numtids];
+		coord_state* 	states = new coord_state[numtids];
 		W_COERCE(_coord->status(numtids, g, states));
 
 		for(i=0; i<numtids; i++) {
 		     W_COERCE(_coord->status(g[i], numthreads));
 		     cerr << i << ": \n\t" 
 			  << g[i]
-			  << " state=" << states[i] 
+			  << " state=" << int(states[i])
 			  << " #threads=" << numthreads
 			  << endl;
 
 		     if(numthreads > 0) {
-			 coordinator::server_info list[numthreads];
+			 coordinator::server_info* list = 
+				new coordinator::server_info[numthreads];
 			 W_COERCE(_coord->status(g[i], numthreads, list));
 			 for(j=0; j<numthreads; j++) {
 			     cerr << "\n\t\t" << i <<"."<< j 
 				  << list[j].name
 				  << " state " 
-				  <<  " state=" << list[j].status 
+				  <<  " state=" << int(list[j].status)
 				  <<endl;
 			 }
+			 delete[] list;
 		     }
 		}
+		delete[] g;
+		delete[] states;
 	    }
     }
 }
 
 /* 
- * refresh_map(): *just* to be called from shell.c
+ * refresh_map(): *just* to be called from shell.cpp
  */
 rc_t  			
 sm_coordinator::refresh_map(const char *c)
@@ -1167,8 +1231,8 @@ sm_coordinator::refresh_map(const char *c)
 		w_assert3(0);
 	    } else {
 		w_assert3(!old_ep.is_valid()
-			|| old_ep.mep()->isDead());
-		old_ep = Endpoint::null;
+			|| old_ep.isDead());
+		old_ep = nullep;
 	    }
 	} 
 	rc = _ep_map->refresh(c, new_ep, true);
@@ -1177,7 +1241,7 @@ sm_coordinator::refresh_map(const char *c)
 		&& new_ep && new_ep.is_valid() 
 		&& new_ep != old_ep) {
 
-	    w_assert3(old_ep.mep()->refs() >= 1);
+	    w_assert3(old_ep.refs() >= 1);
 	    // don't know who's getting the death notice
 	    // TODO: what we'd really prefer to do 
 	    // is to force the death notices to be
@@ -1210,7 +1274,7 @@ sm_coordinator::refresh_map(const char *c)
 }
 
 /* 
- * add_map(): *just* to be called from shell.c
+ * add_map(): *just* to be called from shell.cpp
  */
 rc_t  			
 sm_coordinator::add_map(int argc, const char **argv)
@@ -1275,10 +1339,10 @@ sm_coord_thread::sm_coord_thread(
 	Endpoint &ep,  // on which to listen and send msgs
 	Tcl_Interp *parent
 ) :
+    twopc_thread_t(0,participant::coord_thread_kind_bad, false),
     _coord(c),
     _me(nullep),
-    _ip(0),
-    twopc_thread_t(0,participant::coord_thread_kind_bad, false)
+    _ip(0)
 {
     // Yanked from tcl_thread_t:
     if(parent) {
@@ -1295,7 +1359,7 @@ sm_coord_thread::sm_coord_thread(
     } else {
 	_me = ep;
     }
-    W_COERCE(_mebox.insert(0,_me));
+    W_COERCE(_mebox.set(0,_me));
 }
 
 void
@@ -1305,9 +1369,8 @@ sm_tcl_handler_thread::run()
     w_assert3(_party==0);
     int 			err; // message error
     rc_t			rc;
-    struct tcl_message_t& 	m=_message;
-    AlignedBuffer		abuf((void *)&m, sizeof(tcl_message_t)); // maximum size
-    Buffer			&buf = abuf.buf;
+    class  tcl_message_t& 	m=_message;
+    Buffer			buf(&m, sizeof(tcl_message_t)); // maximum size
     Endpoint			sender;
     EndpointBox			senderbox;
     bool 			dont_release_sender;
@@ -1356,7 +1419,7 @@ sm_tcl_handler_thread::run()
 	bool send_reply = false;
 	tcl_message_type_t  reply_typ = tcl_bad;
 
-	w_assert3(sender.mep()->refs() >= 1);
+	w_assert3(sender.refs() >= 1);
 
 	switch(m.tcltype()) {
 	    case (message_type_t) tcl_rendezvous_reply:
@@ -1375,7 +1438,7 @@ sm_tcl_handler_thread::run()
 		/* 
 		 * request to be notified if (new) sender dies
 		 */
-		if(!sender.mep()->isDead()) {
+		if(!sender.isDead()) {
 		    /* grot */
 
 		    // Grot: remove just so that we don't
@@ -1398,11 +1461,11 @@ sm_tcl_handler_thread::run()
 				<< " on notify; sender=" << sender
 				<< flushl;
 
+#ifdef VERSION_2
+			    rc = _me.send(DeathMessage, emptyBox);
+#else
 			    EndpointBox sbox;
 			    sbox.set(0, sender);
-#ifdef VERSION_2
-			    rc = _me.send(DeathMessage);
-#else
 			    rc = _me.send(DeathMessage, sbox);
 #endif
 			    DBGTHRD("Sent  death message! " << rc);
@@ -1465,8 +1528,8 @@ sm_tcl_handler_thread::run()
 			ss_m::errlog->clog <<info_prio 
 				<< "Tcl command returned error (aborting): " 
 				<< _reply << flushl;
-			char *dummy="abort_xct";
-			(void)t_abort_xct(_ip,1,&dummy);
+			char *dummy = (char *) "abort_xct";
+			(void)t_abort_xct(_ip,1, &dummy);
 			// detaches
 		    }
 		    w_assert3(me()->xct()==0);
@@ -1531,7 +1594,8 @@ sm_tcl_handler_thread::run()
 		    dont_release_sender=true;
 		    break;
 		default:
-		    cerr << "unexpected message type " << m.tcltype() <<endl;
+		    cerr << "unexpected message type " << int(m.tcltype())
+			<<endl;
 		    w_assert1(0);
 		}
 	    }
@@ -1541,7 +1605,7 @@ sm_tcl_handler_thread::run()
 		<< " sender=" << sender
 		<< " rc= " << rc
 		);
-	w_assert3(sender.mep()->refs() >= 1);
+	w_assert3(sender.refs() >= 1);
 
 	if(send_reply) {
 	    w_assert3(sender);
@@ -1563,18 +1627,18 @@ sm_tcl_handler_thread::run()
 
 	    if(rc && rc.err_num() == scDEAD){
 		 ss_m::errlog->clog <<info_prio 
-		     << "Cannot transmit reply to : "  << m.tcltype()
+		     << "Cannot transmit reply to : "  << int(m.tcltype())
 		     << " Reply is : " << _reply << flushl;
 		rc = RCOK;
 	    } else {
-		w_assert3(sender.mep()->refs() >= 1);
+		w_assert3(sender.refs() >= 1);
 	    }
 	}
 	if(sender.is_valid() && !dont_release_sender ) {
 	    sender.release();
 	    DBGTHRD(<<"sm_tcl_handler_thread::run() after send reply -"
 		<< "send_reply= " << send_reply
-		<< " sender.refs=" << sender.mep()->refs()
+		<< " sender.refs=" << sender.refs()
 		);
 	}
 	if(rc) {
@@ -1601,11 +1665,11 @@ sm_coordinator::get_tcl_reply(
     int 		resultbuf_len
 )
 {
-    struct tcl_message_t*  _m= new tcl_message_t;
+    class  tcl_message_t*  _m= new tcl_message_t;
     w_assert1(_m);
     w_auto_delete_t<tcl_message_t> auto_del(_m);
 
-    struct tcl_message_t&  m=*_m;
+    class  tcl_message_t&  m=*_m;
     Endpoint 		   sender;
     EndpointBox 	   senderbox;
 
@@ -1640,11 +1704,11 @@ sm_coordinator::get_tcl_reply(
 	// ignore it - I really don't care about death notices
     } else {
 	cerr << "UNEXPECED MSG TYPE received on tcl channel: " 
-		<< m.tcltype() <<endl;
+		<< int(m.tcltype()) <<endl;
 	w_assert1(0);
     }
     if(sender.is_valid()) {
-	w_assert3(sender.mep()->refs() >= 1);
+	w_assert3(sender.refs() >= 1);
 	sender.release();
     }
     return RCOK;
@@ -1654,14 +1718,13 @@ rc_t
 sm_coordinator::get_tcl(
     Endpoint& 		recvr, 
     int& 		err,
-    struct tcl_message_t&   m,	// IN-OUT
+    class  tcl_message_t&   m,	// IN-OUT
     Endpoint& 		sender,
     EndpointBox&	peerbox
 ) 
 {
     rc_t	rc;
-    AlignedBuffer	abuf((void *)&m, sizeof(tcl_message_t)); 
-    Buffer	&buf = abuf.buf;
+    Buffer	buf(&m, sizeof(m));
 
     // sm_coordinator *mycoord = coord();
     sm_coordinator *mycoord = this;
@@ -1681,27 +1744,26 @@ sm_coordinator::get_tcl(
 
     // SUBORD
 
-    // w_assert3(recvr.mep()->refs() <= 4);
+    // w_assert3(recvr.refs() <= 4);
 
     if( ss_m::errlog->getloglevel() >= log_info) {
-	struct timeval tv;
-	w_assert3(gettimeofday(&tv,0)==0);
+	message_t::stamp_t stamp = stime_t::now();    
+#ifdef W_TRACE
 	if(_debug.flag_on("get_tcl",__FILE__)) {
 	    _debug.clog 
-		    // << time(0) 
-		    << tv.tv_sec << "." << tv.tv_usec
-		    <<  ": RECVG ON " ;
-
-	    recvr.print(_debug.clog); _debug.clog << flushl;
+		    << stamp
+		    << ": RECVG ON "
+		    << recvr
+		    << flushl;
 	}
+#endif
 
 	ss_m::errlog->clog <<info_prio 
-		    // << time(0) 
-		    << tv.tv_sec << "." << tv.tv_usec
+		    << stamp
 		    << " " << me()->id
-		    <<  ": RECVG ON " ;
-	    recvr.print(ss_m::errlog->clog);
-	    ss_m::errlog->clog << flushl;
+		    <<  ": RECVG ON " 
+		    << recvr 
+		    << flushl;
     }
     DBGTHRD(<<"get_tcl: awaiting");
 
@@ -1784,14 +1846,11 @@ sm_coordinator::get_tcl(
 	m.ntoh();
 
 	if(ss_m::errlog->getloglevel() >= log_info) {
-
-	    struct timeval tv;
-	    w_assert3(gettimeofday(&tv,0)==0);
+	    message_t::stamp_t stamp = stime_t::now();	
 	    ss_m::errlog->clog <<info_prio 
-		// << time(0) 
-		<< tv.tv_sec << "." << tv.tv_usec
+		<< stamp
 		<< " " << me()->id << ":"
-		<< " *RECV: t:" << m.tcltype() 
+		<< " *RECV: t:" << int(m.tcltype())
 		<< " m:" << m.msgid() 
 		<< " s:" << m.sequence 
 		<< " e:" << m.error_num 
@@ -1808,23 +1867,24 @@ sm_coordinator::get_tcl(
 	    if(sender.is_valid()) {
 		server_handle_t srvaddr;
 		W_IGNORE(epmap()->endpoint2name(sender, srvaddr));
-		sender.print(ss_m::errlog->clog); 
-		ss_m::errlog->clog <<info_prio 
-		    << "(" << srvaddr << ")";
+		ss_m::errlog->clog 
+			<< sender
+			<<info_prio 
+		    	<< "(" << srvaddr << ")";
 	    } else {
 		ss_m::errlog->clog <<info_prio 
 		    << "unknown source" ;
 	    }
 	    ss_m::errlog->clog <<info_prio 
 		<< endl << "    "
-		<< " to:" ;
-	    recvr.print(ss_m::errlog->clog); 
-	    ss_m::errlog->clog <<info_prio 
+		<< " to:"
+		<< recvr 
+		<< info_prio
 		<< endl 
 		<< flushl;
 	}
 	m.audit();
-	w_assert3(buf.size() == m.wholelength());
+	w_assert3(buf.size() == sizeof(m));
     }
     err = m.error_num;
     DBGTHRD("leaving get_tcl, senders=" <<sender);
@@ -1852,11 +1912,11 @@ sm_coordinator::send_tcl(
     Endpoint 			sender;
     tcl_message_type_t 		t = (tcl_message_type_t) _t;
 
-    struct tcl_message_t*  	_m= new tcl_message_t;
+    class  tcl_message_t*  	_m= new tcl_message_t;
     w_assert1(_m);
     w_auto_delete_t<tcl_message_t> auto_del(_m);
 
-    struct tcl_message_t&  	m=*_m;
+    class  tcl_message_t&  	m=*_m;
     unsigned int 		msglen = strlen(what)+1;
 
     if(msglen > sizeof(m.tid())) {
@@ -1883,8 +1943,7 @@ sm_coordinator::send_tcl(
 
     m.audit();
 
-    AlignedBuffer	abuf((void *)&m, m.wholelength()); 
-    Buffer		&buf = abuf.buf;
+    Buffer	buf(&m, sizeof(m));
 
     DBGTHRD(<<"send_tcl to ep " << destination
 	<< ", tcltype= "  << m.tcltype()
@@ -1900,13 +1959,11 @@ sm_coordinator::send_tcl(
 	/*
 	 * Log the send to the log file
 	 */
-	struct timeval tv;
-	w_assert3(gettimeofday(&tv,0)==0);
+	message_t::stamp_t stamp = stime_t::now();
 	ss_m::errlog->clog <<info_prio 
-	    //<< time(0) 
-	    << tv.tv_sec << "." << tv.tv_usec
+	    << stamp
 	    << " " << me()->id << ":"
-	    << " *SEND: t:" << m.tcltype() 
+	    << " *SEND: t:" << int(m.tcltype())
 	    << " m:" << m.msgid() 
 	    << " s:" << m.sequence 
 	    << " e:" << m.error_num 
@@ -1919,17 +1976,17 @@ sm_coordinator::send_tcl(
 	}
 
 	ss_m::errlog->clog <<info_prio 
-	    << " to:" ;
-
-	destination.print(ss_m::errlog->clog); 
-	ss_m::errlog->clog <<info_prio 
+	    << " to:" 
+	    << destination
+	    << info_prio 
 	    << "(" << destination_name << ")"
 	    << endl << "    "
 	    << " from:" ;
 
 	if(sender.is_valid()) {
-	    sender.print(ss_m::errlog->clog); 
-	    ss_m::errlog->clog <<info_prio 
+	    ss_m::errlog->clog 
+		<< sender
+		<< info_prio 
 		<< endl << "    "
 		;
 	} else {
@@ -1944,7 +2001,7 @@ sm_coordinator::send_tcl(
     xmit = true;
     while(xmit) {
 
-	w_assert3(buf.size() == m.wholelength());
+	w_assert3(buf.size() == sizeof(m));
 	DBGTHRD(<<"transmitting... " 
 		<< " seq=" << m.sequence
 		<< " rc=" << rc
@@ -1959,7 +2016,7 @@ sm_coordinator::send_tcl(
 	if( rc2 ) {
 	    DBGTHRD( << " error in send_tcl= " <<" rc=" << rc);
 
-	    cerr << "Cannot send tcl message:" << m.tcltype() << endl
+	    cerr << "Cannot send tcl message:" << int(m.tcltype()) << endl
 		<< " data="<< m.data() << endl
 		<< rc2 <<endl;
 
@@ -2001,3 +2058,4 @@ sm_coordinator::send_tcl(
     DBGTHRD(<<"returning rc=" << rc);
     return RC_AUGMENT(rc);
 }
+

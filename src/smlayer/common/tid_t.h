@@ -1,30 +1,60 @@
-/* --------------------------------------------------------------- */
-/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
-/* -- University of Wisconsin-Madison, subject to the terms     -- */
-/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
-/* -- Reserved.                                                 -- */
-/* --------------------------------------------------------------- */
+/*<std-header orig-src='shore' incl-file-exclusion='TID_T_H'>
 
-/*
- *  $Header: /p/shore/shore_cvs/src/common/tid_t.h,v 1.40 1997/05/19 19:41:12 nhall Exp $
- */
+ $Id: tid_t.h,v 1.57 1999/06/07 19:02:34 kupsch Exp $
+
+SHORE -- Scalable Heterogeneous Object REpository
+
+Copyright (c) 1994-99 Computer Sciences Department, University of
+                      Wisconsin -- Madison
+All Rights Reserved.
+
+Permission to use, copy, modify and distribute this software and its
+documentation is hereby granted, provided that both the copyright
+notice and this permission notice appear in all copies of the
+software, derivative works or modified versions, and any portions
+thereof, and that both notices appear in supporting documentation.
+
+THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+"AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+This software was developed with support by the Advanced Research
+Project Agency, ARPA order number 018 (formerly 8230), monitored by
+the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+Further funding for this work was provided by DARPA through
+Rome Research Laboratory Contract No. F30602-97-2-0247.
+
+*/
+
 #ifndef TID_T_H
 #define TID_T_H
 
-#ifdef PURIFY
-#ifndef RPCGEN
-#include <memory.h>
-#endif  /* RPCGEN */
-#endif /*PURIFY*/
+#include "w_defines.h"
 
-#ifdef __cplusplus
+/*  -- do not edit anything above this line --   </std-header>*/
+
+#ifdef PURIFY_ZERO
+#include <memory.h>
+#endif
+
 #include <ctype.h>
 #include <string.h>
+
 #ifndef W_BASE_H
-#include "w_base.h"
+#include <w_base.h>
 #endif
+
+/* Include netinet stuff for ntoh() and hton() */
+#ifdef _WINDOWS
+#ifdef OLD_WINSOCK
+#include <winsock.h>
+#else
+#include <winsock2.h>
+#endif
+#else
 #include <netinet/in.h>
-#endif
+#endif /* !_WINDOWS */
 
 #if defined(AIX41)
 /* giant kludge for aix namespace problems */
@@ -35,117 +65,106 @@
 #pragma interface
 #endif
 
-/*
- * NB -- THIS FILE MUST BE LEGITIMATE INPUT TO cc and RPCGEN !!!!
- * Please do as follows:
- * a) keep all comments in traditional C style.
- * b) If you put something c++-specific make sure it's 
- * 	  got ifdefs around it
- */
-struct tid_t {
-#ifdef	__cplusplus
+class tid_t {
 public:
     enum { hwm = max_uint4 };
 
-    tid_t(uint4 l = 0, uint4 h = 0) : hi(h), lo(l)             {};
+    tid_t(uint4_t l = 0, uint4_t h = 0) : hi(h), lo(l)             {};
     tid_t(const tid_t& t) : hi(t.hi), lo(t.lo)  {};
+
+    uint4_t get_hi() const { return hi; }    // smuf-sc3-ip5
+    uint4_t get_lo() const { return lo; }    // smuf-sc3-ip5
+
     tid_t& operator=(const tid_t& t)    {
         lo = t.lo, hi = t.hi;
         return *this;
     }
 
-    operator const void*() const  { 
-	return (void*) (hi == 0 && lo == 0); 
+    operator const bool() const  { 
+	return (hi == 0 && lo == 0); 
     }
 
     tid_t& incr()       {
-	if (++lo > (uint4)hwm) ++hi, lo = 0;
+	if (++lo > uint4_t(hwm)) ++hi, lo = 0;
         return *this;
     }
 
     friend inline ostream& operator<<(ostream&, const tid_t&);
     friend inline istream& operator>>(istream& i, tid_t& t);
-    friend inline operator==(const tid_t& t1, const tid_t& t2)  {
-	return t1.hi == t2.hi && t1.lo == t2.lo;
+    inline bool operator==(const tid_t& tid) const  {
+	return this->hi == tid.hi && this->lo == tid.lo;
     }
-    friend inline operator!=(const tid_t& t1, const tid_t& t2)  {
-	return ! (t1 == t2);
+    inline bool operator!=(const tid_t& tid) const  {
+	return !(*this == tid);
     }
-    friend inline operator<(const tid_t& t1, const tid_t& t2) {
-	return (t1.hi < t2.hi) || (t1.hi == t2.hi && t1.lo < t2.lo);
+    inline bool operator<(const tid_t& tid) const  {
+	return (this->hi < tid.hi) || (this->hi == tid.hi && this->lo < tid.lo);
     }
-    friend inline operator<=(const tid_t& t1, const tid_t& t2) {
-	return (t1.hi < t2.hi) || (t1.hi == t2.hi && t1.lo <= t2.lo);
+    inline bool operator<=(const tid_t& tid) const  {
+	return !(tid < *this);
     }
-    friend inline operator>(const tid_t& t1, const tid_t& t2) {
-	return (t1.hi > t2.hi) || (t1.hi == t2.hi && t1.lo > t2.lo);
+    inline bool operator>(const tid_t& tid) const  {
+	return (tid < *this);
     }
-    friend inline operator>=(const tid_t& t1, const tid_t& t2) {
-	return (t1.hi > t2.hi) || (t1.hi == t2.hi && t1.lo >= t2.lo);
+    inline bool operator>=(const tid_t& tid) const  {
+	return !(*this < tid);
     }
 
-    static const tid_t max;
+    static const tid_t Max;
     static const tid_t null;
 
-#define max_tid  (tid_t::max)
+#define max_tid  (tid_t::Max)
 #define null_tid (tid_t::null)
 
     
 private:
 
-#endif  /* __cplusplus */
-    uint4       hi;
-    uint4       lo;
+    uint4_t       hi;
+    uint4_t       lo;
 };
 
 
 #define max_gtid_len  256
 #define max_server_handle_len  100
 
-#ifndef __cplusplus
-#define LEN  max_gtid_len
-struct
-#else
 template <int LEN> class opaque_quantity;
 template <int LEN> 
-class 
-#endif /* __cplusplus */
-	opaque_quantity {
+class opaque_quantity {
 
-#ifdef __cplusplus
 private:
-#endif /* __cplusplus */
 
-	uint4         _length;
+	uint4_t         _length;
 	unsigned char _opaque[LEN];
 
-#ifdef __cplusplus
     public:
 	opaque_quantity() {
-	    set_length(0);
-#ifdef PURIFY
+	    (void) set_length(0);
+#ifdef PURIFY_ZERO
 	    memset(_opaque, '\0', LEN);
 #endif
 	}
 	opaque_quantity(const char* s)
 	{
-#ifdef PURIFY
+#ifdef PURIFY_ZERO
 	    memset(_opaque, '\0', LEN);
 #endif
 		*this = s;
 	}
 
 	friend bool
-	operator==(const opaque_quantity<LEN>	&l,
-		    const opaque_quantity<LEN>	&r); 
+	operator== BIND_FRIEND_OPERATOR_PART_2(LEN) (
+		const opaque_quantity<LEN>	&l,
+		const opaque_quantity<LEN>	&r); 
 
 	friend ostream & 
-	operator<<(ostream &o, const opaque_quantity<LEN>	&b);
+	operator<< BIND_FRIEND_OPERATOR_PART_2(LEN) (
+		ostream &o, 
+		const opaque_quantity<LEN>	&b);
 
 	opaque_quantity<LEN>	&
 	operator=(const opaque_quantity<LEN>	&r) 
 	{
-		set_length(r.length());
+		(void) set_length(r.length());
 		memcpy(_opaque,r._opaque,length());
 		return *this;
 	}
@@ -153,9 +172,9 @@ private:
 	operator=(const char* s)
 	{
 		w_assert3(strlen(s) <= LEN);
-		set_length(0);
+		(void) set_length(0);
 		while ((_opaque[length()] = *s++))
-		    set_length(length() + 1);
+		    (void) set_length(length() + 1);
 		return *this;
 	}
 	opaque_quantity<LEN>	&
@@ -167,38 +186,32 @@ private:
 		return *this;
 	}
 	opaque_quantity<LEN>	&
-	operator-=(uint4 len)
+	operator-=(uint4_t len)
 	{
 		w_assert3(len <= length());
-		set_length(length() - len);
+		(void) set_length(length() - len);
 		return *this;
 	}
 	opaque_quantity<LEN>	&
-	append(const void* data, uint4 len)
+	append(const void* data, uint4_t len)
 	{
 		w_assert3(len + length() <= LEN);
 		memcpy((void*)&_opaque[length()], data, len);
-		set_length(length() + len);
+		(void) set_length(length() + len);
 		return *this;
 	}
 	opaque_quantity<LEN>    &
 	zero()
 	{
-		set_length(0);
+		(void) set_length(0);
 		memset(_opaque, 0, LEN);
 		return *this;
 	}
 	opaque_quantity<LEN>    &
 	clear()
 	{
-		set_length(0);
+		(void) set_length(0);
 		return *this;
-	}
-	operator const char *()
-	{
-		w_assert3(length() < LEN);
-		_opaque[length()] = 0;
-		return (char*)_opaque;
 	}
 	void *
 	data_at_offset(uint i)  const
@@ -206,21 +219,24 @@ private:
 		w_assert3(i < length());
 		return (void*)&_opaque[i];
 	}
-	uint4	      wholelength() const {
+	uint4_t	      wholelength() const {
 		return (sizeof(_length) + length());
 	}
-	uint4	      set_length(uint4 l) {
-		if(is_aligned()) return (_length = l);
-		else {
-		    memcpy(&_length, &l, sizeof(_length));
-		    return l;
+	uint4_t	      set_length(uint4_t l) {
+		if(is_aligned()) { 
+		    _length = l; 
+		} else {
+		    char *m = (char *)&_length;
+		    memcpy(m, &l, sizeof(_length));
 		}
+		return l;
 	}
-	uint4	      length() const {
+	uint4_t	      length() const {
 		if(is_aligned()) return _length;
 		else {
-		    uint4 l;
-		    memcpy(&l, &_length, sizeof(_length));
+		    uint4_t l;
+		    char *m = (char *)&_length;
+		    memcpy(&l, m, sizeof(_length));
 		    return l;
 		}
 	}
@@ -228,8 +244,9 @@ private:
 	    if(is_aligned()) {
 		_length = ntohl(_length);
 	    } else {
-		uint4         l = ntohl(length());
-		memcpy(&_length, &l, sizeof(_length));
+		uint4_t         l = ntohl(length());
+		char *m = (char *)&l;
+		memcpy(&_length, m, sizeof(_length));
 	    }
 
 	}
@@ -237,18 +254,38 @@ private:
 	    if(is_aligned()) {
 		_length = htonl(_length);
 	    } else {
-		uint4         l = htonl(length());
-		memcpy(&_length, &l, sizeof(_length));
+		uint4_t         l = htonl(length());
+		char *m = (char *)&l;
+		memcpy(&_length, m, sizeof(_length));
 	    }
 	}
 	bool	      is_aligned() const  {
 	    return (((int)(&_length) & (sizeof(_length) - 1)) == 0);
 	}
-#endif /* __cplusplus */
+
+	ostream		&print(ostream & o) const {
+		o << "opaque[" << _length << "]" ;
+
+		uint4_t print_length = _length;
+		if (print_length > LEN) {
+			o << "[TRUNC TO LEN=" << LEN << "!!]";
+			print_length = LEN;
+		}
+		o << '"';
+		const unsigned char *cp = &_opaque[0];
+		for (uint4_t i = 0; i < print_length; i++, cp++) {
+			if (isprint(*cp))
+			    o << *cp;
+			else {
+			    W_FORM(o)("\\x%02X", *cp);
+			}
+		}
+
+		return o << '"';
+	}
 };
 
 
-#ifdef __cplusplus
 template <int LEN>
 bool operator==(const opaque_quantity<LEN> &a,
 	const opaque_quantity<LEN>	&b) 
@@ -261,23 +298,10 @@ template <int LEN>
 ostream & 
 operator<<(ostream &o, const opaque_quantity<LEN>	&b) 
 {
-    o << "opaque[" << b.length() << "]" ;
-
-    o << '"';
-    const unsigned char *cp = &b._opaque[0];
-    for (uint4 i = 0; i < b.length(); i++, cp++) {
-	if (isprint(*cp))  {
-	    o << *cp;
-	}  else  {
-	    W_FORM(o)("\\x%02X", *cp);
-	}
-    }
-    o << '"';
-
-    return o;
+	return b.print(o);
 }
 
-#include <iostream.h>
+#include <w_stream.h>
 
 inline ostream& operator<<(ostream& o, const tid_t& t)
 {
@@ -293,12 +317,9 @@ inline istream& operator>>(istream& i, tid_t& t)
 
 typedef opaque_quantity<max_gtid_len> gtid_t;
 typedef opaque_quantity<max_server_handle_len> server_handle_t;
-#else /* not __cplusplus */
-
-typedef opaque_quantity gtid_t;
-typedef opaque_quantity server_handle_t;
-
-#endif /*__cplusplus*/
 
 #endif/* AIX kludge */
-#endif /*TID_T_H*/
+
+/*<std-footer incl-file-exclusion='TID_T_H'>  -- do not edit anything below this line -- */
+
+#endif          /*</std-footer>*/

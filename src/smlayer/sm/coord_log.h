@@ -1,19 +1,47 @@
-/* --------------------------------------------------------------- */
-/* -- Copyright (c) 1994,5,6,7 Computer Sciences Department,    -- */
-/* -- University of Wisconsin-Madison, subject to the terms     -- */
-/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
-/* -- Reserved.                                                 -- */
-/* --------------------------------------------------------------- */
+/*<std-header orig-src='shore' incl-file-exclusion='COORD_LOG_H'>
 
-/*
- *  $Id: coord_log.h,v 1.15 1997/05/19 19:47:04 nhall Exp $
- */
+ $Id: coord_log.h,v 1.23 1999/06/07 19:03:59 kupsch Exp $
+
+SHORE -- Scalable Heterogeneous Object REpository
+
+Copyright (c) 1994-99 Computer Sciences Department, University of
+                      Wisconsin -- Madison
+All Rights Reserved.
+
+Permission to use, copy, modify and distribute this software and its
+documentation is hereby granted, provided that both the copyright
+notice and this permission notice appear in all copies of the
+software, derivative works or modified versions, and any portions
+thereof, and that both notices appear in supporting documentation.
+
+THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+"AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+This software was developed with support by the Advanced Research
+Project Agency, ARPA order number 018 (formerly 8230), monitored by
+the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+Further funding for this work was provided by DARPA through
+Rome Research Laboratory Contract No. F30602-97-2-0247.
+
+*/
 
 #ifndef COORD_LOG_H
 #define COORD_LOG_H
 
+#include "w_defines.h"
+
+/*  -- do not edit anything above this line --   </std-header>*/
+
 #include <dtid_t.h>
 #include <mappings.h>
+
+/* XXX these enums have a dependency; coord_log.cpp has
+   static arrays which map the enum to its string value
+   in the various operator<<()s */
+
+class ostream;
 
 enum server_state {
     ss_bad=0,
@@ -26,6 +54,8 @@ enum server_state {
     ss_numstates    // for state table
 };
 
+extern ostream &operator<<(ostream &, const server_state);
+
 enum coord_action {
     ca_ignore=0,
     ca_prepare, // send prepare msg to get vote
@@ -33,6 +63,8 @@ enum coord_action {
     ca_commit,  // send commit command
     ca_fatal
 };
+
+extern ostream &operator<<(ostream &, const coord_action);
 
 enum coord_state {
     cs_done=0,
@@ -44,6 +76,8 @@ enum coord_state {
     cs_fatal,  	
     cs_retrans,	// fatal if not retrans
 };
+
+extern ostream &operator<<(ostream &, const coord_state);
 
 
 class scan_index_i;
@@ -75,7 +109,6 @@ public:
 
 
 class log_entry : public smlevel_0 {
-    typedef smlevel_0::commit_protocol commit_protocol;
 private:
     rc_t	_error;
     stid_t	_store;
@@ -146,10 +179,10 @@ public:
     bool 	is_done() const; // either aborted or committed
     bool 	is_only(server_state specific) const;
     bool 	is_either(server_state s1, server_state s2) const;
-#ifdef DEBUG
+#ifdef W_DEBUG
     bool 	is_one_of(server_state s1, server_state s2, 
 		    server_state s3) const;
-#endif /* DEBUG */
+#endif /* W_DEBUG */
 
     int	 	numthreads() const { return _numthreads; }
 
@@ -178,5 +211,6 @@ public:
 			}
 };
 
-#endif /*COORD_LOG_H*/
+/*<std-footer incl-file-exclusion='COORD_LOG_H'>  -- do not edit anything below this line -- */
 
+#endif          /*</std-footer>*/

@@ -1,19 +1,46 @@
-/* --------------------------------------------------------------- */
-/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
-/* -- University of Wisconsin-Madison, subject to the terms     -- */
-/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
-/* -- Reserved.                                                 -- */
-/* --------------------------------------------------------------- */
+/*<std-header orig-src='shore' incl-file-exclusion='PIN_H'>
 
-/*
- * $Id: pin.h,v 1.71 1997/05/19 19:47:44 nhall Exp $
- */
+ $Id: pin.h,v 1.84 1999/06/07 19:04:20 kupsch Exp $
+
+SHORE -- Scalable Heterogeneous Object REpository
+
+Copyright (c) 1994-99 Computer Sciences Department, University of
+                      Wisconsin -- Madison
+All Rights Reserved.
+
+Permission to use, copy, modify and distribute this software and its
+documentation is hereby granted, provided that both the copyright
+notice and this permission notice appear in all copies of the
+software, derivative works or modified versions, and any portions
+thereof, and that both notices appear in supporting documentation.
+
+THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+"AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+This software was developed with support by the Advanced Research
+Project Agency, ARPA order number 018 (formerly 8230), monitored by
+the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+Further funding for this work was provided by DARPA through
+Rome Research Laboratory Contract No. F30602-97-2-0247.
+
+*/
+
 #ifndef PIN_H
 #define PIN_H
+
+#include "w_defines.h"
+
+/*  -- do not edit anything above this line --   </std-header>*/
 
 #ifdef __GNUG__
 #pragma interface
 #endif
+
+#ifndef FILE_S_H
+#include <file_s.h>
+#endif /* FILE_S_H */
 
 /***********************************************************************
    The pin_i class (located in pin.h) is used to pin ranges of bytes in
@@ -85,8 +112,9 @@ latch_mode_t lock_to_latch(lock_mode_t m)
 }
 #endif
 
-struct file_p;
-struct lgdata_p;
+class file_p;
+class lgdata_p;
+class record_t;
 
 class pin_i : public smlevel_top {
     friend class scan_file_i;
@@ -99,25 +127,28 @@ public:
 	pin_lg_data_pinned	= 0x08  // large data page is pinned
     };
     
-    NORET		pin_i()
-		{_init_constructor();}
+    NORET	pin_i() {_init_constructor();}
 
-    NORET		~pin_i();
+    NORET	~pin_i();
 
-    // these functions pin portions of a record beginning at start
-    // the actuall location pinned (returned by start_byte), may
+    // These methods pin portions of a record beginning at start
+    // the actual location pinned (returned by start_byte), may
     // be <= start.
-    rc_t		pin(
+    // (They are smart enough not to unfix/refix the page
+    // if the prior state has a record pinned on the same page
+    // as the indicated record.)
+    rc_t	pin(
 	const rid_t	    rid,
 	smsize_t	    start,
 	lock_mode_t 	    lmode = SH);
-    rc_t	   	pin(
+    rc_t	 pin(
 	const lvid_t&	    lvid,
 	const serial_t&	    lrid,
 	smsize_t	    start,
 	lock_mode_t	    lmode = SH);
 
-    void   		unpin();
+    void   	unpin();
+    bool   	is_mine() const; // only if owning thread
 
     // set_ref_bit sets the reference bit value to use for the buffer
     // frame containing the currently pinned body page when the page
@@ -126,11 +157,11 @@ public:
     // a value of 1 is used indicating the page will be cached 
     // until at least 1 sweep of the buffer clock hand has passed.
     // Higher values cause the page to remain cached longer.
-    void		set_ref_bit(int value);
+    void	set_ref_bit(int value);
 
     // repin is used to efficiently repin a record after its size
     // has been changed, or after it has been unpinned.
-    rc_t    		repin(lock_mode_t lmode = SH);
+    rc_t    	repin(lock_mode_t lmode = SH);
 
     // pin_cond (conditional pin) is identical to pin except is only
     // pins the record if the page it is on (pid) is cached. 
@@ -138,14 +169,14 @@ public:
     // it's needed for efficiency.
     //
     // Written for Janet Wiener's bulk load facility.
-    rc_t		pin_cond(
+    rc_t	pin_cond(
 	const rid_t&	    rid,
 	smsize_t	    start,
 	bool&		    pinned,
 	bool		    cond = true,
 	lock_mode_t	    lmode = SH);
 
-    rc_t		pin_cond(
+    rc_t	pin_cond(
 	const lvid_t&	    lvid,
 	const serial_t&	    lrid,
 	smsize_t	    start,
@@ -160,24 +191,25 @@ public:
     rc_t		next_bytes(bool& eof); 
 
     // is something currently pinned
-    bool  		pinned() const     
-		{ return _flags & pin_rec_pinned; }
+    bool  	pinned() const     
+		    { return _flags & pin_rec_pinned; }
     // is the entire record pinned
-    bool  		pinned_all() const 
-		{ return pinned() && _start==0 && _len==body_size();}
+    bool  	pinned_all() const 
+		    { return pinned() && _start==0 && _len==body_size();}
 
     // return true if pinned *and* pin is up-to-date with the LSN on
     // the page.  in other words, verify that the page has not been
     // updated since it was pinned by this pin_i
-    bool		up_to_date() const
-		{ return pinned() && (_hdr_lsn == _get_hdr_lsn());}
+    bool	up_to_date() const
+		    { return pinned() && (_hdr_lsn == _get_hdr_lsn());}
 
     smsize_t   start_byte() const { _check_lsn(); return _start;}
     smsize_t   length() const     { _check_lsn(); return _len;}
     smsize_t   hdr_size() const   { _check_lsn(); return _rec->hdr_size();}
     smsize_t   body_size() const  { _check_lsn(); return _rec->body_size();}
-    bool  is_large() const  { _check_lsn(); return _rec->is_large();}
-    bool  is_small() const  { _check_lsn(); return _rec->is_small();}
+    bool       is_large() const  { _check_lsn(); return _rec->is_large();}
+    bool       is_small() const  { _check_lsn(); return _rec->is_small();}
+    int        large_impl() const  { _check_lsn(); return _rec->large_impl();}
 
     // serial_no() and lvid() return the logical ID of the pinned
     // record assuming it was pinned using logical IDs. 
@@ -188,12 +220,12 @@ public:
     //       record.
     
     const serial_t&  serial_no() const
-		{ _check_lsn(); return _lrid.serial; }
+			{ _check_lsn(); return _lrid.serial; }
     const lvid_t&    lvid() const { _check_lsn(); return _lrid.lvid; }
 
     const rid_t&     rid() const {_check_lsn(); return _rid;}
     const char*      hdr() const
-		{ _check_lsn(); return pinned() ? _rec->hdr() : 0;}
+			{ _check_lsn(); return pinned() ? _rec->hdr() : 0;}
     const char*      body();
 
     // body_cond only returns a pointer to the body if no I/O was
@@ -214,7 +246,7 @@ public:
   
     const char* hdr_page_data();
 
-    lpid_t page_containing(smsize_t offset, smsize_t& start_byte) const;
+    lpid_t 	page_containing(smsize_t offset, smsize_t& start_byte) const;
 
 private:
 
@@ -224,22 +256,23 @@ private:
     rc_t        _pin(const rid_t rid, smsize_t start, lock_mode_t m, const serial_t& verify);
     rc_t	_repin(lock_mode_t lmode, int* old_value = 0);
 
-    file_p* _get_hdr_page_no_lsn_check() const {return pinned() ?
-			               (file_p*)_hdr_page_alias : 0;}
-    file_p* _get_hdr_page() const { _check_lsn(); return _get_hdr_page_no_lsn_check();}
+    file_p* 	_get_hdr_page_no_lsn_check() const {
+			return pinned() ? (file_p*)_hdr_page_alias : 0;}
+    file_p* 	_get_hdr_page() const { 
+			_check_lsn(); return _get_hdr_page_no_lsn_check();}
 
     // NOTE: if the _check_lsn assert fails, it usually indicates that
     // you tried to access a pinned record after having updated the
     // record, but before calling repin.
     // The _set_lsn() function is used to reset the lsn to the page's
     // new value, after an update operation.
-    void _check_lsn() const {w_assert3(up_to_date());}
-    void _set_lsn();
-    void _set_lsn_for_scan() // used in scan.c
-#ifndef DEBUG
-	{}  	// nothing to do if not debugging
-#endif
-	; 	// defined in scan.c
+    void 	_check_lsn() const {w_assert3(up_to_date());}
+    void 	_set_lsn();
+    void 	_set_lsn_for_scan() // used in scan.cpp
+#ifndef W_DEBUG
+			{}  	// nothing to do if not debugging
+#endif /* W_DEBUG */
+			; 	// defined in scan.cpp
 
     const lsn_t& _get_hdr_lsn() const;
 
@@ -248,7 +281,7 @@ private:
     smsize_t	_len;
     smsize_t	_start;
     record_t*	_rec;
-    uint4 	_flags;  // this cannot be flags_t since it uses
+    uint4_t 	_flags;  // this cannot be flags_t since it uses
     // | to generate new flags not in the enum 
     // _hdr_lsn is used to record the lsn on the page when
     // the page is pinned.  When compiled with -DDEBUG, all pin_i
@@ -263,7 +296,7 @@ private:
      *	sm_int.h (ie. the whole world), generating large .o's.
      *	Instead, we have the corresponding "alias" byte arrays and
      *	member functions which cast these to the correct page type.
-     *	Only pin.c uses these functions.  This greatly reduces the
+     *	Only pin.cpp uses these functions.  This greatly reduces the
      *	number of .h files users need to include.
      *
      *  Asserts in pin_i constructors verify that the _alias members
@@ -273,22 +306,12 @@ private:
     //lgdata_p	_data_page;
     file_p&	_hdr_page() const;
     lgdata_p&	_data_page() const;
-    char        _hdr_page_alias[20];
-    char        _data_page_alias[20];
-
-    /*
-     * Statistics for record pinning
-     */
-    static void incr_static_pin_count()	  {
-		smlevel_0::stats.rec_pin_cnt++;
-	}
-    static void incr_static_unpin_count() {
-		smlevel_0::stats.rec_unpin_cnt++;
-	}
+    char        _hdr_page_alias[24]; // see comment above 4 reason 4 alias
+    char        _data_page_alias[24]; // see comment above 4 reason 4 alias
 
     // disable
-    pin_i(const pin_i&);
-    pin_i& operator=(const pin_i&);
+    NORET	pin_i(const pin_i&);
+    NORET	pin_i& operator=(const pin_i&);
 
 };
 
@@ -297,4 +320,6 @@ inline file_p&	pin_i::_hdr_page() const
 inline lgdata_p& pin_i::_data_page() const
 			{return *(lgdata_p*)_data_page_alias;}
 
-#endif	// PIN_H
+/*<std-footer incl-file-exclusion='PIN_H'>  -- do not edit anything below this line -- */
+
+#endif          /*</std-footer>*/

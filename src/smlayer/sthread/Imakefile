@@ -1,101 +1,435 @@
-/* --------------------------------------------------------------- */
-/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
-/* -- University of Wisconsin-Madison, subject to the terms     -- */
-/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
-/* -- Reserved.                                                 -- */
-/* --------------------------------------------------------------- */
+/*<std-header style='imakefile' orig-src='shore'>
 
-/*
- *  $Id: Imakefile,v 1.56 1997/09/14 11:53:24 solomon Exp $
- */
+ $Id: Imakefile,v 1.108 1999/06/23 17:05:29 nhall Exp $
 
-#define Tests tests
+SHORE -- Scalable Heterogeneous Object REpository
 
-CPPFLAGS = -I../fc -I../sm Include(TclInclude) -I../common -fvolatile
+Copyright (c) 1994-99 Computer Sciences Department, University of
+                      Wisconsin -- Madison
+All Rights Reserved.
 
-HDR = diskrw.h spin.h stcore.h sthread.h tsl.h shmc_stats.h sthread_stats.h %
-	strace.h
+Permission to use, copy, modify and distribute this software and its
+documentation is hereby granted, provided that both the copyright
+notice and this permission notice appear in all copies of the
+software, derivative works or modified versions, and any portions
+thereof, and that both notices appear in supporting documentation.
+
+THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+"AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+This software was developed with support by the Advanced Research
+Project Agency, ARPA order number 018 (formerly 8230), monitored by
+the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+Further funding for this work was provided by DARPA through
+Rome Research Laboratory Contract No. F30602-97-2-0247.
+
+  -- do not edit anything above this line --   </std-header>*/
+
+INCLUDE_DIRS += \
+	$(FC_INCL)
+
+#if 0
+/* XXXX why was this here? */
+INCLUDE_DIRS += \
+	$(SM_INCL)		\
+	$(TCL_INCL)		\
+	$(COMMON_INCL)
+#endif
+
+#ifdef USE_GCC
+CFLAGS += -fvolatile
+#endif
+
+init_file_group(libsthread)
+init_file_group(ultrix_tsl)
+init_file_group(aix_tsl)
+init_file_group(fake_tsl)
+init_file_group(win32_tsl)
+init_file_group(generic_tsl)
+init_file_group(purify)
+init_file_group(diskrw_only)
+init_file_group(common)
+init_file_group(diskrw)
+init_file_group(core)
+init_file_group(win32_core)
+init_file_group(pthread_core)
+init_file_group(std_core)
+init_file_group(init_winsock)
+init_file_group(sfile_handler)
+init_file_group(sfile_handler_unix)
+init_file_group(sfile_handler_select)
+init_file_group(sfile_handler_poll)
+init_file_group(sfile_handler_win32)
+init_file_group(sfile_handler_winsock)
+init_file_group(sfile)
+init_file_group(sfile_unix)
+init_file_group(sfile_win32)
+init_file_group(sdisk)
+init_file_group(sdisk_unix)
+init_file_group(sdisk_unix_sun)
+init_file_group(sdisk_diskrw)
+init_file_group(sdisk_win32)
+
+error.gen.h = st_error_enum_gen.h st_errmsg_gen.h st_einfo_gen.h
+
+stat_def.gen.h += shmc_stats_def_gen.h sthread_stats_def_gen.h
+stat.gen.h += \
+	shmc_stats_msg_gen.h \
+	shmc_stats_struct_gen.h \
+	shmc_stats_collect_enum_gen.h \
+	sthread_stats_msg_gen.h  \
+	sthread_stats_struct_gen.h \
+	sthread_stats_collect_enum_gen.h \
+	$(stat_def.gen.h)
+
+stat.gen.h += \
+	shmc_stats_inc_gen.cpp \
+	shmc_stats_out_gen.cpp \
+	shmc_stats_stat_gen.cpp \
+	shmc_stats_collect_gen.cpp \
+	sthread_stats_inc_gen.cpp \
+	sthread_stats_out_gen.cpp \
+	sthread_stats_stat_gen.cpp \
+	sthread_stats_collect_gen.cpp
+
+win32_core.h += stcore_win32.h
+win32_core.cpp += sthread_core_win32.cpp
+
+pthread_core.h += stcore_pthread.h
+pthread_core.cpp += sthread_core_pthread.cpp
+
+std_core.h += stcore.h
+std_core.cpp += sthread_core.cpp stcore.cpp 
+
+#if !defined(STHREAD_CORE_WIN32) && !defined(STHREAD_CORE_PTHREAD)
+#define	STHREAD_CORE_STD
+#endif
+
+#if defined(STHREAD_CORE_PTHREAD)
+add_to_group(core, pthread_core)
+#else
+unused_group(pthread_core)
+#endif
+#if defined(STHREAD_CORE_WIN32)
+add_to_group(core, win32_core)
+#else
+unused_group(win32_core)
+#endif
+#if defined(STHREAD_CORE_STD)
+add_to_group(core, std_core)
+#else
+unused_group(std_core)
+#endif
+
+/* hack because common, libsthread take different portions */
+USED_GROUP_NAMES += core
+
+
+sfile_handler_unix.h += sfile_handler.h
+sfile_handler_unix.cpp += sfile_handler.cpp
+
+sfile_handler_select.h += sfile_handler_select.h
+sfile_handler_select.cpp += sfile_handler_select.cpp
+
+sfile_handler_poll.h += sfile_handler_poll.h
+sfile_handler_poll.cpp += sfile_handler_poll.cpp
+
+sfile_handler_win32.h += win32_events.h
+sfile_handler_win32.cpp += win32_events.cpp
+
+sfile_handler_winsock.h += sfile_handler_winsock.h
+sfile_handler_winsock.cpp += sfile_handler_winsock.cpp
+
+add_to_group(sfile_handler_unix, sfile_handler_select)
+
+#if defined(IS_SOLARIS2)	/* Or other systems were poll is efficient */
+add_to_group(sfile_handler_unix, sfile_handler_poll)
+#else
+unused_group(sfile_handler_poll)
+#endif
+
+#if defined(IS_NT) && defined(NEW_IO)
+add_to_group(sfile_handler, sfile_handler_win32)
+unused_group(sfile_handler_unix)
+unused_group(sfile_handler_winsock)
+#elif defined(IS_NT)
+add_to_group(sfile_handler, sfile_handler_winsock)
+unused_group(sfile_handler_unix)
+unused_group(sfile_handler_win32)
+#else
+add_to_group(sfile_handler, sfile_handler_unix)
+unused_group(sfile_handler_win32)
+unused_group(sfile_handler_winsock)
+#endif
+USED_GROUP_NAMES += sfile_handler
+
+
+sfile_unix.h = sfile.h
+sfile_unix.cpp = sfile.cpp
+
+sfile_win32.h = sfile_win32.h
+sfile_win32.cpp = sfile_win32.cpp
+
+#if defined(IS_NT) && defined(NEW_IO)
+add_to_group(sfile, sfile_win32)
+unused_group(sfile_unix)
+#else
+add_to_group(sfile, sfile_unix)
+unused_group(sfile_win32)
+#endif
+USED_GROUP_NAMES += sfile
+
+sdisk.h += sdisk.h
+sdisk.cpp += sdisk.cpp
+
+sdisk_unix.h += sdisk_unix.h
+sdisk_unix.cpp += sdisk_unix.cpp
+
+sdisk_unix_sun.cpp += sdisk_unix_sun.cpp
+
+sdisk_diskrw.h += sdisk_diskrw.h
+sdisk_diskrw.cpp += sdisk_diskrw.cpp
+
+sdisk_win32.h += sdisk_win32.h sdisk_win32_async.h
+sdisk_win32.cpp += sdisk_win32.cpp sdisk_win32_async.cpp
+
+#if defined(IS_SOLARIS2) || defined(IS_SUNOS41)
+add_to_group(sdisk_unix, sdisk_unix_sun)
+#else
+unused_group(sdisk_unix_sun)
+#endif
+
+/* defined(STHREAD_IO_UNIX) || defined(SDISK_DISKRW_HACK) */
+#if !(defined(IS_NT) && defined(NEW_IO_ONLY))
+add_to_group(sdisk, sdisk_unix)
+#else
+unused_group(sdisk_unix)
+#endif
+
+/* defined(STHREAD_IO_DISKRW) */
+#if !(defined(IS_NT) && defined(NEW_IO_ONLY))
+add_to_group(sdisk, sdisk_diskrw)
+#else
+unused_group(sdisk_diskrw)
+#endif
+
+#if defined(IS_NT) && (defined(NEW_IO) || defined(STHREAD_IO_WIN32))
+add_to_group(sdisk, sdisk_win32)
+#else
+unused_group(sdisk_win32)
+#endif
+
+USED_GROUP_NAMES += sdisk
+
+
+init_winsock.cpp += init_winsock.cpp w_wsa.cpp
+init_winsock.h += w_wsa.h
+#ifdef IS_NT
+USED_GROUP_NAMES += init_winsock
+#else
+unused_group(init_winsock)
+#endif
+
+
+common.h += \
+	diskrw.h spin.h tsl.h shmc_stats.h diskstats.h
+
+common.h += $(core.h)
+
+libsthread.h += \
+	sthread.h	\
+	$(sfile.h) $(sfile_handler.h) \
+	ready_q.h	\
+	$(sdisk.h)	\
+	strace.h	\
+	sthread_stats.h \
+	os_interface.h os_fcntl.h
+
+#ifdef IS_NT
+/* This is disgusting, but need way to add partial groups for now. */
+libsthread.h += $(init_winsock.h)
+#endif
+
+ultrix_tsl.cpp += ultrix_tsl.cpp
+aix_tsl.cpp += aix_tsl.cpp
+fake_tsl.cpp += fake_tsl.cpp
+win32_tsl.cpp += win32_tsl.cpp
+generic_tsl.asm += tsl.S
 
 #if defined(IS_MIPS_ULTRIX42)
-#   define Tsl ultrix_tsl.cc
-#elif defined(IS_RS6000_AIX41)
-#   define Tsl aix_tsl.cc
-#elif defined(IS_RS6000_AIX32)
-#   define Tsl fake_tsl.cc
+add_to_group(common, ultrix_tsl)
 #else
-#   define Tsl /* empty */
+unused_group(ultrix_tsl)
 #endif
 
-/* This is temporary until the real sdisk stuff is incorporated. */
-DISKIO = sdisk_unix_sun.cc
-#ifdef UsePurify
-PURE_SUPPORT = shore_threads.cc
+#if defined(IS_RS6000_AIX41)
+add_to_group(common, aix_tsl)
+#else
+unused_group(aix_tsl)
 #endif
 
-LIB = ../fc/libfc.a
+#if defined(IS_RS6000_AIX32)
+add_to_group(common, fake_tsl)
+#else
+unused_group(fake_tsl)
+#endif
 
-SRC = diskrw.cc stcore.c sthread.cc sthread_core.cc strace.cc readstats.cc \
-	sfile_handler.cc Tsl $(DISKIO)
-	
-SRC.asm = tsl.S
+#if defined(IS_NT) && !defined(USE_GCC)	/* XXX really i386 and visual c++ */
+add_to_group(common, win32_tsl)
+#else
+unused_group(win32_tsl)
+#endif
 
-OBJ.disk = diskrw.o tsl.o  $(DISKIO:.cc=.o)
-OBJ.stats = readstats.o
-OBJ.lib = stcore.o sthread.o tsl.o sthread_core.o \
-	strace.o sfile_handler.o $(DISKIO:.cc=.o) $(PURE_SUPPORT:.cc=.o)
+#if !(defined(IS_MIPS_ULTRIX42) || defined(IS_RS6000_AIX41) || defined(IS_RS6000_AIX32) || (defined(IS_NT) && !defined(USE_GCC)))
+add_to_group(common, generic_tsl)
+#else
+unused_group(generic_tsl)
+#endif
 
-#if defined(IS_SPARC_SOLARIS2)
-AS=	/usr/ccs/bin/as
+
+purify.cpp += shore_threads.cpp
+purify.h += pure_threads.h
+
+#if defined(USE_PURIFY) && !defined(STHREAD_CORE_PTHREAD)
+add_to_group(libsthread, purify)
+#else
+unused_group(purify)
+#endif
+
+
+libsthread.cpp += \
+	sthread.cpp sthread_cpu.cpp	\
+	io.cpp	\
+	event.cpp \
+	ready_q.cpp	\
+	strace.cpp	\
+	$(sfile_handler.cpp) $(sfile.cpp)	\
+	$(sdisk.cpp) \
+	vtable_sthread.cpp	\
+	alloc_sthread.cpp 	\
+	sthread_stats.cpp shmc_stats.cpp
+
+libsthread.cpp += $(core.cpp)
+
+diskrw_only.cpp += diskrw.cpp
+
+#ifdef IS_NT
+libsthread.cpp += $(init_winsock.cpp)
+#endif
+
+LIBRARY = $(FC_LIB)
+
+install_copy(include/sthread, $(stat_def.gen.h)) 
+/* for vas writers */
+install_copy(include/sthread, sthread.h st_error_enum_gen.h strace.h sdisk.h )
+
+gen_statistics(common, sthread_stats.dat, $(stat.gen.h))
+
+gen_error_codes(common, st_error.dat, -e, $(error.gen.h))
+
+#ifndef IS_NT
+add_to_group(diskrw, common)
+add_to_group(diskrw, diskrw_only)
+diskrw.exec_name = $(STHREAD_BUILD_DIR)/diskrw
+diskrw.libs += $(LIBRARY)
+build_exec(diskrw)
+install_copy(bin, $(diskrw.full_exec_name))
+#else
+#if defined(NEW_IO) && defined(NEW_IO_ONLY)
+unused_group(diskrw_only)
+#else
+add_to_group(libsthread, diskrw_only)
+#endif
+unused_group(diskrw)
+#endif
+
+add_to_group(libsthread, common)
+libsthread.lib_name = $(STHREAD_LIB)
+build_library(libsthread)
+
+init_file_group(readstats)
+readstats.cpp += readstats.cpp 
+readstats.exec_name = readstats
+readstats.libs += $(LIBRARY)
+
+#ifndef USE_EXTERNAL_TRACE_EVENTS
+readstats.h += diskstats.h
+build_exec(readstats)
+#else
+unused_group(readstats)
+#endif
+
+#if 0 && !defined(IS_NT)
+stcore.OBJEXT: stcore.cpp stcore.h
+	$(COMPILE.cpp) -D$(ARCH) -D$(OPSYS) $<
 #endif
 
 #if defined(IS_SOLARIS2)
-CPP= $(CC) -E $(CFLAGS)
-#else
-CPP= /lib/cpp
+AS=	/usr/ccs/bin/as
 #endif
 
-all_local:: diskrw readstats libst.a
-
-%## Special rule to build tsl.o (depends on platform)
-#if defined(IS_MIPS_ULTRIX42)
-tsl.o: tsl.h ultrix_tsl.cc
-	$(GCC) $(CFLAGS) $(DEBUGFLAGS) $(DEBUGSYMBOLS) -c ultrix_tsl.cc -o $@
-#elif defined(IS_MIPS_IRIX)
-tsl.o: tsl.h tsl.S
-	$(CPP) -D$(ARCH) -D$(OPSYS) tsl.S | grep -v '^#' > tsl.s
-	$(AS) -mips2 -o $@ tsl.s
-#elif defined(IS_I386)
-tsl.o: tsl.h tsl.S
-	$(CPP) -DSYSV -D$(ARCH) -D$(OPSYS) tsl.S | grep -v '^#' > tsl.s
-	$(AS) -o $@ tsl.s
-	-$(RM) -f tsl.s
-#elif defined(IS_RS6000_AIX32)
-tsl.o: tsl.h fake_tsl.cc
-	$(GCC) $(CFLAGS) $(DEBUGFLAGS) $(DEBUGSYMBOLS) -c fake_tsl.cc -o $@
-#elif defined(IS_RS6000_AIX41)
-tsl.o: tsl.h aix_tsl.cc
-	$(GCC) $(CFLAGS) $(DEBUGFLAGS) $(DEBUGSYMBOLS) -c aix_tsl.cc -o $@
-#else
-tsl.o: tsl.h tsl.S
-	$(CPP) -D$(ARCH) -D$(OPSYS) tsl.S | grep -v '^#' > tsl.s
-	$(AS) -o $@ tsl.s
-	-$(RM) -f tsl.s
+#ifdef IS_MIPS_ULTRIX42
+tsl.OBJEXT: tsl.h ultrix_tsl.cpp
+	$(GCC) $(CFLAGS) $(DEBUGFLAGS) $(DEBUGSYMBOLS) -c ultrix_tsl.cpp -o $@
+#define	TSL_GO
 #endif
-%GEN clean_files(tsl.s)
 
-%GEN stats(sthread_stats.dat, shmc_stats sthread_stats)
-%GEN error_enum(st_error.dat,st)
+#ifdef IS_MIPS_IRIX
+squeaky_files(.tsl.s)
+tsl.OBJEXT: tsl.S tsl.h
+	$(CPP) -D$(ARCH) -D$(OPSYS) $< | grep -v '^#' > .tsl.s
+	$(AS) -mips2 -o $@ .tsl.s
+#define	TSL_GO
+#endif
 
-%GEN install(bin, diskrw)
-%GEN install(include, shmc_stats_def.i sthread_stats_def.i spin.h tsl.h)
+#if defined(IS_SOLARIS2)
+squeaky_files(.tsl.s)
+tsl.OBJEXT: tsl.S tsl.h
+	$(CPP) -DSYSV -D$(ARCH) -D$(OPSYS) $< | grep -v '^#' > .tsl.s
+	$(AS) -o $@ .tsl.s
+#define TSL_GO
+#endif
 
-/* for vas writers */
-%GEN install(include,
-	sthread.h stcore.h st_error.h strace.h sdisk.hh sfile_handler.h)
+#if defined(IS_RS6000_AIX32)
+tsl.OBJEXT: fake_tsl.cpp tsl.h
+/*
+	$(GCC) $(CFLAGS) $(DEBUGFLAGS) $(DEBUGSYMBOLS) -c fake_tsl.cpp -o $@
+*/
+	$(COMPILE.c) $<
+#define	TSL_GO
+#endif
 
-%GEN c_plus_program(diskrw, $(OBJ.disk), $(LIB))
-%GEN c_plus_program(readstats, $(OBJ.stats), $(LIB))
-%GEN library(libst.a, $(OBJ.lib))
+#if defined(IS_RS6000_AIX41)
+tsl.OBJEXT: aix_tsl.cpp tsl.h
+	$(GCC) $(CFLAGS) $(DEBUGFLAGS) $(DEBUGSYMBOLS) -c $< -o $@
+#define	TSL_GO
+#endif
 
-%GEN depend_target($(SRC) tsl.S)
-%GEN tags($(SRC) $(HDR))
+#if defined(IS_NT) && !defined(USE_GCC)
+#define TSL_GO
+#endif
+
+#ifndef TSL_GO
+squeaky_files(.tsl.s)
+tsl.OBJEXT: tsl.S tsl.h
+	$(CPP) $< | grep -v '^#' > .tsl.s
+	$(AS) -o $@ .tsl.s
+#else
+#undef TSL_GO
+#endif
+
+CMNT Rebuild sources that have core changes
+rebuild_core:
+	$(RM_F) sthread.OBJEXT sthread_cpu.OBJEXT
+	$(MAKE)
+
+/**********  Handle Subdirectories ***********/
+#if defined(BUILD_DEFAULT_SMLAYER_TESTS) || defined(BUILD_EVERYTHING)
+POST_SUBDIRS += $(STHREAD_TESTS_BUILD_DIR)
+#else
+nondefault_subdirs($(STHREAD_TESTS_BUILD_DIR))
+#endif
+
+install_copy(lib, $(STHREAD_LIB))

@@ -1,13 +1,36 @@
-/* --------------------------------------------------------------- */
-/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
-/* -- University of Wisconsin-Madison, subject to the terms     -- */
-/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
-/* -- Reserved.                                                 -- */
-/* --------------------------------------------------------------- */
+/*<std-header orig-src='shore'>
 
-/*
- *  $Id: ssh.cc,v 1.101 1997/06/15 10:30:26 solomon Exp $
- */
+ $Id: ssh.cpp,v 1.130 1999/08/16 19:44:52 nhall Exp $
+
+SHORE -- Scalable Heterogeneous Object REpository
+
+Copyright (c) 1994-99 Computer Sciences Department, University of
+                      Wisconsin -- Madison
+All Rights Reserved.
+
+Permission to use, copy, modify and distribute this software and its
+documentation is hereby granted, provided that both the copyright
+notice and this permission notice appear in all copies of the
+software, derivative works or modified versions, and any portions
+thereof, and that both notices appear in supporting documentation.
+
+THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+"AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+This software was developed with support by the Advanced Research
+Project Agency, ARPA order number 018 (formerly 8230), monitored by
+the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+Further funding for this work was provided by DARPA through
+Rome Research Laboratory Contract No. F30602-97-2-0247.
+
+*/
+
+#include "w_defines.h"
+
+/*  -- do not edit anything above this line --   </std-header>*/
+
 /* 
  * tclTest.c --
  *
@@ -27,21 +50,30 @@
 
 #include <stdlib.h>
 #include <limits.h>
-#include <iostream.h>
-#include <strstream.h>
+#include "w_stream.h"
+#ifndef _WINDOWS
 #include <unistd.h>
+#else
+#include <io.h>
+#endif
 #include <string.h>
+#include "w_debug.h"
+#include "shell.h"
+
+#ifndef __GNU_LIBRARY__
+#define __GNU_LIBRARY__
+#endif
+#include "getopt.h"
+
+#include <unix_stats.h>
+
+/* tcl */
+#ifdef EXTERN
+#undef EXTERN
+#endif
 #include <tcl.h>
-#include "sm_vas.h"
-#include "debug.h"
 #include "tcl_thread.h"
 #include "ssh.h"
-#include "ssh_random.h"
-#ifndef SOLARIS2
-#include <unix_stats.h>
-#else
-#include <solaris_stats.h>
-#endif
 #include <sthread_stats.h>
 
 #if defined(__GNUG__) && __GNUC_MINOR__ < 6 && defined(Sparc)
@@ -53,22 +85,21 @@
     extern int optind, opterr;
 #endif
 
-char* tcl_init_cmd = "if [file exists [info library]/init.tcl] then { source [info library]/init.tcl }";
-
-char* Logical_id_flag_tcl = "Use_logical_id";
-
-#ifdef USE_VERIFY
-extern ovt_init(Tcl_Interp* ip);
-extern ovt_final();
+#ifdef NOTDEF
+const char* tcl_init_cmd = "if [info library] then { if [file exists [info library]/init.tcl] then { source [info library]/init.tcl }}";
+#else
+const char* tcl_init_cmd = 0;
 #endif
 
-extern sm_dispatch_init();
-#ifdef USE_COORD
-extern co_dispatch_init();
-#endif
+const char* Logical_id_flag_tcl = "Use_logical_id";
+
 
 Tcl_Interp* global_ip = 0;
+bool instrument = true;
 bool verbose = false;
+bool verbose2 = false;
+bool force_compress = false;
+bool log_warn_callback = false;
 bool start_client_support = false;
 
 // Error codes for ssh
@@ -94,7 +125,7 @@ static w_error_info_t ssh_error_list[]=
  * The options parameter is the list of all options used
  * by ssh and the layers is calls.
  */
-void print_usage(ostream& err_stream, char* prog_name,
+void print_usage(ostream& err_stream, const char* prog_name,
 		 bool long_form, option_group_t& options)
 {
     if (!long_form) {
@@ -137,9 +168,27 @@ unix_stats U;
 unix_stats C(RUSAGE_CHILDREN);
 #endif
 
-main(int argc, char* argv[])
+main(int argc, const char** argv)
 {
+#if 0	/* Can't use with tools that want ssh output */
+#if defined(W_TRACE)
+    char *c = getenv("DEBUG_FLAGS");
+    if(c!=NULL) cout << "DEBUG_FLAGS =|" << c << "|" << endl;
+    else cout << "DEBUG_FLAGS is not set. " <<endl;
+    c = getenv("DEBUG_FILE");
+    if(c!=NULL) cout << "DEBUG_FILE =|" << c << "|" << endl;
+    else cout << "DEBUG_FILE is not set. " <<endl;
+
+    const char *cc = fname_debug__;
+    if(cc!=NULL) cout << "fname_debug__ =|" << cc << "|" << endl;
+    else cout << "fname_debug__ is not set. " <<endl;
+#else
+    cout << "Debugging not configured." << endl;
+#endif
+#endif
+
     bool print_stats = false;
+
 
     U.start();
 #ifndef SOLARIS2
@@ -159,7 +208,8 @@ main(int argc, char* argv[])
 	    W_FATAL(fcOUTOFMEMORY);
 
     // default is to not use logical IDs
-    Tcl_SetVar(global_ip, Logical_id_flag_tcl, "0", TCL_GLOBAL_ONLY);
+    Tcl_SetVar(global_ip, TCL_CVBUG Logical_id_flag_tcl, 
+	TCL_CVBUG "0", TCL_GLOBAL_ONLY);
 
     /*
      * The following section of code sets up all the various options
@@ -174,7 +224,7 @@ main(int argc, char* argv[])
      */	 
 
     // set prog_name to the file name of the program
-    char* prog_name = strrchr(argv[0], '/');
+    const char* prog_name = strrchr(argv[0], '/');
     if (prog_name == NULL) {
 	    prog_name = argv[0];
     } else {
@@ -217,21 +267,24 @@ main(int argc, char* argv[])
     // have the sm add its options to the group
     W_COERCE(ss_m::setup_options(&options));
 
+
     /*
      * Scan the default configuration files: $HOME/.shoreconfig, .shoreconfig.  Note
      * That OS errors are ignored since it is not an error
      * for this file to not be found.
      */
     rc_t	rc;
+    {
+    char		opt_file[ss_m::max_devname+1];
     for(int file_num = 0; file_num < 2 && !rc.is_error(); file_num++) {
 	// scan default option files
 	ostrstream	err_stream;
-	char		opt_file[_POSIX_PATH_MAX+1];
-	char*		config = ".shoreconfig";
+	const char*	config = ".shoreconfig";
 	if (file_num == 0) {
 	    if (!getenv("HOME")) {
-		cerr << "Error: environment variable $HOME is not set" << endl;
-		rc = RC(SSH_FAILURE);
+		// ignore it ...
+		// cerr << "Error: environment variable $HOME is not set" << endl;
+		// rc = RC(SSH_FAILURE);
 		break;
 	    }
 	    if (sizeof(opt_file) <= strlen(getenv("HOME")) + strlen("/") + strlen(config) + 1) {
@@ -247,23 +300,26 @@ main(int argc, char* argv[])
 	    strcpy(opt_file, "./");
 	    strcat(opt_file, config);
 	}
-	option_file_scan_t opt_scan(opt_file, &options);
-	rc = opt_scan.scan(true, err_stream);
-	err_stream << ends;
-	char* errmsg = err_stream.str();
-	if (rc) {
-	    // ignore OS error messages
-            if (rc.err_num() == fcOS) {
-		rc = RCOK;
-	    } else {
-		// this error message is kind of gross but is
-		// sufficient for now
-		cerr << "Error in reading option file: " << opt_file << endl;
-		//cerr << "\t" << w_error_t::error_string(rc.err_num()) << endl;
-		cerr << "\t" << errmsg << endl;
+	{
+	    option_file_scan_t opt_scan(opt_file, &options);
+	    rc = opt_scan.scan(true, err_stream);
+	    err_stream << ends;
+	    char* errmsg = err_stream.str();
+	    if (rc) {
+		// ignore OS error messages
+		if (rc.err_num() == fcOS) {
+		    rc = RCOK;
+		} else {
+		    // this error message is kind of gross but is
+		    // sufficient for now
+		    cerr << "Error in reading option file: " << opt_file << endl;
+		    //cerr << "\t" << w_error_t::error_string(rc.err_num()) << endl;
+		    cerr << "\t" << errmsg << endl;
+		}
 	    }
+	    if (errmsg) delete[] errmsg;
 	}
-	if (errmsg) delete errmsg;
+    }
     }
 
     /* 
@@ -282,7 +338,7 @@ main(int argc, char* argv[])
 	    cerr << "\t" << errmsg << endl;
 	    print_usage(cerr, prog_name, false, options);
 	}
-	if (errmsg) delete errmsg;
+	if (errmsg) delete[] errmsg;
     } 
 
     /* 
@@ -294,12 +350,30 @@ main(int argc, char* argv[])
     //if (!rc) 
     {  // do even if error so that ssh -h can be recognized
 	bool verbose_opt = false; // print verbose option values
-	while ((option = getopt(argc, argv, "hlvsVcyf:t:")) != -1) {
+	while ((option = getopt(argc, (char * const*) argv, "nhlLOvsVcyCf:t:")) != -1) {
 	    switch (option) {
+	    case 'n':
+		// null - nothing 
+		break;
+
+	    case 'O':
+	    	// Force use of old sort
+		cout << "Force use of old sort implementation." <<endl;
+		newsort = false;
+		break;
+
+	    case 'C':
+		// force compression of btrees
+		force_compress = true;
+		break;
+
 	    case 'y':
 		// turn yield on
 #ifdef USE_SSMTEST
 		simulate_preemption(true);
+		cout 
+		    << "Simulate preemption (USE_SSMTEST) turned ON " 
+		    << endl;
 #else /* USE_SSMTEST*/
 		cerr 
 		    << "Simulate preemption (USE_SSMTEST) not configured " 
@@ -330,9 +404,14 @@ main(int argc, char* argv[])
 	    case 'f':
 		f_arg = optarg;
 		break;
+	    case 'L':
+		// use log warning callback
+		log_warn_callback = true;
+		break;
 	    case 'l':
 		// use logical IDs
-		Tcl_SetVar(global_ip, Logical_id_flag_tcl, "1", TCL_GLOBAL_ONLY);
+		Tcl_SetVar(global_ip, TCL_CVBUG Logical_id_flag_tcl, 
+			TCL_CVBUG "1", TCL_GLOBAL_ONLY);
 		break;
 	    case 'h':
 		// print a help message describing options and flags
@@ -376,7 +455,7 @@ main(int argc, char* argv[])
 	    cerr << errmsg << endl;
 	    print_usage(cerr, prog_name, false, options);
 	}
-	if (errmsg) delete errmsg;
+	if (errmsg) delete[] errmsg;
     } 
 
     /* 
@@ -395,18 +474,11 @@ main(int argc, char* argv[])
      * the program.  The ssm will be started by a tcl_thread.
      */
 
-#ifdef USE_VERIFY
-    bool badVal;
-    bool do_auditing = option_t::str_to_bool(ssh_auditing->value(), badVal);
-    w_assert3(!badVal);
-    if (do_auditing) {
-	ovt_init(global_ip);
-    }
-#endif USE_VERIFY
 
     // start remote_listen thread (if start_client_support == true)
     if (start_client_support) {
-	if (rc = start_comm()) {
+		rc = start_comm();
+	if (rc) {
 	    cerr << "error in ssh start_comm" << endl << rc << endl;
 	    return 1;
 	}
@@ -434,49 +506,70 @@ main(int argc, char* argv[])
     Tcl_DStringFree(&buf);
 
     // setup table of sm commands
-    sm_dispatch_init();
-#ifdef USE_COORD
-    co_dispatch_init();
-#endif
+    dispatch_init();
 
-    Tcl_SetVar(global_ip, "verbose_flag",
-	       verbose ? "1" : "0", TCL_GLOBAL_ONLY);
+    Tcl_SetVar(global_ip, TCL_CVBUG "log_warn_callback_flag",
+		TCL_CVBUG (log_warn_callback ? "1" : "0"), TCL_GLOBAL_ONLY);
 
-    char* args = Tcl_Merge(argc, argv);
-    Tcl_SetVar(global_ip, "argv", args, TCL_GLOBAL_ONLY);
-    ostrstream s1(args, strlen(args)+1);
-    s1 << argc-1;
-    Tcl_SetVar(global_ip, "argc", args, TCL_GLOBAL_ONLY);
-    Tcl_SetVar(global_ip, "argv0", (f_arg ? f_arg : argv[0]),
-	       TCL_GLOBAL_ONLY);
-    free(args);
+    Tcl_SetVar(global_ip, TCL_CVBUG "compress_flag",
+		TCL_CVBUG (force_compress ? "1" : "0"), TCL_GLOBAL_ONLY);
 
+    Tcl_SetVar(global_ip, TCL_CVBUG "instrument_flag",
+	       TCL_CVBUG (instrument ? "1" : "0"), TCL_GLOBAL_ONLY);
+
+    Tcl_SetVar(global_ip, TCL_CVBUG "verbose_flag",
+	       TCL_CVBUG (verbose ? "1" : "0"), TCL_GLOBAL_ONLY);
+    Tcl_SetVar(global_ip, TCL_CVBUG "verbose2_flag",
+	       TCL_CVBUG (verbose2 ? "1" : "0"), TCL_GLOBAL_ONLY);
+
+    char* args = Tcl_Merge(argc, (char **) argv);
+    if(args) {
+	Tcl_SetVar(global_ip, TCL_CVBUG "argv", args, TCL_GLOBAL_ONLY);
+	ostrstream s1(args, strlen(args)+1);
+	s1 << argc-1;
+	Tcl_SetVar(global_ip, TCL_CVBUG "argc", args, TCL_GLOBAL_ONLY);
+	Tcl_SetVar(global_ip, TCL_CVBUG "argv0", TCL_CVBUG (f_arg ? f_arg : argv[0]),
+	   TCL_GLOBAL_ONLY);
+	ckfree(args);
+    } else {
+	cerr << "Tcl_Merge failed." <<endl; exit(1); 
+    }
+
+#ifdef _WINDOWS
+    int tty = _isatty(_fileno(stdin));
+#else
     int tty = isatty(0);
-    Tcl_SetVar(global_ip, "tcl_interactive",
-	       ((f_arg && tty) ? "1" : "0"), TCL_GLOBAL_ONLY);
+#endif
+    Tcl_SetVar(global_ip, TCL_CVBUG "tcl_interactive",
+	       TCL_CVBUG ((f_arg && tty) ? "1" : "0"), TCL_GLOBAL_ONLY);
 
     linked.sm_page_sz = ss_m::page_sz;
     linked.sm_max_exts = ss_m::max_exts;
     linked.sm_max_vols = ss_m::max_vols;
-    linked.sm_max_xcts = ss_m::max_xcts;
     linked.sm_max_servers = ss_m::max_servers;
     linked.sm_max_keycomp = ss_m::max_keycomp;
     linked.sm_max_dir_cache = ss_m::max_dir_cache;
     linked.sm_max_rec_len = ss_m::max_rec_len;
     linked.sm_srvid_map_sz = ss_m::srvid_map_sz;
     linked.verbose_flag = verbose?1:0;
+    linked.verbose2_flag = verbose2?1:0;
+    linked.instrument_flag = instrument?1:0;
+    linked.compress_flag = force_compress?1:0;
+    linked.log_warn_callback_flag = log_warn_callback?1:0;
 
-    (void) Tcl_LinkVar(global_ip, "sm_page_sz", (char*)&linked.sm_page_sz, TCL_LINK_INT);
-    (void) Tcl_LinkVar(global_ip, "sm_max_exts", (char*)&linked.sm_max_exts, TCL_LINK_INT);
-    (void) Tcl_LinkVar(global_ip, "sm_max_vols", (char*)&linked.sm_max_vols, TCL_LINK_INT);
-    (void) Tcl_LinkVar(global_ip, "sm_max_xcts", (char*)&linked.sm_max_xcts, TCL_LINK_INT);
-    (void) Tcl_LinkVar(global_ip, "sm_max_servers", (char*)&linked.sm_max_servers, TCL_LINK_INT);
-    (void) Tcl_LinkVar(global_ip, "sm_max_keycomp", (char*)&linked.sm_max_keycomp, TCL_LINK_INT);
-    (void) Tcl_LinkVar(global_ip, "sm_max_dir_cache", (char*)&linked.sm_max_dir_cache, TCL_LINK_INT);
-    (void) Tcl_LinkVar(global_ip, "sm_max_rec_len", (char*)&linked.sm_max_rec_len, TCL_LINK_INT);
-    (void) Tcl_LinkVar(global_ip, "sm_srvid_map_sz", (char*)&linked.sm_srvid_map_sz, TCL_LINK_INT);
+    (void) Tcl_LinkVar(global_ip, TCL_CVBUG "sm_page_sz", (char*)&linked.sm_page_sz, TCL_LINK_INT);
+    (void) Tcl_LinkVar(global_ip, TCL_CVBUG "sm_max_exts", (char*)&linked.sm_max_exts, TCL_LINK_INT);
+    (void) Tcl_LinkVar(global_ip, TCL_CVBUG "sm_max_vols", (char*)&linked.sm_max_vols, TCL_LINK_INT);
+    (void) Tcl_LinkVar(global_ip, TCL_CVBUG "sm_max_servers", (char*)&linked.sm_max_servers, TCL_LINK_INT);
+    (void) Tcl_LinkVar(global_ip, TCL_CVBUG "sm_max_keycomp", (char*)&linked.sm_max_keycomp, TCL_LINK_INT);
+    (void) Tcl_LinkVar(global_ip, TCL_CVBUG "sm_max_dir_cache", (char*)&linked.sm_max_dir_cache, TCL_LINK_INT);
+    (void) Tcl_LinkVar(global_ip, TCL_CVBUG "sm_max_rec_len", (char*)&linked.sm_max_rec_len, TCL_LINK_INT);
+    (void) Tcl_LinkVar(global_ip, TCL_CVBUG "sm_srvid_map_sz", (char*)&linked.sm_srvid_map_sz, TCL_LINK_INT);
 
-    (void) Tcl_LinkVar(global_ip, "verbose_flag", (char*)&linked.verbose_flag, TCL_LINK_INT);
+    (void) Tcl_LinkVar(global_ip, TCL_CVBUG "instrument_flag", (char*)&linked.instrument_flag, TCL_LINK_INT);
+    (void) Tcl_LinkVar(global_ip, TCL_CVBUG "verbose_flag", (char*)&linked.verbose_flag, TCL_LINK_INT);
+    (void) Tcl_LinkVar(global_ip, TCL_CVBUG "verbose2_flag", (char*)&linked.verbose2_flag, TCL_LINK_INT);
+    (void) Tcl_LinkVar(global_ip, TCL_CVBUG "compress_flag", (char*)&linked.compress_flag, TCL_LINK_INT);
     /*
     if (Tcl_AppInit(global_ip) != TCL_OK)  {
 	cerr << "Tcl_AppInit failed: " << global_ip->result << endl;
@@ -491,17 +584,12 @@ main(int argc, char* argv[])
     W_COERCE(doit->wait());
     delete doit;
 
-#ifdef USE_VERIFY
-    if (do_auditing) {
-	ovt_final(); 
-    }
-#endif
-
     Tcl_DeleteInterp(global_ip);
 
     // stop remote_listen thread
     if (start_client_support) {
-	if (rc = stop_comm()) {
+		rc = stop_comm();
+	if (rc) {
 	    cerr << "error in ssh stop_comm" << endl << rc << endl;
 	    W_COERCE(rc);
 	}
@@ -514,7 +602,8 @@ main(int argc, char* argv[])
 
     if(print_stats) {
 	cout << "Thread stats" <<endl;
-	cout << SthreadStats << endl;
+	sthread_t::dump_stats(cout);
+	cout << endl;
 
 	cout << "Unix stats for parent:" <<endl;
 	cout << U << endl << endl;
@@ -525,6 +614,8 @@ main(int argc, char* argv[])
 #endif
     }
     cout << flush;
+
+    return 0;
 }
 
 
@@ -541,29 +632,10 @@ void ssh_smthread_t::run()
 
     if (f_arg) {
 	char* av[2];
-	av[0] = "source";
+	av[0] = (char *) "source";
 	av[1] = f_arg;
 	tcl_thread = new tcl_thread_t(2, av, global_ip);
     } else {
-#if 0
-	if (tcl_RcFileName)  {
-	    Tcl_DString buf;
-	    char* fullname = Tcl_TildeSubst(global_ip, tcl_RcFileName,
-					    &buf);
-	    if (! fullname)  {
-		cerr << global_ip->result << endl;
-	    } else {
-		FILE* f;
-		if (f = fopen(fullname, "r"))  {
-		    if (Tcl_EvalFile(global_ip, fullname) != TCL_OK) {
-			cerr << global_ip->result << endl;
-		    }
-		    fclose(f);
-		}
-	    }
-	    Tcl_DStringFree(&buf);
-	}
-#endif
 	tcl_thread = new tcl_thread_t(0, 0, global_ip);
     }
     assert(tcl_thread);

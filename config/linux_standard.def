@@ -1,0 +1,6 @@
+UTIL_DIR = /usr
+VCPP_DIR =
+TCL_DIR = /usr
+BISON_DIR = /usr/bin
+FLEX_DIR = /usr/bin
+PERL_DIR = /usr

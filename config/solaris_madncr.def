@@ -1,0 +1,10 @@
+UTIL_DIR = /opt
+VCPP_DIR =
+TCL_DIR = $(UTIL_DIR)/tcl
+BISON_DIR = $(UTIL_DIR)/bison/bin
+FLEX_DIR = $(UTIL_DIR)/flex/bin
+PERL_DIR = $(UTIL_DIR)/perl
+
+PURIFY_DIR = $(UTIL_DIR)/Purify-4.1
+QUANT_DIR = $(UTIL_DIR)/quantify-3.1
+PURECOV_DIR = $(UTIL_DIR)/purecov-4.1

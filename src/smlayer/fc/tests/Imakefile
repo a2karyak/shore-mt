@@ -1,40 +1,97 @@
-/* --------------------------------------------------------------- */
-/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
-/* -- University of Wisconsin-Madison, subject to the terms     -- */
-/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
-/* -- Reserved.                                                 -- */
-/* --------------------------------------------------------------- */
+/*<std-header style='imakefile' orig-src='shore'>
 
-/*
- *  $Id: Imakefile,v 1.20 1997/07/01 20:50:23 solomon Exp $
- */
+ $Id: Imakefile,v 1.48 1999/06/07 19:03:01 kupsch Exp $
 
-SRC = rc.cc list1.cc list2.cc list3.cc fastnew.cc \
-	hash1.cc hash2.cc cq1.cc cq2.cc bit.cc \
-	timer.cc ntime.cc
-CPPFLAGS = -I..
+SHORE -- Scalable Heterogeneous Object REpository
 
-all_local:: rc list1 list2 list3 fastnew hash1 hash2 cq1 cq2 bit timer %
-	ntime vector
+Copyright (c) 1994-99 Computer Sciences Department, University of
+                      Wisconsin -- Madison
+All Rights Reserved.
 
-%GEN c_plus_program(rc, rc.o, ../libfc.a)
-%GEN c_plus_program(list1, list1.o, ../libfc.a)
-%GEN c_plus_program(list2, list2.o, ../libfc.a)
-%GEN c_plus_program(list3, list3.o, ../libfc.a)
-%GEN c_plus_program(fastnew, fastnew.o, ../libfc.a)
-%GEN c_plus_program(hash1, hash1.o, ../libfc.a)
-%GEN c_plus_program(hash2, hash2.o, ../libfc.a)
-%GEN c_plus_program(cq1, cq1.o, ../libfc.a)
-%GEN c_plus_program(cq2, cq2.o, ../libfc.a)
-%GEN c_plus_program(bit, bit.o, ../libfc.a)
-%GEN c_plus_program(timer, timer.o, ../libfc.a)
-%GEN c_plus_program(ntime, ntime.o, ../libfc.a)
-%GEN c_plus_program(vector, vector.o, ../libfc.a)
+Permission to use, copy, modify and distribute this software and its
+documentation is hereby granted, provided that both the copyright
+notice and this permission notice appear in all copies of the
+software, derivative works or modified versions, and any portions
+thereof, and that both notices appear in supporting documentation.
 
-pure_execs: rc.pure timer.pure
+THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+"AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 
-%GEN purify_c_plus_program(rc, rc.o, ../libfc.a, $(PURE_OPTIONS))
-%GEN purify_c_plus_program(timer, timer.o, ../libfc.a, $(PURE_OPTIONS))
+This software was developed with support by the Advanced Research
+Project Agency, ARPA order number 018 (formerly 8230), monitored by
+the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+Further funding for this work was provided by DARPA through
+Rome Research Laboratory Contract No. F30602-97-2-0247.
 
-%GEN depend_target($(SRC))
-%GEN tags($(SRC))
+  -- do not edit anything above this line --   </std-header>*/
+
+init_file_group(all_script)
+
+all_script.other += \
+	all
+
+used_group(all_script)
+
+INCLUDE_DIRS += \
+	$(FC_INCL)
+
+LIBRARY = \
+	$(FC_LIB)
+
+remote_target($(FC_LIB))
+
+all_target_files(tests)
+
+#define simple_test_exec(progName)		\
+init_file_group(progName)			@@\
+progName.cpp += progName.cpp			@@\
+progName.exec_name = progName			@@\
+progName.libs += $(LIBRARY)			@@\
+build_test_exec(progName)
+
+
+simple_test_exec(io)
+simple_test_exec(list1)
+simple_test_exec(list2)
+simple_test_exec(list3)
+simple_test_exec(fastnew)
+simple_test_exec(hash1)
+simple_test_exec(hash2)
+simple_test_exec(cq1)
+simple_test_exec(cq2)
+simple_test_exec(bit)
+simple_test_exec(timer)
+simple_test_exec(ntime)
+simple_test_exec(vector)
+simple_test_exec(heap)
+simple_test_exec(rc)
+simple_test_exec(errlogtest)
+simple_test_exec(random)
+simple_test_exec(stats)
+simple_test_exec(box)
+
+
+/* tfile created by errlogtest, to be inspected after test is run */
+clean_files(tfile)
+
+
+init_file_group(ms_perf)
+ms_perf.cpp += ms_perf.cpp
+ms_perf.exec_name = ms_perf
+ms_perf.libs += $(LIBRARY)
+ms_perf.sys_libs += advapi32.lib
+
+init_file_group(vc)
+vc.cpp += vc.cpp
+vc.exec_name = vc
+vc.libs += $(LIBRARY)
+
+#if defined(IS_NT) && !defined(USE_GCC)
+build_test_exec(ms_perf)
+build_test_exec(vc)
+#else
+unused_group(ms_perf)
+unused_group(vc)
+#endif

@@ -1,92 +1,139 @@
-/* --------------------------------------------------------------- */
-/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
-/* -- University of Wisconsin-Madison, subject to the terms     -- */
-/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
-/* -- Reserved.                                                 -- */
-/* --------------------------------------------------------------- */
+/*<std-header orig-src='shore'>
+
+ $Id: sthread.cpp,v 1.302 1999/08/03 15:55:47 bolo Exp $
+
+SHORE -- Scalable Heterogeneous Object REpository
+
+Copyright (c) 1994-99 Computer Sciences Department, University of
+                      Wisconsin -- Madison
+All Rights Reserved.
+
+Permission to use, copy, modify and distribute this software and its
+documentation is hereby granted, provided that both the copyright
+notice and this permission notice appear in all copies of the
+software, derivative works or modified versions, and any portions
+thereof, and that both notices appear in supporting documentation.
+
+THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+"AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+This software was developed with support by the Advanced Research
+Project Agency, ARPA order number 018 (formerly 8230), monitored by
+the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+Further funding for this work was provided by DARPA through
+Rome Research Laboratory Contract No. F30602-97-2-0247.
+
+*/
+
+#include "w_defines.h"
+
+/*  -- do not edit anything above this line --   </std-header>*/
+
 
 /*
- *  $Id: sthread.cc,v 1.238 1997/09/30 22:17:57 solomon Exp $
+ *   NewThreads is Copyright 1992, 1993, 1994, 1995, 1996, 1997 by:
+ *
+ *	Josef Burger	<bolo@cs.wisc.edu>
+ *	Dylan McNamee	<dylan@cse.ogi.edu>
+ *      Ed Felten       <felten@cs.princeton.edu>
+ *
+ *   All Rights Reserved.
+ *
+ *   NewThreads may be freely used as long as credit is given
+ *   to the above authors and the above copyright is maintained.
  */
+
+/*
+ * The base thread functionality of Shore Threads is derived
+ * from the NewThreads implementation wrapped up as c++ objects.
+ */
+
 #define STHREAD_C
-
-#include <strstream.h>
-#include <w_workaround.h>
-#include <w_signal.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <string.h>
-
-#include <sys/time.h>
-#include <fcntl.h>
-#include <sys/wait.h>
-#include <new.h>
-#include <sys/uio.h>
-#include <sys/stat.h>
-
-#if defined(Sparc) && !defined(SOLARIS2)
-#include <vfork.h>
-#endif
-
-#if defined(Mips) && !defined(Irix)
-extern "C" int vfork();
-#endif
-
-#if defined(Mips) && defined(Irix)
-#define vfork fork
-#endif
-
-#if defined(AIX32) && !defined(AIX41)
-#define	vfork	fork
-#endif
-
-#if defined(AIX32) || defined(AIX41)
-static void hack_aix_signals();
-#endif
-
-/* XXX In general signal handling needs to be improved.  Until then,
-   we do the best we can to ignore it. */ 
-static	void	hack_signals();
-
-
-#ifdef __GNUC__
-#pragma implementation "sthread.h"
-#endif
-
-#define DBGTHRD(arg)
-#define DBG(arg)
-#define FUNC(arg)
 
 #define W_INCL_LIST
 #define W_INCL_SHMEM
 #define W_INCL_TIMER
 #include <w.h>
 
+#include <w_debug.h>
+#include <w_stream.h>
+#include <w_signal.h>
+#include <stdlib.h>
+#ifndef _WINDOWS
+#include <unistd.h>
+#endif
+#include <string.h>
+
+#ifdef _WINDOWS
+#include <time.h>
+#else
+#include <sys/time.h>
+#endif
+
+#ifndef _WINDOWS
+#include <sys/wait.h>
+#endif
+#include <new.h>
+
+#include <sys/stat.h>
+#include <w_rusage.h>
+
+#if defined(AIX32) || defined(AIX41)
+static void hack_aix_signals();
+#endif
+
+#ifndef _WINDOWS
+/* XXX In general signal handling needs to be improved.  Until then,
+   we do the best we can to ignore it. */ 
+static	void	hack_signals();
+#endif
+
+#ifdef __GNUC__
+#pragma implementation "sthread.h"
+#endif
+
+
 #include <w_statistics.h>
 
-#ifdef SOLARIS2
-#include <solaris_stats.h>
-#else
 #include <unix_stats.h>
-#endif
 
 #include "sthread.h"
 #include "sthread_stats.h"
 #include "spin.h"
-#include "diskrw.h"
+#include "ready_q.h"
 
-#ifdef __GNUC__
+/* Choose an appropriate thread core.  These will be classes  ...
+   one of these days. */
+#if !defined(STHREAD_CORE_PTHREAD) && !defined(STHREAD_CORE_WIN32)
+#define	STHREAD_CORE_STD
+#endif
+
+#if defined(STHREAD_CORE_PTHREAD)
+#include <pthread.h>
+#include "stcore_pthread.h"
+#elif defined(STHREAD_CORE_WIN32)
+#include "stcore_win32.h"
+#elif defined(STHREAD_CORE_STD)
+#include "stcore.h"
+#else
+#error "no thread core selected"
+#endif
+
+#ifdef PURIFY
+#include <purify.h>
+#endif
+
+#ifdef EXPLICIT_TEMPLATE
 template class w_list_t<sthread_t>;
 template class w_list_i<sthread_t>;
 template class w_descend_list_t<sthread_t, sthread_t::priority_t>;
 template class w_keyed_list_t<sthread_t, sthread_t::priority_t>;
 #endif
 
-#if !defined(AIX41) && !defined(SOLARIS2) && !defined(Linux)
-extern "C" {
-	extern int writev(int, const struct iovec *, int);
-	extern int readv(int, const struct iovec *, int);
-}
+#ifdef _WINDOWS
+extern w_rc_t init_winsock();
 #endif
 
 
@@ -102,66 +149,69 @@ W_FASTNEW_STATIC_PTR_DECL(sthread_name_t);
 class sthread_stats SthreadStats;
 
 const
-#include "st_einfo.i"
-
-#ifdef I860
-extern "C" {
-extern char *strerror(int error);
-}
-#endif
+#include "st_einfo_gen.h"
 
 extern "C" void dumpthreads();
 extern "C" void threadstats();
 
-static int gotenv = 0;
-static bool do_fastpath = false;
-
-#ifdef PIPE_NOTIFY
-#define	FD_NONE	-1
-static int		master_chan[2] = { FD_NONE, FD_NONE};
-
-
-class pipe_handler : public sfile_hdl_base_t {
-public:
-	pipe_handler(int fd) : sfile_hdl_base_t(fd, rd) { }
-	~pipe_handler() { }
-	void	read_ready();
-	void	write_ready() { }
-	void	exception_ready() { }
-};
-
-static pipe_handler	chan_event(FD_NONE);
-
-
-#if 0
-static void
-FD_CLOSE_ON_EXEC(int fd)
+bool sthread_t::isStackOK(const char *file, int line)
 {
-    if (fcntl(fd, F_SETFD, FD_CLOEXEC) == -1)
-	:: perror("fcntl(close_on_exec)");
-}
-#endif /*0*/
+	if (!_stack_checks)	/* incase called by user code */
+		return true;
 
-static void 
-FD_NODELAY(int fd)
-{
-    if (fcntl(fd, F_SETFL, O_NDELAY) == -1)
-	::perror("fcntl(O_NDELAY)");
+	sthread_core_t *from_core = this->_core;
+
+	bool ok;
+	ok = sthread_core_stack_ok(from_core, (this==me()) ? 2:0);
+
+	if (!ok)
+		cerr << "*** Stack corruption at " 
+			<< file << ":" << line 
+			<< " in thread " << me()->id << " ***" << endl
+			<< *this << endl;
+
+	return ok;
 }
 
-void	pipe_handler::read_ready()
-{
-	ChanToken token;
-	int	pending = 0;
 
-	while  (::read(fd, (char *)&token, sizeof(token)) == sizeof(token)) {
-		pending++;
+/* check all threads */
+void sthread_t::check_all_stacks(const char *file, int line)
+{
+	if (!_stack_checks)	/* incase called by user code */
+		return;
+
+	w_list_i<sthread_t> i(*_class_list);
+	unsigned	corrupt = 0;
+
+	while (i.next())  {
+		if (! i.curr()->isStackOK(file, line))
+			corrupt++;
 	}
-	if (pending)
-		sthread_t::_polldisk();
-}
-#endif /* PIPE_NOTIFY */
 
+	if (corrupt > 0) {
+		cerr << "sthread_t::check_all: " << corrupt 
+		<< " thread stacks, dieing" << endl;
+		W_FATAL(fcINTERNAL);
+	}
+}
+
+
+/* Give an estimate if the stack will overflow if a function with
+   a stack frame of the requested size is called. */
+
+bool	sthread_t::isStackFrameOK(unsigned size)
+{
+	/* Choose a default stack frame allocation based upon random
+	   factors not discussed here. */
+	if (size == 0)
+		size = 1024;
+
+#if defined(STHREAD_CORE_STD)
+	return sthread_core_stack_frame_ok(_core, size, _me->_core == _core);
+#else
+	return true;
+#endif
+}
 
 
 /*********************************************************************
@@ -192,80 +242,25 @@ void sthread_timer_t::trigger()
 }
 
 
-
-/*********************************************************************
- *
- *  class ready_q_t
- *
- *  The ready queue --- initialized by sthread_init_t.
- *  The queue is really made up of multiple queues, each serving
- *  a priority level. A get() operation dequeues threads from the
- *  highest priority queue that is not empty.
- *
- *********************************************************************/
-class ready_q_t : public sthread_base_t {
-public:
-    NORET			ready_q_t();
-    NORET			~ready_q_t()   {};
-
-    sthread_t* 			get();
-    void			put(sthread_t* t);
-    void			change_priority(sthread_t*, sthread_t::priority_t p);
-
-    bool			is_empty() const { return count == 0; }
-    bool			contains_only(sthread_t *t) const;
-
-private:
-    uint4_t			count; 
-    enum { nq = sthread_t::max_priority + 1 };
-    sthread_t*			head[nq];
-    sthread_t*			tail[nq];
-};
-
-
-
-/*********************************************************************
- *
- *  Shared memory and static declarations
- *
- *********************************************************************/
-static w_shmem_t shmem_seg;
-static diskport_t* diskport = 0;
-static int diskport_cnt = 0;
-static svcport_t* svcport = 0;
-
-
-/*********************************************************************
- *
- *  Dummy core for use when valid core is unavailable during
- *  initialization and thread death
- *
- *********************************************************************/
-static sthread_core_t dummy_core;
-
-/* is the process protected from signals? */
-static bool in_cs = false;
-
 /*********************************************************************
  *
  *  Class static variable intialization
  *
  *********************************************************************/
-w_base_t::uint4_t	sthread_init_t::count = 0;
 
 
-const char* 		sthread_t::_diskrw = "diskrw";
 sthread_t* 		sthread_t::_me;
 sthread_t* 		sthread_t::_idle_thread = 0;
 sthread_t*		sthread_t::_main_thread = 0;
 w_base_t::uint4_t	sthread_t::_next_id = 0;
-pid_t			sthread_t::_dummy_disk = 0;
 ready_q_t*		sthread_t::_ready_q = 0;
 sthread_list_t*		sthread_t::_class_list = 0;
-w_timerqueue_t		sthread_t::_event_q;
-sfile_handler_t*	sthread_t::_io_events;
-int			sthread_t::_io_in_progress = 0;
-unsigned char		sthread_t::_io_flags[sthread_open_max];
+
+#ifdef W_DEBUG
+bool			sthread_t::_stack_checks = true;
+#else
+bool			sthread_t::_stack_checks = false;
+#endif
 
 /*
   The "idle" thread is really more than a "run when nothing else is"
@@ -291,7 +286,7 @@ int	sthread_t::_idle_priority_push = 10;
 int	sthread_t::_idle_priority_max = max_priority;
 
 
-#ifdef DEBUG
+#if defined(W_DEBUG) && defined(_WINDOWS)
 
 #ifdef extreme_problems
 // This function is used for debugging to verify that signals are blocked.
@@ -319,6 +314,7 @@ static int sthread_signals_are_blocked()
 extern const char *sys_siglist[];
 #endif
 
+#ifndef _WINDOWS
 void print_sigmask()
 {
 	int		i;
@@ -347,6 +343,7 @@ void print_sigmask()
 		cout << "no signals blocked";
 	cout << endl;
 }
+#endif /* !_WINDOWS */
 #endif /* HAVE_SYS_SIGLIST */
 #endif
 
@@ -386,7 +383,7 @@ void sthread_t::_ctxswitch(status_t s)
 
 	if (new_pri != old_pri) {
 #if 0
-		cout.form("== Change priority of idle thread from %d to %d ==\n",
+		W_FORM(cout)("== Change priority of idle thread from %d to %d ==\n",
 			  _idle_thread->_priority, new_pri); 
 #endif
 		_ready_q->change_priority(_idle_thread, (priority_t) new_pri);
@@ -413,7 +410,6 @@ void sthread_t::_ctxswitch(status_t s)
 	}
 
 	dieing = _me;
-	doner = _me = 0;
 	break;
 
     case t_ready:
@@ -432,6 +428,8 @@ void sthread_t::_ctxswitch(status_t s)
 	w_assert1(taker);
 	w_assert1(doner == 0);
 	w_assert1(taker->_status == t_ready);
+	/* Try to make the main thread have the common cpu modes */
+	taker->_reset_cpu();
 	doner = taker;
 	break;
 
@@ -439,28 +437,48 @@ void sthread_t::_ctxswitch(status_t s)
 	W_FATAL(stINTERNAL);
     }
 
+#if STHREAD_STACK_CHECK > 1 || defined(W_DEBUG)
+    if (_stack_checks) {
+	if (sthread_t::_next_id > 2)
+		check_all_stacks(__FILE__, __LINE__);
+    }
+#endif
+
+
+#if defined(STHREAD_STACK_CHECK)  || defined(W_DEBUG)
+    /* Check for stack overflow at thread switch or yield.  If you
+       want really wicked fast performance, you could turn this
+       off.  This is always the FAST stack check, a more
+       comprehensive job is done by check_all if requested. */
+    if (doner && !sthread_core_stack_ok(doner->_core, 1)) {
+	    cerr << "*** Stack overflow at thread switch from" 
+		<< endl << *doner << endl;
+	    W_FATAL(fcINTERNAL);
+    }
+#endif
+
     /*
      *  Context switch --- change identity
      */
     (_me = taker)->_status = t_running;
 
     if (doner != taker)  {
-	    sthread_core_t *from_core = doner ? &doner->_core : &dummy_core;
-
-#if defined(DEBUG)  
-	    if (doner && !sthread_core_stack_ok(from_core, 1)) {
-		    cerr << "*** Stack overflow ***" << endl;
-		    cerr << *doner << endl;
-		    W_FATAL(fcINTERNAL);
-	    }
-#endif /*DEBUG*/
-
-	    sthread_core_switch(from_core, &taker->_core);
+	    sthread_core_switch(doner->_core, taker->_core);
     }
     
-    /* Current thread resumes */
+    /* Current thread resumes after context switch -- 
+     * this means that _me has changed back since we set it.
+     *
+     * NB: this assertion fails if we are calling
+     * thread switch from gdb from an arbitrary place, and
+     * we don't switch back before we "continue", 
+     * because it didn't come through this function.
+     */
     w_assert3(_me == doner && _me->_status == t_running);
 }
+
+
+stime_t	sthread_t::boot_time = stime_t::now();
 
 
 /*
@@ -480,15 +498,14 @@ w_rc_t	sthread_t::startup()
 	if (_class_list == 0)
 		W_FATAL(fcOUTOFMEMORY);
 
-	_io_events = new sfile_handler_t();
-	if (_io_events == 0)
-		W_FATAL(fcOUTOFMEMORY);
+	const char *s = getenv("STHREAD_STACK_CHECK");
+	if (s && *s)
+		_stack_checks = (atoi(s) != 0);
 
-	/* XXX magic number */
-	/* XXX must delete dummy core, or rid ourselves of it! */
-	if (sthread_core_init(&dummy_core, 0, 0, 1024*4) == -1)
-		W_FATAL(stINTERNAL);
-	
+	W_COERCE(startup_events());
+
+	W_COERCE(startup_io());
+
 	/*
 	 * Boot the main thread onto the current (system) stack.
 	 */
@@ -516,7 +533,9 @@ w_rc_t	sthread_t::startup()
 	_idle_thread = idle;
 
 	yield();	// force the idle thread to start
+#ifndef _WINDOWS
 	w_assert3(in_cs);
+#endif
 
 	return RCOK;
 }
@@ -540,163 +559,10 @@ w_rc_t sthread_t::shutdown()
 	/* wait for other threads */
 
 	/* shutdown disk i/o */
+	W_COERCE(shutdown_io());
 
-#ifdef notyet
-	/* Clean up and exit. */
-	/* XXX needs work */
-	if (shmem_seg.base()) {
-		kill(_dummy_disk, SIGHUP);
-		for (int i = 0; i < open_max; i++)  {
-			if (diskport[i].pid && diskport[i].pid != -1)
-				kill(diskport[i].pid, SIGHUP);
-		}
-		if (svcport) {
-			svcport->~svcport_t();
-			svcport = 0;
-		}
-		shmem_seg.destroy();
-	}
-	unname();	// clean up to avoid assertion in fastnew
-#endif
-
+	_me = 0;
 	return RCOK;
-}
-
-
-/*
- * sthread_t::setup_signals()
- *
- * Initialize signal handlers and set priority level / signal mask.
- */
-
-w_rc_t	sthread_t::setup_signals(sigset_t &lo_spl, sigset_t &hi_spl)
-{
-	sigset_t nset, oset;
-
-	sigemptyset(&oset);
-	sigemptyset(&nset);
-#ifndef PIPE_NOTIFY
-	sigaddset(&nset, SIGUSR2);
-#endif
-	
-#ifdef POSIX_SIGNALS
-	/* POSIX way -- expects handler to take no parameters */
-	
-	struct sigaction sact;
-	sact.sa_handler = W_POSIX_HANDLER _caught_signal;
-	sact.sa_mask = nset;
-	sact.sa_flags = 0;
-
-#ifndef PIPE_NOTIFY
-	sigaction(SIGUSR2, &sact, 0);
-#endif
-#if 0 /* not used */
-	sigaction(SIGINT, &sact, 0);  // catch cntrl-C
-#endif
-#else
-	/* ANSI STANDARD C way -- allows int arg on handler */
-
-#ifndef PIPE_NOTIFY	
-	if (signal(SIGUSR2, W_ANSI_C_HANDLER _caught_signal) 
-	    == W_ANSI_C_HANDLER SIG_ERR) {
-		W_FATAL(stOS);
-	}
-#endif
-#endif
-	
-	if (sigprocmask(SIG_BLOCK, &nset, &oset) == -1) {
-		w_rc_t	e = RC(stOS);
-		cerr << "sigprocmask(SIG_BLOCK):" << endl << e << endl;
-		W_COERCE(e);
-	}
-
-	lo_spl = oset;	// lo priority ... interrupts allowed
-	hi_spl = nset;	// hi priority ... no interrupts
-	in_cs = true;
-
-	return RCOK;
-}
-
-
-/*********************************************************************
- *
- *  sthread_init_t::sthread_init_t()
- *
- *  Initialize the sthread environment. The first time this method
- *  is called, it sets up the environment and returns with the
- *  identity of main_thread.
- *
- *********************************************************************/
-sthread_init_t::sthread_init_t()
-{
-    if (++count == 1) {
-
-	if (!gotenv) {
-	    gotenv++;	// checked the environment variable
-	    if(getenv("DEBUGTHREADS")) {
-		gotenv++; // environment variable was set
-	    }
-
-	    if(getenv("FASTPATH")) {
-		do_fastpath = true;
-	    }
-
-	}
-
-	/*
-	 *  Register error codes.
-	 */
-	if (! w_error_t::insert(
-		"Threads Package",
-		error_info, 
-		sizeof(error_info) / sizeof(error_info[0])))   {
-	    
-	    cerr << "sthread_init_t::sthread_init_t: "
-		 << " cannot register error code" << endl;
-	    
-	    W_FATAL(stINTERNAL);
-	}
-
-#if defined(AIX31) || defined(AIX41)
-	hack_aix_signals();
-#endif
-
-	hack_signals();
-
-	/*
-	 * There is a chance that the static _w_fastnew member of
-	 * sthread_name_t has not been constructed yet.
-	 */
-	sthread_name_t::_w_fastnew =  new w_fastnew_t(sizeof(sthread_name_t),
-						      100, __LINE__, __FILE__);
-	if (sthread_name_t::_w_fastnew == 0)
-		W_FATAL(fcOUTOFMEMORY);
-
-	W_COERCE(sthread_t::startup());
-    }
-}
-
-
-
-/*********************************************************************
- *
- *  sthread_init_t::~sthread_init_t()
- *
- *  Destructor. Does not do much.
- *
- *********************************************************************/
-NORET
-sthread_init_t::~sthread_init_t()
-{
-    w_assert1(count > 0);
-    if (--count == 0)  {
-
-	// sthread_t::_class_list.pop();
-	// delete sthread_t::_class_list;
-	// delete sthread_t::_ready_q;
-
-	W_COERCE(sthread_t::shutdown());
-    }
 }
 
 
@@ -724,124 +590,6 @@ void sthread_main_t::run()
 }
 
 
-
-/*********************************************************************
- *
- *  sthread_t::set_bufsize(sz)
- *
- *  Allocate and return a shared memory segment of (sz + delta) bytes
- *  for asynchronous disk I/O. The extranous delta bytes in the 
- *  shared memory is used to hold the control structures for
- *  communicating between main process and diskrw processes (e.g.
- *  the queues to submit disk requests).
- *
- *  If sz is 0, the previously allocated shared memory segment is 
- *  freed.
- *
- *********************************************************************/
-char*
-sthread_t::set_bufsize(int size)
-{
-    if (size == 0)  {
-	/*
-	 *  Free shared memory previous allocated.
-	 */
-	if (shmem_seg.base())  {
-	    if (kill(_dummy_disk, SIGUSR2) == -1 ||
-		waitpid(_dummy_disk, 0, 0) == -1)  {
-		cerr << "warning: error killing dummy disk pid " 
-		     << _dummy_disk << endl
-		     << RC(stOS) << endl;
-	    }
-	    for (int i = 0; i < open_max; i++)  {
-		if (diskport[i].pid && diskport[i].pid != -1) {
-		    if (kill(diskport[i].pid, SIGTERM) == -1 ||
-			waitpid(diskport[i].pid, 0, 0) == -1)  {
-			cerr << "warning: error killing disk pid " 
-			     << diskport[i].pid << endl
-			     << RC(stOS) << endl;
-		    }
-#ifdef PIPE_NOTIFY
-		    ::close(diskport[i].rw_chan[PIPE_OUT]);
-#endif
-		}
-	    }
-	    svcport->~svcport_t();
-	    W_COERCE( shmem_seg.destroy() );
-	}
-	diskport = 0;
-	svcport = 0;
-	return 0;
-    }
-
-    if (shmem_seg.base())  {
-	/*
-	 *  Cannot re-allocate shared memory.
-	 */
-	return 0;	// disable for now
-    }
-
-
-    /*
-     *  Calculate the extra bytes we need for holding control info.
-     */
-    int extra = sizeof(svcport_t) + sizeof(diskport_t)*open_max;
-    if (extra & 0x7)
-	extra += 8 - (extra & 0x7);
-
-    /*
-     *  Allocate the shared memory segment
-     */
-    w_rc_t rc = shmem_seg.create(size + extra);
-    if (rc)  {
-	cerr << "fatal error: cannot create shared memory" << endl;
-	W_COERCE(rc);
-    }
-
-    /*
-     *  Initialize server port and disk ports in the shared memory
-     *  segment allocated.
-     */
-    svcport = new (shmem_seg.base()) svcport_t;
-    
-    diskport = (diskport_t*) (shmem_seg.base() + sizeof(svcport_t));
-    for (int i = 0; i < open_max; i++)  {
-	new (diskport + i) diskport_t;
-    }
-#ifdef PIPE_NOTIFY
-    svcport->sleep = 1;
-#endif /* PIPE_NOTIFY */
-
-
-    /*
-     *  Fork a dummy diskrw process that monitors longetivity of
-     *  this process.
-     */
-    char arg[10];
-    ostrstream s(arg, sizeof(arg));
-    s << shmem_seg.id() << '\0';
-    _dummy_disk = ::vfork();
-    if (_dummy_disk == -1) {
-	W_COERCE( shmem_seg.destroy() );
-	cerr << "vfork  " << ::strerror(::errno) << endl;
-	::exit(-1);
-    } else if (_dummy_disk == 0) {
-	execlp(_diskrw, _diskrw, arg, 0);
-	cerr << "could not start disk I/O process, " << _diskrw 
-	     << ", because: " << ::strerror(::errno) << endl;
-	kill(getppid(), SIGKILL);
-	W_COERCE( shmem_seg.destroy() );
-	::exit(-1);
-    }
-
-    /*
-     *  Return pointer to the user space (above control info space).
-     */
-    return shmem_seg.base() + extra;
-}
-
-
-
 /*
  *  sthread_t::_caught_signal(sig)
  *
@@ -851,271 +599,17 @@ sthread_t::set_bufsize(int size)
 void sthread_t::_caught_signal(int sig)
 {
     // cerr << "_caught_signal " << dec << sig << endl;
-#ifndef PIPE_NOTIFY
-    if(sig==SIGUSR2) {
-	ShmcStats.notify++;
-    }
-#else
+
     /* cure for a bogus gcc-2.7.2 warning message */
     sig = sig;
+
+#if 0
+    _caught_signal_io(sig);
 #endif
-
-#if 0 /* not used */
-    if (sig == SIGINT && _dummy_disk != 0) {
-	// cntrl-C, so signal dummy disk process so it can free memory
-	cerr << "ctrl-C detected -- killing disk processes" 
-	     << endl << flush;
-
-	// signal dummy diskrw process so it can kill the others
-	// and free shared memory.
-	if (kill(_dummy_disk, SIGINT) == -1) {
-	    cerr << 
-	    "error: cannot kill disk process that cleans up shared memory(" 
-		 << _dummy_disk << ')' << endl
-		 << RC(stOS) << endl;
-	    cerr << "You might have to clean up shared memory segments by hand."
-		<< endl;
-	    cerr << "See ipcs(1) and ipcrm(1)."<<endl;
-
-	    _exit(-1);
-	} else {
-	    cerr << "ctrl-C detected -- exiting" << endl;
-	    _exit(0);
-	}
-    }
-#endif
-
+   
     w_assert3(!in_cs);
     /* nothing more process */
 }
-
-
-
-/*********************************************************************
- * 
- *  sthread_t::_polldisk()
- *
- *  Poll all open disk ports to check for I/O acknowledgement.
- *
- *********************************************************************/
-void 
-sthread_t::_polldisk()
-{
-    int count = 0;
-    if(gotenv>1) {
-	cerr << "_polldisk()" << endl;
-    }
-    for (register i = 0; i < open_max; i++) {
-	if (diskport[i].pid && diskport[i].pid != -1)  {
-	    while (diskport[i].recv_ready())  {
-		/*
-		 *  An I/O has completed. Dequeue the ack and unblock
-		 *  the thread that initiated the I/O.
-		 */
-		diskmsg_t m;
-		diskport[i].recv(m);
-		W_COERCE( m.thread->unblock() );
-		++count;
-	    }
-	}
-    }
-    svcport->decr_incoming_counter(count);
-}
-
-
-/*
- * The idle thread <insert description from somewhere else>
- *
- * The thread is created at normal priority so system
- * startup will allow the idle thread cpu time for its setup
- * before other threads are run.
- */
-
-sthread_idle_t::sthread_idle_t()
-: sthread_t(t_regular, 0, 0, "idle_thread")
-{
-}
-
-
-
-/*
- *  sthread_idle_t::run()
- *
- *  Body of idle thread.
- */
-void 
-sthread_idle_t::run()
-{
-    const stime_t DEFAULT_TIMEOUT(stime_t::sec(10));	// 10 seconds
-    const stime_t IMMEDIATE_TIMEOUT;			// 0 seconds
-
-    sigset_t lo_spl, hi_spl;
-    W_COERCE(setup_signals(lo_spl, hi_spl));
-
-    /*
-     *  Idle thread only runs at minimum priority
-     */
-    W_COERCE( _me->set_priority(t_idle_time) );
-
-    /*
-     *  Main loop
-     */
-    for (;;)	{
-	bool	timeout_immediate = false;
-
-	/*
-	 *  Check if any disk I/O is done
-	 */
-	if (svcport)  { // && svcport->peek_incoming_counter()) { /*}*/
-#ifdef PIPE_NOTIFY
-	    w_assert3(svcport->sleep == 1);
-#else
-	    svcport->sleep = 0;
-#endif /* PIPE_NOTIFY */
-	    _polldisk();
-	}
-
-	yield();
-	SthreadStats.idle_yield_return++;
-
-	if (svcport && svcport->peek_incoming_counter())
-		_polldisk();
-
-	if(_priority > t_idle_time)  {
-	    // we might wake up to find that our priority was changed
-	    DBG(<<"priority was changed");
-	    timeout_immediate = true;
-
-	    /* XXX ??? reduce priority AFTER scheduling I/O
-	       completions, to allow idle thread as I/O tasker to
-	       complete first. */
-
-	    // set it back
-	    W_COERCE( _me->set_priority(t_idle_time) );
-	}
-
-	if (svcport) {
-	    if (svcport->peek_incoming_counter()) {
-		/*
-		 *  Some I/O has finished. Do not go to sleep.
-		 */
-#ifndef PIPE_NOTIFY
-		svcport->sleep = 0; 
-#endif /* !PIPE_NOTIFY */
-
-		continue;
-	    }
-	    svcport->sleep = 1;
-        }
-
-	/*
-	 * Determine the scheduling delay, if any.
-	 */
-	stime_t	then;		// when the next event occurs
-	stime_t	before;		// time before waiting
-	stime_t	after;		// time after waiting
-	stime_t	timeout;	// selected timeout	
-
-	bool events_pending = false;		// timer events have occured
-	bool have_before = false;		// lazy time retrieval
-	bool events_scheduled = _event_q.nextEvent(then);
-
-	if (timeout_immediate)
-		timeout = IMMEDIATE_TIMEOUT;
-	else if (! _ready_q->is_empty())
-		timeout = IMMEDIATE_TIMEOUT;
-	else if (events_scheduled) {
-		// lazy system call
-		before = stime_t::now();
-		have_before = true;
-		if (then <= before) {
-			events_pending = true;
-			timeout = IMMEDIATE_TIMEOUT;
-		}
-		else
-			timeout = then - before;
-	}
-	else
-		timeout = DEFAULT_TIMEOUT;
-	
-	/*
-	 *  Wait for external events or interrupts
-	 */
-	static continuous_idle = 0;
-	w_assert1(!svcport || svcport->sleep == 1);
-
-	W_COERCE(_io_events->prepare(timeout, false));
-
-	/* allow interrupts */
-	int kr;
-	in_cs = false;	/* system call can trigger a signal */
-	kr = sigprocmask(SIG_SETMASK, &lo_spl, 0);
-	if (kr == -1) {
-		w_rc_t	e = RC(sthread_base_t::stOS);
-		cerr << "sigprocmask(SIG_SETMASK)" << endl << e << endl;
-		::_exit(1);
-	}
-
-#ifdef EXPENSIVE_STATS
-	/* A more accurate select-time estimate */
-	before = stime_t::now();
-#else
-	// lazy system calls :-)
-	if (!have_before)
-		before = stime_t::now();
-#endif
-
-	w_rc_t rc = _io_events->wait();
-
-	after = stime_t::now();
-	
-	/* block interrupts */
-	kr = sigprocmask(SIG_SETMASK, &hi_spl, 0);
-	if (kr == -1) {
-		w_rc_t	e = RC(sthread_base_t::stOS);
-		cerr << "sigprocmask(SIG_SETMASK)" << endl << e << endl;
-		::_exit(1);
-	}
-	in_cs = true;	/* only now is signal delivery blocked */
-
-	SthreadStats.idle_time += (float) (after - before);
-
-	/*
-	 * Dispatch any events which are pending, from a menu
-	 * of file, and timer events
-	 */
-	
-	/* file events */
-	if (rc == RCOK)
-		_io_events->dispatch();
-
-	/* timer events */
-	// reevaluate if needed
-	if (!events_pending && events_scheduled)
-		events_pending = (then <= after);
-
-	if (events_pending)
-		_event_q.run(after /* + stime_t::msec(20) ??? */ );
-
-	if (rc)  {
-		if (rc.err_num() == stTIMEOUT)  {
-			SthreadStats.idle++;
-
-			/* If we have been idled for too long, print
-			 status to stdout for debugging.  */
-
-			if (++continuous_idle == 40) {
-				if (gotenv > 1)
-					dumpthreads();
-				continuous_idle = 0;
-			}
-		}
-		else
-			continuous_idle = 0;
-	}
-    }
-}
-
 
 
 /*
@@ -1130,7 +624,7 @@ sthread_idle_t::run()
 
 w_rc_t sthread_t::set_use_float(int flag)
 {
-	sthread_core_set_use_float(&_core, flag ? 1 : 0);
+	sthread_core_set_use_float(_core, flag ? 1 : 0);
 	return RCOK;
 }
 
@@ -1168,7 +662,7 @@ w_rc_t sthread_t::set_priority(priority_t priority)
  *  Sleep for timeout milliseconds.
  */
 
-void sthread_t::sleep(long timeout, char *reason)
+void sthread_t::sleep(long timeout, const char *reason)
 {
 	reason = (reason && *reason) ? reason : "sleep";
 
@@ -1228,6 +722,11 @@ w_rc_t	sthread_t::fork()
 	/* go go gadget ... schedule it */
 	_ready_q->put(this);
 
+#ifdef notyet	/* XXX need special case for system boot */
+	/* And give it a chance to start running */
+	yield();
+#endif
+
 	return RCOK;
 }
 
@@ -1247,17 +746,27 @@ sthread_t::sthread_t(priority_t		pr,
 : sthread_named_base_t(nm),
   user(0),
   id(_next_id++),
+#ifdef W_TRACE
+  trace_level(_debug.trace_level()),
+#else
   trace_level(0),
+#endif
   _blocked(0),
   _terminate(new sevsem_t(0, "terminate")),
+  _core(0),
   _status(t_virgin),
   _priority(pr), 
   _ready_next(0),
-  _tevent(0)
+  _tevent(0),
+  _bytes_allocated(0), _allocations(0), _high_water_mark(0)
 {
 	if (!_terminate)
 		W_FATAL(fcOUTOFMEMORY);
-	_core.thread = (void *)this;
+
+	_core = new sthread_core_t;
+	if (!_core)
+		W_FATAL(fcOUTOFMEMORY);
+	_core->thread = (void *)this;
 	
 	/*
 	   Both of these features have problems.  So ... they have been
@@ -1266,11 +775,11 @@ sthread_t::sthread_t(priority_t		pr,
 	   */  
 	
 	if (auto_delete)
-		cerr.form("sthread_t(%#lx): \"%s\": requesting auto-delete!\n",
-			  (long)this, nm ? nm : "<noname>");
+		W_FORM2(cerr, ("sthread_t(%#lx): \"%s\": requesting auto-delete!\n",
+			  (long)this, nm ? nm : "<noname>"));
 	if (block_immediate)
-		cerr.form("sthread_t(%#lx): \"%s\": requesting block-immediate!\n",
-			  (long)this, nm ? nm : "<noname>");
+		W_FORM2(cerr,("sthread_t(%#lx): \"%s\": requesting block-immediate!\n",
+			  (long)this, nm ? nm : "<noname>"));
 	
 	/*
 	 *  Set a valid priority level
@@ -1283,7 +792,7 @@ sthread_t::sthread_t(priority_t		pr,
 	/*
 	 *  Initialize the core.
 	 */
-	if (sthread_core_init(&_core, __start, this, stack_size) == -1) {
+	if (sthread_core_init(_core, __start, this, stack_size) == -1) {
 		cerr << "sthread_t: cannot initialize thread core" << endl;
 		W_FATAL(stINTERNAL);
 	}
@@ -1316,32 +825,30 @@ sthread_t::~sthread_t()
 	   it isn't on a blocked list */
 
 	if (_ready_next) {
-		cerr.form("sthread_t(%#lx): \"%s\": destroying a thread on the ready queue!",
-			  (long)this, name());
+		W_FORM2(cerr,("sthread_t(%#lx): \"%s\": destroying a thread on the ready queue!",
+			  (long)this, name()));
 	}
 
 	if (_link.member_of()) {
-		cerr.form("sthread_t(%#lx): \"%s\": destroying a thread on a list!",
-			  (long)this, name());
+		W_FORM2(cerr,("sthread_t(%#lx): \"%s\": destroying a thread on a list!",
+			  (long)this, name()));
 	}
 
 
 
 	if (_blocked) {
-		cerr.form("sthread_t(%#lx): \"%s\": destroying a blocked thread!",
-			  (long)this, name());
+		W_FORM2(cerr, ("sthread_t(%#lx): \"%s\": destroying a blocked thread!",
+			  (long)this, name()));
 		cerr << *_blocked << endl;
 
 		_trace.release(_blocked);
 		_blocked = 0;
 	}
 
-	sthread_core_exit(&_core);
+	sthread_core_exit(_core);
 
-	/* invalidate the core, attempt to ensure death if someone
-	   tries to schedule a dead thread */
-	memset(&_core, '\0', sizeof(_core));
-	_core.thread = (void *) 0xdeadbeef;
+	delete _core;
+	_core = 0;
 
 	if (_rc)  {/*nothing*/;}
 	delete _terminate;
@@ -1375,10 +882,15 @@ void sthread_t::_start()
 	purify_name_thread(name());
 #endif
 
+	/* Setup whatever machine dependent modes we want all threads
+	   to have beyond the default provided by the core switcher. */
+	_reset_cpu();
+
 	/* Save an exit jmpbuf and call run().  Either run() returns
 	   or sthread_t::end() longjmp()'s here to terminate the thread */
 	if (thread_setjmp(_exit_addr) == 0) {
 		/* do not save sigmask */
+		w_assert1(_me == this);
 		run();
 	}
 
@@ -1576,595 +1088,6 @@ void sthread_t::end()
 }
 
 
-/* Attach and detach IO event handlers */
-w_rc_t	sthread_t::io_start(sfile_hdl_base_t &event)
-{
-	if (!_io_events)
-		return RC(stINTERNAL);
-	return _io_events->start(event);
-}
-
-w_rc_t	sthread_t::io_finish(sfile_hdl_base_t &event)
-{
-	if (!_io_events)
-		return RC(stINTERNAL);
-	_io_events->stop(event);
-	return RCOK;
-}
-
-bool	sthread_t::io_active(int fd)
-{
-	return _io_events ? _io_events->is_active(fd) : false;
-}
-
-
-/*********************************************************************
- *
- *  sthread_t::open(path, flags, mode, ret_fd)
- *
- *  Open the file "path". Return the file descriptor in ret_fd. 
- *  I/O on this file will block thread but not the process.
- *
- *********************************************************************/
-w_rc_t
-sthread_t::open(const char* path, int flags, int mode, int& ret_fd)
-{
-    ret_fd = -1;
-    w_assert3(svcport && diskport);
-
-    /* extract sthread I/O specific flags */
-    bool	open_local = (flags & OPEN_LOCAL) == OPEN_LOCAL;
-    flags &= ~OPEN_LOCAL;
-
-    bool	open_keep = (flags & OPEN_KEEP) == OPEN_KEEP;
-    flags &= ~OPEN_KEEP;
-
-    bool	open_fast = (flags & OPEN_FAST) == OPEN_FAST;
-    flags &= ~OPEN_FAST;
-
-    /* Local I/O overrides oportunistic fastpath I/O */
-    open_fast = open_fast || do_fastpath;
-    if (open_local)
-	    open_fast = false;
-
-    bool keep_open = open_local || open_keep || open_fast;
-
-    /*
-     *  Let unix check for permission and such, or creation.
-     */
-    int fd = ::open(path, flags, mode);
-    if (fd < 0) 
-	return RC(stOS);
-
-    if (!keep_open)
-	    ::close(fd);
-    
-    flags &= ~O_CREAT;
-
-    /* XXX should be in thread package statics */
-    static smutex_t mutex("forkdisk");
-
-    /*
-     *  Enter critical section in manipulating diskport
-     */
-    W_COERCE( mutex.acquire() );
-
-    if (diskport_cnt >= open_max) {
-	mutex.release();
-	if (keep_open)
-		::close(fd);
-	return RC(stTOOMANYOPEN);
-    }
-
-    /*
-     *  Find a free diskport and instantiate an object on it
-     */
-    diskport_t *p;
-    for (p = diskport; p->pid != 0; p++);
-    new (p) diskport_t;
-    diskport_cnt++;
-
-    p->_fd = keep_open ? fd : 0;
-
-    /* XXX code duplication to minimize changes.
-       Don't start a diskrw for local-only I/O  */
-    if (open_local) {
-	    p->pid = -1;	// port in-use, but no process
-	    ret_fd = p - diskport;
-	    _io_flags[ret_fd] = IOF_KEEP | IOF_LOCAL;
-	    mutex.release();
-
-	    ret_fd = fd_base + ret_fd;
-	    return RCOK;
-    }
-
-    /*
-     *  Set up arguments for diskrw
-     */
-    char arg1[100];
-    char arg2[200];
-    ostrstream s1(arg1, sizeof(arg1));
-    s1 << shmem_seg.id() << '\0';
-    ostrstream s2(arg2, sizeof(arg2));
-    s2	<< (char*)svcport - (char*)shmem_seg.base() << " " 
-	<< (char*)p - (char*)shmem_seg.base() << " "
-	<< flags << " "
-	<< mode << '\0';
-#ifdef PIPE_NOTIFY
-    if (master_chan[0] == -1) {
-	if (pipe(master_chan) == -1) {
-		::perror("master chan");
-		mutex.release();
-		return RC(errno);
-	}
-	/* CLOSE_ON_EXEC(master_chan[PIPE_IN]);  */
-	FD_NODELAY(master_chan[PIPE_IN]);
-	W_COERCE(chan_event.change(master_chan[PIPE_IN]));
-	W_COERCE(io_start(chan_event));
-	chan_event.enable();
-    }
-    p->sv_chan[PIPE_IN] = master_chan[PIPE_IN];
-    p->sv_chan[PIPE_OUT] = master_chan[PIPE_OUT];
-
-    if (pipe(p->rw_chan) == -1) {
-	w_rc_t e = RC(fcOS);
-	::perror("diskrw chan");
-	mutex.release();
-	return e;
-    }
-    /* CLOSE_ON_EXEC(p->rw_chan[PIPE_OUT]); */
-#endif /* PIPE_NOTIFY */
-	    
-    /*
-     *  Fork 
-     */
-    pid_t pid = ::vfork();
-    if (pid == -1)  {
-	// failure
-
-	cerr << "vfork  " << ::strerror(::errno) << endl;
-	::exit(-1);
-    } else if (pid == 0) {
-	::close(p->_fd); // close original fd 
-	/*
-	 *  Child is running here. Exec diskrw.
-	 */
-	execlp(_diskrw, _diskrw, arg1, arg2, path, 0);
-	cerr << "could not start disk I/O process, " << _diskrw
-	     << ", because: " << ::strerror(::errno) << endl;
-	kill(getppid(), SIGKILL);
-	::exit(-1);
-    } else {
-      /*
-       *  Parent is running here. 
-       */
-#ifdef PIPE_NOTIFY
-      ::close(p->rw_chan[PIPE_IN]);
-#endif
-      p->pid = pid;
-
-      ret_fd = p - diskport;
-      /* keep_open always follows fastpath or OPEN_KEEP */
-      _io_flags[ret_fd] = (open_fast ? (int)IOF_FASTPATH : 0)
-	      | (keep_open ? (int)IOF_KEEP : 0);
-
-      mutex.release();
-
-      ret_fd = fd_base + ret_fd;
-      w_assert3(ret_fd >= fd_base && ret_fd - fd_base < open_max);
-    }
-
-    return RCOK;
-}
-
-
-
-/*********************************************************************
- *
- *  sthread_t::close(fd)
- *
- *  Close a file previously opened with sthread_t::open(). Kill the
- *  diskrw process for this file.
- *
- *********************************************************************/
-w_rc_t
-sthread_t::close(int fd)
-{
-    // sync before close
-    W_DO(sthread_t::fsync(fd));
-
-    fd -= fd_base;
-    if (fd < 0 || fd >= open_max)  {
-	return RC(stBADFD);
-    }
-    bool close_local = _io_flags[fd] & IOF_KEEP;
-
-    diskport_t* p = diskport + fd;
-
-    if ((_io_flags[fd] & IOF_LOCAL) == 0) {
-
-	    /*
-	     *  Kill diskrw and wait for it to end.
-	     */
-	    w_assert3(p->outstanding() == 0);
-	    if (kill(p->pid, SIGHUP) == -1) {
-		    cerr << "cannot kill pid " << p->pid << endl
-			    << RC(stOS) << endl;
-		    ::exit(-1);
-	    }
-	    if (waitpid(p->pid, 0, 0) == -1) {
-		    cerr << "cannot waitpid " << p->pid << endl
-			    << RC(stOS) << endl;
-		    ::exit(-1);
-	    }
-#ifdef PIPE_NOTIFY
-	    ::close(p->rw_chan[PIPE_OUT]);
-#endif
-    }
-
-    if (close_local)
-	    ::close(p->_fd);
-
-    /*
-     *  Call destructor manually.
-     */
-    p->diskport_t::~diskport_t();
-    _io_flags[fd] = 0;
-    diskport_cnt--;
-
-    if (diskport_cnt == 0) {
-	// no diskrw running
-#ifdef PIPE_NOTIFY
-	W_COERCE(io_finish(chan_event));
-	W_COERCE(chan_event.change(FD_NONE));
-	::close(master_chan[PIPE_IN]);
-	::close(master_chan[PIPE_OUT]);
-	master_chan[PIPE_IN] = FD_NONE;
-	master_chan[PIPE_OUT] = FD_NONE;
-#endif /* PIPE_NOTIFY */
-    }
-
-    return RCOK;
-}
-
-
-
-
-/*********************************************************************
- *
- *  sthread_t::_io(fd, op, vec, cnt, other)
- *
- *  Perform an I/O of type "op" on the file "fd" previously
- *  opened with sthread_t::open(). 
- *
- *********************************************************************/
-w_rc_t
-sthread_t::_io(int fd, int op, const struct iovec* v, int iovcnt, off_t other)
-{
-    if (_io_in_progress++) SthreadStats.ccio++;
-    
-    SthreadStats.io++;
-
-    fd -= fd_base;
-    w_assert3(fd >= 0 && fd < open_max);
-    if (fd < 0 || fd >= open_max)  {
-	return RC(stBADFD);
-    }
-    
-    diskv_t diskv[iovec_max];
-    if (iovcnt > iovec_max)
-	return RC(stBADIOVCNT);
-
-    diskport_t& p = diskport[fd];
-    int total = 0;
-    int cc=0;
-
-    bool local_io = (_io_flags[fd] & IOF_LOCAL);
-    bool take_fastpath =  local_io || (_io_in_progress == 1  &&
-				       (_io_flags[fd] & IOF_FASTPATH) &&
-				       _ready_q->contains_only(_idle_thread));
-
-#if 1	    
-    /* Fastpath writes cause a consistency problem with the write
-       cache in diskrw.  Account for the missed opportunity, and do
-       a normal write. */
-    if (!local_io && take_fastpath && op == diskmsg_t::t_write)
-	    SthreadStats.nofastwrite++;
-    else
-#endif
-    /* Only do fastpath I/O if nothing else is happening.
-       OR if the I/O should be kept "local" */
-    if (take_fastpath) {
-	w_rc_t	e;
-	int	totalcc = 0;
-	off_t	pos;
-
-	switch (op) {
-	case diskmsg_t::t_write:
-	case diskmsg_t::t_read:
-		for (int i = 0; i < iovcnt; i++)
-			totalcc += v[i].iov_len;
-		break;
-	}
-
-	if (local_io)
-		SthreadStats.local_io++;
-	else
-		SthreadStats.fastpath++;
-
-#ifdef EXPENSIVE_STATS
-	stime_t start_time(stime_t::now());
-#endif
-
-	switch(op) {
-	case diskmsg_t::t_sync:
-		cc = ::fsync(p._fd);
-		/* fsyncs to r/o files and devices can fail ok */
-		if (cc == -1 && !(errno == EBADF || errno == EINVAL)) 
-			e = RC(stOS);
-		break;
-
-	case diskmsg_t::t_trunc:
-		cc = ::ftruncate(p._fd, other);
-		if (cc == -1)
-			e = RC(stOS);
-		break;
-
-	case diskmsg_t::t_read:
-		pos = ::lseek(p._fd, p.pos, SEEK_SET);
-		if (pos != p.pos) {
-			e = (pos == -1) ? RC(stOS) : RC(stSHORTSEEK);
-			break;
-		}
-
-#if defined(SOLARIS2) /* and other OS's with non-const iovs */
-		/* XXX bad solution, but need to copy it otw */
-		cc = ::readv(p._fd, (struct iovec *)v, iovcnt);
-#else
-		cc = ::readv(p._fd, v, iovcnt);
-#endif
-
-		if (cc == -1)
-			e = RC(stOS);
-		else {
-			p.pos += cc;
-			if (cc != totalcc)
-				e = RC(stSHORTIO);
-		}
-
-		break;
-
-	case diskmsg_t::t_write: 
-		pos = ::lseek(p._fd, p.pos, SEEK_SET);
-		if (pos != p.pos) {
-			e = (pos == -1) ? RC(stOS) : RC(stSHORTSEEK);
-			break;
-		}
-
-		cc = ::writev(p._fd, v, iovcnt);
-
-		if (cc == -1)
-			e = RC(stOS);
-		else {
-			p.pos += cc;
-			if (cc != totalcc)
-				e = RC(stSHORTIO);
-		}
-		break;
-
-        default:
-		e = RC(stBADADDR);
-		break;
-        }
-
-	_io_in_progress--;
-
-#ifdef EXPENSIVE_STATS
-	double delta = (float) (stime_t::now() - start_time);
-	SthreadStats.io_time +=  delta;
-	/* It's idle time because no threads can run :-( */     
-	SthreadStats.idle_time += delta;
-#endif
-
-	yield();
-
-        return e;
-    }
-
-    w_assert3((_io_flags[fd] & IOF_LOCAL) == 0);
-
-    off_t pos = p.pos;
-
-    switch(op) {
-    case diskmsg_t::t_sync:
-	break;
-    case diskmsg_t::t_trunc:
-	break;
-
-    case diskmsg_t::t_read:
-    case diskmsg_t::t_write: {
-            /*
-             *  Convert pointer to offset relative to shared memory
-             *  segment.
-             */
-            for (int i = 0; i < iovcnt; i++)  {
-                diskv[i].bfoff = ((char *)v[i].iov_base) - shmem_seg.base();
-                diskv[i].nbytes = v[i].iov_len;
-                total += v[i].iov_len;
-
-                if (diskv[i].bfoff < 0 ||
-                    (uint)(diskv[i].bfoff + diskv[i].nbytes) > shmem_seg.size())   {
-                    return RC(stBADADDR);
-                }
-            }
-        }
-
-	break;
-    default: 
-	return RC(stBADADDR);
-    }
-
-    /*
-     *  Send message to diskrw process to perform the I/O. Current
-     *  thread will block in p.send() until I/O completes.
-     */
-
-#ifdef EXPENSIVE_STATS
-    stime_t start_time(stime_t::now());
-#endif
-
-    p.send(diskmsg_t((diskmsg_t::op_t)op, 
-	(op == diskmsg_t::t_trunc ? other : pos), diskv, iovcnt));
-
-#ifdef EXPENSIVE_STATS
-    SthreadStats.io_time +=  (float) (stime_t::now() - start_time);
-#endif
-
-    --_io_in_progress;
-    p.pos = pos + total;
-
-    return RCOK;
-}
-
-
-
-/*********************************************************************
- *
- *  sthread_t::write(fd, buf, n)
- *  sthread_t::writev(fd, iov, iovcnt)
- *  sthread_t::read(fd, buf, n)
- *  sthread_t::readv(fd, iov, iovcnt)
- *  sthread_t::fsync(fd)
- *  sthread_t::ftruncate(fd, len)
- *
- *  Call _io to perform I/O for current thread.
- *
- *********************************************************************/
-w_rc_t
-sthread_t::writev(int fd, const struct iovec* iov, size_t iovcnt)
-{
-    return _io(fd, diskmsg_t::t_write, iov, iovcnt);
-}
-
-w_rc_t
-sthread_t::write(int fd, const void* buf, int n)
-{
-    iovec iov;
-    iov.iov_base = (caddr_t) buf;
-    iov.iov_len = n;
-    return _io(fd, diskmsg_t::t_write, &iov, 1);
-}
-
-w_rc_t
-sthread_t::read(int fd, const void* buf, int n)
-{
-    iovec iov;
-    iov.iov_base = (caddr_t) buf;
-    iov.iov_len = n;
-    return _io(fd, diskmsg_t::t_read, &iov, 1);
-}
-
-w_rc_t
-sthread_t::fsync(int fd)
-{
-    return _io(fd, diskmsg_t::t_sync, 0, 0);
-}
-
-w_rc_t
-sthread_t::ftruncate(int fd, off_t n)
-{
-    return _io(fd, diskmsg_t::t_trunc, 0,0, n);
-}
-
-
-/*********************************************************************
- *
- *  sthread_t::lseek(fd, offset, whence, ret)
- *
- *  Perform a seek on the file previous opened with sthread_t::open().
- *
- *********************************************************************/
-w_rc_t
-sthread_t::lseek(int fd, off_t offset, int whence, off_t& ret)
-{
-    fd -= fd_base;
-    if (fd < 0 || fd >= open_max)  {
-	return RC(stBADFD);
-    }
-    if(whence == SEEK_CUR) {
-	diskport[fd].pos +=  offset;
-    } else if(whence == SEEK_SET) {
-	diskport[fd].pos = offset;
-    } else {
-	// cannot support SEEK_END;
-	return RC(stINVAL);
-    }
-    ret = diskport[fd].pos;
-    return RCOK;
-}
-
-/* currently lseek can't ever seek short, just pass through. */
-w_rc_t
-sthread_t::lseek(int fd, off_t offset, int whence)
-{
-	off_t	unused;
-	return lseek(fd, offset, whence, unused);
-}
-
-w_rc_t	sthread_t::fstat(int fd, struct stat &st)
-{
-	fd -= fd_base;
-	if (fd < 0 || fd >= open_max)
-		return RC(stBADFD);
-
-	if ((_io_flags[fd] & IOF_KEEP) == 0)
-		return RC(stINVALIDIO);
-
-	int n;
-	n = ::fstat(diskport[fd]._fd, &st);
-	return n == -1 ? RC(stOS) : RCOK;
-}
-
-w_rc_t	sthread_t::fgetfile(int fd, void *to)
-{
-	fd -= fd_base;
-	if (fd < 0 || fd >= open_max)
-		return RC(stBADFD);
-
-	if ((_io_flags[fd] & IOF_KEEP) == 0)
-		return RC(stINVALIDIO);
-
-	*(int *)to = diskport[fd]._fd;
-	return RCOK;
-}
-
-w_rc_t	sthread_t::fgetgeometry(int fd, struct disk_geometry &dg)
-{
-	fd -= fd_base;
-	if (fd < 0 || fd >= open_max)
-		return RC(stBADFD);
-
-	if ((_io_flags[fd] & IOF_KEEP) == 0)
-		return RC(stINVALIDIO);
-
-	return sdisk_getgeometry(diskport[fd]._fd, dg);
-}
-
-w_rc_t	sthread_t::fisraw(int fd, bool &raw)
-{
-	w_rc_t	e;
-	struct	stat st;
-
-	e = fstat(fd, st);
-	if (e)
-		return e;
-
-	raw = ((st.st_mode & S_IFMT) == S_IFCHR);
-	return RCOK;
-}
-
-
-
 /*********************************************************************
  *
  *  sthread_t::push_resource_alloc(const char* n, void *id, bool isLatch)
@@ -2194,51 +1117,142 @@ sthread_t::pop_resource_alloc(void *id)
 
 
 /* print all threads */
-void sthread_t::dump(const char *str, ostream & o)
+void sthread_t::dump(const char *str, ostream &o)
 {
-    w_list_i<sthread_t> i(*_class_list);
+	if (str)
+		o << str << ": " << endl;
 
-    if(str) {
-	o << str << ": " << endl;
-    }
-    while (i.next())  {
-	o << "******* " ;
-	if(_me == i.curr()) {
-	    o << " --->ME<---- ";
+	dump(o);
+}
+
+void sthread_t::dump(ostream &o)
+{
+	w_list_i<sthread_t> i(*_class_list);
+
+	while (i.next())  {
+		o << "******* ";
+		if (_me == i.curr())
+			o << " --->ME<---- ";
+		o << endl;
+
+		i.curr()->_dump(o);
 	}
-	o << endl;
-	i.curr()->_dump(o);
-    }
-
-    if (_io_events) {
-	    if (str)
-		    o << str << ": " << endl;
-	    _io_events->print(o);
-    }
-
 }
 
 
 /* XXX individual thread dump function... obsoleted by print method */
-void sthread_t::_dump(ostream &o)
+void sthread_t::_dump(ostream &o) const
 {
-    o << *this << endl;
+	o << *this << endl;
 }
 
-void
-sthread_t::dump_stats(ostream & o)
+/* XXX it is not a bug that you can sometime see >100% cpu utilization.
+   Don't even think about hacking something to change it.  The %CPU
+   is an *estimate* developed by statistics gathered by the process,
+   not something solid given by the kernel. */
+
+static void print_time(ostream &o, const sinterval_t &real,
+		       const sinterval_t &user, const sinterval_t &kernel)
 {
-    o << SthreadStats << endl << endl;
+	sinterval_t	total(user + kernel);
+	double	pcpu = ((double)total / (double)real) * 100.0;
+	double 	pcpu2 = ((double)user / (double)real) * 100.0;
+
+	o << "\t" << "real: " << real
+		<< endl;
+	o << "\tcpu:"
+		<< "  kernel: " << kernel
+		<< "  user: " << user
+		<< "  total: " << total
+		<< endl;
+	o << "\t%CPU:"
+		<< " " << setprecision(3) << pcpu
+		<< "  %user: " << setprecision(2) << pcpu2
+		<< endl;
 }
 
-void
-sthread_t::reset_stats()
+void sthread_t::dump_stats(ostream &o)
 {
-    SthreadStats.clear();
+	o << SthreadStats;
+	dump_stats_io(o);
+
+	/* To be moved somewhere else once I put some other infrastructure
+	   into place.  Live with it in the meantime, the output is really
+	   useful for observing ad-hoc system performance. */
+#ifdef _WIN32
+	/* DISGUSTING */
+	FILETIME	times[4];
+	timeval	tv[2];
+	bool	ok;
+	ok = GetProcessTimes(GetCurrentProcess(), times, times+1, times+2, times+3);
+	if (!ok) {
+		w_rc_t e = RC(fcWIN32);
+		cerr << "GetProcessTimes():" << endl << e << endl;
+		return;
+	}
+	stime_t	now(stime_t::now());
+
+	extern void filetime2timeval(FILETIME &, timeval &);
+
+	filetime2timeval(times[2], tv[0]);
+	filetime2timeval(times[3], tv[1]);
+	sinterval_t	kernel(tv[0]);
+	sinterval_t	user(tv[1]);
+	sinterval_t	real(now - boot_time);
+	sinterval_t	total(user + kernel);
+	sinterval_t	idle(SthreadStats.idle_time);
+#else
+	struct	rusage	ru;
+	int	n;
+
+	stime_t	now(stime_t::now());
+	n = getrusage(RUSAGE_SELF, &ru);
+	if (n == -1) {
+		w_rc_t	e = RC(fcOS);
+		cerr << "getrusage() fails:" << endl << e << endl;
+		return;
+	}
+
+	sinterval_t	real(now - boot_time);
+	sinterval_t	kernel(ru.ru_stime);
+	sinterval_t	user(ru.ru_utime);
+#endif
+
+	/* Try to provide some modicum of recent cpu use. This will eventually
+	   move into the class, once a "thread handler" arrives to take
+	   care of it. */
+	static	sinterval_t	last_real;
+	static	sinterval_t	last_kernel;
+	static	sinterval_t	last_user;
+	static	bool last_valid = false;
+
+	o << "TIME:" << endl;
+	print_time(o, real, user, kernel);
+	if (last_valid) {
+		sinterval_t	r(real - last_real);
+		sinterval_t	u(user - last_user);
+		sinterval_t	k(kernel - last_kernel);
+		o << "RECENT:" << endl;
+		print_time(o, r, u, k);
+	}
+	else
+		last_valid = true;
+
+	last_kernel = kernel;
+	last_user = user;
+	last_real = real;
+
+	o << endl;
+}
+
+void sthread_t::reset_stats()
+{
+	SthreadStats.clear();
+	reset_stats_io();
 }
 
 
-char *sthread_t::status_strings[] = {
+const char *sthread_t::status_strings[] = {
 	"defunct",
 	"virgin",
 	"ready",
@@ -2247,7 +1261,7 @@ char *sthread_t::status_strings[] = {
 	"boot"
 };
 
-char *sthread_t::priority_strings[]= {
+const char *sthread_t::priority_strings[]= {
 	"idle_time",
 	"fixed_low",
 	"regular",
@@ -2276,13 +1290,13 @@ ostream &sthread_t::print(ostream &o) const
 
 	o
 	<< ", addr = " <<  (void *) this
-	<< ", core = " <<  (void *) &_core << endl;
+	<< ", core = " <<  (void *) _core << endl;
 	o
 	<< "priority = " << sthread_t::priority_strings[priority()]
 	<< ", status = " << sthread_t::status_strings[status()];
 	o << endl;	      
 
-	o << _core << endl;
+	o << *_core << endl;
 
 	if (user)
 		o << "user = " << user << endl;
@@ -2292,9 +1306,18 @@ ostream &sthread_t::print(ostream &o) const
 	
 	_trace.print(o);
 	
-	if (status() != t_defunct  &&  !sthread_core_stack_ok(&_core, 0))
+	if (status() != t_defunct  &&  !sthread_core_stack_ok(_core, 0))
 		cerr << "***  warning:  Thread stack overflow  ***" << endl;
 	
+	if(_high_water_mark != 0) {
+	    o << "heap: " 
+		<< _bytes_allocated << " bytes allocated in "
+		<< _allocations << " calls " 
+		<< (_allocations * w_fastnew_t::overhead() ) << 
+			" bytes overhead" 
+		<< " high water mark=" << _high_water_mark
+		<<endl;
+	}
 	return o;
 }
 
@@ -2371,7 +1394,7 @@ smutex_t::~smutex_t()
 w_rc_t 
 smutex_t::acquire(int4_t timeout)
 {
-    FUNC(smutex_t::acquire);
+    // FUNC(smutex_t::acquire);
     sthread_t* self = sthread_t::me();
 
 
@@ -2403,8 +1426,7 @@ smutex_t::acquire(int4_t timeout)
 	    ret = sthread_t::block(timeout, &waiters, name(), this);
 	}
     }
-#if defined(DEBUG) || defined(SHORE_TRACE)
-    DBGTHRD(<<"acquired mutex " << (long)this);
+#if defined(W_DEBUG) || defined(SHORE_TRACE)
     if (! ret.is_error()) {
 	self->push_resource_alloc(name(), this);
     }
@@ -2412,7 +1434,7 @@ smutex_t::acquire(int4_t timeout)
     return ret;
 }
 
-#ifndef DEBUG
+#ifndef W_DEBUG
 /* Fast path version of acquire(). */
 
 w_rc_t smutex_t::acquire()
@@ -2428,12 +1450,12 @@ w_rc_t smutex_t::acquire()
     } else {
 	holder = sthread_t::me();
 #if defined(SHORE_TRACE)
-        sthread_t::me()->push_resource_alloc(name(), this);
+	sthread_t::me()->push_resource_alloc(name(), this);
 #endif
 	return RCOK;
     }
 }
-#endif /* !DEBUG */
+#endif /* !W_DEBUG */
 
 
 
@@ -2450,9 +1472,8 @@ smutex_t::release()
 {
     w_assert3(holder == sthread_t::me());
 
-    DBGTHRD(<<"releasing mutex " << (long)this);
 
-#if defined(DEBUG) || defined(SHORE_TRACE) 
+#if defined(W_DEBUG) || defined(SHORE_TRACE) 
     holder->pop_resource_alloc(this);
 #endif 
    
@@ -2460,7 +1481,6 @@ smutex_t::release()
     if (holder) {
 	W_COERCE( holder->unblock() );
     }
-    DBGTHRD(<<"releasED mutex " << (long)this);
 }
 
 
@@ -2507,6 +1527,7 @@ scond_t::wait(smutex_t& m, int4_t timeout)
 	m.release();
 	rc = sthread_t::block(timeout, &_waiters, name(), this);
 	W_COERCE(m.acquire());
+
 	SthreadStats.scond_wait++;
     }
     
@@ -2570,7 +1591,7 @@ sevsem_t::~sevsem_t()
 {
     if ((_mutex.acquire(WAIT_IMMEDIATE) != RCOK) || 
 	_cond.is_hot())  {
-	cerr << "evsem_t::~evsem_t:  fatal error --- semaphore busy\n";
+	cerr << "sevsem_t::~sevsem_t:  fatal error --- semaphore busy\n";
 	W_FATAL(stINTERNAL);
     }
 
@@ -2597,7 +1618,7 @@ sevsem_t::post()
     W_COERCE( _mutex.acquire() );
     if (_post_cnt++)  {
 	_cond.broadcast();
-        _mutex.release();
+	_mutex.release();
 	return RC(stSEMPOSTED);
     }
     _cond.broadcast();
@@ -2686,7 +1707,7 @@ sthread_name_t::rename(
 	size_t len = 0;
 	_name[0] = '\0';
 	if (n1)  {
-#ifdef DEBUG
+#ifdef W_DEBUG
 		len = strlen(n1);
 		if(n2) len += strlen(n2);
 		if(n3) len += strlen(n3);
@@ -2700,10 +1721,10 @@ sthread_name_t::rename(
 		// only copy as much as will fit
 		strncpy(_name, n1, sz);
 		len = strlen(_name);
-		if (n2 && len < sz)  {
+		if (n2 && (int)len < sz)  {
 			strncat(_name, n2, sz - len);
 			len = strlen(_name);
-			if (n3 && len < sz)
+			if (n3 && (int)len < sz)
 				strncat(_name, n3, sz - len);
 		}
 
@@ -2726,12 +1747,20 @@ sthread_named_base_t::rename(
     const char*		n2,
     const char*		n3)
 {
-    unname();
+    // NB: instead of delete/realloc, just wipe out 
+    // the old name and re-use the space if we
+    // have a new non-null name  
+    // unname();
     if(n1) {
-	_name = new sthread_name_t;
-	SthreadStats.namemallocs++;
-	DBG(<<"malloc for " << n1 << n2 << n3);
-	_name->rename(n1,n2,n3);
+	if(_name) {
+	    _name->rename(0,0,0);
+	    _name->rename(n1,n2,n3);
+	} else {
+	    _name = new sthread_name_t;
+	    _name->rename(n1,n2,n3);
+	}
+    } else {
+	unname();
     }
 }
 
@@ -2739,17 +1768,6 @@ sthread_named_base_t::~sthread_named_base_t()
 {
 	unname();
 }
-
-
-#include "sthread_stats_op.i"
-const char *sthread_stats::stat_names[] = {
-#include "sthread_stats_msg.i"
-};
-
-#include "shmc_stats_op.i"
-const char *shmc_stats::stat_names[] = {
-#include "shmc_stats_msg.i"
-};
 
 
 
@@ -2766,157 +1784,6 @@ sthread_priority_list_t::sthread_priority_list_t()
 	offsetof(sthread_t, _priority),
 	offsetof(sthread_t, _link))  
 {
-}
-
-
-/*********************************************************************
- *
- *  ready_q_t::ready_q_t()
- *
- *  Construct a ready queue.
- *
- *********************************************************************/
-NORET
-ready_q_t::ready_q_t() : count(0)
-{
-    for (int i = 0; i < nq; i++)  {
-	head[i] = tail[i] = 0;
-    }
-}
-
-bool			
-ready_q_t::contains_only(sthread_t *t) const	
-{ 
-     return (count == 0) ||
-	((count == 1) && t && (t->status() == sthread_t::t_ready));
-}
-
-
-/*********************************************************************
- *
- *  ready_q_t::get()
- *
- *  Dequeue and return a thread from the highest priority queue
- *  that is not empty. If all queues are empty, return 0.
- *
- *********************************************************************/
-sthread_t*
-ready_q_t::get()
-{
-    sthread_t* t = 0;
-    /*
-     *  Find the highest queue that is not empty
-     */
-    register i;
-    for (i = nq-1; i >= 0 && !head[i]; i--);
-    if (i >= 0)  {
-	/*
-	 *  We found one. Dequeue the first entry.
-	 */
-	t = head[i];
-	w_assert1(count > 0);
-	--count;
-	head[i] = t->_ready_next;
-	if(head[i]==0) tail[i] = 0;
-	t->_ready_next = 0;
-    }
-    return t;
-}
-
-
-/*********************************************************************
- *
- *  ready_q_t::put(t)
- *
- *  Insert t into the queue of its priority.
- *
- *********************************************************************/
-#ifdef DEBUG
-void stop() {}
-#endif
-void
-ready_q_t::put(sthread_t* t)
-{
-    t->_ready_next = 0;
-    int i = t->priority();	// i index into the proper queue
-    w_assert3(i >= 0 && i < nq);
-    ++count;
-#ifdef DEBUG
-    if(count > 1) {
-	// a place to stop in dbg
-	stop();
-    }
-#endif
-    if (head[i])  {
-	w_assert3(tail[i]->_ready_next == 0);
-	tail[i] = tail[i]->_ready_next = t;
-    } else {
-	head[i] = tail[i] = t;
-    }
-}
-
-/*********************************************************************
- *
- *  ready_q_t::change_priority(t,p)
- *
- *  dequeue t, change its priority to p, and re-queue it
- *  that is not empty. If all queues are empty, return 0.
- *
- *********************************************************************/
-void
-ready_q_t::change_priority(sthread_t* target, sthread_t::priority_t p)
-{
-    sthread_t* t = 0, *tp=0;
-    /*
-     *  Find the first (highest) queue that is not empty
-     */
-    for (register int i = nq-1 ;i >= 0; i--) {
-	/*
-	 *  We found a nonempty queue.
-	 *  Search it for our target thread.
-	 */
-	for(tp=0, t=head[i]; t; tp=t ,t=t->_ready_next) {
-	    if(t==target) {
-		/*
-		 * FOUND
-		 * tp points to previous item on the list
-		 * dequeue it.
-		 */
-		if(tp) {
-		    tp->_ready_next = t->_ready_next;
-		    if (t == tail[i])
-			    tail[i] = tp;
-		} else {
-		    w_assert3(t == head[i]);
-		    head[i] = t->_ready_next;
-		    if(head[i]==0) tail[i] = 0;
-		}
-		--count;
-		t->_ready_next = 0;
-
-		// Set the new priority level
-		{
-		    // set status so that set_priority doesn't complain
-		    sthread_t::status_t old_status = t->status();
-		    t->_status = sthread_t::t_defunct;
-		    W_COERCE( t->set_priority(p) );
-		    t->_status = old_status;
-		}
-
-		/*
-		 * put it back, at the new priority
-		 */
-		put(t);
-		return;
-	    }
-	}
-    }
-#ifdef DEBUG
-    /* This isn't an error, but something may be mixed up if the
-       thread is expected to be in the ready Q */
-    cerr.form("change_priority can't find thread %#lx(%s)\n",
-	      target, target->name());
-#endif
 }
 
 
@@ -2942,19 +1809,21 @@ const smthread_t* sthread_t::dynamic_cast_to_const_smthread() const
  *********************************************************************/
 void dumpthreads()
 {
-    sthread_t::dump("dumpthreads()", cerr);
+	sthread_t::dump("dumpthreads()", cerr);
+	sthread_t::dump_event(cerr);
+	sthread_t::dump_io(cerr);
 
-    // Took out temporarily in order to circumvent
-    // some gcc/purify problem (with printing doubles)
-    // (Probably an alignment problem.)
-    // cerr << SthreadStats  << endl;
-    cerr << ShmcStats  << endl;
+#if 0
+	// Took out temporarily in order to circumvent
+	// some gcc/purify problem (with printing doubles)
+	// (Probably an alignment problem.)
+	threadstats();
+#endif
 }
 
 void threadstats()
 {
-	cerr << SthreadStats << endl;
-	cerr << ShmcStats  << endl;
+	sthread_t::dump_stats(cerr);
 }
 
 
@@ -2965,6 +1834,7 @@ void threadstats()
    signal ensures that we don't need to die from problems like
    that. */
 
+#ifndef _WINDOWS
 static	void	hack_signals()
 {
 	struct	sigaction	sa;
@@ -2985,6 +1855,7 @@ static	void	hack_signals()
 	}
 	
 }
+#endif
 
 
 #if defined(AIX32) || defined(AIX41)
@@ -3025,7 +1896,7 @@ static void hack_aix_signals()
 }
 #endif /* AIX signal hacks */
 
-#ifdef DEBUG
+#if defined(W_DEBUG) && defined(STHREAD_CORE_STD)
 /*
    Search all thread stacks s for the target address
  */
@@ -3036,9 +1907,9 @@ void sthread_t::find_stack(void *addr)
 	w_list_i<sthread_t> i(*sthread_t::_class_list);
 	
 	while (i.next())  {
-		if (address_in_stack(i.curr()->_core, addr)) {
-			cout.form("*** address %#lx found in ...\n",
-				  (long)addr);
+		if (address_in_stack(*(i.curr()->_core), addr)) {
+			W_FORM2(cout, ("*** address %#lx found in ...\n",
+				  (long)addr));
 			i.curr()->print(cout);
 		}
 	}
@@ -3051,3 +1922,272 @@ void find_thread_stack(void *addr)
 	sthread_t::find_stack(addr);
 }
 #endif
+
+
+/*********************************************************************
+ *
+ * Class sthread_init_t
+ *
+ *********************************************************************/
+
+
+w_base_t::uint4_t	sthread_init_t::count = 0;
+
+w_base_t::int8_t 	sthread_init_t::max_os_file_size;
+
+
+
+/*
+ * Default win32 exception handler.
+ */
+
+#ifdef _WIN32
+LONG WINAPI
+__ef(LPEXCEPTION_POINTERS p) 
+{
+    DWORD flags = p->ExceptionRecord->ExceptionFlags;
+    W_FORM2(cerr, ("***** NT EXCEPTION (%#lx, flags=%#lx): %d params\n",
+	p->ExceptionRecord->ExceptionCode,
+	flags,
+	p->ExceptionRecord->NumberParameters ));
+
+    int i;
+    for (i = 0; i< (int)(p->ExceptionRecord->NumberParameters); i++) {
+	W_FORM2(cerr, ("infor[%d]=%#lx\n",
+	    i,
+	    (unsigned int)( p->ExceptionRecord->ExceptionInformation[i])));
+    }
+
+
+    switch(p->ExceptionRecord->ExceptionCode) {
+    case EXCEPTION_ACCESS_VIOLATION:
+	W_FORM2(cerr, 
+	    ("***** access violation : %s of info[0] occurred at info[1]\n",
+	    (char *)((p->ExceptionRecord->ExceptionInformation[0]==0)? "read":
+	    (p->ExceptionRecord->ExceptionInformation[0]==1)? "write": 
+	    "unknown")));
+	break;
+
+    case EXCEPTION_PRIV_INSTRUCTION:
+	cerr << "***** priv instruction " << endl;
+	break;
+    case EXCEPTION_SINGLE_STEP:
+	cerr << "***** single step " << endl;
+	break;
+    case EXCEPTION_STACK_OVERFLOW:
+	cerr << "***** stack overflow " << endl;
+	break;
+    case EXCEPTION_ILLEGAL_INSTRUCTION:
+	cerr << "***** illegal instruction " << endl;
+	break;
+    case EXCEPTION_INVALID_DISPOSITION:
+	cerr << "***** invalid disposition " << endl;
+	break;
+    case EXCEPTION_IN_PAGE_ERROR:
+	cerr << "***** in page error " << endl;
+	break;
+    case EXCEPTION_INT_DIVIDE_BY_ZERO:
+	cerr << "***** integer divide by zero " << endl;
+	break;
+    case EXCEPTION_INT_OVERFLOW:
+	cerr << "***** integer overflow " << endl;
+	break;
+    case EXCEPTION_ARRAY_BOUNDS_EXCEEDED:
+	cerr << "***** array bounds " << endl;
+	break;
+    case EXCEPTION_FLT_DENORMAL_OPERAND:
+    case EXCEPTION_FLT_DIVIDE_BY_ZERO:
+    case EXCEPTION_FLT_INEXACT_RESULT:
+    case EXCEPTION_FLT_INVALID_OPERATION:
+    case EXCEPTION_FLT_OVERFLOW:
+    case EXCEPTION_FLT_UNDERFLOW:
+    case EXCEPTION_FLT_STACK_CHECK:
+	cerr << "***** floating point exception" << endl;
+	break;
+    case EXCEPTION_NONCONTINUABLE_EXCEPTION:
+	cerr << "***** noncontinuable exception" << endl;
+	flags = EXCEPTION_NONCONTINUABLE; //for now
+    default:
+	break;
+    }
+    dumpthreads();
+
+    flags = EXCEPTION_NONCONTINUABLE; //for now
+
+    switch(flags) {
+    case EXCEPTION_NONCONTINUABLE:
+	break;
+    default:
+	return EXCEPTION_CONTINUE_EXECUTION; // i.e., continue
+    }
+    return EXCEPTION_EXECUTE_HANDLER; // i.e., terminate
+}
+#endif /* _WINDOWS */
+
+
+static	void	hack_large_file_stuff(w_base_t::int8_t &max_os_file_size)
+{
+    /*
+     * Get limits on file sizes imposed by the operating 
+     * system and shell.
+     */
+
+#if !defined(_WIN32)
+#if defined(SOLARIS2) && defined(LARGEFILE_AWARE)
+#define	os_getrlimit(l,r)	getrlimit64(l,r)
+#define	os_setrlimit(l,r)	setrlimit64(l,r)
+typedef	struct rlimit64	os_rlimit_t;
+#else
+#define	os_getrlimit(l,r)	getrlimit(l,r)
+#define	os_setrlimit(l,r)	setrlimit(l,r)
+typedef struct rlimit	os_rlimit_t;
+#endif
+
+	os_rlimit_t	r;
+	int		n;
+
+	n = os_getrlimit(RLIMIT_FSIZE, &r);
+	if (n == -1) {
+		w_rc_t e = RC(fcOS);
+		cerr << "getrlimit(RLIMIT_FSIZE):" << endl << e << endl;
+		W_COERCE(e);
+	}
+	if (r.rlim_cur < r.rlim_max) {
+		r.rlim_cur = r.rlim_max;
+		n = os_setrlimit(RLIMIT_FSIZE, &r);
+		if (n == -1) {
+			w_rc_t e = RC(fcOS);
+			cerr << "setrlimit(RLIMIT_FSIZE, " << r.rlim_cur
+				<< "):" << endl << e << endl;
+		    	cerr << e << endl;
+			W_FATAL(fcINTERNAL);
+		}
+	}
+	max_os_file_size = w_base_t::int8_t(r.rlim_cur);
+	/*
+	 * Unfortunately, sometimes this comes out
+	 * negative, since r.rlim_cur is unsigned and
+	 * fileoff_t is signed (sigh).
+	 */
+	if (max_os_file_size < 0) { 
+		max_os_file_size = w_base_t::uint8_t(r.rlim_cur) >> 1;
+		w_assert1( max_os_file_size > 0);
+	}
+#else
+	/* 
+	 * resource limits not yet implemented : we're stuck
+	 * with small files for the time being
+	 */
+#ifdef LARGEFILE_AWARE
+	max_os_file_size = w_base_t::int8_max;
+#else
+	max_os_file_size = w_base_t::int4_max;
+#endif
+//	max_os_file_size = fileoff_max;
+#endif
+}
+
+/* XXX this doesn't work, neither does the one in sdisk, because
+   the constructor order isn't guaranteed.  The only important
+   use before main() runs is the one right above here. */
+const sthread_base_t::fileoff_t sthread_base_t::fileoff_max = sdisk_t::fileoff_max;
+
+
+/*********************************************************************
+ *
+ *  sthread_init_t::sthread_init_t()
+ *
+ *  Initialize the sthread environment. The first time this method
+ *  is called, it sets up the environment and returns with the
+ *  identity of main_thread.
+ *
+ *********************************************************************/
+sthread_init_t::sthread_init_t()
+{
+	if (++count == 1) {
+
+		hack_large_file_stuff(max_os_file_size);
+
+
+#ifdef _WIN32
+		bool do_exceptions = false;
+#ifdef STHREAD_WIN32_EXCEPTION
+		do_exceptions = true;
+#else
+		char *s = getenv("STHREAD_WIN32_EXCEPTION");
+		do_exceptions = (s && *s && atoi(s));
+#endif /*STHREAD_WIN32_EXCEPTION*/
+		if (do_exceptions) {
+			LPTOP_LEVEL_EXCEPTION_FILTER res =
+				SetUnhandledExceptionFilter(__ef);
+	}
+#endif /* _WIN32 */
+
+		/*
+		 *  Register error codes.
+		 */
+		if (! w_error_t::insert(
+			"Threads Package",
+			error_info, 
+			sizeof(error_info) / sizeof(error_info[0])))   {
+		    
+		    cerr << "sthread_init_t::sthread_init_t: "
+			 << " cannot register error code" << endl;
+
+		    W_FATAL(stINTERNAL);
+		}
+
+#if defined(AIX31) || defined(AIX41)
+		hack_aix_signals();
+#endif
+
+#ifndef _WIN32
+		hack_signals();
+#endif
+
+		/*
+		 * There is a chance that the static _w_fastnew member 
+		 * not been constructed yet.
+		 */
+		W_FASTNEW_STATIC_PTR_DECL_INIT(sthread_name_t, 100);
+#ifndef NO_FASTNEW
+		if (sthread_name_t::_w_fastnew == 0)
+			W_FATAL(fcOUTOFMEMORY);
+#endif
+
+		W_COERCE(sthread_t::startup());
+
+#ifdef _WIN32
+		w_rc_t e = init_winsock();
+		if (e != RCOK) {
+			cerr << "Can't init winsock, stuff may be broken:"
+				<< endl << e << endl;
+		}
+#endif
+
+	}
+}
+
+
+
+/*********************************************************************
+ *
+ *  sthread_init_t::~sthread_init_t()
+ *
+ *  Destructor. Does not do much.
+ *
+ *********************************************************************/
+NORET
+sthread_init_t::~sthread_init_t()
+{
+    w_assert1(count > 0);
+    if (--count == 0)  {
+
+	// sthread_t::_class_list.pop();
+	// delete sthread_t::_class_list;
+	// delete sthread_t::_ready_q;
+
+	W_COERCE(sthread_t::shutdown());
+    }
+}
+

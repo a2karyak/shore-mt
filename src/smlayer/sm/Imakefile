@@ -1,93 +1,168 @@
-/* --------------------------------------------------------------- */
-/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
-/* -- University of Wisconsin-Madison, subject to the terms     -- */
-/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
-/* -- Reserved.                                                 -- */
-/* --------------------------------------------------------------- */
+/*<std-header style='imakefile' orig-src='shore'>
 
-/*
- *  $Id: Imakefile,v 1.89 1997/06/16 21:35:59 solomon Exp $
- */
-#define Tests ssh tests
+ $Id: Imakefile,v 1.120 1999/07/21 21:22:10 bolo Exp $
 
-CPPFLAGS = -I../fc -I../common -I../sthread Include(TclInclude)
+SHORE -- Scalable Heterogeneous Object REpository
 
-%# General source files; the order is roughly from smlevel 0->4
-CFILES = %
-	 pmap.cc common_templates.cc %
-	 lexify.cc %
-	 bf.cc bf_core.cc chkpt_serial.cc device.cc io.cc page.cc xct.cc %
-	 xct_impl.cc smthread.cc %
-	 lock.cc lock_core.cc vol.cc  %
-	 log.cc unix_log.cc log_base.cc log_buf.cc srv_log.cc raw_log.cc %
-	 logrec.cc logstub.cc %
-	 btree_p.cc keyed.cc zkeyed.cc %
- 	 btree.cc btcursor.cc btree_bl.cc btree_impl.cc%
-	 file.cc lgrec.cc  %
-	 rtree.cc  %
-	 restart.cc lid.cc  dir.cc chkpt.cc  %
-	 pin.cc  %
-	 bf_prefetch.cc scan.cc %
-	 sm.cc sm_s.cc smstats.cc sm_du_stats.cc smfile.cc smindex.cc %
-	 sort.cc %
-	 crash.cc deadlock_events.cc 
+Copyright (c) 1994-99 Computer Sciences Department, University of
+                      Wisconsin -- Madison
+All Rights Reserved.
 
-#ifdef USE_COORD
-%# Source files for coordinator support
-CFILES += coord.cc subord.cc coord_log.cc coord_thread.cc participant.cc %
-	participant2.cc dtid_t.cc sm_global_deadlock.cc
+Permission to use, copy, modify and distribute this software and its
+documentation is hereby granted, provided that both the copyright
+notice and this permission notice appear in all copies of the
+software, derivative works or modified versions, and any portions
+thereof, and that both notices appear in supporting documentation.
+
+THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+"AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+This software was developed with support by the Advanced Research
+Project Agency, ARPA order number 018 (formerly 8230), monitored by
+the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+Further funding for this work was provided by DARPA through
+Rome Research Laboratory Contract No. F30602-97-2-0247.
+
+  -- do not edit anything above this line --   </std-header>*/
+
+INCLUDE_DIRS += \
+	$(SM_INCL)	\
+	$(FC_INCL)	\
+	$(COMMON_INCL)	\
+	$(STHREAD_INCL)	\
+	$(TCL_INCL)
+
+init_file_group(libsm)
+init_file_group(coord)
+init_file_group(global_deadlock)
+
+/* The order is roughly from smlevel 0->4 */
+libsm.cpp += \
+	pmap.cpp common_templates.cpp \
+	lexify.cpp bf.cpp histo.cpp \
+	bf_core.cpp chkpt_serial.cpp device.cpp sm_io.cpp page.cpp  \
+	xct.cpp xct_impl.cpp \
+	smthread.cpp \
+	lock.cpp lock_core.cpp vol.cpp  \
+	log.cpp unix_log.cpp log_base.cpp log_buf.cpp srv_log.cpp raw_log.cpp \
+	logrec.cpp logstub.cpp \
+	btree_p.cpp keyed.cpp zkeyed.cpp \
+	btree.cpp btcursor.cpp btree_bl.cpp btree_impl.cpp \
+	file.cpp lgrec.cpp  \
+	rtree.cpp  \
+	restart.cpp lid.cpp  dir.cpp chkpt.cpp  \
+	pin.cpp  \
+	bf_prefetch.cpp scan.cpp \
+	sm.cpp sm_s.cpp \
+	smstats.cpp smthreadstats.cpp sm2pcstats.cpp sm_du_stats.cpp \
+	smfile.cpp smindex.cpp \
+	newsort.cpp sort.cpp \
+	crash.cpp deadlock_events.cpp bitmapvector.cpp
+
+libsm.h += \
+	app_support.h bf.h bf_core.h bf_prefetch.h bf_s.h btcursor.h	\
+	btree.h btree_impl.h btree_p.h chkpt.h chkpt_serial.h crash.h	\
+	deadlock_events.h device.h dir.h file.h file_s.h		\
+	global_deadlock.h keyed.h lexify.h lgrec.h lid.h lid_s.h lock.h \
+	lock_core.h lock_s.h lock_s_inline.h lock_x.h log.h log_buf.h	\
+	logrec.h page.h page_s.h pin.h pmap.h prologue.h raw_log.h	\
+	restart.h restart_s.h rtree.h rtree_p.h scan.h sdesc.h sm.h	\
+	sm_base.h sm_du_stats.h sm_escalation.h sm_int_0.h sm_int_1.h	\
+	sm_int_2.h sm_int_3.h sm_int_4.h sm_io.h sm_s.h smstats.h	\
+	smthread.h sort.h sort_s.h srv_log.h sysdefs.h unix_log.h	\
+	vol.h xct.h xct_dependent.h xct_impl.h zkeyed.h bitmapvector.h	\
+	extent.h histo.h page_h.h
+
+coord.cpp += \
+	coord.cpp subord.cpp coord_log.cpp coord_thread.cpp participant.cpp \
+	participant2.cpp dtid_t.cpp
+coord.h += \
+	coord.h dtid_t.h coord_log.h mappings.h
+
+global_deadlock.cpp += sm_global_deadlock.cpp
+global_deadlock.h += sm_global_deadlock.h
+
+#ifdef USE_COORD	/* actually turns on 2pc coord AND global deadlock */
+INCLUDE_DIRS += $(OCOMM_INCL)
+add_to_group(libsm, coord)
+add_to_group(libsm, global_deadlock)
+#else
+unused_group(coord)
+unused_group(global_deadlock)
 #endif
 
-%# General header files
-HFILES = bf_s.h bf.h bf_core.h bf_prefetch.h %
-	btree.h %
-	btree_impl.h btree_p.h btcursor.h %
-	chkpt.h chkpt_serial.h %
-	device.h dir.h %
-        io.h keyed.h lid.h lock.h lock_x.h lock_core.h %
-	log_buf.h srv_log.h log.h logrec.h page.h pmap.h%
-        restart.h scan.h sm.h smthread.h  %
-	sm_int_0.h sm_int_1.h sm_int_2.h sm_int_3.h sm_int_4.h  %
-	sysdefs.h %
-        file.h pin.h %
-        rtree.h smstats.h sdesc.h zkeyed.h sm_du_stats.h%
-	sort.h %
-	vol.h xct.h xct_impl.h xct_dependent.h %
-	global_deadlock.h deadlock_events.h
+LOGPL = $(TOOLS_DIR)/logdef.pl
+LOGRECFILES = logfunc_gen.h logtype_gen.h \
+	logdef_gen.cpp logstub_gen.cpp \
+	redo_gen.cpp undo_gen.cpp logstr_gen.cpp
+ERROR_FILES = e_error_enum_gen.h e_errmsg_gen.h e_einfo_gen.h
 
-#ifdef USE_COORD
-%# Header files for coordinator support
-HFILES += coord.h dtid_t.h coord_log.h mappings.h sm_global_deadlock.h 
+STAT_DEF_FILES = sm_stats_t_def_gen.h \
+	smthread_stats_t_def_gen.h \
+	sm2pc_stats_t_def_gen.h 
+	
+stat.gen.h +=  \
+	sm_stats_t_struct_gen.h \
+	sm_stats_t_msg_gen.h  \
+	sm_stats_t_collect_enum_gen.h \
+	smthread_stats_t_struct_gen.h \
+	smthread_stats_t_msg_gen.h  \
+	smthread_stats_t_collect_enum_gen.h \
+	sm2pc_stats_t_struct_gen.h \
+	sm2pc_stats_t_msg_gen.h  \
+	sm2pc_stats_t_collect_enum_gen.h \
+	$(STAT_DEF_FILES)
+
+stat.gen.cpp +=  \
+	sm_stats_t_inc_gen.cpp \
+	sm_stats_t_out_gen.cpp \
+	sm_stats_t_stat_gen.cpp \
+	sm_stats_t_collect_gen.cpp \
+	smthread_stats_t_inc_gen.cpp \
+	smthread_stats_t_out_gen.cpp \
+	smthread_stats_t_stat_gen.cpp \
+	smthread_stats_t_collect_gen.cpp \
+	sm2pc_stats_t_inc_gen.cpp \
+	sm2pc_stats_t_out_gen.cpp \
+	sm2pc_stats_t_stat_gen.cpp  \
+	sm2pc_stats_t_collect_gen.cpp 
+
+gen_statistics(libsm, sm_stats_info.dat, $(stat.gen.h) $(stat.gen.cpp))
+
+gen_error_codes(libsm, e_error.dat, -e, $(ERROR_FILES))
+
+gen_with_known_files(libsm, $(LOGPL), logdef.dat, NA, NA, $(LOGRECFILES), NA, NA, NA, NA)
+
+libsm.lib_name = $(SM_LIB)
+build_library(libsm)
+
+install_copy(include/sm, e_error_enum_gen.h $(STAT_DEF_FILES) )
+install_copy(include/sm, coord.h file_s.h lexify.h \
+		lock_s.h \
+		pin.h scan.h sdesc.h sm.h sm_base.h  \
+		sm_du_stats.h sm_escalation.h \
+		sm_global_deadlock.h \
+		sm_int_0.h sm_int_1.h sm_int_2.h sm_int_3.h sm_int_4.h \
+		sm_s.h smstats.h smthread.h \
+		sort.h sort_s.h sysdefs.h xct_dependent.h )
+
+install_copy(include/sm, $(stat.gen.h))
+
+install_copy(lib, $(SM_LIB))
+
+
+/**********  Handle Subdirectories ***********/
+
+#if defined(BUILD_DEFAULT_SSH) || defined(BUILD_EVERYTHING)
+POST_SUBDIRS += $(SSH_BUILD_DIR)
+#else
+nondefault_subdirs($(SSH_BUILD_DIR))
 #endif
 
-#ifdef USE_RDTREE
-%# RD-tree support
-CFILES += rdtree.cc setarray.cc
-HFILES += rdtree.h setarray.h
+#if defined(BUILD_DEFAULT_SMLAYER_TESTS) || defined(BUILD_EVERYTHING)
+POST_SUBDIRS += $(SM_TESTS_BUILD_DIR)
+#else
+nondefault_subdirs($(SM_TESTS_BUILD_DIR))
 #endif
-
-#define Install \
-	bf.h bf_s.h deadlock_events.h e_error.h file_s.h io.h lexify.h lock.h \
-	lock_s.h log.h page.h page_s.h pin.h pmap.h scan.h sdesc.h setarray.h \
-	sm.h sm_base.h sm_du_stats.h sm_escalation.h sm_int_0.h sm_int_1.h \
-	sm_int_2.h sm_int_3.h sm_int_4.h sm_s.h sm_stats_info_t_def.i \
-	sm_stats_info_t_struct.i smstats.h smthread.h sort.h sort_s.h sysdefs.h \
-	xct_dependent.h
-
-LOGRECFILES = logfunc.i logtype.i logdef.i logstub.i redo.i undo.i logstr.i
-
-OBJ = $(CFILES:.cc=.o)
-
-all_local:: libsm.a
-
-%GEN stats(sm_stats_info.dat,sm_stats_info_t)
-%GEN error_enum(e_error.dat,e)
-%GEN generate_source($(LOGRECFILES),logdef.pl,logdef.dat,,)
-
-%GEN library(libsm.a, $(OBJ))
-
-%GEN install(include, Install)
-%GEN install(lib, libsm.a)
-
-%GEN depend_target($(CFILES))
-%GEN tags($(CFILES) $(HFILES))

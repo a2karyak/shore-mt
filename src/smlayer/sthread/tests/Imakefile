@@ -1,50 +1,81 @@
-/* --------------------------------------------------------------- */
-/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
-/* -- University of Wisconsin-Madison, subject to the terms     -- */
-/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
-/* -- Reserved.                                                 -- */
-/* --------------------------------------------------------------- */
+/*<std-header style='imakefile' orig-src='shore'>
 
-/*
- *  $Id: Imakefile,v 1.27 1997/09/30 21:19:23 solomon Exp $
- */
-SRC = diskinfo.cc ioperf.cc thread1.cc thread2.cc thread3.cc thread4.cc
-CPPFLAGS = -I.. -I../../fc
-LIB = ../libst.a ../../fc/libfc.a
+ $Id: Imakefile,v 1.47 1999/06/07 19:06:19 kupsch Exp $
 
-all_local:: thread1 thread2 thread3 thread4 ioperf diskinfo
+SHORE -- Scalable Heterogeneous Object REpository
 
-%GEN tags($(SRC))
+Copyright (c) 1994-99 Computer Sciences Department, University of
+                      Wisconsin -- Madison
+All Rights Reserved.
 
-%GEN c_plus_program(thread1, thread1.o, $(LIB))
-%GEN c_plus_program(thread2, thread2.o, $(LIB))
-%GEN c_plus_program(thread3, thread3.o, $(LIB))
-%GEN c_plus_program(thread4, thread4.o, $(LIB))
-%GEN c_plus_program(ioperf, ioperf.o, $(LIB))
-%GEN c_plus_program(diskinfo, diskinfo.o, $(LIB))
+Permission to use, copy, modify and distribute this software and its
+documentation is hereby granted, provided that both the copyright
+notice and this permission notice appear in all copies of the
+software, derivative works or modified versions, and any portions
+thereof, and that both notices appear in supporting documentation.
+
+THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+"AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+This software was developed with support by the Advanced Research
+Project Agency, ARPA order number 018 (formerly 8230), monitored by
+the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+Further funding for this work was provided by DARPA through
+Rome Research Laboratory Contract No. F30602-97-2-0247.
+
+  -- do not edit anything above this line --   </std-header>*/
+
+INCLUDE_DIRS += \
+	$(STHREAD_INCL)		\
+	$(FC_INCL)  
+
+LIBRARY = \
+	$(STHREAD_LIB)		\
+	$(FC_LIB) 
 
 
-PURE_OPTIONS = $(PURE_OPT)
+all_target_files(tests)
+
+remote_target($(STHREAD_LIB))
+
+#define build_simple_test_exec(exec)			@@\
+init_file_group(exec)					@@\
+exec.cpp += exec.cpp					@@\
+exec.libs += $(LIBRARY)					@@\
+exec.exec_name = exec					@@\
+build_test_exec(exec)					@@\
+build_misc_poe_exec(exec)
+
+build_simple_test_exec(thread1)
+build_simple_test_exec(thread2)
+build_simple_test_exec(thread3)
+build_simple_test_exec(thread4)
+
+build_simple_test_exec(ioperf)
+
+build_simple_test_exec(diskinfo)
+
+#ifdef IS_NT
+tests: ;
+#else
+clean_files(diskrw)
+
+tests:  diskrw
+
+diskrw: ../diskrw
+	$(CP) ../diskrw .
+#endif
 
 PURE_EXEC= thread1.pure thread2.pure thread3.pure thread4.pure
 pure_exec: $(PURE_EXEC)
 
-%GEN purify_c_plus_program(thread1, thread1.o, $(LIB), $(PURE_OPTIONS))
-%GEN purify_c_plus_program(thread2, thread2.o, $(LIB), $(PURE_OPTIONS))
-%GEN purify_c_plus_program(thread3, thread3.o, $(LIB), $(PURE_OPTIONS))
-%GEN purify_c_plus_program(thread4, thread4.o, $(LIB), $(PURE_OPTIONS))
-%GEN purify_c_plus_program(ioperf, ioperf.o, $(LIB), $(PURE_OPTIONS))
-%GEN quantify_c_plus_program(ioperf, ioperf.o, $(LIB), $(QUANT_OPTIONS))
-
 #ifdef IS_SP2
 POE_EXEC= thread1.poe thread2.poe thread3.poe thread4.poe ioperf.poe
 poe_exec: $(poe_EXEC)
-
-%GEN poe_c_plus_program(thread1.poe, thread1.o, $(LIB))
-%GEN poe_c_plus_program(thread2.poe, thread2.o, $(LIB))
-%GEN poe_c_plus_program(thread3.poe, thread3.o, $(LIB))
-%GEN poe_c_plus_program(thread4.poe, thread4.o, $(LIB))
-%GEN poe_c_plus_program(ioperf.poe, ioperf.o, $(LIB))
 #endif /* SP2 */
 
-%GEN depend_target($(SRC))
+init_file_group(sthread_test_files)
+sthread_test_files.other += all buncha_tests
+used_group(sthread_test_files)

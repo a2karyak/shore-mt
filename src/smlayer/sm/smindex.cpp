@@ -1,13 +1,36 @@
-/* --------------------------------------------------------------- */
-/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
-/* -- University of Wisconsin-Madison, subject to the terms     -- */
-/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
-/* -- Reserved.                                                 -- */
-/* --------------------------------------------------------------- */
+/*<std-header orig-src='shore'>
 
-/*
- *  $Id: smindex.cc,v 1.80 1997/06/15 03:14:05 solomon Exp $
- */
+ $Id: smindex.cpp,v 1.99 1999/06/07 19:04:39 kupsch Exp $
+
+SHORE -- Scalable Heterogeneous Object REpository
+
+Copyright (c) 1994-99 Computer Sciences Department, University of
+                      Wisconsin -- Madison
+All Rights Reserved.
+
+Permission to use, copy, modify and distribute this software and its
+documentation is hereby granted, provided that both the copyright
+notice and this permission notice appear in all copies of the
+software, derivative works or modified versions, and any portions
+thereof, and that both notices appear in supporting documentation.
+
+THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+"AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+This software was developed with support by the Advanced Research
+Project Agency, ARPA order number 018 (formerly 8230), monitored by
+the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+Further funding for this work was provided by DARPA through
+Rome Research Laboratory Contract No. F30602-97-2-0247.
+
+*/
+
+#include "w_defines.h"
+
+/*  -- do not edit anything above this line --   </std-header>*/
+
 #define SM_SOURCE
 #define SMINDEX_C
 #include "sm_int_4.h"
@@ -31,10 +54,12 @@ ss_m::create_index(
     store_property_t 	property,
     const char* 	key_desc,
     stid_t& 		stid, 
-    const serial_t& 	serial)
+    const serial_t& 	serial
+    )
 {
     return 
-    create_index(vid, ntype, property, key_desc, t_cc_kvl, stid, serial);
+    create_index(vid, ntype, property, key_desc, t_cc_kvl, stid, 
+	serial);
 }
 
 rc_t
@@ -45,13 +70,17 @@ ss_m::create_index(
     const char* 	key_desc,
     concurrency_t 	cc, 
     stid_t& 		stid, 
-    const serial_t& 	serial)
+    const serial_t& 	serial
+    )
 {
     SM_PROLOGUE_RC(ss_m::create_index, in_xct, 0);
     SMSCRIPT(<<"create_index " 
 	<<vid<<" " <<ntype<<" " <<property<<" " <<key_desc<<" "
 	<<stid<<" " <<serial);
     stpgid_t stpgid;
+    if(property == t_temporary) {
+	return RC(eBADSTOREFLAGS);
+    }
     W_DO(_create_index(vid, ntype, property, key_desc, cc,
 		       false, stpgid, serial));
     stid = stpgid;
@@ -65,8 +94,9 @@ ss_m::create_md_index(
     ndx_t 		ntype, 
     store_property_t 	property,
     stid_t& 		stid, 
-    int2 		dim,
-    const serial_t& 	serial)
+    int2_t 		dim,
+    const serial_t& 	serial
+    )
 {
     SM_PROLOGUE_RC(ss_m::create_md_index, in_xct, 0);
     SMSCRIPT(<<"create_index " 
@@ -77,22 +107,6 @@ ss_m::create_md_index(
     return RCOK;
 }
 
-#ifdef USE_RDTREE
-rc_t
-ss_m::create_set_index(
-    vid_t 		vid, 
-    ndx_t 		ntype, 
-    store_property_t 	property,
-    stid_t& 		stid, 
-    int2 		elemsz,
-    const serial_t& 	serial)
-{
-    SM_PROLOGUE_RC(ss_m::create_set_index, in_xct, 0);
-    W_DO(_create_set_index(vid, ntype, property,
-			   stid, elemsz, serial));
-    return RCOK;
-}
-#endif /* USE_RDTREE */
 
 /*--------------------------------------------------------------*
  *  ss_m::destroy_index()					*
@@ -115,15 +129,6 @@ ss_m::destroy_md_index(const stid_t& iid)
     return RCOK;
 }
 
-#ifdef USE_RDTREE
-rc_t
-ss_m::destroy_set_index(const stid_t& iid)
-{
-    SM_PROLOGUE_RC(ss_m::destroy_set_index, in_xct, 0);
-    W_DO( _destroy_set_index(iid) );
-    return RCOK;
-}
-#endif /* USE_RDTREE */
 
 /*--------------------------------------------------------------*
  *  ss_m::bulkld_index()					*
@@ -131,31 +136,59 @@ ss_m::destroy_set_index(const stid_t& iid)
 rc_t
 ss_m::bulkld_index(
     const stid_t& 	stid, 
-    const stid_t& 	source,
-    sm_du_stats_t& 	stats)
+    int			nsrcs,
+    const stid_t* 	source,
+    sm_du_stats_t& 	stats,
+    bool		sort_duplicates, // = true
+    bool		lexify_keys // = true
+    )
 {
     SM_PROLOGUE_RC(ss_m::bulkld_index, in_xct, 0);
     SMSCRIPT(<<"bulkld_index " <<stid<<" "<<source<<" "<<stats);
-    W_DO(_bulkld_index(stid, source, stats) );
+    W_DO(_bulkld_index(stid, nsrcs, source, stats, sort_duplicates, lexify_keys) );
     return RCOK;
+}
+
+w_rc_t	ss_m::bulkld_index(
+	const	stid_t	&stid,
+	const	stid_t	&source,
+	sm_du_stats_t	&stats,
+	bool		sort_duplicates,
+	bool		lexify_keys
+	)
+{
+	return bulkld_index(stid, 1, &source, stats,
+			    sort_duplicates, lexify_keys);
 }
 
 rc_t
 ss_m::bulkld_md_index(
     const stid_t& 	stid, 
-    const stid_t& 	source,
+    int			nsrcs,
+    const stid_t* 	source,
     sm_du_stats_t& 	stats,
-    int2 		hff, 
-    int2 		hef, 
+    int2_t 		hff, 
+    int2_t 		hef, 
     nbox_t* 		universe)
 {
     SM_PROLOGUE_RC(ss_m::bulkld_md_index, in_xct, 0);
     SMSCRIPT(<<"bulkld_md_index " <<stid<<" "<<source<<" "<<stats
 	 << " " <<hff<<" "<<hef<<" "<<universe);
-    W_DO(_bulkld_md_index(stid, source, stats, hff, hef, universe));
+    W_DO(_bulkld_md_index(stid, nsrcs, source, stats, hff, hef, universe));
     return RCOK;
 }
-    
+
+w_rc_t	ss_m::bulkld_md_index(
+	const stid_t	&stid,
+	const stid_t	&source,
+	sm_du_stats_t	&stats,
+	int2_t		hff,
+	int2_t		hef,
+	nbox_t		*universe
+	)
+{
+	return bulkld_md_index(stid, 1, &source, stats, hff, hef, universe);
+}
 
 rc_t
 ss_m::bulkld_index(
@@ -174,8 +207,8 @@ ss_m::bulkld_md_index(
     const stid_t& 	stid, 
     sort_stream_i& 	sorted_stream,
     sm_du_stats_t& 	stats,
-    int2 		hff, 
-    int2 		hef, 
+    int2_t 		hff, 
+    int2_t 		hef, 
     nbox_t* 		universe)
 {
     SM_PROLOGUE_RC(ss_m::bulkld_md_index, in_xct, 0);
@@ -205,16 +238,6 @@ ss_m::print_md_index(stid_t stid)
     W_DO(_print_md_index(stid));
     return RCOK;
 }
-
-#ifdef USE_RDTREE
-rc_t
-ss_m::print_set_index(stid_t stid)
-{
-    SM_PROLOGUE_RC(ss_m::print_index, in_xct, 0);
-    W_DO(_print_set_index(stid));
-    return RCOK;
-}
-#endif /* USE_RDTREE */
 
 /*--------------------------------------------------------------*
  *  ss_m::create_assoc()					*
@@ -281,18 +304,6 @@ ss_m::create_md_assoc(stid_t stid, const nbox_t& key, const vec_t& el)
     return RCOK;
 }
 
-#ifdef USE_RDTREE
-/*--------------------------------------------------------------*
- *  ss_m::create_set_assoc()					*
- *--------------------------------------------------------------*/
-rc_t
-ss_m::create_set_assoc(stid_t stid, const rangeset_t& key, const vec_t& el)
-{
-    SM_PROLOGUE_RC(ss_m::create_md_assoc, in_xct, 0);
-    W_DO(_create_set_assoc(stid, key, el));
-    return RCOK;
-}
-#endif /* USE_RDTREE */
 
 /*--------------------------------------------------------------*
  *  ss_m::find_md_assoc()					*
@@ -306,19 +317,6 @@ ss_m::find_md_assoc(stid_t stid, const nbox_t& key,
     return RCOK;
 }
 
-#ifdef USE_RDTREE
-/*--------------------------------------------------------------*
- *  ss_m::find_set_assoc()					*
- *--------------------------------------------------------------*/
-rc_t
-ss_m::find_set_assoc(stid_t stid, const rangeset_t& key,
-		     void* el, smsize_t& elen, bool& found)
-{
-    SM_PROLOGUE_RC(ss_m::find_assoc, in_xct, 0);
-    W_DO(_find_set_assoc(stid, key, el, elen, found));
-    return RCOK;
-}
-#endif /* USE_RDTREE */
 
 /*--------------------------------------------------------------*
  *  ss_m::destroy_md_assoc()                                    *
@@ -336,10 +334,10 @@ ss_m::destroy_md_assoc(stid_t stid, const nbox_t& key, const vec_t& el)
  *  ss_m::draw_rtree()						*
  *--------------------------------------------------------------*/
 rc_t
-ss_m::draw_rtree(const stid_t& stid)
+ss_m::draw_rtree(const stid_t& stid, ostream &s)
 {
     SM_PROLOGUE_RC(ss_m::draw_rtree, in_xct, 0);
-    W_DO(_draw_rtree(stid));
+    W_DO(_draw_rtree(stid, s));
     return RCOK;
 }
 
@@ -348,7 +346,7 @@ ss_m::draw_rtree(const stid_t& stid)
  *--------------------------------------------------------------*/
 rc_t
 ss_m::rtree_stats(const stid_t& stid, rtree_stats_t& stat, 
-		uint2 size, uint2* ovp, bool audit)
+		uint2_t size, uint2_t* ovp, bool audit)
 {
     SM_PROLOGUE_RC(ss_m::rtree_stats, in_xct, 0);
     W_DO(_rtree_stats(stid, stat, size, ovp, audit));
@@ -377,7 +375,8 @@ ss_m::create_index(const lvid_t& lvid, ndx_t ntype,
 		   store_property_t property,
 		   const char* key_desc,
 		   uint size_kb_hint,
-		   serial_t& lstid)
+		   serial_t& lstid
+		   )
 {
     return 
     create_index(lvid, ntype, property, key_desc, t_cc_kvl,
@@ -393,7 +392,8 @@ ss_m::create_index(const lvid_t& lvid, ndx_t ntype,
 		   const char* key_desc,
 		   concurrency_t cc,
 		   uint size_kb_hint,
-		   serial_t& lstid)
+		   serial_t& lstid
+		   )
 {
     SM_PROLOGUE_RC(ss_m::create_index, in_xct, 0);
     SMSCRIPT(<<"create_index " 
@@ -429,7 +429,8 @@ ss_m::create_index(const lvid_t& lvid, ndx_t ntype,
 rc_t
 ss_m::create_md_index(const lvid_t& lvid, ndx_t ntype,
 		      store_property_t property,
-		      serial_t& lstid, int2 dim)
+		      serial_t& lstid, int2_t dim
+		      )
 {
     SM_PROLOGUE_RC(ss_m::create_md_index, in_xct, 0);
     vid_t  vid;  // physical volume ID (returned by generate_new_serial)
@@ -446,29 +447,6 @@ ss_m::create_md_index(const lvid_t& lvid, ndx_t ntype,
 
     return RCOK;
 }
-
-#ifdef USE_RDTREE
-rc_t
-ss_m::create_set_index(const lvid_t& lvid, ndx_t ntype,
-		       store_property_t property,
-		       serial_t& lstid, int2 elemsz)
-{
-    SM_PROLOGUE_RC(ss_m::create_set_index, in_xct, 0);
-    vid_t  vid;  // physical volume ID (returned by generate_new_serial)
-    stid_t stid;  // physical file ID
-
-    W_DO(lid->generate_new_serials(lvid, vid, 1, 
-				   lstid, lid_m::local_ref));
-
-    //TODO: begin rollback
-    DBG( << "TODO: put in rollback mechanism" );
-    W_DO(_create_set_index(vid, ntype, property,
-			   stid, elemsz, lstid));
-    W_DO(lid->associate(lvid, lstid, stid));
-
-    return RCOK;
-}
-#endif /* USE_RDTREE */
 
 /*--------------------------------------------------------------*
  *  ss_m::destroy_index()					*
@@ -507,24 +485,6 @@ ss_m::destroy_md_index(const lvid_t& lvid, const serial_t& serial)
     return RCOK;
 }
 
-#ifdef USE_RDTREE
-rc_t
-ss_m::destroy_set_index(const lvid_t& lvid, const serial_t& serial)
-{
-    SM_PROLOGUE_RC(ss_m::destroy_set_index, in_xct, 0);
-    stid_t iid;  // physical file ID
-
-    lid_t id(lvid, serial);
-    LID_CACHE_RETRY_DO(id, stid_t, iid, _destroy_set_index(iid));
-
-    //TODO: begin rollback
-    DBG( << "TODO: put in rollback mechanism" );
-    W_DO(lid->remove(lvid, serial));
-
-    return RCOK;
-}
-#endif /* USE_RDTREE */
-
 rc_t
 ss_m::_destroy_md_assoc(stid_t stid, const nbox_t& key, const vec_t& el)
 {
@@ -542,7 +502,7 @@ ss_m::_destroy_md_assoc(stid_t stid, const nbox_t& key, const vec_t& el)
       case t_btree:
       case t_uni_btree:
       case t_lhash:
-        return RC(eWRONGKEYTYPE);
+        return RC(eBADNDXTYPE);
       default:
         W_FATAL(eINTERNAL);
     }
@@ -556,8 +516,12 @@ ss_m::_destroy_md_assoc(stid_t stid, const nbox_t& key, const vec_t& el)
  *--------------------------------------------------------------*/
 rc_t
 ss_m::bulkld_index(const lvid_t& lvid, const serial_t& serial, 
-		   const lvid_t& s_lvid, const serial_t& s_serial,
-		   sm_du_stats_t& stats)
+		   int nsrcs,
+		   const lvid_t* s_lvid, const serial_t* s_serial,
+		   sm_du_stats_t& stats,
+		   bool	sort_duplicates, // = true
+		   bool	lexify_keys // = true
+		   )
 {
     SM_PROLOGUE_RC(ss_m::bulkld_index, in_xct, 0);
     SMSCRIPT(<<"bulkld_index " <<lvid <<" " <<serial <<" " <<s_lvid <<" " <<s_serial <<" " <<stats);
@@ -566,9 +530,12 @@ ss_m::bulkld_index(const lvid_t& lvid, const serial_t& serial,
     lid_t  id(lvid, serial);
     LID_CACHE_RETRY_VALIDATE_STPGID_DO(id, stpgid);
 
-    stid_t src;
-    lid_t s_id(s_lvid, s_serial);
-    LID_CACHE_RETRY_VALIDATE_STID_DO(s_id, src);
+    stid_t* srcs = new stid_t[nsrcs];
+    for(int i=0; i< nsrcs; i++) {
+	lid_t s_id(s_lvid[i], s_serial[i]);
+	LID_CACHE_RETRY_VALIDATE_STID_DO(s_id, srcs[i]);
+    }
+
 
     // see if btree is a real store or a 1 page btree 
     // convert to store if necessary
@@ -581,17 +548,34 @@ ss_m::bulkld_index(const lvid_t& lvid, const serial_t& serial,
 	// real (rather than 1page) store.
 	W_DO(_convert_to_store(id, stpgid, new_stid));
     }
+    w_rc_t rc = 
+    _bulkld_index(new_stid, nsrcs, srcs, stats, sort_duplicates, lexify_keys);
+    delete[] srcs;
+    W_DO(rc);
+    return rc;
+}
 
-    W_DO(_bulkld_index(new_stid, src, stats) );
-
-    return RCOK;
+w_rc_t ss_m::bulkld_index(
+	const lvid_t	&lvid,
+	const serial_t	&serial, 
+	const lvid_t	&s_lvid,
+	const serial_t	&s_serial,
+	sm_du_stats_t	&stats,
+	bool		sort_duplicates,
+	bool		lexify_keys
+	)
+{
+	return bulkld_index(lvid, serial, 
+			    1, &s_lvid, &s_serial,
+			    stats, sort_duplicates, lexify_keys);
 }
 
 rc_t
 ss_m::bulkld_md_index(const lvid_t& lvid, const serial_t& serial, 
-		      const lvid_t& s_lvid, const serial_t& s_serial,
+		      int nsrcs,
+		      const lvid_t* s_lvid, const serial_t* s_serial,
 		      sm_du_stats_t& stats,
-		      int2 hff, int2 hef, nbox_t* universe)
+		      int2_t hff, int2_t hef, nbox_t* universe)
 {
     SM_PROLOGUE_RC(ss_m::bulkld_md_index, in_xct, 0);
     
@@ -599,13 +583,34 @@ ss_m::bulkld_md_index(const lvid_t& lvid, const serial_t& serial,
     lid_t  id(lvid, serial);
     LID_CACHE_RETRY_VALIDATE_STID_DO(id, stid);
 
-    stid_t src;
-    lid_t s_id(s_lvid, s_serial);
-    LID_CACHE_RETRY_VALIDATE_STID_DO(s_id, src);
+    stid_t* srcs = new stid_t[nsrcs];
+    for(int i=0; i< nsrcs; i++) {
+	lid_t s_id(s_lvid[i], s_serial[i]);
+	LID_CACHE_RETRY_VALIDATE_STID_DO(s_id, srcs[i]);
+    }
 
-    W_DO(_bulkld_md_index(stid, src, stats, hff, hef, universe) );
+    w_rc_t rc=
+    _bulkld_md_index(stid, nsrcs, srcs, stats, hff, hef, universe);
+    delete[] srcs;
+    W_DO(rc);
 
     return RCOK;
+}
+
+w_rc_t ss_m::bulkld_md_index(
+	const lvid_t	&lvid,
+	const serial_t	&serial, 
+	const lvid_t	&s_lvid,
+	const serial_t	&s_serial,
+	sm_du_stats_t	&stats,
+	int2_t 		hff,
+	int2_t		hef,
+	nbox_t		*universe
+	)
+{
+	return bulkld_md_index(lvid, serial,
+			       1, &s_lvid, &s_serial,
+			       stats, hff, hef, universe);
 }
 
 rc_t
@@ -640,7 +645,7 @@ rc_t
 ss_m::bulkld_md_index(const lvid_t& lvid, const serial_t& serial, 
 		      sort_stream_i& sorted_stream,
 		      sm_du_stats_t& stats,
-		      int2 hff, int2 hef, nbox_t* universe)
+		      int2_t hff, int2_t hef, nbox_t* universe)
 {
     SM_PROLOGUE_RC(ss_m::bulkld_md_index, in_xct, 0);
     
@@ -678,19 +683,6 @@ ss_m::print_md_index(const lvid_t& lvid, const serial_t& serial)
     LID_CACHE_RETRY_DO(id, stid_t, stid, _print_md_index(stid));
     return RCOK;
 }
-
-#ifdef USE_RDTREE
-rc_t
-ss_m::print_set_index(const lvid_t& lvid, const serial_t& serial)
-{
-    SM_PROLOGUE_RC(ss_m::print_set_index, in_xct, 0);
-    stid_t stid; 
-    lid_t  id(lvid, serial);
-
-    LID_CACHE_RETRY_DO(id, stid_t, stid, _print_set_index(stid));
-    return RCOK;
-}
-#endif /* USE_RDTREE */
 
 
 /*--------------------------------------------------------------*
@@ -735,23 +727,6 @@ ss_m::create_md_assoc(const lvid_t& lvid, const serial_t& serial,
     LID_CACHE_RETRY_DO(id, stid_t, stid, _create_md_assoc(stid, key, el));
     return RCOK;
 }
-
-#ifdef USE_RDTREE
-/*--------------------------------------------------------------*
- *  ss_m::create_set_assoc()					*
- *--------------------------------------------------------------*/
-rc_t
-ss_m::create_set_assoc(const lvid_t& lvid, const serial_t& serial,
-		       const rangeset_t& key, const vec_t& el)
-{
-    SM_PROLOGUE_RC(ss_m::create_set_assoc, in_xct, 0);
-    stid_t stid; 
-    lid_t  id(lvid, serial);
-
-    LID_CACHE_RETRY_DO(id, stid_t, stid, _create_set_assoc(stid, key, el));
-    return RCOK;
-}
-#endif /* USE_RDTREE */
 
 /*--------------------------------------------------------------*
  *  ss_m::destroy_assoc()					*
@@ -829,27 +804,6 @@ ss_m::find_md_assoc(const lvid_t& lvid, const serial_t& serial,
     return RCOK;
 }
 
-#ifdef USE_RDTREE
-/*--------------------------------------------------------------*
- *  ss_m::find_set_assoc()						*
- *--------------------------------------------------------------*/
-rc_t
-ss_m::find_set_assoc(
-    const lvid_t& 	lvid, 
-    const serial_t& 	serial,
-    const rangeset_t& 	key, 
-    void* 		el, 
-    smsize_t& 		elen, 
-    bool& 		found)
-{
-    SM_PROLOGUE_RC(ss_m::find_set_assoc, in_xct, 0);
-    stid_t stid; 
-    lid_t  id(lvid, serial);
-    LID_CACHE_RETRY_DO(id, stid_t, stid, 
-		       _find_set_assoc(stid, key, el, elen, found));
-    return RCOK;
-}
-#endif /* USE_RDTREE */
 
 /*--------------------------------------------------------------*
  *  ss_m::destroy_md_assoc()                                    *
@@ -870,13 +824,13 @@ ss_m::destroy_md_assoc(const lvid_t& lvid, const serial_t& serial,
  *  ss_m::draw_rtree()						*
  *--------------------------------------------------------------*/
 rc_t
-ss_m::draw_rtree(const lvid_t& lvid, const serial_t& serial)
+ss_m::draw_rtree(const lvid_t& lvid, const serial_t& serial, ostream &s)
 {
     SM_PROLOGUE_RC(ss_m::draw_rtree, in_xct, 0);
     stid_t stid; 
     lid_t  id(lvid, serial);
 
-    LID_CACHE_RETRY_DO(id, stid_t, stid, _draw_rtree(stid));
+    LID_CACHE_RETRY_DO(id, stid_t, stid, _draw_rtree(stid, s));
     return RCOK;
 }
 
@@ -885,7 +839,7 @@ ss_m::draw_rtree(const lvid_t& lvid, const serial_t& serial)
  *--------------------------------------------------------------*/
 rc_t
 ss_m::rtree_stats(const lvid_t& lvid, const serial_t& serial,
-		  rtree_stats_t& stat, uint2 size, uint2* ovp,
+		  rtree_stats_t& stat, uint2_t size, uint2_t* ovp,
 		  bool audit)
 {
     SM_PROLOGUE_RC(ss_m::rtree_stats, in_xct, 0);
@@ -908,10 +862,11 @@ ss_m::_create_index(
     concurrency_t       cc, // = t_cc_kvl
     bool 		use_1page_store,
     stpgid_t& 		stpgid,
-    const serial_t& 	logical_id)
+    const serial_t& 	logical_id
+    )
 {
     FUNC(ss_m::_create_index);
-    uint4 count = max_keycomp;
+    uint4_t count = max_keycomp;
     key_type_s kcomp[max_keycomp];
     lpid_t root;
 
@@ -921,7 +876,11 @@ ss_m::_create_index(
     if (use_1page_store) {
 	DBG(<< "creating a 1-page btree");
 	W_DO(io->alloc_pages(stid_t(vid, store_id_1page), 
-			     lpid_t::null, 1, &root))
+			     lpid_t::null, // near hint
+			     1, &root, // npages, array for output pids
+			     true, 	// may_realloc
+			     NL,
+			     true));
 	stpgid = stpgid_t(root);
     } else {
 	stid_t stid;
@@ -945,12 +904,13 @@ ss_m::_create_index(
     switch (ntype)  {
     case t_btree:
     case t_uni_btree:
-	W_DO( bt->create(stpgid, root) );
+	// compress prefixes only if the first part is compressed
+	W_DO( bt->create(stpgid, root, kcomp[0].compressed != 0) );
+
 	break;
     default:
 	return RC(eBADNDXTYPE);
     }
-    
     sinfo_s sinfo(stpgid.store(), t_index, 100/*unused*/, 
 		  ntype,
 		  cc,
@@ -967,8 +927,9 @@ ss_m::_create_md_index(
     ndx_t 		ntype, 
     store_property_t 	property,
     stid_t& 		stid, 
-    int2 		dim,
-    const serial_t& 	logical_id)
+    int2_t 		dim,
+    const serial_t& 	logical_id
+    )
 {
     W_DO( io->create_store(vid, 100/*unused*/, 
 			   _make_store_flag(property), stid) );
@@ -999,47 +960,6 @@ ss_m::_create_md_index(
 
     return RCOK;
 }
-
-#ifdef USE_RDTREE
-rc_t
-ss_m::_create_set_index(
-    vid_t 		vid, 
-    ndx_t 		ntype, 
-    store_property_t 	property,
-    stid_t& 		stid, 
-    int2 		elemsz,
-    const serial_t& 	logical_id)
-{
-    W_DO( io->create_store(vid, 100/*unused*/, 
-			   _make_store_flag(property), stid) );
-
-    // Note: theoretically, some other thread could destroy
-    //       the above store before the following lock request
-    //       is granted.  The only forseable way for this to
-    //       happen would be due to a bug in a vas causing
-    //       it to destroy the wrong store.  We make no attempt
-    //       to prevent this.
-    W_DO(lm->lock(stid, EX, t_long, WAIT_SPECIFIED_BY_XCT));
-
-    lpid_t root;
-    switch (ntype)  {
-    case t_rdtree:
-	W_DO(rdt->create(stid, root, elemsz));
-	break;
-    default:
-	return RC(eBADNDXTYPE);
-    }
-
-    sinfo_s sinfo(stid.store, t_index, 100/*unused*/, 
-		ntype,  t_cc_none /* not used for rd indexes */
-		property,
-	 	root.page, logical_id, 
-		0, 0);
-    W_DO( dir->insert(stpgid_t(stid), sinfo) );
-
-    return RCOK;
-}
-#endif /* USE_RDTREE */
 
 /*--------------------------------------------------------------*
  *  ss_m::_destroy_index()					*
@@ -1087,27 +1007,6 @@ ss_m::_destroy_md_index(const stid_t& iid)
     return RCOK;
 }
 
-#ifdef USE_RDTREE
-rc_t
-ss_m::_destroy_set_index(const stid_t& iid)
-{
-    sdesc_t* sd;
-    W_DO( dir->access(iid, sd, EX) );
-
-    if (sd->sinfo().stype != t_index)   return RC(eBADSTORETYPE);
-    switch (sd->sinfo().ntype)  {
-    case t_rdtree:
-	W_DO( io->destroy_store(iid) );
-	break;
-    default:
-	return RC(eBADNDXTYPE);
-    }
-    
-    W_DO( dir->remove(iid) );
-    return RCOK;
-}
-#endif /* USE_RDTREE */
-
 /*--------------------------------------------------------------*
  *  ss_m::_bulkld_index()					*
  *--------------------------------------------------------------*/
@@ -1115,8 +1014,12 @@ ss_m::_destroy_set_index(const stid_t& iid)
 rc_t
 ss_m::_bulkld_index(
     const stid_t& 	stid,
-    const stid_t& 	source, 
-    sm_du_stats_t& 	stats)
+    int			nsrcs,
+    const stid_t*	source,
+    sm_du_stats_t& 	stats,
+    bool		 sort_duplicates, //  = true
+    bool		 lexify_keys //  = true
+    )
 {
     sdesc_t* sd;
     W_DO( dir->access(stid, sd, EX ) );
@@ -1125,26 +1028,47 @@ ss_m::_bulkld_index(
     switch (sd->sinfo().ntype) {
     case t_btree:
     case t_uni_btree:
-	W_DO( bt->bulk_load(sd->root(), source,
-			    sd->sinfo().nkc, sd->sinfo().kc,
-			    sd->sinfo().ntype == t_uni_btree, 
-			    (concurrency_t)sd->sinfo().cc,
-			    stats.btree) );
+        DBG(<<"bulk loading root " << sd->root());
+	W_DO( bt->bulk_load(sd->root(), 
+	    nsrcs,
+	    source,
+	    sd->sinfo().nkc, sd->sinfo().kc,
+	    sd->sinfo().ntype == t_uni_btree, 
+	    (concurrency_t)sd->sinfo().cc,
+	    stats.btree,
+	    sort_duplicates,
+	    lexify_keys
+	    ) );
 	break;
     default:
 	return RC(eBADNDXTYPE);
     }
-
+    {
+	store_flag_t st;
+	W_DO( io->get_store_flags(stid, st) );
+	w_assert3(st != st_bad);
+	if(st & (st_tmp|st_insert_file|st_load_file)) {
+	    DBG(<<"converting stid " << stid <<
+		" from " << st << " to st_regular " );
+	    // After bulk load, it MUST be re-converted
+	    // to regular to prevent unlogged arbitrary inserts
+	    // Invalidate the pages so the store flags get reset
+	    // when the pages are read back in
+	    W_DO( io->set_store_flags(stid, st_regular) );
+	    W_DO( bf->force_store(stid, true /*invalidate*/) );
+	}
+    }
     return RCOK;
 }
 
 rc_t
 ss_m::_bulkld_md_index(
     const stid_t& 	stid, 
-    const stid_t& 	source, 
+    int			nsrcs,
+    const stid_t* 	source, 
     sm_du_stats_t& 	stats,
-    int2 		hff, 
-    int2 		hef, 
+    int2_t 		hff, 
+    int2_t 		hef, 
     nbox_t* 		universe)
 {
     sdesc_t* sd;
@@ -1155,13 +1079,25 @@ ss_m::_bulkld_md_index(
     case t_rtree:
 	{
 	    rtld_desc_t desc(universe,hff,hef);
-	    W_DO( rt->bulk_load(sd->root(), source, desc, stats.rtree) ); 
+	    W_DO( rt->bulk_load(sd->root(), nsrcs, source, desc, stats.rtree) ); 
 	}
 	break;
     case t_rdtree:
 	return RC(eNOTIMPLEMENTED);
     default:
 	return RC(eBADNDXTYPE);
+    }
+    {
+	store_flag_t st;
+	W_DO( io->get_store_flags(stid, st) );
+	if(st & (st_tmp|st_insert_file|st_load_file)) {
+	    // After bulk load, it MUST be re-converted
+	    // to regular to prevent unlogged arbitrary inserts
+	    // Invalidate the pages so the store flags get reset
+	    // when the pages are read back in
+	    W_DO( io->set_store_flags(stid, st_regular) );
+	    W_DO( bf->force_store(stid, true /*invalidate*/) );
+	}
     }
 
     return RCOK;
@@ -1171,7 +1107,8 @@ rc_t
 ss_m::_bulkld_index(
     const stid_t& 	stid, 
     sort_stream_i& 	sorted_stream, 
-    sm_du_stats_t& 	stats)
+    sm_du_stats_t& 	stats
+    )
 {
     sdesc_t* sd;
     W_DO( dir->access(stid, sd, EX) );
@@ -1197,8 +1134,8 @@ ss_m::_bulkld_md_index(
     const stid_t& 	stid, 
     sort_stream_i& 	sorted_stream, 
     sm_du_stats_t&	stats,
-    int2 		hff, 
-    int2 		hef, 
+    int2_t 		hff, 
+    int2_t 		hef, 
     nbox_t* 		universe)
 {
     sdesc_t* sd;
@@ -1268,26 +1205,6 @@ ss_m::_print_md_index(stid_t stid)
     return RCOK;
 }
 
-#ifdef USE_RDTREE
-rc_t
-ss_m::_print_set_index(stid_t stid)
-{
-    sdesc_t* sd;
-    W_DO( dir->access(stid, sd, IS) );
-
-    if (sd->sinfo().stype != t_index)   return RC(eBADSTORETYPE);
-    switch (sd->sinfo().ntype) {
-    case t_rdtree:
-	W_DO(rdt->print(sd->root()));
-	break;
-    default:
-	return RC(eBADNDXTYPE);
-    }
-
-    return RCOK;
-}
-#endif /* USE_RDTREE */
-
 /*--------------------------------------------------------------*
  *  ss_m::_create_assoc()					*
  *--------------------------------------------------------------*/
@@ -1330,10 +1247,10 @@ ss_m::_create_assoc(
     case t_btree:
     case t_uni_btree:
 	W_DO( bt->insert(sd->root(), 
-			 sd->sinfo().nkc, sd->sinfo().kc,
-			 sd->sinfo().ntype == t_uni_btree, 
-			 cc,
-			 key, el, 50) );
+		     sd->sinfo().nkc, sd->sinfo().kc,
+		     sd->sinfo().ntype == t_uni_btree, 
+		     cc,
+		     key, el, 50) );
 	break;
     case t_rtree:
     case t_rdtree:
@@ -1375,9 +1292,11 @@ ss_m::_destroy_assoc(
 	    index_mode = IX;
 	}
     }
+    DBG(<<"");
 
     sdesc_t* sd;
     W_DO( dir->access(stpgid, sd, index_mode) );
+    DBG(<<"");
 
     if (sd->sinfo().stype != t_index)   return RC(eBADSTORETYPE);
     if (cc == t_cc_bad ) cc = (concurrency_t)sd->sinfo().cc;
@@ -1388,10 +1307,9 @@ ss_m::_destroy_assoc(
     case t_btree:
     case t_uni_btree:
 	W_DO( bt->remove(sd->root(), 
-			 sd->sinfo().nkc, sd->sinfo().kc,
-			 sd->sinfo().ntype == t_uni_btree,
-			 cc,
-			 key, el) );
+		 sd->sinfo().nkc, sd->sinfo().kc,
+		 sd->sinfo().ntype == t_uni_btree,
+		 cc, key, el) );
 	break;
     case t_rtree:
     case t_rdtree:
@@ -1400,7 +1318,7 @@ ss_m::_destroy_assoc(
     default:
 	W_FATAL(eINTERNAL);
     }
-
+    DBG(<<"");
     return RCOK;
 }
 
@@ -1431,9 +1349,9 @@ ss_m::_destroy_all_assoc(const stpgid_t& stpgid, const vec_t& key,
     case t_btree:
     case t_uni_btree:
 	W_DO( bt->remove_key(sd->root(), 
-			     sd->sinfo().nkc, sd->sinfo().kc,
-			     sd->sinfo().ntype == t_uni_btree,
-			     cc, key, num) );
+		     sd->sinfo().nkc, sd->sinfo().kc,
+		     sd->sinfo().ntype == t_uni_btree,
+		     cc, key, num) );
 	break;
     case t_rtree:
     case t_rdtree:
@@ -1488,14 +1406,15 @@ ss_m::_find_assoc(
     switch (sd->sinfo().ntype) {
     case t_bad_ndx_t:
 	return RC(eBADNDXTYPE);
-    case t_btree:
     case t_uni_btree:
+    case t_btree:
 	W_DO( bt->lookup(sd->root(), 
-			 sd->sinfo().nkc, sd->sinfo().kc,
-			 sd->sinfo().ntype == t_uni_btree,
-			 cc,
-			 key, el, elen, found) );
+	     sd->sinfo().nkc, sd->sinfo().kc,
+	     sd->sinfo().ntype == t_uni_btree,
+	     cc,
+	     key, el, elen, found) );
 	break;
+
     case t_rtree:
     case t_rdtree:
     case t_lhash:
@@ -1534,7 +1453,7 @@ ss_m::_convert_to_store(
 	switch (sinfo.ntype)  {
 	case t_btree:
 	case t_uni_btree:
-	    W_DO( bt->create(new_stid, new_root) );
+	    W_DO( bt->create(new_stid, new_root, sinfo.kc[0].compressed != 0) );
 	    break;
 	default:
 	    return RC(eBADNDXTYPE);
@@ -1571,8 +1490,8 @@ ss_m::_create_md_assoc(stid_t stid, const nbox_t& key, const vec_t& el)
     case t_bad_ndx_t:
       return RC(eBADNDXTYPE);
     case t_rtree:
-      W_DO( rt->insert(sd->root(), key, el) );
-      break;
+	W_DO( rt->insert(sd->root(), key, el) );
+        break;
     case t_rdtree:
     case t_btree:
     case t_uni_btree:
@@ -1584,36 +1503,6 @@ ss_m::_create_md_assoc(stid_t stid, const nbox_t& key, const vec_t& el)
 
     return RCOK;
 }
-
-#ifdef USE_RDTREE
-/*--------------------------------------------------------------*
- *  ss_m::_create_set_assoc()					*
- *--------------------------------------------------------------*/
-rc_t
-ss_m::_create_set_assoc(stid_t stid, const rangeset_t& key, const vec_t& el)
-{
-    sdesc_t* sd;
-    W_DO( dir->access(stid, sd, IX) );
-
-    if (sd->sinfo().stype != t_index)   return RC(eBADSTORETYPE);
-    switch (sd->sinfo().ntype) {
-    case t_bad_ndx_t:
-      return RC(eBADNDXTYPE);
-    case t_rdtree:
-	W_DO(rdt->insert(sd->root(), key, el));
-      break;
-    case t_rtree:
-    case t_btree:
-    case t_uni_btree:
-    case t_lhash:
-      return RC(eWRONGKEYTYPE);
-    default:
-      W_FATAL(eINTERNAL);
-    }
-
-    return RCOK;
-}
-#endif /* USE_RDTREE */
 
 /*--------------------------------------------------------------*
  *  ss_m::_find_md_assoc()					*
@@ -1634,8 +1523,9 @@ ss_m::_find_md_assoc(
     case t_bad_ndx_t:
       return RC(eBADNDXTYPE);
     case t_rtree:
-      W_DO( rt->lookup(sd->root(), key, el, elen, found) );
-      break;
+	// exact match
+	W_DO( rt->lookup(sd->root(), key, el, elen, found) );
+        break;
     case t_rdtree:
     case t_btree:
     case t_uni_btree:
@@ -1648,48 +1538,12 @@ ss_m::_find_md_assoc(
 
     return RCOK;
 }
-
-#ifdef USE_RDTREE
-/*--------------------------------------------------------------*
- *  ss_m::_find_set_assoc()					*
- *--------------------------------------------------------------*/
-rc_t
-ss_m::_find_set_assoc(
-    stid_t 		stid, 
-    const rangeset_t& 	key,
-    void* 		el, 
-    smsize_t& 		elen, 
-    bool& 		found)
-{
-    sdesc_t* sd;
-    W_DO( dir->access(stid, sd, IS) );
-
-    if (sd->sinfo().stype != t_index)   return RC(eBADSTORETYPE);
-    switch (sd->sinfo().ntype) {
-    case t_bad_ndx_t:
-      return RC(eBADNDXTYPE);
-    case t_rdtree:
-	W_DO(rdt->lookup(sd->root(), key, el, elen, found));
-      break;
-    case t_rtree:
-    case t_btree:
-    case t_uni_btree:
-    case t_lhash:
-      return RC(eWRONGKEYTYPE);
-
-    default:
-      W_FATAL(eINTERNAL);
-    }
-
-    return RCOK;
-}
-#endif /* USE_RDTREE */
 
 /*--------------------------------------------------------------*
  *  ss_m::_draw_rtree()						*
  *--------------------------------------------------------------*/
 rc_t
-ss_m::_draw_rtree(const stid_t& stid)
+ss_m::_draw_rtree(const stid_t& stid, ostream &s)
 {
     sdesc_t* sd;
     W_DO( dir->access(stid, sd, IS) );
@@ -1699,7 +1553,7 @@ ss_m::_draw_rtree(const stid_t& stid)
     case t_bad_ndx_t:
       return RC(eBADNDXTYPE);
     case t_rtree:
-      W_DO( rt->draw(sd->root()) );
+      W_DO( rt->draw(sd->root(), s) );
       break;
     case t_rdtree:
     case t_lhash:
@@ -1716,7 +1570,7 @@ ss_m::_draw_rtree(const stid_t& stid)
 
 rc_t
 ss_m::_rtree_stats(const stid_t& stid, rtree_stats_t& stat,
-		 uint2 size, uint2* ovp, bool audit)
+		 uint2_t size, uint2_t* ovp, bool audit)
 {
     sdesc_t* sd;
     W_DO( dir->access(stid, sd, IS) );
@@ -1777,3 +1631,4 @@ ss_m::_get_store_info(
     }
     return RCOK;
 }
+

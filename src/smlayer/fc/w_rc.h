@@ -1,22 +1,42 @@
-/* --------------------------------------------------------------- */
-/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
-/* -- University of Wisconsin-Madison, subject to the terms     -- */
-/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
-/* -- Reserved.                                                 -- */
-/* --------------------------------------------------------------- */
+/*<std-header orig-src='shore' incl-file-exclusion='W_RC_H'>
+
+ $Id: w_rc.h,v 1.63 1999/06/23 17:05:24 nhall Exp $
+
+SHORE -- Scalable Heterogeneous Object REpository
+
+Copyright (c) 1994-99 Computer Sciences Department, University of
+                      Wisconsin -- Madison
+All Rights Reserved.
+
+Permission to use, copy, modify and distribute this software and its
+documentation is hereby granted, provided that both the copyright
+notice and this permission notice appear in all copies of the
+software, derivative works or modified versions, and any portions
+thereof, and that both notices appear in supporting documentation.
+
+THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+"AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+This software was developed with support by the Advanced Research
+Project Agency, ARPA order number 018 (formerly 8230), monitored by
+the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+Further funding for this work was provided by DARPA through
+Rome Research Laboratory Contract No. F30602-97-2-0247.
+
+*/
 
 #ifndef W_RC_H
 #define W_RC_H
 
+#include "w_defines.h"
+
+/*  -- do not edit anything above this line --   </std-header>*/
+
 /* w_sptr_t is visible from w_rc for historical reasons.  Users of
    w_sptr_t should include it themselves */
-#ifndef W_SPTR_H
 #include "w_sptr.h"
-#endif
-
-#if defined(CHEAP_RC)
-#include "w_cheaprc.h"
-#else
 
 #ifdef __GNUG__
 #pragma interface
@@ -39,11 +59,11 @@ public:
     NORET			w_rc_t(
 	const char* const 	    filename,
 	w_base_t::uint4_t	    line_num,
-	w_base_t::int4_t	    err_num);
+	w_base_t::uint4_t	    err_num);
     NORET			w_rc_t(
 	const char* const 	    filename,
 	w_base_t::uint4_t	    line_num,
-	w_base_t::int4_t	    err_num,
+	w_base_t::uint4_t	    err_num,
 	w_base_t::int4_t	    sys_err);
     NORET			w_rc_t(const w_rc_t&);
     w_rc_t&			operator=(const w_rc_t&);
@@ -51,9 +71,9 @@ public:
 
     w_error_t&			operator*() const;
     w_error_t*			operator->() const;
-    NORET			operator const void*() const;
+    NORET			operator bool() const;
     bool			is_error() const;
-    w_base_t::int4_t		err_num() const;
+    w_base_t::uint4_t		err_num() const;
     w_base_t::int4_t		sys_err_num() const;
     w_rc_t&			reset();
 
@@ -64,7 +84,7 @@ public:
     w_rc_t&			push(
 	const char* const 	    filename,
 	w_base_t::uint4_t	    line_num,
-	w_base_t::int4_t	    err_num);
+	w_base_t::uint4_t	    err_num);
 
     void			verify();
     void			error_not_checked();
@@ -195,7 +215,10 @@ w_rc_t::w_rc_t(
 inline void
 w_rc_t::verify()
 {
-    W_IFDEBUG( if (do_check && !is_flag() )  error_not_checked(); );
+#if defined(W_DEBUG) || defined(W_DEBUG_RC)
+	if (do_check && !is_flag())
+		error_not_checked();
+#endif
 }
 
 
@@ -211,7 +234,9 @@ inline w_rc_t&
 w_rc_t::operator=(
     const w_rc_t& rc)
 {
-    w_assert3(&rc != this);
+    if (&rc == this)
+    	return *this;
+
     verify();
 
     ptr()->_decr_ref();
@@ -299,7 +324,7 @@ w_rc_t::is_error() const
  *  Return the error code in rc.
  *
  *********************************************************************/
-inline w_base_t::int4_t
+inline w_base_t::uint4_t
 w_rc_t::err_num() const
 {
     // consider this to constitite a check.
@@ -324,15 +349,15 @@ w_rc_t::sys_err_num() const
 
 /*********************************************************************
  *
- *  w_rc_t::operator const void*()
+ *  w_rc_t::operator bool()
  *
  *  Return non-zero if rc contains an error.
  *
  *********************************************************************/
 inline NORET
-w_rc_t::operator const void*() const
+w_rc_t::operator bool() const
 {
-    return (void*) is_error();
+    return is_error();
 }
 
 
@@ -384,41 +409,48 @@ w_rc_t::operator const void*() const
 
 
 #define W_DO(x)  					\
-{							\
+do {							\
     w_rc_t __e = (x);					\
     if (__e) return RC_AUGMENT(__e);			\
-}
+} while (0)
 
 // W_DO_GOTO must use an w_error_t* parameter (err) since
 // HP_CC does not support labels in blocks where an object
 // has a destructor.  Since w_rc_t has a destructor this
 // is a serious limitation.
 #define W_DO_GOTO(err/*w_error_t**/, x)  		\
-{							\
+do {							\
     (err) = (x).delegate();				\
     if (err != w_error_t::no_error) goto failure;	\
-}
+} while (0)
 
 #define W_DO_PUSH(x, e)					\
-{							\
+do {							\
     w_rc_t __e = (x);					\
     if (__e)  { return RC_PUSH(__e, e); }		\
-}
+} while (0)
 
 #define W_COERCE(x)  					\
-{							\
+do {							\
     w_rc_t __e = (x);					\
     if (__e)  {						\
 	RC_AUGMENT(__e);				\
 	__e.fatal();					\
     }							\
-}
+} while (0)
 
-#define W_FATAL(e)					\
-    W_COERCE(RC(e));
+#define W_FATAL(e)	W_COERCE(RC(e))
 
-#define W_IGNORE(x)	((void) x.is_error());
+#define W_IGNORE(x)	((void) x.is_error())
 
-#endif /*CHEAP_RC*/
+/* redefine W_COERCE if USE_EXTERNAL_TRACE_EVENTS */
+#ifdef USE_EXTERNAL_TRACE_EVENTS
+#ifdef EXTTRACEEVENTS_H
+#error extTraceEvents.h included before w_rc.h
+#endif
+#include "extTraceEvents.h"
+#endif
 
-#endif /*W_RC_H*/
+/*<std-footer incl-file-exclusion='W_RC_H'>  -- do not edit anything below this line -- */
+
+#endif          /*</std-footer>*/

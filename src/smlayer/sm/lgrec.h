@@ -1,15 +1,38 @@
-/* --------------------------------------------------------------- */
-/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
-/* -- University of Wisconsin-Madison, subject to the terms     -- */
-/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
-/* -- Reserved.                                                 -- */
-/* --------------------------------------------------------------- */
+/*<std-header orig-src='shore' incl-file-exclusion='LGREC_H'>
 
-/*
- *  $Id: lgrec.h,v 1.30 1996/04/09 20:44:14 nhall Exp $
- */
+ $Id: lgrec.h,v 1.38 1999/06/07 19:04:07 kupsch Exp $
+
+SHORE -- Scalable Heterogeneous Object REpository
+
+Copyright (c) 1994-99 Computer Sciences Department, University of
+                      Wisconsin -- Madison
+All Rights Reserved.
+
+Permission to use, copy, modify and distribute this software and its
+documentation is hereby granted, provided that both the copyright
+notice and this permission notice appear in all copies of the
+software, derivative works or modified versions, and any portions
+thereof, and that both notices appear in supporting documentation.
+
+THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+"AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+This software was developed with support by the Advanced Research
+Project Agency, ARPA order number 018 (formerly 8230), monitored by
+the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+Further funding for this work was provided by DARPA through
+Rome Research Laboratory Contract No. F30602-97-2-0247.
+
+*/
+
 #ifndef LGREC_H
 #define LGREC_H
+
+#include "w_defines.h"
+
+/*  -- do not edit anything above this line --   </std-header>*/
 
 #ifdef __GNUG__
 #pragma interface
@@ -21,12 +44,11 @@
  */
 struct lg_chunk_s {
     lg_chunk_s() : first_pid(0), npages(0) {}
-    shpid_t 	pid(uint4 pid_num) const { return first_pid+pid_num; }
+    shpid_t 	pid(shpid_t pid_num) const { return first_pid+pid_num; }
     shpid_t 	last_pid()       const { return first_pid+npages-1; }
 
     shpid_t	first_pid;	// first page of contiguous chunk
-    uint2	npages;		// number of pages in chunk
-    fill2	filler;		// for alignment
+    uint4_t	npages;		// number of pages in chunk
 };
 
 struct lg_tag_chunks_s {
@@ -43,7 +65,8 @@ struct lg_tag_chunks_s {
     //clust_id_t  cluster;         // cluster for pages
     snum_t      store;             // store for pages
 
-    uint2   	chunk_cnt;          // # of chunks
+    fill2	filler;		    // because store is now 4 bytes
+    uint2_t   	chunk_cnt;          // # of chunks (max==4)
     lg_chunk_s  chunks[max_chunks]; // page-count pairs
 };
 
@@ -82,26 +105,28 @@ public:
     lpid_t 	last_pid()  	const
 			{return ((_cref.chunk_cnt == 0) ? lpid_t::null : 
 			    lpid_t(stid(), _last_pid()));}
-    lpid_t 	pid(uint4 pid_num) const
+    lpid_t 	pid(uint4_t pid_num) const
 			{return lpid_t(stid(), _pid(pid_num));}
 
     enum 	{max_chunks = 4};
-    int		page_count() const 
-			{ int cnt = 0;
-			  for (int i = 0; i <_cref.chunk_cnt;
+    smsize_t	page_count() const 
+			{ uint4_t cnt = 0;
+			  for (smsize_t i = 0; i <_cref.chunk_cnt;
 			       cnt += _cref.chunks[i].npages, i++);
 			  return cnt;}
-    rc_t 	append(uint num_pages, const lpid_t new_pages[]);
-    rc_t 	truncate(uint num_pages);
-    rc_t 	update(uint4 start_byte, const vec_t& data) const ;
+    rc_t 	append(uint4_t num_pages, const lpid_t new_pages[]);
+    rc_t 	truncate(uint4_t num_pages);
+    rc_t 	update(uint4_t start_byte, const vec_t& data) const ;
 
     stid_t	stid() const {return stid_t(_page.pid().vol(), _cref.store);}
+    void 	print(ostream &) const;
+    friend 	ostream& operator<<(ostream&, const lg_tag_chunks_h &);
 
 private:
     shpid_t 	_last_pid()  	const  
 			{ w_assert3(_cref.chunk_cnt > 0);
 			  return _cref.chunks[_cref.chunk_cnt-1].last_pid(); }
-    shpid_t 	_pid(uint4 pid_num) const;
+    shpid_t 	_pid(uint4_t pid_num) const;
 
     const file_p&	_page;		// page handle
     lg_tag_chunks_s&	_cref;		// chunk handle
@@ -109,23 +134,23 @@ private:
 
 class lg_tag_indirect_h {
 public:
-    lg_tag_indirect_h(const file_p& p, lg_tag_indirect_s& i, uint4 page_cnt) :
+    lg_tag_indirect_h(const file_p& p, lg_tag_indirect_s& i, uint4_t page_cnt) :
 		_page(p), _iref(i), _page_cnt(page_cnt) {}
 
     const lg_tag_indirect_s& indirect_ref() const {return _iref;}
 
     lpid_t 	last_pid()  	const
 			{return lpid_t(stid(), _last_pid());}
-    lpid_t 	pid(uint4 pid_num ) const
+    lpid_t 	pid(uint4_t pid_num ) const
 			{return lpid_t(stid(),_pid(pid_num));}
     rc_t 	convert(const lg_tag_chunks_h& old_lg_tag);
-    rc_t 	append(uint num_pages, const lpid_t new_pages[]);
-    rc_t 	truncate(uint num_pages);
-    rc_t 	update(uint4 start_byte, const vec_t& data) const ;
+    rc_t 	append(uint4_t num_pages, const lpid_t new_pages[]);
+    rc_t 	truncate(uint4_t num_pages);
+    rc_t 	update(uint4_t start_byte, const vec_t& data) const ;
 
     stid_t	stid() const {return stid_t(_page.pid().vol(), _iref.store);}
 
-    static recflags_t	indirect_type(uint4 page_count);
+    static recflags_t	indirect_type(smsize_t page_count);
 
 private:
 
@@ -138,13 +163,13 @@ private:
     rc_t 	_add_new_indirect(lpid_t& new_pid);
 
     shpid_t 	_last_pid()  const;
-    shpid_t 	_pid(uint4 pid_num) const;
+    shpid_t 	_pid(uint4_t pid_num) const;
 
-    int		_pages_on_last_indirect() const;
+    uint4_t	_pages_on_last_indirect() const;
 
     const file_p&	_page;	// page handle
     lg_tag_indirect_s&	_iref;		// indirect handle
-    uint4		_page_cnt;	// current # of pages in rec
+    uint4_t		_page_cnt;	// current # of pages in rec
 };
 
 /*
@@ -158,10 +183,10 @@ public:
 
     MAKEPAGE(lgdata_p, page_p, 1);
     
-    rc_t append(const vec_t& data, uint4 start, uint4 amount);
-    rc_t update(uint4 offset /*from start of page*/, const vec_t& data,
-		uint4 start /*in vec*/, uint4 amount);
-    rc_t truncate(uint4 amount);
+    rc_t append(const vec_t& data, uint4_t start, uint4_t amount);
+    rc_t update(uint4_t offset /*from start of page*/, const vec_t& data,
+		uint4_t start /*in vec*/, uint4_t amount);
+    rc_t truncate(uint4_t amount);
     
 private:
 
@@ -181,16 +206,16 @@ public:
 
     MAKEPAGE(lgindex_p, page_p, 1);
 
-    rc_t 	append(uint4 num_pages, const shpid_t new_pids[]); 
-    rc_t 	truncate(uint4 num_pages);
+    rc_t 	append(uint4_t num_pages, const shpid_t new_pids[]); 
+    rc_t 	truncate(uint4_t num_pages);
     shpid_t	last_pid() const
 			{ shpid_t* p = (shpid_t*)tuple_addr(0);
 			  return p[tuple_size(0)/sizeof(shpid_t)-1]; }
-    shpid_t	pids(uint4 pid_num) const 
+    shpid_t	pids(uint4_t pid_num) const 
 			{ shpid_t* p = (shpid_t*)tuple_addr(0);
 			  w_assert3(pid_num<tuple_size(0)/sizeof(shpid_t));
 			  return p[pid_num]; }
-    uint		pid_count() const { return tuple_size(0)/sizeof(shpid_t); }
+    uint4_t		pid_count() const { return tuple_size(0)/sizeof(shpid_t); }
 private:
 
     /*
@@ -203,16 +228,18 @@ private:
 };
 
 // put inline code here
-inline recflags_t lg_tag_indirect_h::indirect_type(uint4 page_count)
+inline recflags_t lg_tag_indirect_h::indirect_type(smsize_t page_count)
 {
     return ((page_count > lgindex_p::max_pids) ? t_large_2 : t_large_1);
 }
 
-inline int lg_tag_indirect_h::_pages_on_last_indirect() const
+inline uint4_t lg_tag_indirect_h::_pages_on_last_indirect() const
 {
     return (_page_cnt == 0 ? 0 : ((_page_cnt % lgindex_p::max_pids) == 0 ?
-				   (int)lgindex_p::max_pids :
+				   (uint4_t)lgindex_p::max_pids :
 				   (_page_cnt % lgindex_p::max_pids)));
 }
 
-#endif	// LGREC_H
+/*<std-footer incl-file-exclusion='LGREC_H'>  -- do not edit anything below this line -- */
+
+#endif          /*</std-footer>*/

@@ -1,18 +1,44 @@
-/* --------------------------------------------------------------- */
-/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
-/* -- University of Wisconsin-Madison, subject to the terms     -- */
-/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
-/* -- Reserved.                                                 -- */
-/* --------------------------------------------------------------- */
+/*<std-header orig-src='shore'>
 
-/*
- *  $Id: w_error.cc,v 1.42 1997/09/06 22:34:44 solomon Exp $
- */
+ $Id: w_error.cpp,v 1.54 1999/06/07 19:02:51 kupsch Exp $
+
+SHORE -- Scalable Heterogeneous Object REpository
+
+Copyright (c) 1994-99 Computer Sciences Department, University of
+                      Wisconsin -- Madison
+All Rights Reserved.
+
+Permission to use, copy, modify and distribute this software and its
+documentation is hereby granted, provided that both the copyright
+notice and this permission notice appear in all copies of the
+software, derivative works or modified versions, and any portions
+thereof, and that both notices appear in supporting documentation.
+
+THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+"AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+This software was developed with support by the Advanced Research
+Project Agency, ARPA order number 018 (formerly 8230), monitored by
+the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+Further funding for this work was provided by DARPA through
+Rome Research Laboratory Contract No. F30602-97-2-0247.
+
+*/
+
+#include "w_defines.h"
+
+/*  -- do not edit anything above this line --   </std-header>*/
+
 #ifdef __GNUC__
 #pragma implementation "w_error.h"
 #endif
 
 #include <unix_error.h>
+#ifdef _WINDOWS
+#include <win32_error.h>
+#endif
 
 #include <string.h>
 
@@ -22,7 +48,7 @@
 W_FASTNEW_STATIC_DECL(w_error_t, 32);
 
 const
-#include <fc_einfo.i>
+#include <fc_einfo_gen.h>
 
 //
 // Static equivalent of insert(..., error_info, ...)
@@ -43,7 +69,6 @@ w_base_t::uint4_t	w_error_t::_nreg = 1;
 
 static char		no_space[sizeof(w_error_t)] = {0};
 w_error_t*		w_error_t::no_error = (w_error_t*) no_space;
-const w_base_t::uint4_t	w_error_t::max_sys_err = sys_nerr;
 
 /*** not used ***
 static void w_error_t_error_not_checked()
@@ -56,13 +81,18 @@ static void w_error_t_no_error_code()
 }
 
 #ifdef W_DEBUG
-#define CHECKIT \
+#define CHECKIT do {\
     w_error_t*	my = _next; \
     w_error_t*	p = my; \
     while(p) { \
-	w_assert3(p!= p->_next); w_assert3(my != p->_next);\
+	if (p == p->_next || my == p->_next) { \
+		cerr << "Recursive error detected:" << endl << *this << endl;\
+		W_FATAL(fcINTERNAL); \
+	} \
 	p = p->_next; \
-    }
+    } \
+  } while(0)
+
 #else
 #define CHECKIT
 #endif
@@ -70,11 +100,16 @@ static void w_error_t_no_error_code()
 void 
 w_error_t::_dangle()
 {
-    w_assert1(this != no_error);
+    if (this == no_error)
+    	return;
+
     register w_error_t* pp = 0;
     for (register w_error_t* p = _next; p; p = pp)  {
 	pp = p->_next;
-	w_assert3(pp != p);
+	if (pp == p || pp == this) {
+		cerr << "Recursive error detected:" << endl << *this << endl;
+		W_FATAL(fcINTERNAL);
+	}
 	delete p;
     }
 
@@ -101,30 +136,31 @@ inline w_base_t::uint4_t w_error_t::classify(int er)
 	uint4_t	sys = 0;
 	switch (er) {
 	case fcOS:
-		sys = ::errno;
+		sys = last_unix_error();
 		break;
+#ifdef _WINDOWS
+	case fcWIN32:
+		sys = last_win32_error();
+		break;
+#endif
 	}
 	return sys;
 }
 
-inline NORET
-w_error_t::w_error_t(
-    const char* const	fi,
-    uint4_t		li,
-    uint4_t		er,
-    w_error_t*		list)
-    : err_num(er),
-      file(fi), line(li), 
-#ifdef NO_ERROR_SYSTEMS
-      sys_err_num(::errno),
-#else
-      sys_err_num(classify(er)),
-#endif
-      _ref_count(0),
-      _trace_cnt(0),
-      _next(list)
+inline
+w_error_t::w_error_t(const char* const	fi,
+		     uint4_t		li,
+		     uint4_t		er,
+		     w_error_t*		list)
+: err_num(er),
+  file(fi),
+  line(li), 
+  sys_err_num(classify(er)),
+  _ref_count(0),
+  _trace_cnt(0),
+  _next(list)
 {
-    CHECKIT
+    CHECKIT;
 }
 
 w_error_t*
@@ -151,7 +187,7 @@ w_error_t::w_error_t(
       _trace_cnt(0),
       _next(list)
 {
-    CHECKIT
+    CHECKIT;
 }
 
 w_error_t*
@@ -206,17 +242,12 @@ w_error_t::error_string(uint4_t err_num)
     }
     
     if (i == _nreg)  {
-	// try OS
-	if( err_num > 0  && err_num < max_sys_err ) {
-	    return  sys_errlist[err_num];
-	} else {
-	    w_error_t_no_error_code();
-	    return error_string( fcNOSUCHERROR );
-	    // return "unknown error code";
-	}
+	w_error_t_no_error_code();
+	return error_string( fcNOSUCHERROR );
+	// return "unknown error code";
     }
 
-    const j = CAST(int, err_num - _range_start[i]->err_num);
+    const uint4_t j = CAST(int, err_num - _range_start[i]->err_num);
     return _range_start[i][j].errstr;
 }
 
@@ -235,22 +266,11 @@ w_error_t::module_name(uint4_t err_num)
     }
     
     if (i == _nreg)  {
-	// try OS
-	if( err_num > 0  && err_num < max_sys_err ) {
-	    return  "Operating system";
-	} else {
-	    return "unknown module";
-	}
+	return "unknown module";
     }
     return _range_name[i];
 }
 
-extern "C" void w_stop();
-void
-w_stop()
-{
-	w_assert1(0);
-}
 
 ostream& w_error_t::print_error(ostream &o) const
 {
@@ -266,21 +286,37 @@ ostream& w_error_t::print_error(ostream &o) const
 	o << cnt << ". error in " << f << ':' << p->line << " ";
 	if(cnt > 1) {
 	    if(p == this) {
-		w_stop();
-	    }
+	    	o << "Error recurses, stopping" << endl;
+	    	break;
+	    } 
 	    if(p->_next == p) {
-		w_stop();
+	    	o << "Error next is same, stopping" << endl;
+		break;
 	    }
 	}
 	if(cnt > 20) {
-	    w_stop();
+	    o << "Error chain >20, stopping" << endl;
+	    break;
 	}
 	o << p->error_string(p->err_num);
 
+	/* Eventually error subsystems will have their own interfaces
+	   here. */
 	switch (p->err_num) {
-	case fcOS:
-	    o << " --- " << ::strerror(CAST(int, p->sys_err_num));
+	case fcOS: {
+    	    char buf[1024];
+	    format_unix_error(p->sys_err_num, buf, sizeof(buf));
+	    o << " --- " << buf;
 	    break;
+        } 
+#ifdef _WIN32
+	case fcWIN32: {
+    	    char buf[1024];
+	    format_win32_error(p->sys_err_num, buf, sizeof(buf));
+	    o << " --- " << buf;
+	    break;
+        }
+#endif
 	}
 
 	o << endl;
@@ -312,8 +348,8 @@ w_error_t::print(ostream &out)
 	unsigned int last	= first + _range_cnt[i] - 1;
 
 	for (unsigned j = first; j <= last; j++)  {
-		const char *c = w_error_t::module_name(j);
-		const char *s = w_error_t::error_string(j);
+		const char *c = module_name(j);
+		const char *s = error_string(j);
 
 	    out <<  c << ":" << j << ":" << s << endl;
 	}
@@ -321,3 +357,4 @@ w_error_t::print(ostream &out)
     
     return out;
 }
+

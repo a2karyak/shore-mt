@@ -1,28 +1,48 @@
-/* --------------------------------------------------------------- */
-/* -- Copyright (c) 1994,5,6,7 Computer Sciences Department,    -- */
-/* -- University of Wisconsin-Madison, subject to the terms     -- */
-/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
-/* -- Reserved.                                                 -- */
-/* --------------------------------------------------------------- */
+/*<std-header orig-src='shore'>
 
-/*
- *  $Id: coord_log.cc,v 1.17 1997/06/15 03:12:57 solomon Exp $
- */
+ $Id: coord_log.cpp,v 1.29 1999/06/07 19:03:59 kupsch Exp $
+
+SHORE -- Scalable Heterogeneous Object REpository
+
+Copyright (c) 1994-99 Computer Sciences Department, University of
+                      Wisconsin -- Madison
+All Rights Reserved.
+
+Permission to use, copy, modify and distribute this software and its
+documentation is hereby granted, provided that both the copyright
+notice and this permission notice appear in all copies of the
+software, derivative works or modified versions, and any portions
+thereof, and that both notices appear in supporting documentation.
+
+THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+"AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+This software was developed with support by the Advanced Research
+Project Agency, ARPA order number 018 (formerly 8230), monitored by
+the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+Further funding for this work was provided by DARPA through
+Rome Research Laboratory Contract No. F30602-97-2-0247.
+
+*/
+
+#include "w_defines.h"
+
+/*  -- do not edit anything above this line --   </std-header>*/
 
 #define SM_SOURCE
-/* Yes, COORD_C - this is shared with coord.c */
+/* Yes, COORD_C - this is shared with coord.cpp */
 #define COORD_C
 #define SCAN_C
 
 #include <sm_int_4.h>
+#ifdef USE_COORD
 #include <sm.h>
 #include <pin.h>
 #include <scan.h>
 #include <coord.h>
 #include <coord_log.h>
-
-#define DBGTHRD(arg) DBG(<<" th."<<me()->id << " " arg)
-#define INCRSTAT(x) smlevel_0::stats.x ++
 
 NORET 
 log_entry::~log_entry()
@@ -92,14 +112,14 @@ log_entry::log_entry(const stid_t &store, commit_protocol p) :
     _iter = new scan_index_i(_store, 
 	scan_index_i::ge, cvec_t::neg_inf, 
 	scan_index_i::le, cvec_t::pos_inf, 
-	t_cc_none);
+	false, t_cc_none);
     if(_iter) {
 	/* Skip over the first entry, which is
 	 * <"last_last_used_tid" ,tid>
 	 */
 	bool eof;
 	if( !(_error = _iter->next(eof))) {
-#ifdef DEBUG
+#ifdef W_DEBUG
 	    w_assert3(!eof);
 	    {
 		extern const char *coordinator___dkeystring;
@@ -123,7 +143,7 @@ log_entry::log_entry(const stid_t &store, commit_protocol p) :
 			&buf1[sizeof(junk.length())],
 			strlen(coordinator___dkeystring))==0 );
 	    }
-#endif DEBUG
+#endif /* W_DEBUG */
 	    _curr_ok = true;
 	}
     }
@@ -326,9 +346,9 @@ log_entry::get()
 	}
 	_rest_dirty = false;
 
-#ifdef DEBUG
+#ifdef W_DEBUG
     test();
-#endif
+#endif /* W_DEBUG */
 	W_COERCE(xct_auto.commit());   // end the short transaction
     }
     return RCOK;
@@ -675,7 +695,7 @@ log_entry::evaluate(coord_state c, bool return_0_if_deaths)
         } else {
 	    a = PNeval_table[i->state][c];
         }
-	DBGTHRD(<<"eval_table["<<c<<"]["<<i->state<<"]= " << a);
+	DBGTHRD(<<"eval_table["<<c<<"]["<<i->state<<"]= " << (int)a);
 	switch(a) {
 	case e_choke:
 	    W_FATAL(ePROTOCOL);
@@ -854,7 +874,7 @@ log_entry::record_server_vote(int threadnum, // origin 1
 
     if(drop) {
 	DBGTHRD(<<"dropped");
-	INCRSTAT(c_replies_dropped);
+	INC_TSTAT(c_replies_dropped);
 	return RCOK;
     }
 
@@ -902,7 +922,7 @@ log_entry::is_either(server_state what1, server_state what2)  const
     return true;
 }
 
-#ifdef DEBUG
+#ifdef W_DEBUG
 bool 
 log_entry::is_one_of(server_state what1, 
 	server_state what2, server_state what3)  const
@@ -923,7 +943,7 @@ log_entry::is_one_of(server_state what1,
     }
     return true;
 }
-#endif /* DEBUG */
+#endif /* W_DEBUG */
 
 int 
 log_entry::is_state(server_state what)  const
@@ -959,7 +979,7 @@ log_entry::dump(ostream &o)  const
 
     o << "tid: " << _tid << endl;
     o << "numthreads: " << numthreads() << endl;
-    o << "state: " << _coord_state << endl;
+    o << "state: " << int(_coord_state) << endl;
     o << "persistent: " << _persistent << endl;
     o << "state dirty: " << _state_dirty << endl;
     o << "rest dirty: " << _rest_dirty << endl;
@@ -968,7 +988,56 @@ log_entry::dump(ostream &o)  const
 
     for(int j=1; j <= numthreads(); j++) {
 	o << "     " <<  j << ": " 
-	    << cvalue(j)->state << ends;
+	    << int(cvalue(j)->state) << ends;
     }
 }
+
+
+ostream &operator<<(ostream &o, const server_state ss)
+{
+	/* XXX dependent upon enum */
+	static const char *names[] = {
+		"ss_bad", "ss_prepeared", "ss_aborted",
+		"ss_committed", "ss_active", "ss_readonly",
+		"ss_died", "ss_numstates"
+	};
+
+	if (ss < 0 || ss > ss_numstates)
+		o << "<unknown server_state " << (int)ss << ">";
+	else
+		o << names[(int)ss];
+	return o;
+}
+
+ostream &operator<<(ostream &o, const coord_action ca)
+{
+	/* XXX dependent upon enum */
+	static const char *names[] = {
+		"ca_ignore", "ca_prepare", "ca_abort",
+		"ca_commit", "ca_fatal"
+	};
+	if (ca < 0 || ca > ca_fatal)
+		o << "<unknown coord_action " << (int)ca << ">";
+	else
+		o << names[(int)ca];
+	return o;
+}
+
+ostream &operator<<(ostream &o, const coord_state cs)
+{
+	/* XXX dependent upon enum */
+	static const char *names[] = {
+		"cs_done", "cs_voting", "cs_aborting",
+		"cs_committing", "cs_awaiting", "cs_numstates",
+		"cs_fatal", "cs_retrans"
+	};
+	if (cs < 0 || cs > cs_retrans)
+		o << "<unknown coord_state " << (int)cs << ">";
+	else
+		o << names[(int)cs];
+	return o;
+}
+
 #undef COORD_C
+#endif /* USE_COORD */
+

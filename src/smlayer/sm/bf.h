@@ -1,29 +1,50 @@
-/* --------------------------------------------------------------- */
-/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
-/* -- University of Wisconsin-Madison, subject to the terms     -- */
-/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
-/* -- Reserved.                                                 -- */
-/* --------------------------------------------------------------- */
+/*<std-header orig-src='shore' incl-file-exclusion='BF_H'>
+
+ $Id: bf.h,v 1.96 1999/06/07 19:03:48 kupsch Exp $
+
+SHORE -- Scalable Heterogeneous Object REpository
+
+Copyright (c) 1994-99 Computer Sciences Department, University of
+                      Wisconsin -- Madison
+All Rights Reserved.
+
+Permission to use, copy, modify and distribute this software and its
+documentation is hereby granted, provided that both the copyright
+notice and this permission notice appear in all copies of the
+software, derivative works or modified versions, and any portions
+thereof, and that both notices appear in supporting documentation.
+
+THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+"AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+This software was developed with support by the Advanced Research
+Project Agency, ARPA order number 018 (formerly 8230), monitored by
+the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+Further funding for this work was provided by DARPA through
+Rome Research Laboratory Contract No. F30602-97-2-0247.
+
+*/
+
+#ifndef BF_H
+#define BF_H
+
+#include "w_defines.h"
+
+/*  -- do not edit anything above this line --   </std-header>*/
 
 /*
- *  $Id: bf.h,v 1.84 1997/05/27 13:09:17 kupsch Exp $
- *
  *  Buffer manager interface.  
  *  Do not put any data members in bf_m.
- *  Implementation is in bf.c bf_core.[ch].
+ *  Implementation is in bf.cpp bf_core.[ch].
  *
  *  Everything in bf_m is static since there is only one
  *        buffer manager.  
  */
-#ifndef BF_H
-#define BF_H
 
-#ifndef BF_S_H
 #include <bf_s.h>
-#endif
-#ifndef PAGE_S_H
 #include <page_s.h>
-#endif
 
 #ifdef __GNUG__
 #pragma interface
@@ -39,9 +60,10 @@ class bf_m : public smlevel_0 {
     friend class bf_cleaner_thread_t;
 
 public:
-    NORET			bf_m(uint4 max, char *bf, uint4 stratgy);
+    NORET			bf_m(uint4_t max, char *bf, uint4_t stratgy);
     NORET			~bf_m();
 
+    static int   		collect(vtable_info_array_t&);
     static int			shm_needed(int n);
     
     static int			npages();
@@ -56,7 +78,7 @@ public:
     static rc_t 		fix(
 	page_s*&		    page,
 	const lpid_t&		    pid, 
-	uint2			    tag,
+	uint2_t			    tag,
 	latch_mode_t 		    mode,
 	bool 			    no_read,
 	store_flag_t&		    out_stflags,
@@ -67,7 +89,7 @@ public:
     static rc_t 		conditional_fix(
 	page_s*&		    page,
 	const lpid_t&		    pid, 
-	uint2			    tag,
+	uint2_t			    tag,
 	latch_mode_t 		    mode,
 	bool 			    no_read,
 	store_flag_t&	            out_stflags,
@@ -87,7 +109,7 @@ public:
     static rc_t                 get_page(
         const lpid_t&               pid,
         bfcb_t*                     b,
-        uint2                       ptag,
+        uint2_t                       ptag,
         bool                        no_read,
         bool                        ignore_store_id);
 
@@ -145,7 +167,7 @@ public:
     static bool 		is_bf_page(const page_s* p, bool = true);
     static bfcb_t*              get_cb(const page_s*) ;
 
-    static void 		dump();
+    static void 		dump(ostream &o);
     static void 		stats(
 	u_long& 		    fixes, 
 	u_long& 		    unfixes,
@@ -181,10 +203,10 @@ private:
     static bf_core_m*		_core;
 
     static rc_t 		_fix(
-	int 			    timeout, 
+	timeout_in_ms		    timeout, 
 	page_s*&		    page,
 	const lpid_t&		    pid, 
-	uint2			    tag,
+	uint2_t			    tag,
 	latch_mode_t 		    mode,
 	bool 			    no_read,
 	store_flag_t&		    return_store_flags,
@@ -197,7 +219,7 @@ private:
         bool                      write_dirty,
         bool                      discard);
     
-    static rc_t 		_write_out(bfcb_t** b, int cnt);
+    static rc_t 		_write_out(bfcb_t** b, uint4_t cnt);
     static rc_t			_replace_out(bfcb_t* b);
 
     static w_list_t<bf_cleaner_thread_t>*	_cleaner_threads;
@@ -206,7 +228,7 @@ private:
 	int 			    mincontig, 
 	int 			    count, 
 	lpid_t 			    pids[],
-	int4_t			    timeout,
+	timeout_in_ms		    timeout,
 	bool*			    retire_flag);
 
     // more stats
@@ -219,7 +241,7 @@ inline rc_t
 bf_m::fix(
     page_s*&            ret_page,
     const lpid_t&       pid,
-    uint2               tag,            // page_t::tag_t
+    uint2_t               tag,            // page_t::tag_t
     latch_mode_t        mode,
     bool                no_read,
     store_flag_t&	return_store_flags,
@@ -235,7 +257,7 @@ inline rc_t
 bf_m::conditional_fix(
     page_s*&            ret_page,
     const lpid_t&       pid,
-    uint2               tag,            // page_t::tag_t
+    uint2_t               tag,            // page_t::tag_t
     latch_mode_t        mode,
     bool                no_read,
     store_flag_t&	return_store_flags,
@@ -247,6 +269,6 @@ bf_m::conditional_fix(
 	no_read, return_store_flags, ignore_store_id, stflags);
 }
 
+/*<std-footer incl-file-exclusion='BF_H'>  -- do not edit anything below this line -- */
 
-#endif  /* BF_H */
-
+#endif          /*</std-footer>*/

@@ -1,0 +1,50 @@
+# <std-header style='data' orig-src='shore'>
+#
+#  $Id: SrcDirInfo.dat.public,v 1.1 1999/06/23 17:06:10 nhall Exp $
+#
+# SHORE -- Scalable Heterogeneous Object REpository
+#
+# Copyright (c) 1994-99 Computer Sciences Department, University of
+#                       Wisconsin -- Madison
+# All Rights Reserved.
+#
+# Permission to use, copy, modify and distribute this software and its
+# documentation is hereby granted, provided that both the copyright
+# notice and this permission notice appear in all copies of the
+# software, derivative works or modified versions, and any portions
+# thereof, and that both notices appear in supporting documentation.
+#
+# THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+# OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+# "AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+# FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+#
+# This software was developed with support by the Advanced Research
+# Project Agency, ARPA order number 018 (formerly 8230), monitored by
+# the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+# Further funding for this work was provided by DARPA through
+# Rome Research Laboratory Contract No. F30602-97-2-0247.
+#
+#   -- do not edit anything above this line --   </std-header>
+
+COMMON				src/smlayer/common
+COMMON_TESTS			src/smlayer/common/tests
+CONFIG				config
+DOC_SMLAYER_DOCS		doc/smlayer_docs
+FC				src/smlayer/fc
+FC_TESTS			src/smlayer/fc/tests
+IMAKE				imake
+OCOMM_SYSTEM_BUILD		src/smlayer/sm/tests
+SM				src/smlayer/sm
+SMLAYER				src/smlayer
+SM_TESTS			src/smlayer/sm/tests
+SRC				src
+SSH				src/smlayer/sm/ssh
+SSH_LIB				src/smlayer/sm/ssh/lib
+SSH_SCRIPTS			src/smlayer/sm/ssh/scripts
+SSH_SCRIPTS_BUGS		src/smlayer/sm/ssh/scripts/bugs
+SSH_SCRIPTS_BUGS_FIXED		src/smlayer/sm/ssh/scripts/bugs.fixed
+STHREAD				src/smlayer/sthread
+STHREAD_TESTS			src/smlayer/sthread/tests
+TESTS_BUILD			src/smlayer/sm/tests
+TOOLS				tools

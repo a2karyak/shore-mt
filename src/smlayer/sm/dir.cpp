@@ -1,13 +1,35 @@
-/* --------------------------------------------------------------- */
-/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
-/* -- University of Wisconsin-Madison, subject to the terms     -- */
-/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
-/* -- Reserved.                                                 -- */
-/* --------------------------------------------------------------- */
+/*<std-header orig-src='shore'>
 
-/*
- *  $Id: dir.cc,v 1.86 1997/06/15 03:12:51 solomon Exp $
- */
+ $Id: dir.cpp,v 1.103 1999/06/07 19:04:01 kupsch Exp $
+
+SHORE -- Scalable Heterogeneous Object REpository
+
+Copyright (c) 1994-99 Computer Sciences Department, University of
+                      Wisconsin -- Madison
+All Rights Reserved.
+
+Permission to use, copy, modify and distribute this software and its
+documentation is hereby granted, provided that both the copyright
+notice and this permission notice appear in all copies of the
+software, derivative works or modified versions, and any portions
+thereof, and that both notices appear in supporting documentation.
+
+THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+"AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+This software was developed with support by the Advanced Research
+Project Agency, ARPA order number 018 (formerly 8230), monitored by
+the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+Further funding for this work was provided by DARPA through
+Rome Research Laboratory Contract No. F30602-97-2-0247.
+
+*/
+
+#include "w_defines.h"
+
+/*  -- do not edit anything above this line --   </std-header>*/
 
 #define SM_SOURCE
 //
@@ -20,18 +42,14 @@
 
 
 #include <sm_int_3.h>
+#include "histo.h"
 #include <btcursor.h>
 
 // for btree_p::slot_zero_size()
-#ifdef  USE_OLD_BTREE_IMPL
-#include "btree_p.old.h"  
-#else
 #include "btree_p.h"  
-#endif
-
 #include "btcursor.h"  
 
-#ifdef __GNUG__
+#ifdef EXPLICIT_TEMPLATE
 // template class w_auto_delete_array_t<snum_t>;
 template class w_auto_delete_array_t<sinfo_s>;
 template class w_auto_delete_array_t<smlevel_3::sm_store_property_t>;
@@ -39,9 +57,10 @@ template class w_auto_delete_array_t<smlevel_3::sm_store_property_t>;
 #endif
 
 /*
- *  Directory is keyed on snum_t which is a ushort.
+ *  Directory is keyed on snum_t. 
  */
-static const key_type_s dir_key_type(key_type_s::u, 0, 2);
+static const unsigned int dir_key_type_size = sizeof(snum_t);
+static const key_type_s dir_key_type(key_type_s::u, 0, dir_key_type_size);
 
 rc_t
 dir_vol_m::_mount(const char* const devname, vid_t vid)
@@ -132,16 +151,20 @@ dir_vol_m::_insert(const stpgid_t& stpgid, const sinfo_s& si)
 {
     w_assert1(! stpgid.vol().is_remote());
 
-    if (!si.store)   return RC(eBADSTID);
+    if (!si.store)   {
+	DBG(<<"_insert: BADSTID");
+	return RC(eBADSTID);
+    }
 
-    int i = _find_root(stpgid.vol());
-    if (i < 0) return RC(eBADSTID);
+    int i=0;
+    W_DO(_find_root(stpgid.vol(), i));
 
     vec_t el;
     el.put(&si, sizeof(si));
     if (stpgid.is_stid()) {
 	vec_t key;
 	key.put(&si.store, sizeof(si.store));
+	w_assert3(sizeof(si.store) == dir_key_type_size);
 	W_DO( bt->insert(_root[i], 1, &dir_key_type,
 			 true, t_cc_none, key, el) );
     } else {
@@ -164,7 +187,9 @@ dir_vol_m::_destroy_temps(vid_t vid)
 {
     FUNC(dir_vol_m::_destroy_temps);
     rc_t rc;
-    int i = _find_root(vid);
+    int i = 0;
+    W_DO(_find_root(vid, i));
+
     w_assert1(i>=0);
     w_assert1(xct() == 0);
 
@@ -180,7 +205,7 @@ dir_vol_m::_destroy_temps(vid_t vid)
     xct_auto_abort_t xct_auto(&xd); // abort if not completed
 
     smksize_t   qkb, qukb;
-    uint4  	ext_used;
+    uint4_t  	ext_used;
     W_DO(io->get_volume_quota(vid, qkb, qukb, ext_used));
 
     snum_t*  curr_key = new snum_t[ext_used];
@@ -196,7 +221,7 @@ dir_vol_m::_destroy_temps(vid_t vid)
     int j=0;
 
     {
-	bt_cursor_t	cursor;
+	bt_cursor_t	cursor(true);
 	W_DO( bt->fetch_init(cursor, _root[i], 
 			     1, &dir_key_type,
 			     true /*unique*/, 
@@ -233,11 +258,11 @@ dir_vol_m::_destroy_temps(vid_t vid)
 		    DBG( << s << " is not a temp store" );
 		}
 	    } else {
-#ifdef DEBUG
+#ifdef W_DEBUG
 		if (m == EX || m == IX || m == SIX)  {
 		    DBG( << s << " is locked" );
 		}
-#endif
+#endif /* W_DEBUG */
 	    }
     	} // while
     } // deconstruct the cursor...
@@ -248,9 +273,12 @@ dir_vol_m::_destroy_temps(vid_t vid)
 
 	DBG(<<"destroying store " << curr_key[j]);
 	W_DO( io->destroy_store(s, false) );
+	histoid_t::destroyed_store(s, 0);
+
 	W_IGNORE( bf->discard_store(s) );
 
-#ifdef DEBUG
+
+#ifdef W_DEBUG
 	/* See if there's a cache entry to remove */
 	stpgid_t stpgid(s);
 	sdesc_t *sd = xct()->sdesc_cache()->lookup(stpgid);
@@ -266,12 +294,12 @@ dir_vol_m::_destroy_temps(vid_t vid)
 	    DBG(<<"about to remove cache entry " << s);
 	    xct()->sdesc_cache()->remove(s);
 	}
-#endif
+#endif /* W_DEBUG */
 
 	if(curr_value[j].large_store) {
 	    stid_t t(vid, curr_value[j].large_store);
 
-#ifdef DEBUG
+#ifdef W_DEBUG
 	    /*
 	     * Cache might have been flushed -- might not have
 	     * found an entry.  
@@ -282,10 +310,10 @@ dir_vol_m::_destroy_temps(vid_t vid)
 		// store in cache must match
 		w_assert3(large_store_num == curr_value[j].large_store);
 	    }
-#endif
+#endif /* W_DEBUG */
 	    DBG(<<"destroying (large) store " << curr_value[j].large_store);
 
-	    W_DO( io->destroy_store(t) );
+	    W_DO( io->destroy_store(t, false) );
 	    W_IGNORE( bf->discard_store(t) );
 	} else {
 	    w_assert3(large_store_num == 0);
@@ -336,9 +364,8 @@ dir_vol_m::_make_store_property(store_flag_t flag)
 rc_t
 dir_vol_m::_access(const stpgid_t& stpgid, sinfo_s& si)
 {
-    int i = _find_root(stpgid.vol());
-    if (i < 0) return RC(eBADSTID);
-
+    int i = 0;
+    W_DO(_find_root(stpgid.vol(), i));
 
     if (stpgid.is_stid()) {
 	bool found;
@@ -350,8 +377,11 @@ dir_vol_m::_access(const stpgid_t& stpgid, sinfo_s& si)
 	W_DO( bt->lookup(_root[i], 1, &dir_key_type,
 			 true, t_cc_none,
 			 key, &si, len, found) );
-	if (!found)	return RC(eBADSTID);
-	w_assert1(len == sizeof(si));
+	if (!found)	{
+	    DBG(<<"_access: BADSTID");
+	    return RC(eBADSTID);
+	}
+	w_assert1(len == sizeof(sinfo_s));
 
     } else {
 	page_p page;
@@ -374,8 +404,8 @@ dir_vol_m::_remove(const stpgid_t& stpgid)
 {
     w_assert1(! stpgid.vol().is_remote());
 
-    int i = _find_root(stpgid.vol());
-    if (i < 0) return RC(eBADSTID);
+    int i = 0;
+    W_DO(_find_root(stpgid.vol(),i));
 
     if (stpgid.is_stid()) {
 	vec_t key, el;
@@ -406,7 +436,7 @@ dir_vol_m::_create_dir(vid_t vid)
     w_assert1(stid.store == store_id_directory);
 
     lpid_t root;
-    W_DO( bt->create(stid, root) );
+    W_DO( bt->create(stid, root, false) );
 
     // add the directory index to the directory index
     sinfo_s sinfo(stid.store, t_index, 100, t_uni_btree, t_cc_none,
@@ -420,14 +450,16 @@ dir_vol_m::_create_dir(vid_t vid)
     return RCOK;
 }
 
-int dir_vol_m::_find_root(vid_t vid)
+rc_t dir_vol_m::_find_root(vid_t vid, int &i)
 {
-    if (vid <= 0) return -1; // not found
-    int i;
+    if (vid <= 0) {
+	DBG(<<"_find_root: BADSTID");
+	return RC(eBADSTID);
+    }
     for (i = 0; i < max && _root[i].vol() != vid; i++);
-    if (i >= max) return -1;
-
-    return i; // found
+    if (i >= max) return RC(eBADSTID);
+    // i is left with value to be returned
+    return RCOK;
 }
 
 rc_t
@@ -439,7 +471,8 @@ dir_m::insert(const stpgid_t& stpgid, const sinfo_s& sinfo)
     // as an optimization, add the sd to the dir_m hash table
     if (xct()) {
 	w_assert3(xct()->sdesc_cache());
-	xct()->sdesc_cache()->add(stpgid, sinfo);
+	sdesc_t *sd = xct()->sdesc_cache()->add(stpgid, sinfo);
+	sd->set_last_pid(sinfo.root);
     }
 
     return RCOK;
@@ -448,6 +481,7 @@ dir_m::insert(const stpgid_t& stpgid, const sinfo_s& sinfo)
 rc_t
 dir_m::remove(const stpgid_t& stpgid)
 {
+    DBG(<<"remove store " << stpgid.stid());
     if (xct()) {
 	w_assert3(xct()->sdesc_cache());
 	xct()->sdesc_cache()->remove(stpgid);
@@ -494,6 +528,8 @@ dir_m::remove_n_swap(const stid_t& old_stid, const stid_t& new_stid)
     return RCOK;
 }
 
+#include <histo.h>
+
 /*
  * dir_m::access(stpgid, sd, mode, lklarge)
  *
@@ -507,19 +543,22 @@ dir_m::remove_n_swap(const stid_t& old_stid, const stid_t& new_stid)
  *     EX locks under it, for example.  Thus, the assumption in 
  *     recovering from prepare/crash, that it is sufficient to 
  *     reaquire only the EX locks, could be violated.  See comments
- *     in xct.c, in xct_t::log_prepared()
+ *     in xct.cpp, in xct_t::log_prepared()
  */
 
 rc_t
 dir_m::access(const stpgid_t& stpgid, sdesc_t*& sd, lock_mode_t mode, 
 	bool lklarge)
 {
-#ifdef DEBUG
+#ifdef W_DEBUG
     if(xct()) {
 	w_assert3(xct()->sdesc_cache());
     }
-#endif
+#endif /* W_DEBUG */
+
     sd = xct() ? xct()->sdesc_cache()->lookup(stpgid): 0;
+    DBGTHRD(<<"xct sdesc cache lookup for " << stpgid.stid()
+	<< " returns " << unsigned(sd));
 
     if (! sd) {
 
@@ -553,7 +592,7 @@ dir_m::access(const stpgid_t& stpgid, sdesc_t*& sd, lock_mode_t mode,
 	// it is IS locked.  Note, that if the sdesc held a lock
 	// mode we could avoid other locks as well.  However,
 	// This only holds true for long locks that cannot be
-	// release.  If they can be released, then this must be
+	// released.  If they can be released, then this must be
 	// rethought.
 	//
 	if (mode != IS && mode != NL) {
@@ -570,30 +609,54 @@ dir_m::access(const stpgid_t& stpgid, sdesc_t*& sd, lock_mode_t mode,
 	
     }
 
+    /*
+     * Add store page utilization info
+     */
+    if(!sd->store_utilization()) {
+	DBGTHRD(<<"no store util for sd=" << unsigned(sd));
+	if(sd->sinfo().stype == t_file) {
+	    histoid_t *h = histoid_t::acquire(stpgid.stid());
+	    sd->add_store_utilization(h);
+	}
+    }
+
     w_assert3(stpgid == sd->stpgid());
     return RCOK;
 }
 
+inline void
+sdesc_cache_t::_serialize() const
+{
+    if(xct()) xct()->serialize_xct_threads();
+}
 
 inline void
-sdesc_cache_t::AllocateBucket(int bucket)
+sdesc_cache_t::_endserial() const
+{
+    if(xct()) xct()-> allow_xct_parallelism();
+}
+
+inline void
+sdesc_cache_t::_AllocateBucket(uint4_t bucket)
 {
     w_assert3(bucket < _bucketArraySize);
     w_assert3(bucket == _numValidBuckets);
 
-    _sdescsBuckets[bucket] = new sdesc_t[elems_in_bucket(bucket)];
+    _sdescsBuckets[bucket] = new sdesc_t[_elems_in_bucket(bucket)];
     _numValidBuckets++;
 
-    for (uint4 i = 0; i < elems_in_bucket(0); i++)  {
-	_sdescsBuckets[0][i].invalidate();
+    DBG(<<"_AllocateBucket");
+    for (uint4_t i = 0; i < _elems_in_bucket(bucket); i++)  {
+	_sdescsBuckets[bucket][i].invalidate();
     }
 }
 
 inline void
-sdesc_cache_t::AllocateBucketArray(int newSize)
+sdesc_cache_t::_AllocateBucketArray(int newSize)
 {
     sdesc_t** newSdescsBuckets = new sdesc_t*[newSize];
-    for (int i = 0; i < _bucketArraySize; i++)  {
+    for (uint4_t i = 0; i < _bucketArraySize; i++)  {
+	DBG(<<"AllocatBucketArray : copying sdesc ptrs");
 	newSdescsBuckets[i] = _sdescsBuckets[i];
     }
     for (int j = _bucketArraySize; j < newSize; j++)  {
@@ -605,9 +668,9 @@ sdesc_cache_t::AllocateBucketArray(int newSize)
 }
 
 inline void
-sdesc_cache_t::DoubleBucketArray()
+sdesc_cache_t::_DoubleBucketArray()
 {
-    AllocateBucketArray(_bucketArraySize * 2);
+    _AllocateBucketArray(_bucketArraySize * 2);
 }
 
 sdesc_cache_t::sdesc_cache_t()
@@ -620,79 +683,102 @@ sdesc_cache_t::sdesc_cache_t()
     _lastAccessBucket(0),
     _lastAccessBucketIndex(0)
 {
-    AllocateBucketArray(min_num_buckets);
-    AllocateBucket(0);
+    _serialize();
+    _AllocateBucketArray(min_num_buckets);
+    _AllocateBucket(0);
+    _endserial();
 }
 
 sdesc_cache_t::~sdesc_cache_t()
 {
-    for (uint4 i = 0; i < num_buckets(); i++)  {
+    _serialize();
+    for (uint4_t i = 0; i < _num_buckets(); i++)  {
 	delete [] _sdescsBuckets[i];
     }
 
     delete [] _sdescsBuckets;
+    _endserial();
 }
 
 
-sdesc_t* sdesc_cache_t::lookup(const stpgid_t& stpgid)
+sdesc_t* 
+sdesc_cache_t::lookup(const stpgid_t& stpgid)
 {
     w_assert3(stpgid != lpid_t::null);
 
-    if (_sdescsBuckets[_lastAccessBucket][_lastAccessBucketIndex].stpgid() == stpgid) {
+    _serialize();
+    //NB: MUST release the 1thread mutex !!!
+
+    if (_sdescsBuckets[_lastAccessBucket][_lastAccessBucketIndex].stpgid() 
+		== stpgid) {
+	_endserial();
 	return &_sdescsBuckets[_lastAccessBucket][_lastAccessBucketIndex];
     }
 
-    for (uint4 i = 0; i < num_buckets(); i++) {
-	for (uint4 j = 0; j < elems_in_bucket(i); j++)  {
+    for (uint4_t i = 0; i < _num_buckets(); i++) {
+	for (uint4_t j = 0; j < _elems_in_bucket(i); j++)  {
 	    if (_sdescsBuckets[i][j].stpgid() == stpgid) {
 		_lastAccessBucket = i;
 		_lastAccessBucketIndex = j;
+		_endserial();
 		return &_sdescsBuckets[i][j];
 	    }
 	}
     }
+    _endserial();
     return NULL;
 }
 
-void sdesc_cache_t::remove(const stpgid_t& stpgid)
+void 
+sdesc_cache_t::remove(const stpgid_t& stpgid)
 {
-    for (uint4 i = 0; i < num_buckets(); i++) {
-	for (uint4 j = 0; j < elems_in_bucket(i); j++)  {
+    _serialize();
+    DBG(<<"sdesc_cache_t remove store " << stpgid.stid());
+    for (uint4_t i = 0; i < _num_buckets(); i++) {
+	for (uint4_t j = 0; j < _elems_in_bucket(i); j++)  {
 	    if (_sdescsBuckets[i][j].stpgid() == stpgid) {
+		DBG(<<"");
 		_sdescsBuckets[i][j].invalidate();
 		if (i < _minFreeBucket && j < _minFreeBucketIndex)  {
 		    _minFreeBucket = i;
 		    _minFreeBucketIndex = j;
 		}
+		_endserial();
 		return;
 	    }
 	}
     }
+    _endserial();
 }
 
-void sdesc_cache_t::remove_all()
+void 
+sdesc_cache_t::remove_all()
 {
-    for (uint4 i = 0; i < num_buckets(); i++) {
-	for (uint4 j = 0; j < elems_in_bucket(i); j++)  {
+    _serialize();
+    for (uint4_t i = 0; i < _num_buckets(); i++) {
+	for (uint4_t j = 0; j < _elems_in_bucket(i); j++)  {
+	    DBG(<<"");
 	    _sdescsBuckets[i][j].invalidate();
 	}
     }
     _minFreeBucket = 0;
     _minFreeBucketIndex = 0;
+    _endserial();
 }
 
 
 sdesc_t* sdesc_cache_t::add(const stpgid_t& stpgid, const sinfo_s& sinfo)
 {
+    _serialize();
     sdesc_t *result=0;
 
     w_assert3(stpgid.is_stid() || stpgid.lpid.page == sinfo.root);
     w_assert3(stpgid != lpid_t::null);
 
-    uint4 bucket = _minFreeBucket;
-    uint4 bucketIndex = _minFreeBucketIndex;
-    while (bucket < num_buckets())  {
-	while (bucketIndex < elems_in_bucket(bucket))  {
+    uint4_t bucket = _minFreeBucket;
+    uint4_t bucketIndex = _minFreeBucketIndex;
+    while (bucket < _num_buckets())  {
+	while (bucketIndex < _elems_in_bucket(bucket))  {
 	    if (_sdescsBuckets[bucket][bucketIndex].stpgid() == lpid_t::null)  {
 		goto have_free_spot;
 	    }
@@ -703,9 +789,9 @@ sdesc_t* sdesc_cache_t::add(const stpgid_t& stpgid, const sinfo_s& sinfo)
 
     // none found, add another bucket
     if (bucket == _bucketArraySize)  {
-	DoubleBucketArray();
+	_DoubleBucketArray();
     }
-    AllocateBucket(bucket);
+    _AllocateBucket(bucket);
     bucketIndex = 0;
 
 have_free_spot:
@@ -716,5 +802,54 @@ have_free_spot:
 
     result =  &_sdescsBuckets[bucket][bucketIndex];
 
+    _endserial();
     return result;
 }
+
+void		
+sdesc_t::invalidate() 
+{
+    DBGTHRD(<<"sdesc_t::invalidate store " << _stpgid.stid());
+    _stpgid = lpid_t::null;
+    if(_histoid) {
+	 DBG(<<" releasing histoid & clobbering store util");
+	 if( _histoid->release() ) { delete _histoid; }
+	 add_store_utilization(0);
+    }
+}
+const shpid_t	
+sdesc_t::hog_last_pid() const {
+    if(xct()) xct()->serialize_xct_threads();
+    return _last_pid;
+}
+
+void		
+sdesc_t::free_last_pid() const {
+    if(xct()) xct()-> allow_xct_parallelism();
+}
+
+void	        
+sdesc_t::set_last_pid(shpid_t p) 
+{
+    if(xct()) xct()->serialize_xct_threads();
+    _last_pid = p;
+    if(xct()) xct()-> allow_xct_parallelism();
+}
+
+sdesc_t& 
+sdesc_t::operator=(const sdesc_t& other) 
+{
+    _stpgid = other._stpgid;
+    _sinfo = other._sinfo;
+    // this last_pid stuff only works in the
+    // context of append_file_i. Otherwise, it's
+    // not guaranteed to be the last pid.
+    _last_pid = other._last_pid;
+    if(other._histoid) {
+	DBGTHRD(<<"copying sdesc_t");
+	add_store_utilization(other._histoid->copy());
+    } else {
+	add_store_utilization(0);
+    }
+    return *this;
+} 

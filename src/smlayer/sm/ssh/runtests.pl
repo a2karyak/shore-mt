@@ -1,22 +1,61 @@
 #!/bin/sh -- # do not change this line, it mentions perl and prevents looping
+
+# <std-header style='perl' orig-src='shore'>
+#
+#  $Id: runtests.pl,v 1.19 1999/06/07 19:04:56 kupsch Exp $
+#
+# SHORE -- Scalable Heterogeneous Object REpository
+#
+# Copyright (c) 1994-99 Computer Sciences Department, University of
+#                       Wisconsin -- Madison
+# All Rights Reserved.
+#
+# Permission to use, copy, modify and distribute this software and its
+# documentation is hereby granted, provided that both the copyright
+# notice and this permission notice appear in all copies of the
+# software, derivative works or modified versions, and any portions
+# thereof, and that both notices appear in supporting documentation.
+#
+# THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+# OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+# "AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+# FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+#
+# This software was developed with support by the Advanced Research
+# Project Agency, ARPA order number 018 (formerly 8230), monitored by
+# the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+# Further funding for this work was provided by DARPA through
+# Rome Research Laboratory Contract No. F30602-97-2-0247.
+#
+#   -- do not edit anything above this line --   </std-header>
+
+# Script to run individual crash tests with ssh
+# ssh must have been built with USE_SSMTEST
+
 eval 'exec perl -s $0 ${1+"$@"}'
 	if 0;
-#
-#  $Header: /p/shore/shore_cvs/src/sm/ssh/runtests.pl,v 1.11 1997/05/23 20:55:00 nhall Exp $
-#
 
 $v=1;
 $w=1;
-$cpysrc = <<EOF;
-/* --------------------------------------------------------------- */
-/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
-/* -- University of Wisconsin-Madison, subject to the terms     -- */
-/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
-/* -- Reserved.                                                 -- */
-/* --------------------------------------------------------------- */
-EOF
+
+$flags = "-f";
+if($n) {
+  # ignore
+}
+if($C) {
+   $flags = $flags ."C";
+}
+if($l) {
+   $flags = $flags ."l";
+}
+if($y) {
+   $flags = $flags ."y";
+}
+
+print STDOUT "runtests.pl with flags= $flags\n";
 
 use FileHandle;
+
 
 # Complete list of the tests:
 
@@ -115,6 +154,9 @@ $tests_ = <<EOF;
 
     btree.remove.6/1/btree.33
 
+    btree.1page.1/1/btree.convert.1
+    btree.1page.2/1/btree.convert.1
+
     btree.propagate.d.1/1/bt.remove.1
     btree.propagate.d.3/1/bt.remove.1
     btree.propagate.d.4/1/bt.remove.1
@@ -128,8 +170,6 @@ $tests_ = <<EOF;
     btree.remove.7/1/bt.remove.1
     btree.remove.10/1/bt.remove.1
 
-    btree.1page.1/1/btree.convert.1
-    btree.1page.2/1/btree.convert.1
 
 EOF
 
@@ -149,7 +189,7 @@ NEXT: foreach $file (@ARGV) {
 	# print STDOUT "$j($#tests): trying to match $tst, $s\n";
 
 	$tst =~ m/^($file)$/o  && do {
-	   $res = &onetest($tst,$val,$script);
+	   $res = &onetest($tst,$val,$script,$flags);
 	   next NEXT;
 	};
 
@@ -164,18 +204,18 @@ while($#tests>0) {
 
     ($tst,$val,$script) = split(/[\/]/, $t);
 
-    $res = &onetest($tst,$val,$script);
+    $res = &onetest($tst,$val,$script,$flags);
 
 }
 
 sub onetest {
-    my($test,$val,$script)=@_;
+    my($test,$val,$script,$flags)=@_;
 
     print STDOUT "\n*** $test\n";
     $status = `/bin/rm -f log/* volumes/*`;
     if($status != 0) { return 1; }
 
-    $system="./runtest $test $val $kind crashtest $script";
+    $system="./runtest $test $val $kind crashtest $script $flags";
     print STDOUT "    $system\n";
     system $system;
     $status = $?;
@@ -195,7 +235,7 @@ sub onetest {
 
     print STDOUT "    RECOVERY ... ";
 
-    $ENV{"DEBUG_FLAGS"}="restart_m::redo_pass xct_t::rollback xct_impl.c log_m::insert";
+    $ENV{"DEBUG_FLAGS"}="restart.cpp xct_impl.cpp log_m::insert";
     $ENV{"SSMTEST"}="";
     $ENV{"SSMTEST_ITER"}="";
     $ENV{"SSMTEST_KIND"}="";
@@ -204,7 +244,9 @@ sub onetest {
 	.  $val
 	.  " $kind"
 	.  " \"restart_m::redo_pass xct_t::rollback log_m::insert\" "
-	.  " empty";
+	.  " empty"
+	.  " $flags"
+	;
 
     # print STDOUT "    $system\n";
     system $system;

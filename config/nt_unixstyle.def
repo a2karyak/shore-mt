@@ -1,0 +1,7 @@
+UNIX_DSK = UNIX_PATHS
+UTIL_DIR = /usr/H-i386-cygwin32
+VCPP_DIR = /apps/DevStudio/VC
+TCL_DIR = /apps/tcl
+BISON_DIR = $(TOOLS_DIR)/nt-i386
+FLEX_DIR = $(TOOLS_DIR)/nt-i386
+PERL_DIR = /apps/perl

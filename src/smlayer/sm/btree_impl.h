@@ -1,15 +1,38 @@
-/* --------------------------------------------------------------- */
-/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
-/* -- University of Wisconsin-Madison, subject to the terms     -- */
-/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
-/* -- Reserved.                                                 -- */
-/* --------------------------------------------------------------- */
+/*<std-header orig-src='shore' incl-file-exclusion='BTREE_IMPL_H'>
 
-/*
- *  $Id: btree_impl.h,v 1.2 1997/05/19 19:46:53 nhall Exp $
- */
+ $Id: btree_impl.h,v 1.14 1999/06/07 19:03:57 kupsch Exp $
+
+SHORE -- Scalable Heterogeneous Object REpository
+
+Copyright (c) 1994-99 Computer Sciences Department, University of
+                      Wisconsin -- Madison
+All Rights Reserved.
+
+Permission to use, copy, modify and distribute this software and its
+documentation is hereby granted, provided that both the copyright
+notice and this permission notice appear in all copies of the
+software, derivative works or modified versions, and any portions
+thereof, and that both notices appear in supporting documentation.
+
+THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+"AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+This software was developed with support by the Advanced Research
+Project Agency, ARPA order number 018 (formerly 8230), monitored by
+the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+Further funding for this work was provided by DARPA through
+Rome Research Laboratory Contract No. F30602-97-2-0247.
+
+*/
+
 #ifndef BTREE_IMPL_H
 #define BTREE_IMPL_H
+
+#include "w_defines.h"
+
+/*  -- do not edit anything above this line --   </std-header>*/
 
 #ifdef __GNUG__
 #pragma interface
@@ -36,11 +59,14 @@ protected:
 
     static rc_t			_alloc_page(
 	const lpid_t& 		    root,
-	int2 			    level,
+	int2_t 			    level,
 	const lpid_t& 		    near,
 	btree_p& 		    ret_page,
 	shpid_t 		    pid0 = 0,
-	bool			    set_its_smo=false);
+	bool			    set_its_smo=false,
+	bool			    compress=false,
+        store_flag_t 		    stf = st_regular
+	);
 
     static rc_t			_insert(
 	const lpid_t& 		    root,
@@ -126,7 +152,7 @@ protected:
 				}
 private:
     /* NB: these are candidates for a subordinate class that
-     * exists only in the .c files btree_bl.c btree_impl.c:
+     * exists only in the .c files btree_bl.cpp btree_impl.cpp:
      */
 
     static rc_t			_search(
@@ -193,7 +219,8 @@ private:
 	record_t*&	 	    r,
 	lpid_t&			    pid,
 	int			    nkc,
-    	const key_type_s*	    kc);
+    	const key_type_s*	    kc,
+	bool			    lexify_keys);
 };
 
 /************************************************************************** 
@@ -209,9 +236,9 @@ private:
     latch_mode_t _mode;
     btree_p	_page;
 
+
 public:
-    NORET tree_latch(const lpid_t pid) 
-	: _pid(pid), _mode(LATCH_NL) {};
+    NORET tree_latch(const lpid_t pid) ;
 
     NORET ~tree_latch(); 
 
@@ -237,7 +264,7 @@ public:
 			}
 };
 
-#ifdef DEBUG
+#ifdef W_DEBUG
 extern "C" {
     void bstop();
     void _check_latches(int line, uint _nsh, uint _nex, uint _max);
@@ -264,6 +291,8 @@ extern "C" {
 #else
 #	define check_latches(_nsh, _nex, _max)
 #	define get_latches(_nsh, _nex) 
-#endif
+#endif /* W_DEBUG */
 
-#endif /*BTREE_IMPL_H*/
+/*<std-footer incl-file-exclusion='BTREE_IMPL_H'>  -- do not edit anything below this line -- */
+
+#endif          /*</std-footer>*/

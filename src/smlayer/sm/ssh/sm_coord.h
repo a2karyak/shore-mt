@@ -1,13 +1,38 @@
-/* --------------------------------------------------------------- */
-/* -- Copyright (c) 1994,5,6,7 Computer Sciences Department,    -- */
-/* -- University of Wisconsin-Madison, subject to the terms     -- */
-/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
-/* -- Reserved.                                                 -- */
-/* --------------------------------------------------------------- */
+/*<std-header orig-src='shore' incl-file-exclusion='SM_COORD_H'>
 
-/*
- *  $Id: sm_coord.h,v 1.11 1997/04/13 16:31:18 nhall Exp $
- */
+ $Id: sm_coord.h,v 1.17 1999/06/07 19:05:00 kupsch Exp $
+
+SHORE -- Scalable Heterogeneous Object REpository
+
+Copyright (c) 1994-99 Computer Sciences Department, University of
+                      Wisconsin -- Madison
+All Rights Reserved.
+
+Permission to use, copy, modify and distribute this software and its
+documentation is hereby granted, provided that both the copyright
+notice and this permission notice appear in all copies of the
+software, derivative works or modified versions, and any portions
+thereof, and that both notices appear in supporting documentation.
+
+THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+"AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+This software was developed with support by the Advanced Research
+Project Agency, ARPA order number 018 (formerly 8230), monitored by
+the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+Further funding for this work was provided by DARPA through
+Rome Research Laboratory Contract No. F30602-97-2-0247.
+
+*/
+
+#ifndef SM_COORD_H
+#define SM_COORD_H
+
+#include "w_defines.h"
+
+/*  -- do not edit anything above this line --   </std-header>*/
 
 /* 
  * Code for testing the functions of the 2PC coordinator 
@@ -26,7 +51,7 @@ class CommSystem; // forward
 class NameService; // forward
 class Endpoint; // forward
 class twopc_thread_t; // forward
-class Tcl_Interp; // forward
+struct Tcl_Interp; // forward
 
 class sm_command_timeout_thread;
 class sm_rendezvous_thread;
@@ -150,9 +175,12 @@ public:
     rc_t 		get_tcl(
 			Endpoint &recvr, 
 			int 	 &err,
-			struct tcl_message_t&   m,
+			class  tcl_message_t&   m,
 			Endpoint &sender, // caller must do sender.release()
 			EndpointBox &senderbox // caller can ignore
 			); 
 };
 
+/*<std-footer incl-file-exclusion='SM_COORD_H'>  -- do not edit anything below this line -- */
+
+#endif          /*</std-footer>*/

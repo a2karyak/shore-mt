@@ -1,23 +1,44 @@
-/* --------------------------------------------------------------- */
-/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
-/* -- University of Wisconsin-Madison, subject to the terms     -- */
-/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
-/* -- Reserved.                                                 -- */
-/* --------------------------------------------------------------- */
+/*<std-header orig-src='shore' incl-file-exclusion='PMAP_H'>
 
-/*
- *  $Id: pmap.h,v 1.1 1997/05/19 20:21:44 nhall Exp $
- */
+ $Id: pmap.h,v 1.9 1999/06/07 19:04:21 kupsch Exp $
+
+SHORE -- Scalable Heterogeneous Object REpository
+
+Copyright (c) 1994-99 Computer Sciences Department, University of
+                      Wisconsin -- Madison
+All Rights Reserved.
+
+Permission to use, copy, modify and distribute this software and its
+documentation is hereby granted, provided that both the copyright
+notice and this permission notice appear in all copies of the
+software, derivative works or modified versions, and any portions
+thereof, and that both notices appear in supporting documentation.
+
+THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+"AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+This software was developed with support by the Advanced Research
+Project Agency, ARPA order number 018 (formerly 8230), monitored by
+the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+Further funding for this work was provided by DARPA through
+Rome Research Laboratory Contract No. F30602-97-2-0247.
+
+*/
+
 #ifndef PMAP_H
 #define PMAP_H
+
+#include "w_defines.h"
+
+/*  -- do not edit anything above this line --   </std-header>*/
 
 #ifdef __GNUG__
 #pragma interface
 #endif
 
-#ifndef BITMAP_H
 #include <bitmap.h>
-#endif
 
 struct Pmap {
 	/* number of bits */
@@ -84,6 +105,7 @@ extern	ostream &operator<<(ostream &, const Pmap &pmap);
 
 #if (((SM_EXTENTSIZE+7) & 0x8) == 0)
 typedef	Pmap	Pmap_Align2;
+typedef	Pmap	Pmap_Align4;
 #else
 class Pmap_Align2 : public Pmap {
 public:
@@ -94,7 +116,19 @@ public:
 private:
 	fill1	filler;		// keep purify happy
 };
+class Pmap_Align4 : public Pmap {
+public:
+	inline	Pmap_Align4	&operator=(const Pmap &from) {
+		*(Pmap *)this = from;	// don't copy the filler
+		return *this;
+	}
+private:
+	fill1	filler;		// keep purify happy
+	fill2   filler2;	// ditto, as well as assert 
+				// in extlink_t::extlink_t()
+};
 #endif
 
+/*<std-footer incl-file-exclusion='PMAP_H'>  -- do not edit anything below this line -- */
 
-#endif /* PMAP_H */
+#endif          /*</std-footer>*/

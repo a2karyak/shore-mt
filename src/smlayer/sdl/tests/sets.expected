@@ -1,4 +1,0 @@
-
-set_tests(o_ref.update()->a_set);
-
- set_tests(local_set);

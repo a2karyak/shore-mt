@@ -1,13 +1,36 @@
-/* --------------------------------------------------------------- */
-/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
-/* -- University of Wisconsin-Madison, subject to the terms     -- */
-/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
-/* -- Reserved.                                                 -- */
-/* --------------------------------------------------------------- */
+/*<std-header orig-src='shore'>
 
-/*
- *  $Id: btree_bl.cc,v 1.4 1997/06/15 03:14:22 solomon Exp $
- */
+ $Id: btree_bl.cpp,v 1.25 1999/06/07 19:03:53 kupsch Exp $
+
+SHORE -- Scalable Heterogeneous Object REpository
+
+Copyright (c) 1994-99 Computer Sciences Department, University of
+                      Wisconsin -- Madison
+All Rights Reserved.
+
+Permission to use, copy, modify and distribute this software and its
+documentation is hereby granted, provided that both the copyright
+notice and this permission notice appear in all copies of the
+software, derivative works or modified versions, and any portions
+thereof, and that both notices appear in supporting documentation.
+
+THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+"AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+This software was developed with support by the Advanced Research
+Project Agency, ARPA order number 018 (formerly 8230), monitored by
+the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+Further funding for this work was provided by DARPA through
+Rome Research Laboratory Contract No. F30602-97-2-0247.
+
+*/
+
+#include "w_defines.h"
+
+/*  -- do not edit anything above this line --   </std-header>*/
+
 #define SM_SOURCE
 #define BTREE_C
 
@@ -15,20 +38,38 @@
 // need stored streams
 #include "sm.h"
 
-#if defined(USE_OLD_BTREE_IMPL)
-#include "btree_p.old.h"
-#else
 #include "btree_p.h"
-#endif
 #include "btree_impl.h"
 #include "sort.h"
 #include "sm_du_stats.h"
-#include <debug.h>
 #include <crash.h>
+#include "umemcmp.h"
 
-#ifdef __GNUG__
+
+#ifdef EXPLICIT_TEMPLATE
 template class w_auto_delete_array_t<record_t *>; 
 #endif
+
+const smlevel_0::store_flag_t btree_m::bulk_loaded_store_type = smlevel_0::st_insert_file;
+
+/* 
+ * Comparison function for qsort 
+ */
+static int 
+elm_cmp(const void *_r1, const void *_r2)
+{
+  const record_t **r1 = (const record_t **)_r1;
+  const record_t **r2 = (const record_t **)_r2;
+  unsigned size1 = (*r1)->body_size();
+  unsigned size2 = (*r2)->body_size();
+
+  int d = umemcmp((*r1)->body(), (*r2)->body(), size1 < size2 ? size1 : size2);
+
+  if (d)
+    return d;
+
+  return size1 - size2;
+}
 
 /*********************************************************************
  *
@@ -56,13 +97,14 @@ public:
     rc_t	put(const cvec_t& key, const cvec_t& el);
     rc_t	map_to_root();
 
-    uint2	height()	{ return _height; }
-    uint4	num_pages()	{ return _num_pages; }
-    uint4	leaf_pages()	{ return _leaf_pages; }
+    uint2_t	height()	{ return _height; }
+    uint4_t	num_pages()	{ return _num_pages; }
+    uint4_t	leaf_pages()	{ return _leaf_pages; }
 private:
-    uint2	_height;	// height of the tree
-    uint4	_num_pages;	// total # of pages
-    uint4	_leaf_pages;	// total # of leaf pages
+    bool        _is_compressed; // prefix compression turned on?
+    uint2_t	_height;	// height of the tree
+    uint4_t	_num_pages;	// total # of pages
+    uint4_t	_leaf_pages;	// total # of leaf pages
 
     lpid_t	_root;		// root of the btree
     btree_p	_page[20];	// a stack of pages (path) from root
@@ -94,7 +136,9 @@ btree_impl::_handle_dup_keys(
     record_t*&  	r,              // O-  last record
     lpid_t&             pid,            // IO- last pid
     int			nkc,
-    const key_type_s*	kc)
+    const key_type_s*	kc,
+    bool		lexify_keys
+    )
 {
     count = 0;
     int max_rec_cnt = 500;
@@ -104,7 +148,7 @@ btree_impl::_handle_dup_keys(
     w_auto_delete_array_t<record_t*> auto_del_recs(recs);
 
     bool eod = false, eof = false;
-    register i;
+    int i;
 
     if (slot==1) {
         // previous rec is on the previous page
@@ -188,9 +232,10 @@ btree_impl::_handle_dup_keys(
         }
     }
 
+/* Replaced by qsort, below
     // sort the recs : use selection sort
     for (i = 0; i < count - 1; i++) {
-        for (register j = i + 1; j < count; j++) {
+        for (int j = i + 1; j < count; j++) {
             vec_t el(recs[i]->body(), (int)recs[i]->body_size());
             if (el.cmp(recs[j]->body(), (int)recs[j]->body_size()) > 0) {
                 record_t* tmp = recs[i];
@@ -199,15 +244,22 @@ btree_impl::_handle_dup_keys(
             }
         }
     }
+*/
 
-//  qsort(recs, count, sizeof(void*), elm_cmp);
+    qsort(recs, count, sizeof(void*), elm_cmp);
 
     vec_t key(recs[0]->hdr(), recs[0]->hdr_size());
     for (i = 0; i < count; i++) {
         cvec_t el(recs[i]->body(), (int)recs[i]->body_size());
-	cvec_t* real_key=0;
-	W_DO(btree_m::_scramble_key(real_key, key, nkc, kc));
-        W_DO( sink->put(*real_key, el) );
+	if(lexify_keys) {
+	    cvec_t* real_key=0;
+	    DBG(<<"");
+	    W_DO(btree_m::_scramble_key(real_key, key, nkc, kc));
+	    W_DO( sink->put(*real_key, el) );
+	} else {
+	    DBG(<<"");
+	    W_DO( sink->put(key, el) );
+	}
     }
 
     if (page_cnt>0) {
@@ -222,7 +274,7 @@ btree_impl::_handle_dup_keys(
 
 /*********************************************************************
  *
- *  btree_m::purge(root, check_empty)
+ *  btree_m::purge(root, check_empty, forward_processing)
  *
  *  Remove all pages of a btree except the root. "Check_empty" 
  *  indicates whether to check if the tree is empty before purging.
@@ -232,12 +284,20 @@ btree_impl::_handle_dup_keys(
 rc_t
 btree_m::purge(
     const lpid_t& 	root,		// I-  root of btree
-    bool		check_empty)
+    bool		check_empty,
+    bool		forward_processing
+    )
 {
     if (check_empty)  {
+	/* For forward processing, we just make
+	 * sure that bulk-load is done only on
+	 * empty b-trees. (For recovery, we blow
+	 * away the contents of the btree.)
+	 */
 	bool flag;
 	W_DO( is_empty(root, flag) );
 	if (! flag)  {
+	    DBG(<<"eNDXNOTEMPTY");
 	    return RC(eNDXNOTEMPTY);
 	}
     }
@@ -269,25 +329,32 @@ btree_m::purge(
 
     btree_p page;
     X_DO( page.fix(root, LATCH_EX), anchor );
-    X_DO( page.set_hdr(root.page, 1, 0, 0), anchor );
+    X_DO( page.set_hdr(root.page, 1, 0, 
+	(page.is_compressed()?btree_p::t_compressed:btree_p::t_none)
+	), anchor );
 
     SSMTEST("btree.bulk.3");
     xd->compensate(anchor);
     
     W_COERCE( log_btree_purge(page) );
 
+    if(forward_processing) {
+	W_DO( io->set_store_flags(root.stid(), bulk_loaded_store_type) );
+    }
     return RCOK;
 }
 
 
 /*********************************************************************
  *
- *  btree_m::bulk_load(root, src, unique, cc, stats)
+ *  btree_m::bulk_load(root, ...)
  *
  *  Bulk load a btree at root using records from store src.
  *  The key and element of each entry is stored in the header and
  *  body part, respectively, of records from src store. 
  *  NOTE: src records must be sorted in ascending key order.
+ *  and keys must already have been converted to lexicographic
+ *  order (internal format).
  *
  *  Statistics regarding the bulkload is returned in stats.
  *
@@ -295,17 +362,27 @@ btree_m::purge(
 rc_t
 btree_m::bulk_load(
     const lpid_t&	root,		// I-  root of btree
-    stid_t		src,		// I-  store containing new records
+    int			nsrcs,		// I- # stores in array above
+    const stid_t*	src,		// I-  stores containing new records
     int			nkc,
     const key_type_s*	kc,
     bool		unique,		// I-  true if btree is unique
     concurrency_t	cc_unused,	// I-  concurrency control mechanism
-    btree_stats_t&	stats)		// O-  index stats
+    btree_stats_t&	stats, 		// O-  index stats
+    bool		sort_duplicates, // I - default is true
+    bool		lexify_keys   // I - default is true
+    )		
 {
-    w_assert1(kc && nkc > 0);
 
     // keep compiler quiet about unused parameters
     if (cc_unused) {}
+
+    w_assert1(kc && nkc > 0);
+    DBG(<<"bulk_load "
+	<< nsrcs << " sources, first=" << src[0] << " index=" << root
+	<< " sort_dups=" << sort_duplicates
+	<< " lexify_keys=" << lexify_keys
+	);
 
     /*
      *  Set up statistics gathering
@@ -317,7 +394,7 @@ btree_m::bulk_load(
     /*
      *  Btree must be empty for bulkload.
      */
-    W_DO( purge(root, true) );
+    W_DO( purge(root, true, true) );
 	
     /*
      *  Create a sink for bulkload
@@ -332,92 +409,135 @@ btree_m::bulk_load(
     int i = 0;		// toggle
     file_p page[2];		// page[i] is current page
 
-    const record_t* pr = 0;	// previous record
-    lpid_t pid;
-    bool eof = false;
-    bool skip_last = false;
-    for (rc = fi->first_page(src, pid);
-	 !rc.is_error() && !eof;
-	  rc = fi->next_page(pid, eof))     {
-	/*
-	 *  for each page ...
-	 */
-	W_DO( page[i].fix(pid, LATCH_SH) );
-	w_assert3(page[i].pid() == pid);
+    const record_t* 	pr = 0;	// previous record
+    int			src_index = 0;
+    bool 		skip_last = false;
 
-	slotid_t s = page[i].next_slot(0);
-	if (! s)  {
+    for(src_index = 0; src_index < nsrcs; src_index++) {
+	lpid_t 		pid;
+	bool 		eof = false;
+	skip_last = false;
+
+	for (rc = fi->first_page(src[src_index], pid);
+	     !rc.is_error() && !eof;
+	      rc = fi->next_page(pid, eof))     {
 	    /*
-	     *  do nothing. skip over empty page, so do not toggle
+	     *  for each page ...
 	     */
-	    continue;
-	} 
-	for ( ; s; s = page[i].next_slot(s))  {
-	    /*
-	     *  for each slot in page ...
-	     */
-	    record_t* r;
-	    W_COERCE( page[i].get_rec(s, r) );
+	    W_DO( page[i].fix(pid, LATCH_SH) );
+	    w_assert3(page[i].pid() == pid);
 
-	    if (pr) {
-		cvec_t key(pr->hdr(), pr->hdr_size());
-		cvec_t el(pr->body(), (int)pr->body_size());
-
+	    slotid_t s = page[i].next_slot(0);
+	    if (! s)  {
 		/*
-		 *  check uniqueness and sort order
+		 *  do nothing. skip over empty page, so do not toggle
 		 */
-		if (key.cmp(r->hdr(), r->hdr_size()))  {
+		continue;
+	    } 
+	    for ( ; s; s = page[i].next_slot(s))  {
+		/*
+		 *  for each slot in page ...
+		 */
+		record_t* r;
+		W_COERCE( page[i].get_rec(s, r) );
+
+		if(!sort_duplicates) {
+		    // free up page asap
+		    if (page[1-i].is_fixed())  page[1-i].unfix();
+		}
+
+		if (pr) {
+		    bool insert_one = false;
+		    cvec_t key(pr->hdr(), pr->hdr_size());
+		    cvec_t el(pr->body(), (int)pr->body_size());
+
 		    /*
-		     *  key of r is greater than the previous key
+		     *  check uniqueness and sort order
+		     *  key is prev, r is curr
+		     *  key.cmp(r) tests key cmp r, so 
+		     *  <0 means key < r, >0 means key > r
 		     */
-		    ++cnt;
-		    cvec_t* real_key = 0;
-		    W_DO(_scramble_key(real_key, key, nkc, kc));
-		    W_DO( sink.put(*real_key, el) );
-		    skip_last = false;
-		} else {
-		    /*
-		     *  key of r is equal to the previous key
-		     */
-		    if (unique) {
-			return RC(eDUPLICATE);
+		    int res = key.cmp(r->hdr(), r->hdr_size());
+		    if (res==0) {
+			/*
+			 *  key of r is equal to the previous key
+			 */
+			if (unique) {
+			    return RC(eDUPLICATE);
+			}
+			if(sort_duplicates) {
+			    /*
+			     * temporary hack for duplicated keys:
+			     *  sort the elem in order before loading
+			     */
+			    int dup_cnt;
+			    W_DO( btree_impl::_handle_dup_keys(&sink, s, &page[1-i],
+						   &page[i], dup_cnt, r, pid,
+						   nkc, kc,
+						   lexify_keys) );
+			    cnt += dup_cnt;
+			    eof = (pid==lpid_t::null);
+			    skip_last = eof;
+			} else {
+			    /*
+			     * The input file was sorted on key/elem
+			     * pairs, so go ahead and insert it
+			     */
+			    insert_one = true;
+			}
+		    } else {
+			/*
+			 *  key of r is < or > the previous key
+			 *  but not a dup.  NB: we can't distinguish
+			 *  < or > because we haven't scrambled the 
+			 *  keys yet.  We just have to take it that
+			 *  the caller indeed sorted the file.
+			 */
+			insert_one = true;
 		    }
+		    if(insert_one) {
+			++cnt;
+			if(lexify_keys) {
+			    DBG(<<"");
+			    cvec_t* real_key = 0;
+			    W_DO(_scramble_key(real_key, key, nkc, kc));
+			    W_DO( sink.put(*real_key, el) );
+			} else {
+			    DBG(<<"");
+			    W_DO( sink.put(key, el) );
+			}
+			skip_last = false;
+		    } 
 
-		    /*
-		     * temporary hack for duplicated keys:
-		     *  sort the elem in order before loading
-		     */
-		    int dup_cnt;
-		    W_DO( btree_impl::_handle_dup_keys(&sink, s, &page[1-i],
-					   &page[i], dup_cnt, r, pid,
-					   nkc, kc) );
-		    cnt += dup_cnt;
-		    eof = (pid==lpid_t::null);
-		    skip_last = eof ? true : false;
-		} 
+		    ++uni_cnt;
+		}
 
-		++uni_cnt;
+		if (page[1-i].is_fixed())  page[1-i].unfix();
+		pr = r;
+
+		if (!s) break;
 	    }
-
-	    if (page[1-i])  page[1-i].unfix();
-	    pr = r;
-
-	    if (!s) break;
+	    i = 1 - i;	// toggle i
+	    if (eof) break;
 	}
-	i = 1 - i;	// toggle i
-	if (eof) break;
+	if (rc)  {
+	    return rc.reset();
+	}
     }
 
-    if (rc)  {
-	return rc.reset();
-    }
 
     if (!skip_last && pr) {
 	cvec_t key(pr->hdr(), pr->hdr_size());
 	cvec_t el(pr->body(), (int)pr->body_size());
-	cvec_t* real_key;
-	W_DO(_scramble_key(real_key, key, nkc, kc));
-	W_DO( sink.put(*real_key, el) );
+	if(lexify_keys) {
+	    cvec_t* real_key;
+	    W_DO(_scramble_key(real_key, key, nkc, kc));
+	    DBG(<<"");
+	    W_DO( sink.put(*real_key, el) );
+	} else {
+	    DBG(<<"");
+	    W_DO( sink.put(key, el) );
+	}
 	++uni_cnt;
 	++cnt;
     }
@@ -456,6 +576,7 @@ btree_m::bulk_load(
     btree_stats_t&	stats)		// O-  index stats
 {
     w_assert1(kc && nkc > 0);
+    DBG(<<"bulk_load from sorted stream, index=" << root);
 
     // keep compiler quiet about unused parameters
     if (cc_unused) {}
@@ -470,7 +591,7 @@ btree_m::bulk_load(
     /*
      *  Btree must be empty for bulkload
      */
-    W_DO( purge(root, true) );
+    W_DO( purge(root, true, true) );
 
     /*
      *  Create a sink for bulkload
@@ -523,6 +644,7 @@ btree_m::bulk_load(
 	}
 
 	cvec_t* real_key;
+	DBG(<<"");
 	W_DO(_scramble_key(real_key, key, nkc, kc));
 	W_DO( sink.put(*real_key, el) ); 
 	key.reset();
@@ -554,12 +676,14 @@ btree_m::bulk_load(
  *
  *********************************************************************/
 btsink_t::btsink_t(const lpid_t& root, rc_t& rc)
-    : _height(0), _num_pages(0), _leaf_pages(0),
+    : _is_compressed(false), _height(0), _num_pages(0), _leaf_pages(0),
       _root(root), _top(0)
 {
     btree_p rp;
-    if (rc = rp.fix(root, LATCH_SH))  return;
+    rc = rp.fix(root, LATCH_SH);
+    if (rc)  return;
     
+    _is_compressed = rp.is_compressed();
     rc = _add_page(0, 0);
     _left_most[0] = _page[0].pid().page;
 }
@@ -611,10 +735,12 @@ btsink_t::map_to_root()
 	/*
 	 *  Shift everything from child page to root page
 	 */
-	X_DO( rp.set_hdr(_root.page, cp.level(), cp.pid0(), 0), anchor );
+	X_DO( rp.set_hdr(_root.page, cp.level(), cp.pid0(), 
+	    (_is_compressed?btree_p::t_compressed:btree_p::t_none)
+	    ), anchor );
 	w_assert1( !cp.next() && ! cp.prev());
 	w_assert1( rp.nrecs() == 0);
-	X_DO( cp.shift(0, rp), anchor );
+	X_DO( cp.shift(0, rp), anchor);
     }
     _page[_top] = rp;
 
@@ -657,7 +783,10 @@ btsink_t::_add_page(const int i, shpid_t pid0)
 	 *  necessary
 	 */
 	X_DO( btree_impl::_alloc_page(_root, 
-		i+1, (_page[i] ? _page[i].pid() : _root), _page[i], pid0), anchor );
+		i+1, (_page[i].is_fixed() ? _page[i].pid() : _root), 
+		_page[i], pid0,
+		false, _is_compressed,
+		bulk_loaded_store_type), anchor );
 
     
 	/*
@@ -672,7 +801,7 @@ btsink_t::_add_page(const int i, shpid_t pid0)
 	     *  Link up
 	     */
 	    shpid_t left = 0;
-	    if (lsib != 0) {
+	    if (lsib.is_fixed() != 0) {
 		left = lsib.pid().page;
 	    }
 	    DBG(<<"Adding page " << _page[i].pid()
@@ -682,7 +811,7 @@ btsink_t::_add_page(const int i, shpid_t pid0)
 		);
 	    X_DO( _page[i].link_up(left, 0), anchor );
 
-	    if (lsib != 0) {
+	    if (lsib.is_fixed() != 0) {
 		// already did:
 		// left = lsib.pid().page;
 
@@ -733,6 +862,17 @@ btsink_t::put(const cvec_t& key, const cvec_t& el)
      *  NB: we'll turn it off and on several times because while
      *  it's off, no other threads can run in this tx. 
      */
+    /* 
+     * logging is explicitly turned off -- temporary (st_tmp)
+     * btrees aren't possible. 
+     * NB: store_flags CAN have the st_tmp bit turned on -- it
+     * can be st_insert_file or st_load_file, but cannot be
+     * st_tmp only because it cannot be recovered: whole file
+     * has to be destroyed by this transaction.
+     */
+
+    w_assert3(_page[0].store_flags() != st_tmp);
+
     rc_t rc;
     {
 	xct_log_switch_t toggle(OFF);
@@ -740,6 +880,7 @@ btsink_t::put(const cvec_t& key, const cvec_t& el)
 	/*
 	 *  Try inserting into the page[0] (leaf)
 	 */
+
 	rc = _page[0].insert(key, el, _slot[0]++);
     }
     if (rc) {

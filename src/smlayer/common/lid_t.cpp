@@ -1,13 +1,35 @@
-/* --------------------------------------------------------------- */
-/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
-/* -- University of Wisconsin-Madison, subject to the terms     -- */
-/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
-/* -- Reserved.                                                 -- */
-/* --------------------------------------------------------------- */
+/*<std-header orig-src='shore'>
 
-/*
- *  $Header: /p/shore/shore_cvs/src/common/lid_t.cc,v 1.24 1997/06/15 02:36:04 solomon Exp $
- */
+ $Id: lid_t.cpp,v 1.33 1999/06/07 19:02:26 kupsch Exp $
+
+SHORE -- Scalable Heterogeneous Object REpository
+
+Copyright (c) 1994-99 Computer Sciences Department, University of
+                      Wisconsin -- Madison
+All Rights Reserved.
+
+Permission to use, copy, modify and distribute this software and its
+documentation is hereby granted, provided that both the copyright
+notice and this permission notice appear in all copies of the
+software, derivative works or modified versions, and any portions
+thereof, and that both notices appear in supporting documentation.
+
+THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+"AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+This software was developed with support by the Advanced Research
+Project Agency, ARPA order number 018 (formerly 8230), monitored by
+the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+Further funding for this work was provided by DARPA through
+Rome Research Laboratory Contract No. F30602-97-2-0247.
+
+*/
+
+#include "w_defines.h"
+
+/*  -- do not edit anything above this line --   </std-header>*/
 
 #define LID_T_C
 
@@ -16,8 +38,7 @@
 #endif
 
 #include <stdlib.h>
-#include <sys/types.h>
-#include <stream.h>
+#include <w_stream.h>
 #include <memory.h>
 #include "basics.h"
 #include "serial_t.h"
@@ -48,9 +69,9 @@ ostream& operator<<(ostream& o, const lvid_t& lvid)
 istream& operator>>(istream& is, lvid_t& lvid)
 {
     is.clear();
-    int i;
+    w_base_t::uint4_t i;
     char c;
-    const parts = sizeof(lvid.high); // should be 4
+    const w_base_t::uint4_t parts = sizeof(lvid.high); // should be 4
     int  temp[parts];
 
     // in case not all fields are represented
@@ -124,17 +145,17 @@ istream& operator>>(istream& i, lid_t& lid)
  * the structure-only, non-c++ definitions (rpcgen output)
  * of  lvid_t 
  */
-extern "C" bool lvid_t_is_null(const lvid_t &x); 
+EXTERN bool lvid_t_is_null(const lvid_t &x); 
+EXTERN bool lrid_t_is_null(const lrid_t &x); 
 
 bool
 lvid_t_is_null(const lvid_t &x)
 {
-	return x == lvid_t::null?true:false;
+      return x == lvid_t::null;
 }
-extern "C" bool lrid_t_is_null(const lrid_t &x); 
-
 bool
 lrid_t_is_null(const lrid_t &x)
 {
-	return x == lid_t::null?true:false;
+      return x == lid_t::null;
 }
+

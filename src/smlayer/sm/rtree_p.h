@@ -1,12 +1,38 @@
-/* --------------------------------------------------------------- */
-/* -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- */
-/* -- University of Wisconsin-Madison, subject to the terms     -- */
-/* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
-/* -- Reserved.                                                 -- */
-/* --------------------------------------------------------------- */
+/*<std-header orig-src='shore' incl-file-exclusion='RTREE_P_H'>
+
+ $Id: rtree_p.h,v 1.19 1999/06/07 19:04:27 kupsch Exp $
+
+SHORE -- Scalable Heterogeneous Object REpository
+
+Copyright (c) 1994-99 Computer Sciences Department, University of
+                      Wisconsin -- Madison
+All Rights Reserved.
+
+Permission to use, copy, modify and distribute this software and its
+documentation is hereby granted, provided that both the copyright
+notice and this permission notice appear in all copies of the
+software, derivative works or modified versions, and any portions
+thereof, and that both notices appear in supporting documentation.
+
+THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+"AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+This software was developed with support by the Advanced Research
+Project Agency, ARPA order number 018 (formerly 8230), monitored by
+the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+Further funding for this work was provided by DARPA through
+Rome Research Laboratory Contract No. F30602-97-2-0247.
+
+*/
 
 #ifndef RTREE_P_H
 #define RTREE_P_H
+
+#include "w_defines.h"
+
+/*  -- do not edit anything above this line --   </std-header>*/
 
 #ifdef __GNUG__
 #pragma interface
@@ -21,8 +47,8 @@
 //
 struct rtctrl_t {
     lpid_t	root;
-    int2	level;	// leaf if 1, non-leaf if > 1
-    int2	dim;	// for rtree, this is dimension.  For rdtree, 
+    int2_t	level;	// leaf if 1, non-leaf if > 1
+    int2_t	dim;	// for rtree, this is dimension.  For rdtree, 
                         // it's elemsz
 };
 
@@ -58,8 +84,8 @@ public:
 	};
 
     rc_t			set_hdr(const rtctrl_t& new_hdr);
-    rc_t			set_level(int2 l);
-    rc_t			set_dim(int2 d=2);
+    rc_t			set_level(int2_t l);
+    rc_t			set_dim(int2_t d=2);
 
     bool 			is_leaf() const;
     bool 			is_node() const;
@@ -75,7 +101,7 @@ public:
 	const cvec_t& 		    el, 
 	int 			    slot, 
 	shpid_t 		    child = 0);
-    rc_t			remove(int2 slot);
+    rc_t			remove(int2_t slot);
     rc_t 			remove(int slot);
 
     rc_t			shift(int snum, rtree_base_p* rsib);
@@ -87,10 +113,16 @@ public:
 
 class rtree_p : public rtree_base_p {
 
-    bool exact_match(const nbox_t& key, u_char smap[], const cvec_t& el,
-		       const shpid_t child = 0);
+    bool _key_match(const nbox_t& key, int slot, bool include_nulls,
+	        bool& bigger) const;
+    bool exact_match(
+		const nbox_t& key, u_char smap[], const cvec_t& el,
+	        const shpid_t child,
+		bool include_nulls
+		);
     bool spatial_srch(const nbox_t& key, nbox_t::sob_cmp_t ctype, u_char smap[],
-			int2& numSlot);
+			int2_t& numSlot,
+			bool include_nulls);
 
 public:
 
@@ -100,7 +132,7 @@ public:
     rc_t			calc_bound(nbox_t& nbound);
     void 			pick_optimum(
 	const nbox_t& 		    key,
-	int2& 			    ret_slot);
+	int2_t& 			    ret_slot);
 
     rc_t			insert(const rtrec_t& tuple);
     rc_t			insert(
@@ -114,20 +146,23 @@ public:
 	const nbox_t& 		    bound);
     bool 			search(
 	const nbox_t& 		    key,
-	nbox_t::sob_cmp_t 		    ctype,
+	nbox_t::sob_cmp_t 	    ctype,
 	u_char 			    smap[],
-	int2& 			    num_slot, 
+	int2_t& 		    num_slot, 
+	bool 			    include_nulls,
 	const cvec_t* 		    el = 0, 
-	const shpid_t 		    child = 0);
+	const shpid_t 		    child = 0
+	);
     bool 			query(
 	const nbox_t& 		    key, 
-	nbox_t::sob_cmp_t 		    ctype,
+	nbox_t::sob_cmp_t 	    ctype,
 	u_char 			    smap[], 
-	int2&			    num_slot);
+	int2_t&			    num_slot,
+	bool			    include_nulls);
 
     void 			print();
-    void 			draw();
-    uint2			ovp();		
+    void 			draw(ostream &, nbox_t &);
+    uint2_t			ovp();		
 
 };
 
@@ -137,7 +172,7 @@ public:
 
 struct rtstk_entry {
     rtree_base_p page;
-    int2 idx;
+    int2_t idx;
 };
 
 class rtstk_t {
@@ -146,24 +181,24 @@ class rtstk_t {
 
   private:
     rtstk_entry 		_stk[max_rtstk_sz];
-    int2 			_top;
+    int2_t 			_top;
 
   public:
     NORET			rtstk_t();
     NORET			~rtstk_t();
 
-    void 			push(const rtree_base_p& page, int2 index);
+    void 			push(const rtree_base_p& page, int2_t index);
 
     rtstk_entry& 		pop();
     rtstk_entry& 		top();
     rtstk_entry& 		second();
     rtstk_entry& 		bottom();
 
-    void			update_top(int2 index);
+    void			update_top(int2_t index);
 
     void 			drop_all_but_last(); 
 
-    int2 			size() { return _top; }
+    int2_t 			size() { return _top; }
 
     bool 			is_full()    { return _top >= max_rtstk_sz; }
     bool 			is_empty()   { return _top == 0; }
@@ -176,7 +211,7 @@ const int ftstk_chunk = 50;
 
 class ftstk_t {
   private:
-    int2 _top;
+    int2_t _top;
     shpid_t _stk[ftstk_chunk];
     shpid_t* _indirect[ftstk_chunk];
 
@@ -188,8 +223,8 @@ class ftstk_t {
 	w_assert1(! is_full());
 	if (_top < ftstk_chunk) _stk[_top++] = pid;
 	else {
-	    int2 pos = _top / ftstk_chunk - 1;
-	    int2 off = _top % ftstk_chunk;
+	    int2_t pos = _top / ftstk_chunk - 1;
+	    int2_t off = _top % ftstk_chunk;
 	    if (!_indirect[pos])
 		_indirect[pos] = new shpid_t[ftstk_chunk];
 	    _indirect[pos][off] = pid;
@@ -217,22 +252,30 @@ class ftstk_t {
     bool is_empty()   { return _top == 0; }
 };
 
-struct rt_cursor_t {
+class rt_cursor_t {
+public:
+    bool 	_include_nulls;
     nbox_t::sob_cmp_t   cond;
     nbox_t	qbox;
     ftstk_t     fl;
 
-    int2	num_slot;
+    int2_t	num_slot;
+    int2_t	idx;
     u_char	smap[rtree_p::smap_sz];
-    int2	idx;
     rtree_p 	page;
 
-    rt_cursor_t() { num_slot = idx = 0; bm_zero(smap, sizeof(u_char)*8); }
+    rt_cursor_t(bool include_nulls=false) : _include_nulls(include_nulls) { 
+	num_slot = idx = 0; bm_zero(smap, sizeof(u_char)*8); 
+    }
+    bool thread_can_delete() const {
+	if(page.is_fixed()) return page.pinned_by_me();
+	return true;
+    }
 };
 
 struct wrk_branch_t {
     nbox_t rect;
-    int2 idx;
+    int2_t idx;
     double area;
 };
 
@@ -292,7 +335,7 @@ rtree_base_p::insert(
 }
 
 /*
- * BUGBUG: difference between this and remove(int2) ?? 
+ * BUGBUG: difference between this and remove(int2_t) ?? 
  */
 inline rc_t
 rtree_base_p::remove(int slot)
@@ -337,7 +380,7 @@ rtstk_t::~rtstk_t()
 }
 
 inline void
-rtstk_t::push(const rtree_base_p& page, int2 index) 
+rtstk_t::push(const rtree_base_p& page, int2_t index) 
 {
     w_assert1(! is_full());
     _stk[_top].page = page;
@@ -373,10 +416,12 @@ rtstk_t::bottom()
 }
 
 inline void
-rtstk_t::update_top(int2 index)
+rtstk_t::update_top(int2_t index)
 {
     w_assert1(! is_empty());
     _stk[_top-1].idx = index;
 }
 
-#endif /*RTREE_P_H*/
+/*<std-footer incl-file-exclusion='RTREE_P_H'>  -- do not edit anything below this line -- */
+
+#endif          /*</std-footer>*/
