@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='SMTHREAD_H'>
 
- $Id: smthread.h,v 1.90 2000/02/22 20:33:54 bolo Exp $
+ $Id: smthread.h,v 1.91 2001/04/17 18:51:38 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -141,15 +141,11 @@ public:
 	st_proc_t* 		    f, 
 	void* 			    arg,
 	priority_t 		    priority = t_regular,
-	bool 			    block_immediate = false,
-	bool 			    auto_delete = false,
 	const char* 		    name = 0, 
 	timeout_in_ms		    lockto = WAIT_FOREVER,
 	unsigned		    stack_size = default_stack);
     NORET			smthread_t(
 	priority_t 		    priority = t_regular,
-	bool 			    block_immediate = false, 
-	bool 			    auto_delete = false,
 	const char* 		    name = 0,
 	timeout_in_ms 		    lockto = WAIT_FOREVER,
 	unsigned		    stack_size = default_stack);

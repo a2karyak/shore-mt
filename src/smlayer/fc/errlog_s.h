@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='ERRLOG_S_H'>
 
- $Id: errlog_s.h,v 1.7 1999/10/24 17:44:01 bolo Exp $
+ $Id: errlog_s.h,v 1.8 2001/04/18 17:22:58 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -54,8 +54,8 @@ public:
 	friend ostream &operator<<(ostream &out, const simple_string x);
 };
 
-// w_base_t::uint4_t hash(const simple_string &s){
-//	return (w_base_t::uint4_t) hash(s._s); 
+// w_base_t::uint4_t w_hash(const simple_string &s){
+//	return (w_base_t::uint4_t) w_hash(s._s); 
 //}
 
 extern "C" {
@@ -66,7 +66,7 @@ extern "C" {
 #endif
 };
 
-extern w_base_t::uint4_t hash(const char *); // in stringhash.C
+extern w_base_t::uint4_t w_hash(const char *); // in stringhash.C
 
 class ErrLog;
 struct ErrLogInfo {

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: sfile_win32.cpp,v 1.6 2000/01/14 00:14:10 bolo Exp $
+ $Id: sfile_win32.cpp,v 1.7 2001/09/15 18:30:03 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -115,8 +115,8 @@ int sfile_t::convert_mode(int unixmode)
    fixed to return EnotOpen (or whaterver) if their is no FD!
 
    Only selection of blocking / nonblocking works now
- */  
-   	
+ */
+
 w_rc_t sfile_t::setFlag(int the_flag, bool set_them)
 {
 	int	r;
@@ -130,7 +130,7 @@ w_rc_t sfile_t::setFlag(int the_flag, bool set_them)
 
 	r = ::ioctlsocket(_handle, the_flag, &flags);
 
-	return r == SOCKET_ERROR ? RC(fcWIN32) : RCOK;
+	return MAKERC(r == SOCKET_ERROR, fcWIN32);
 }
 
 
@@ -212,7 +212,7 @@ w_rc_t	sfile_t::_open(SOCKET handle, int mode)
 	/* All errors are fatal for now, instead of cleaning up
 	   It may be easier to create all the NT objects with
 	   object creating, so cleanup isn't as messy. */
-	
+
 	/* XXX The events are manual reset to allow the use
 	   of the wait==true in GetOverlappedResults().  OTW the
 	   event is reset by WaitFor...() and further Waits
@@ -278,7 +278,7 @@ w_rc_t	sfile_t::cancel()
 #ifdef SFILE_DEBUG
 	W_FORM(cout)("sfile_t(handle=%#x)::cancel()\n", _handle);
 #endif
-	if (_mode & READING) 
+	if (_mode & READING)
 		_event[0].shutdown();
 	if (_mode & WRITING)
 		_event[1].shutdown();
@@ -316,7 +316,7 @@ w_rc_t	sfile_t::close()
 {
 	int	i;
 
-	if (_mode == CLOSED)  
+	if (_mode == CLOSED)
 		return RC(sfCLOSED);
 
 #ifdef SFILE_DEBUG
@@ -479,7 +479,7 @@ w_rc_t	sfile_t::send(const void *where, int size, int _flags, int &numbytes)
 	return e;
 }
 
-/* 
+/*
  * Have accept just wait for an accept event without
  * issuing an accept.
  */
@@ -496,7 +496,7 @@ w_rc_t	sfile_t::accept(struct sockaddr *a, int *l, sfile_t &acceptor)
 
 #ifdef SFILE_DEBUG
 	W_FORM(cout)("sfile(handle=%#x)::accept()\n", _handle);
-#endif	
+#endif
 
 	if (_mode == CLOSED)
 		return RC(sfCLOSED);
@@ -513,7 +513,7 @@ w_rc_t	sfile_t::accept(struct sockaddr *a, int *l, sfile_t &acceptor)
 
 #ifdef SFILE_DEBUG
 	W_FORM(cout)("sfile(handle=%#x)::accept() ... reaccept\n", _handle);
-#endif		
+#endif
 	s = ::accept(_handle, a, l);
 	if (s == INVALID_SOCKET)
 		return RC(fcWIN32);
@@ -536,7 +536,7 @@ w_rc_t	sfile_t::accept(struct sockaddr *a, int *l, sfile_t &acceptor)
 
 #ifdef SFILE_DEBUG
 		W_FORM(cout)("sfile(handle=%#x)::accept() ... reaccept\n", _handle);
-#endif		
+#endif
 		s = ::accept(_handle, a, l);
 		if (s == INVALID_SOCKET)
 			return RC(fcWIN32);
@@ -548,7 +548,7 @@ w_rc_t	sfile_t::accept(struct sockaddr *a, int *l, sfile_t &acceptor)
 	W_FORM(cout)("sfile(handle=%#x)::accept() new=%#x addr=",
 		_handle, s);
 	cout << *a << endl;
-#endif	
+#endif
 
 	e = acceptor.fdopen(s, OPEN_RDWR);
 	if (e != RCOK)
@@ -567,7 +567,7 @@ w_rc_t	sfile_t::connect(struct sockaddr *name, int size)
 #ifdef SFILE_DEBUG
 	W_FORM(cout)("sfile(handle=%#x)::connect(", _handle);
 	cout << *name << ")" << endl;
-#endif	
+#endif
 	if (_mode == CLOSED)
 		return RC(sfCLOSED);
 
@@ -590,7 +590,7 @@ w_rc_t	sfile_t::connect(struct sockaddr *name, int size)
 #ifdef SFILE_DEBUG
 		W_FORM(cout)("sfile(handle=%#x)::connect() ... reconnect\n",
 			     _handle);
-#endif		
+#endif
 
 #if 0
 		n = ::connect(_handle, name, size);
@@ -604,7 +604,7 @@ w_rc_t	sfile_t::connect(struct sockaddr *name, int size)
 		}
 #endif
 	}
-	
+
 	return RCOK;
 }
 
@@ -615,7 +615,7 @@ w_rc_t	sfile_t::bind(struct sockaddr *name, int size)
 #ifdef SFILE_DEBUG
 	W_FORM(cout)("sfile(handle=%#x)::bind(", _handle);
 	cout << *name << ")" << endl;
-#endif	
+#endif
 	if (_mode == CLOSED)
 		return RC(sfCLOSED);
 
@@ -632,7 +632,7 @@ w_rc_t	sfile_t::getpeername(struct sockaddr *name, int *size)
 
 	if (_mode == CLOSED)
 		return RC(sfCLOSED);
-	
+
 	n = ::getpeername(_handle, name, size);
 	if (n == SOCKET_ERROR)
 		return RC(fcWIN32);
@@ -640,7 +640,7 @@ w_rc_t	sfile_t::getpeername(struct sockaddr *name, int *size)
 #ifdef SFILE_DEBUG
 	W_FORM(cout)("sfile(handle=%#x)::getpeername() == ", _handle);
 	cout << *name << endl;
-#endif	
+#endif
 
 	return RCOK;
 }
@@ -648,7 +648,7 @@ w_rc_t	sfile_t::getpeername(struct sockaddr *name, int *size)
 w_rc_t	sfile_t::getsockname(struct sockaddr *name, int *size)
 {
 	int	n;
-	
+
 	if (_mode == CLOSED)
 		return RC(sfCLOSED);
 
@@ -659,7 +659,7 @@ w_rc_t	sfile_t::getsockname(struct sockaddr *name, int *size)
 #ifdef SFILE_DEBUG
 	W_FORM(cout)("sfile(handle=%#x)::getsockname() == ", _handle);
 	cout << *name << endl;
-#endif	
+#endif
 
 	return RCOK;
 }
@@ -890,5 +890,5 @@ static ostream &operator<<(ostream &o, const struct sockaddr &addr)
 	}
 	return o;
 }
-	
+
 #endif /*DEBUG*/

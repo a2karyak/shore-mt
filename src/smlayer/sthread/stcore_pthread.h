@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='STCORE_PTHREAD_H'>
 
- $Id: stcore_pthread.h,v 1.6 1999/06/07 19:06:09 kupsch Exp $
+ $Id: stcore_pthread.h,v 1.8 2001/06/06 23:18:22 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -47,6 +47,11 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
  *   to the above authors and the above copyright is maintained.
  */
 
+#include <pthread.h>
+#ifdef PTHREAD_SEMAPHORE
+#include <semaphore.h>
+#endif
+
 typedef struct sthread_core_t {
 	int	is_virgin;	/* TRUE if just started */
 	void	(*start_proc)(void *);		/* thread start function */
@@ -55,15 +60,15 @@ typedef struct sthread_core_t {
 	void	*thread;	/* sthread which uses this core */
 
 	pthread_t	pthread;
-#ifdef PTHREAD_SEMAPHORE
-	/* not tested on solaris, no semaphores yet */
-	sema		sched;
-#else
+#ifndef PTHREAD_SEMAPHORE
 	/* component parts of a semaphore */
-	pthread_mutex_t	sched_lock;
-	pthread_cond_t	sched_wake;
-	int		sched_count;
+	struct sem_t {
+		pthread_mutex_t	lock;
+		pthread_cond_t	wake;
+		int		count;
+	};
 #endif
+	sem_t		sched;
 	bool		sched_terminate;
 } sthread_core_t;
 

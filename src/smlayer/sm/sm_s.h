@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='SM_S_H'>
 
- $Id: sm_s.h,v 1.82 1999/10/25 19:33:51 bolo Exp $
+ $Id: sm_s.h,v 1.84 2001/06/26 16:48:47 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -532,12 +532,12 @@ inline bool lpid_t::operator>=(const lpid_t& p) const
     return _stid == p._stid && page >= p.page;
 }
 
-inline u_long hash(const lpid_t& p)
+inline w_base_t::uint4_t w_hash(const lpid_t& p)
 {
     return p._stid.vol ^ (p.page + 113);
 }
 
-inline u_long hash(const vid_t v)
+inline w_base_t::uint4_t w_hash(const vid_t v)
 {
     return v;
 }

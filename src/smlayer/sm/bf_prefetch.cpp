@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: bf_prefetch.cpp,v 1.21 1999/06/07 19:03:50 kupsch Exp $
+ $Id: bf_prefetch.cpp,v 1.22 2001/04/17 18:51:37 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -103,7 +103,7 @@ W_FASTNEW_STATIC_DECL(bf_prefetch_thread_t, 32); // TODO: change to use
 
 NORET			
 bf_prefetch_thread_t::bf_prefetch_thread_t(int i) 
-: smthread_t(t_regular, false, false, "prefetch"),
+: smthread_t(t_regular, "prefetch"),
   _fix_error_i(0),
   _n(i+1),
   _info(0),

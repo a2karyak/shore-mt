@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='LID_T_H'>
 
- $Id: lid_t.h,v 1.33 1999/06/07 19:02:26 kupsch Exp $
+ $Id: lid_t.h,v 1.35 2001/06/26 16:48:30 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -138,14 +138,14 @@ typedef	lid_t lrid_t;
 
 #ifdef __cplusplus
 
-inline u_long hash(const lvid_t& lv)
+inline w_base_t::uint4_t w_hash(const lvid_t& lv)
 {
     return lv.high + lv.low;
 }
 
-inline u_long hash(const lid_t& l)
+inline w_base_t::uint4_t w_hash(const lid_t& l)
 {
-    return hash(l.serial) * hash(l.lvid);
+    return w_hash(l.serial) * w_hash(l.lvid);
 }
 #endif /*__cplusplus*/
 

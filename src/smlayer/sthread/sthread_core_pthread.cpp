@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: sthread_core_pthread.cpp,v 1.4 1999/06/07 19:06:12 kupsch Exp $
+ $Id: sthread_core_pthread.cpp,v 1.6 2001/06/06 23:18:22 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -63,48 +63,53 @@ unsigned	sthread_t::stack_size() const
 	return _core->stack_size ? _core->stack_size : default_stack;
 }
 
+#ifndef PTHREAD_SEMAPHORE
+/* Mimic the posix semaphores so it just works.  They release
+   waiters when the count is > 0, sleep if <= 0 */
 
-static	int	sem_init(sthread_core_t *core, int count)
+static	int	sem_init(sthread_core_t::sem_t *sem, int, int count)
 {
+	/* XXX could bitch if shared was true, but it is just for
+	   local compatability */
 
-	core->sched_count = count;
-	pthread_mutex_init(&core->sched_lock, NULL);
-	pthread_cond_init(&core->sched_wake, NULL);
+	sem->count = count;
+	pthread_mutex_init(&sem->lock, NULL);
+	pthread_cond_init(&sem->wake, NULL);
 
 	return 0;
 }
 
-static	void	sem_destroy(sthread_core_t *core)
+static	void	sem_destroy(sthread_core_t::sem_t *sem)
 {
-	pthread_mutex_destroy(&core->sched_lock);
-	pthread_cond_destroy(&core->sched_wake);
+	pthread_mutex_destroy(&sem->lock);
+	pthread_cond_destroy(&sem->wake);
 }
 
-static	inline	void	sem_vacate(sthread_core_t *core, int count)
+static	inline	void	sem_post(sthread_core_t::sem_t *sem)
 {
-	pthread_mutex_lock(&core->sched_lock);
-	core->sched_count += count;
-	if (core->sched_count >= 0)
-		pthread_cond_signal(&core->sched_wake);
-	pthread_mutex_unlock(&core->sched_lock);
+	pthread_mutex_lock(&sem->lock);
+	sem->count++;
+	if (sem->count > 0)
+		pthread_cond_signal(&sem->wake);
+	pthread_mutex_unlock(&sem->lock);
 }
 
-
-static	inline	void	sem_procure(sthread_core_t *core, int count)
+static	inline	void	sem_wait(sthread_core_t::sem_t *sem)
 {
-	pthread_mutex_lock(&core->sched_lock);
-	core->sched_count -= count;
-	while (core->sched_count < 0)
-		pthread_cond_wait(&core->sched_wake, &core->sched_lock);
-	pthread_mutex_unlock(&core->sched_lock);
+	pthread_mutex_lock(&sem->lock);
+	while (sem->count <= 0)
+		pthread_cond_wait(&sem->wake, &sem->lock);
+	sem->count--;
+	pthread_mutex_unlock(&sem->lock);
 }
+#endif
 
 
 static void *pthread_core_start(void *_arg)
 {
 	sthread_core_t	*me = (sthread_core_t *) _arg;
 
-	sem_procure(me, 1);
+	sem_wait(&me->sched);
 	me->is_virgin = 0;
 	(me->start_proc)(me->start_arg);
 	return 0;
@@ -131,7 +136,7 @@ int sthread_core_init(sthread_core_t *core,
 	core->sched_terminate = false;
 
 	/* The system stack is ready to run, other threads are nascent */
-	n = sem_init(core, 0);
+	n = sem_init(&core->sched, 0, 0);
 	if (n == -1)
 		return -1;
 	
@@ -143,7 +148,7 @@ int sthread_core_init(sthread_core_t *core,
 		if (n == -1) {
 			w_rc_t e= RC(fcOS);
 			cerr << "pthread_create():" << endl << e << endl;
-			sem_destroy(core);
+			sem_destroy(&core->sched);
 			return -1;
 		}
 	}
@@ -184,12 +189,12 @@ void sthread_core_exit(sthread_core_t* core)
 	if (core->stack_size > 0) {
 		/* Release the victim thread to exit. */
 		core->sched_terminate = true;
-		sem_vacate(core, 1);
+		sem_post(&core->sched);
 
 		pthread_join(core->pthread, &join_value);
 		/* And the thread is gone */
 	}
-	sem_destroy(core);
+	sem_destroy(&core->sched);
 }
 
 
@@ -223,10 +228,10 @@ ostream &operator<<(ostream &o, const sthread_core_t &core)
 void	sthread_core_switch(sthread_core_t *from, sthread_core_t *to)
 {
 	/* Release the next pthread thread to run */
-	sem_vacate(to, 1);
+	sem_post(&to->sched);
 
 	/* Wait to be released ourself. */
-	sem_procure(from, 1);
+	sem_wait(&from->sched);
 
 	if (from->sched_terminate)
 		pthread_exit(0);

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: thread4.cpp,v 1.21 1999/10/24 17:45:57 bolo Exp $
+ $Id: thread4.cpp,v 1.22 2001/04/17 18:51:39 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -105,7 +105,8 @@ int main(int argc, char **argv)
     
 
 timer_thread_t::timer_thread_t(unsigned ms)
-    : sthread_t(t_regular, 0, 0, "timer_thread"), _ms(ms)
+: sthread_t(t_regular, "timer_thread"),
+  _ms(ms)
 {
 }
 

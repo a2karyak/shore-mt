@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: fastnew.cpp,v 1.19 1999/06/07 19:03:03 kupsch Exp $
+ $Id: fastnew.cpp,v 1.20 2001/09/18 16:16:30 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -519,11 +519,13 @@ main(int argc, const char *argv[])
     cout << news << "*" <<  iter << " NEW" <<endl;
     cout << frees << "*" << iter << " DELETE" <<endl;
 
+#ifndef NO_FASTNEW
     {
 	vtable_info_array_t A;
 	(void) w_factory_t::collect_histogram( A );
 	A.operator<<(cout);
     }
+#endif
 
     return 0;
 }

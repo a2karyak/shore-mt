@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='TSL_H'>
 
- $Id: tsl.h,v 1.19 1999/06/07 19:06:17 kupsch Exp $
+ $Id: tsl.h,v 1.20 2001/06/20 04:28:21 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -35,7 +35,8 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 /*  -- do not edit anything above this line --   </std-header>*/
 
 /*
- * The Testandset package is Copyright 1993, 1994, 1995, 1997 by:
+ * The Testandset package is Copyright 1993, 1994, 1995, 1997, 
+ * 1998, 1999 by:
  *
  *	Josef Burger	<bolo@cs.wisc.edu>
  *
@@ -96,6 +97,10 @@ typedef struct tslcb_t {
 #if defined(Rs6000) || defined(PowerPC)
 	int	lock;
 #endif /* Rs6000 */
+
+#if defined(alpha) || defined(__alpha)
+	int	lock;
+#endif
 
 } tslcb_t;
 

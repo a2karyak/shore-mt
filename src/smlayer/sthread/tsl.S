@@ -1,6 +1,6 @@
 /*<std-header style='asm' orig-src='shore'>
 
- $Id: tsl.S,v 1.21 1999/06/07 19:06:17 kupsch Exp $
+ $Id: tsl.S,v 1.22 2001/06/20 04:28:21 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -28,7 +28,8 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
   -- do not edit anything above this line --   </std-header>*/
 
 /*
- * The Testandset package is Copyright 1993, 1994, 1995, 1997 by:
+ * The Testandset package is Copyright 1993, 1994, 1995, 1997,
+ * 1998, 1998 by:
  *
  *	Josef Burger	<bolo@cs.wisc.edu>
  *
@@ -626,3 +627,57 @@ FUNC(tsl_examine)
 	
 #endif /* rs6000 */	
 
+#if defined(alpha) || defined(__alpha)
+
+#define	arg0	$16
+#define	arg1	$17
+#define	retval	$0
+#define	sp	$26
+#define	zero	$31
+
+#define	FUNC(name)	\
+	.text ; .align 5 ; .globl name ; .ent name ; name: \
+	.frame $30,0,$26,0 ; $##name##..ng: .prologue 0
+
+	.set noreorder
+	.set volatile
+	.set noat
+
+FUNC(tsl)
+	ldl_l	retval, 0(arg0)
+	bne	retval, $L1
+	stl_c	arg1, 0(arg0)
+	beq	arg1, $L2
+	/* It is locked, need a barrier to make sure everything
+	   is in-sync */
+	mb
+$L1:
+	/*
+	 * Either it was locked and we failed (retval != 0), or
+	 * it was unlocked and the STx_C worked (retval == 0)
+	 */
+	ret	zero, (sp), 1
+$L2:	
+	/* Failed, lost the lease */
+	clr	retval
+	ret	zero, (sp), 1
+	.end
+
+FUNC(tsl_release)
+	/* force writes before we release the lock */
+	mb
+	stl	zero, 0(arg0)
+	ret	zero, (sp), 1
+	.end
+
+FUNC(tsl_init)
+	stl	zero, 0(arg0)
+	ret	zero, (sp), 1
+	.end
+
+FUNC(tsl_examine)
+	ldl	retval, 0(arg0)
+	ret	zero, (sp), 1
+	.end
+	
+#endif /* Alpha */

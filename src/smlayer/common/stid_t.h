@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='STID_T_H'>
 
- $Id: stid_t.h,v 1.10 1999/06/07 19:02:33 kupsch Exp $
+ $Id: stid_t.h,v 1.12 2001/06/26 16:48:35 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -92,7 +92,7 @@ inline bool stid_t::operator!=(const stid_t& s) const
 }
 
 
-inline uint4_t hash(const stid_t &s) 
+inline w_base_t::uint4_t w_hash(const stid_t &s) 
 {
     return (s.vol.vol << 16) ^ s.store;
 }

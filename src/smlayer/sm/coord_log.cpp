@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: coord_log.cpp,v 1.29 1999/06/07 19:03:59 kupsch Exp $
+ $Id: coord_log.cpp,v 1.30 2001/06/27 03:49:48 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -58,53 +58,58 @@ log_entry::~log_entry()
 
 NORET 
 log_entry::log_entry(const stid_t &store, const gtid_t &d, int num_threads,
-	commit_protocol p):
-    _store(store), 
-    _numthreads(num_threads), 
-    _coord_state(cs_voting), 
-    _tid(d),
-    _persistent(false),
-    _state_dirty(false),
-    _rest_dirty(false),
-    _mixed(false),
-    _info(0), 
-    _in_scan(false), _iter(0), _curr_ok(false),
-    _proto(p)
+		     commit_protocol p)
+: _store(store), 
+  _numthreads(num_threads), 
+  _coord_state(cs_voting), 
+  _tid(d),
+  _persistent(false),
+  _state_dirty(false),
+  _rest_dirty(false),
+  _mixed(false),
+  _info(0), 
+  _in_scan(false),
+  _iter(0),
+  _curr_ok(false),
+  _proto(p)
 {
     _info = new valuetype2[numthreads()];
     if(!_info) { W_FATAL(eOUTOFMEMORY); }
 }
 
 NORET 
-log_entry::log_entry(const stid_t &store, const gtid_t &d,
-	commit_protocol p):
-    _store(store), 
-    _numthreads(0), 
-    _coord_state(cs_done), 
-    _tid(d),
-    _persistent(false),
-    _state_dirty(false),
-    _rest_dirty(false),
-    _mixed(false),
-    _info(0), 
-    _in_scan(false), _iter(0), _curr_ok(false),
-    _proto(p)
+log_entry::log_entry(const stid_t &store, const gtid_t &d, commit_protocol p)
+: _store(store), 
+  _numthreads(0), 
+  _coord_state(cs_done), 
+  _tid(d),
+  _persistent(false),
+  _state_dirty(false),
+  _rest_dirty(false),
+  _mixed(false),
+  _info(0), 
+  _in_scan(false),
+  _iter(0),
+  _curr_ok(false),
+  _proto(p)
 {
     _error = get();
 }
 
 NORET 
-log_entry::log_entry(const stid_t &store, commit_protocol p) :
-    _store(store), 
-    _numthreads(0), 
-    _coord_state(cs_done), 
-    _persistent(false),
-    _state_dirty(false),
-    _rest_dirty(false),
-    _mixed(false),
-    _info(0), 
-    _in_scan(true), _iter(0), _curr_ok(false),
-    _proto(p)
+log_entry::log_entry(const stid_t &store, commit_protocol p)
+: _store(store), 
+  _numthreads(0), 
+  _coord_state(cs_done), 
+  _persistent(false),
+  _state_dirty(false),
+  _rest_dirty(false),
+  _mixed(false),
+  _info(0), 
+  _in_scan(true),
+  _iter(0),
+  _curr_ok(false),
+  _proto(p)
 {
     /*
      * open a btree scan
@@ -125,8 +130,8 @@ log_entry::log_entry(const stid_t &store, commit_protocol p) :
 		extern const char *coordinator___dkeystring;
 		char	buf1[sizeof(gtid_t)];
 		char	buf2[sizeof(gtid_t)];
-		long unsigned int 	klen = sizeof(buf1);
-		long unsigned int 	elen = sizeof(buf2);
+		smsize_t	klen = sizeof(buf1);
+		smsize_t	elen = sizeof(buf2);
 
 		vec_t	k((void *)&buf1, klen);
 		vec_t	el((void *)&buf2, elen);
@@ -164,10 +169,10 @@ log_entry::curr()
     w_assert3(_curr_ok);
 
 
-    long unsigned int 	klen = sizeof(keytype);
+    smsize_t	klen = sizeof(keytype);
     keytype  	k(_tid,0); // values don't really matter here
     valuetype2  v2;
-    long unsigned int	elen = sizeof(v2);
+    smsize_t 	elen = sizeof(v2);
     vec_t	el((void *)&v2, sizeof(v2));
 
     _error = _iter->curr(k.vec_for_update(), klen, &el, elen);
@@ -234,7 +239,7 @@ log_entry::curr()
     bool	eof=false;
 
     // a key space for copying *into*
-    long unsigned int 	dummylen = gtidlength;
+    smsize_t	dummylen = gtidlength;
     keytype  	dummykey(_tid,gtidlength); 
 
     _curr_ok = false;
@@ -321,7 +326,7 @@ log_entry::get()
 	DBG(<< "GET: state=" << state());
 	_state_dirty = false;
 
-	if(!_info) {
+	if (!_info) {
 	    _info = new valuetype2[numthreads()];
 	    if(!_info) { W_FATAL(eOUTOFMEMORY); }
 	}
@@ -361,12 +366,13 @@ log_entry::test()
 	  scan_index_i::gt, cvec_t::neg_inf, 
 	  scan_index_i::lt, cvec_t::pos_inf);
 	
-    bool eof;
-    w_rc_t rc;
-    vec_t el;
+    bool	eof;
+    w_rc_t	rc;
+    vec_t	el;
     keytype  	kbuf(_tid,0); // values don't really matter here
-    char ebuf[256];
-    long unsigned int klen, elen;
+    char	ebuf[256];
+    smsize_t	klen;
+    smsize_t	elen;
 
     int i;
     int junk;

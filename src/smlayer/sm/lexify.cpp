@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: lexify.cpp,v 1.26 1999/06/07 19:04:07 kupsch Exp $
+ $Id: lexify.cpp,v 1.27 2001/06/20 17:00:13 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -490,7 +490,7 @@ sortorder::dbl_unlexify(
      * can do better -- unfortunately, sometimes it doesn't
      * really know what the alignment is...
      */
-    switch((unsigned)result & 0x00000007) {
+    switch((ptrdiff_t)result & 0x7) {
 	case 0x00:
 	    *result = res;
 	    break;
@@ -598,17 +598,18 @@ sortorder::unlexify(
 	    break;
 
 	case kt_i2:
-	    w_assert3(((unsigned)res & 0x1) == 0x0);
+	    /* XXX why aren't the alignment tools used for all of these? */
+	    w_assert3(((ptrdiff_t)res & 0x1) == 0x0);
 	    int_unlexify(str, true, 2,  res, I2perm);
 	    break;
 
 	case kt_i4:
-	    w_assert3(((unsigned)res & 0x3) == 0x0);
+	    w_assert3(((ptrdiff_t)res & 0x3) == 0x0);
 	    int_unlexify(str, true, 4, res, I4perm);
 	    break;
 
 	case kt_i8:
-	    w_assert3(((unsigned)res & 0x3) == 0x0);
+	    w_assert3(((ptrdiff_t)res & 0x3) == 0x0);
 	    int_unlexify(str, true, 8, res, I8perm);
 	    break;
 
@@ -617,23 +618,23 @@ sortorder::unlexify(
 	    break;
 
 	case kt_u2:
-	    w_assert3(((unsigned)res & 0x1) == 0x0);
+	    w_assert3(((ptrdiff_t)res & 0x1) == 0x0);
 	    int_unlexify(str, false, 2, res, I2perm);
 	    break;
 
 	case kt_u4:
-	    w_assert3(((unsigned)res & 0x3) == 0x0);
+	    w_assert3(((ptrdiff_t)res & 0x3) == 0x0);
 	    int_unlexify(str, false, 4, res, I4perm);
 	    break;
 
 	case kt_u8:
-	    w_assert3(((unsigned)res & 0x3) == 0x0);
+	    w_assert3(((ptrdiff_t)res & 0x3) == 0x0);
 	    int_unlexify(str, false, 8, res, I8perm);
 	    break;
 
 	case kt_f4:
 	    // should be at least 4-byte aligned
-	    w_assert3(((unsigned)res & 0x3) == 0x0);
+	    w_assert3(((ptrdiff_t)res & 0x3) == 0x0);
 	    float_unlexify(str, Fperm, (f4_t *)res);
 	    break;
 
@@ -642,9 +643,9 @@ sortorder::unlexify(
 	    // architectures' alignment requirements
 	    // for doubles might differ.
 
-	    w_assert3(((unsigned)res & 0x3) == 0x0);
+	    w_assert3(((ptrdiff_t)res & 0x3) == 0x0);
 #ifdef Sparc
-	    w_assert3(((unsigned)res & 0x7) == 0x0);
+	    w_assert3(((ptrdiff_t)res & 0x7) == 0x0);
 #endif
 	    dbl_unlexify(str, Dperm, (f8_t *)res);
 	    break;

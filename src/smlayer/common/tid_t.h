@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='TID_T_H'>
 
- $Id: tid_t.h,v 1.62 2001/01/24 20:28:32 bolo Exp $
+ $Id: tid_t.h,v 1.64 2001/09/17 18:28:16 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -71,10 +71,15 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 
 #endif /* !_WINDOWS */
 
-#if defined(AIX41)
-/* giant kludge for aix namespace problems */
-#include "aix_tid_t.h"
-#else
+#if defined(AIX41) || defined(HPUX8)
+/* XXX this is a giant hack because our transaction id, tid_t conflicts
+   with the 'tid_t' thread ID that AIX and later HPUX added to the system
+   header files.   This is a giant kludge, and it replaces the previous
+   giant aix_tid_t.h kludge ... since that source was horribly out of date.
+   Note there is a hack or two concerning this in the SM.  */
+
+#define	tid_t	w_tid_t
+#endif
 
 #ifdef __GNUG__
 #pragma interface
@@ -288,8 +293,10 @@ private:
 #if defined(W_VOLATILE_HACK)
 #undef	__volatile__
 #endif
+
+	/* XXX why doesn't this use the aligned macros? */
 	bool	      is_aligned() const  {
-	    return (((int)(&_length) & (sizeof(_length) - 1)) == 0);
+	    return (((ptrdiff_t)(&_length) & (sizeof(_length) - 1)) == 0);
 	}
 
 	ostream		&print(ostream & o) const {
@@ -346,8 +353,6 @@ inline istream& operator>>(istream& i, tid_t& t)
 
 typedef opaque_quantity<max_gtid_len> gtid_t;
 typedef opaque_quantity<max_server_handle_len> server_handle_t;
-
-#endif/* AIX kludge */
 
 /*<std-footer incl-file-exclusion='TID_T_H'>  -- do not edit anything below this line -- */
 

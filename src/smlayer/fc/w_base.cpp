@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: w_base.cpp,v 1.45 2000/02/01 23:20:49 bolo Exp $
+ $Id: w_base.cpp,v 1.46 2001/09/18 20:14:34 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -236,6 +236,9 @@ typedef ios::fmtflags  fmtflags;
 #undef USE_OUR_IMPLEMENTATION
 
 #ifdef _MSC_VER
+#define USE_OUR_IMPLEMENTATION
+#endif
+#ifdef HPUX8
 #define USE_OUR_IMPLEMENTATION
 #endif
 

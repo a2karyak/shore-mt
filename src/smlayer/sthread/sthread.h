@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='STHREAD_H'>
 
- $Id: sthread.h,v 1.181 2000/02/21 23:22:19 bolo Exp $
+ $Id: sthread.h,v 1.183 2001/06/23 21:44:54 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -135,6 +135,8 @@ class sthread_base_t : public w_base_t {
 public:
     typedef uint4_t id_t;
 
+    /* XXX this is really something for the SM, not the threads package;
+       only WAIT_IMMEDIATE should ever make it to the threads package. */
     enum {
 	WAIT_IMMEDIATE 	= 0, 
 		// sthreads package recognizes 2 WAIT_* values:
@@ -158,7 +160,8 @@ public:
 	WAIT_SPECIFIED_BY_THREAD 	= -4, // used by lock manager
 	WAIT_SPECIFIED_BY_XCT = -5 // used by lock manager
     };
-    typedef long timeout_in_ms;
+    /* XXX int would also work, sized type not necessary */
+    typedef int4_t timeout_in_ms;
 
     static const w_error_t::info_t 	error_info[];
 	static void  init_errorcodes();
@@ -448,12 +451,12 @@ public:
     /* XXX  sleep, fork, and wait exit overlap the unix version. */
 
     // sleep for timeout milliseconds
-    void			sleep(long timeout = WAIT_IMMEDIATE,
+    void			sleep(timeout_in_ms timeout = WAIT_IMMEDIATE,
 				      const char *reason = 0);
     void			wakeup();
 
     // wait for a thread to finish running
-    w_rc_t			wait(long timeout = WAIT_FOREVER);
+    w_rc_t			wait(timeout_in_ms timeout = WAIT_FOREVER);
 
     // start a thread
     w_rc_t			fork();
@@ -490,18 +493,9 @@ public:
     virtual const smthread_t*	dynamic_cast_to_const_smthread() const;
 
 protected:
-    NORET			sthread_t(
-	priority_t		    priority = t_regular,
-	bool			    block_immediate = false,
-	bool			    auto_delete = false,
-	const char*		    name = 0,
-	unsigned		    stack_size = default_stack);
-
-#ifdef notyet
     sthread_t(priority_t	priority = t_regular,
 	      const char	*name = 0,
 	      unsigned		stack_size = default_stack);
-#endif
 
     virtual void		run() = 0;
 
@@ -609,9 +603,9 @@ private:
 };
 
 
-
 extern ostream &operator<<(ostream &o, const sthread_t &t);
-void print_timeout(ostream& o, const long timeout);
+
+void print_timeout(ostream& o, const sthread_base_t::timeout_in_ms timeout);
 
 
 class sthread_main_t : public sthread_t  {
@@ -690,7 +684,7 @@ public:
 
     w_rc_t			wait(
 	smutex_t& 		    m, 
-	int4_t			    timeout = WAIT_FOREVER);
+	timeout_in_ms		    timeout = WAIT_FOREVER);
 
     void 			signal();
     void 			broadcast();
@@ -716,7 +710,7 @@ public:
 
     w_rc_t			post();
     w_rc_t			reset(int* pcnt = 0);
-    w_rc_t			wait(int4_t timeout = WAIT_FOREVER);
+    w_rc_t			wait(timeout_in_ms timeout = WAIT_FOREVER);
     void 			query(int& pcnt);
     
     void	 		setname(

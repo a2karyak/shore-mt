@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: ioperf.cpp,v 1.42 1999/06/11 19:19:34 bolo Exp $
+ $Id: ioperf.cpp,v 1.43 2001/04/17 18:51:39 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -128,7 +128,7 @@ io_thread_t::io_thread_t(
     char* buf
     )
 :
-  sthread_t(t_regular, 0, 0, "io_thread"),
+  sthread_t(t_regular, "io_thread"),
   _rw_flag(rw_flag),
   _check_flag(check_flag),
   _fname(file),

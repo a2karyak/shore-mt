@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: sdisk_diskrw.cpp,v 1.16 2000/03/17 23:54:56 bolo Exp $
+ $Id: sdisk_diskrw.cpp,v 1.17 2001/09/18 22:09:56 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -135,7 +135,7 @@ const int	stNOTIMPLEMENTED = sthread_base_t::stNOTIMPLEMENTED;
 
 extern class sthread_stats SthreadStats;
 
-#if defined(SOLARIS2) || defined(Linux) || defined(__NetBSD__) || defined(OSF1)
+#if defined(SOLARIS2) || defined(Linux) || defined(__NetBSD__) || defined(OSF1) || defined(HPUX8)
 #define	EXECVP_AV(x)	((char * const *)(x))
 #else
 #define	EXECVP_AV(x)	(x)

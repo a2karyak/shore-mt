@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: sm_mappings.cpp,v 1.33 1999/06/07 19:05:00 kupsch Exp $
+ $Id: sm_mappings.cpp,v 1.34 2001/04/18 17:22:59 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -404,7 +404,7 @@ w_hash_t<tid_map::_map, const gtid_t> tid_map::__table(
 	    offsetof(tid_map::_map, _link));
 
 w_base_t::uint4_t 
-hash (const gtid_t &g) 
+w_hash (const gtid_t &g) 
 {
     u_char 	 c = 0;
     const u_char *cp = (const u_char *)g.data_at_offset(0);

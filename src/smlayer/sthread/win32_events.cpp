@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: win32_events.cpp,v 1.17 2000/02/17 23:14:38 bolo Exp $
+ $Id: win32_events.cpp,v 1.18 2001/06/05 03:48:40 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -61,6 +61,10 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #include <w_statistics.h>
 #include "sthread_stats.h"
 extern class sthread_stats SthreadStats;
+
+#if defined(_MT) && !defined(WIN32_THREADS_ONLY)
+#include <process.h>
+#endif
 
 #ifdef EXPLICIT_TEMPLATE
 template class w_list_t<win32_event_t>;
@@ -1137,7 +1141,7 @@ void	win32_event_handler_t::eventMux::run()
 
 
 /* Static to transition system to objects */
-#ifdef _MT
+#if defined(_MT) && !defined(WIN32_THREADS_ONLY)
 unsigned
 #else
 DWORD

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: event.cpp,v 1.17 1999/06/07 19:05:59 kupsch Exp $
+ $Id: event.cpp,v 1.19 2001/09/18 22:09:56 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -109,15 +109,23 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 /* Solaris implements select() with poll().  Bolo's implementation
    is better. */
 #define OS_PREFERS_POLL
-#else
+#elif defined(HPUX8)
+#define	OS_HAS_POLL
+#define	OS_HAS_SELECT
+/* just try poll */
+#define	OS_PREFERS_POLL
+#else	/* the default */
 #define OS_HAS_SELECT
 #endif
+
 #ifdef OS_HAS_POLL
 #include <sfile_handler_poll.h>
 #endif
+
 #ifdef OS_HAS_SELECT
 #include <sfile_handler_select.h>
 #endif
+
 #endif	/*WIN32*/
 #endif	/*NEW_IO*/
 
@@ -234,7 +242,7 @@ w_rc_t	sthread_t::setup_signals(sigset_t &lo_spl, sigset_t &hi_spl)
  */
 
 sthread_idle_t::sthread_idle_t()
-: sthread_t(t_regular, 0, 0, "idle_thread")
+: sthread_t(t_regular, "idle_thread")
 {
 }
 

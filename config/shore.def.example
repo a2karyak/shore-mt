@@ -1,6 +1,6 @@
 /*<std-header style='imake' orig-src='shore'>
 
- $Id: shore.def.example,v 1.107 2000/06/01 21:32:35 bolo Exp $
+ $Id: shore.def.example,v 1.109 2001/06/06 22:31:27 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -253,6 +253,14 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
  */
 #define	GCC_NO_WARN_VIRTUAL
 
+/*
+ * Enable this to have gcc generate templates implicitly.  The 
+ * default is to generate template instantiations explicitly.
+ * This does NOT work on all platforms and all toolchains.  It
+ * may increase executable sizes.
+ */
+#undef GCC_IMPLICIT_TEMPLATE
+
 /* 
  * Directory to install bin, lib, include, and documents 
  */
@@ -382,6 +390,25 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
  * threads package.
  */
 #undef STHREAD_CORE_WIN32
+
+/*
+ * Define this if you want sthreads to work with C++ exception
+ * handling.  You need to have a compiler which supports C++
+ * try/catch/throw exceptions for this to be turned on.  What
+ * this option does is to provide a "dead stop" try/catch for
+ * any exceptions a thread's run method does not catch.  That
+ * prevents the exception throw from breaking things.
+ *
+ * If your compiler does have C++ exception support, turning this on
+ * isn't bad, and it will catch any unexpected exceptions that would
+ * otherwise screw the system up.  However, it won't abort execution
+ * of the system as a whole.
+ *
+ * It is not enabled by default because neither Shore nor Paradise
+ * use exceptions.  Also, some of the compilers that are supported
+ * don't support exceptions themselves.
+ */
+#undef STHREAD_CXX_EXCEPTION
 
 /*
  * Define this if you want to FORCE Win32 Exception handling

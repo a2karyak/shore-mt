@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='SM_BASE_H'>
 
- $Id: sm_base.h,v 1.142 2000/11/28 21:00:21 bolo Exp $
+ $Id: sm_base.h,v 1.143 2001/09/17 18:28:10 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -62,6 +62,11 @@ class callback_m;
 class lock_m;
 class GlobalDeadlockClient;
 class DeadlockEventCallback;
+#if defined(AIX41) || defined(HPUX8)
+/* XXX Horrible hack due to conflict between shore transaction IDs and
+   AIX and then HPUX thread IDs.   See tid_t.h for details. */
+#define	tid_t	w_tid_t
+#endif
 class tid_t;
 
 class option_t;

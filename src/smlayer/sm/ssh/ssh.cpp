@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: ssh.cpp,v 1.132 2000/02/02 03:25:36 bolo Exp $
+ $Id: ssh.cpp,v 1.133 2001/04/17 18:51:38 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -620,7 +620,7 @@ int main(int argc, const char** argv)
 
 
 ssh_smthread_t::ssh_smthread_t(char *arg)
-: smthread_t(t_regular, false, false, "ssh_smthread", WAIT_FOREVER, 2*default_stack ),
+: smthread_t(t_regular, "ssh_smthread", WAIT_FOREVER, 2*default_stack ),
   f_arg(arg)
 {
 }

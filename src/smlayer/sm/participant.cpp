@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: participant.cpp,v 1.57 2000/01/19 18:25:26 bolo Exp $
+ $Id: participant.cpp,v 1.58 2001/04/17 18:51:37 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -692,7 +692,7 @@ twopc_thread_t::twopc_thread_t(
     bool otf
 ) :
     // make its name long enough to rename safely
-    smthread_t(t_regular, false, false, twopcthreadname),
+    smthread_t(t_regular, twopcthreadname),
     _on_the_fly(otf),
     _purpose(k),
     _proto(p?p->proto():smlevel_0::presumed_abort),

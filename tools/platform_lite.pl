@@ -6,4 +6,7 @@ use Config;
 my $arch = $Config{archname};
 $arch = "nt-$arch" if $arch !~ /nt-/ && $arch =~ /win32/i;
 
+## real kludge here, but it works for now
+$arch = "hpux-parisc" if $arch =~ /PA-RISC2.0/;
+
 print $arch;

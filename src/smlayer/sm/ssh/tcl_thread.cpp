@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: tcl_thread.cpp,v 1.125 2000/03/14 18:28:48 bolo Exp $
+ $Id: tcl_thread.cpp,v 1.126 2001/04/17 18:51:38 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -302,7 +302,7 @@ t_fork_thread(ClientData, Tcl_Interp* ip, int ac, char* av[])
     w_assert1(old_result);
 
     tcl_thread_t* p = 0;
-    p = new tcl_thread_t(ac - 1, av + 1, ip, false);
+    p = new tcl_thread_t(ac - 1, av + 1, ip);
     if (!p) {
 	Tcl_AppendResult(ip, "cannot create thread", 0);
 	return TCL_ERROR;
@@ -1142,9 +1142,8 @@ copy_interp(Tcl_Interp *ip, Tcl_Interp *pip)
 
 /* The increased stack size is because TCL is stack hungry */
 tcl_thread_t::tcl_thread_t(int ac, char* av[],
-			   Tcl_Interp* pip,
-			   bool block_immediate, bool auto_delete)
-: smthread_t(t_regular, block_immediate, auto_delete, "tcl_thread", WAIT_FOREVER, sthread_t::default_stack * 2),
+			   Tcl_Interp* pip)
+: smthread_t(t_regular, "tcl_thread", WAIT_FOREVER, sthread_t::default_stack * 2),
 #ifdef SSH_SYNC_OLD
   sync_point(0,"tcl_th.sync"),
 #else

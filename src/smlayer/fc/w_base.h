@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='W_BASE_H'>
 
- $Id: w_base.h,v 1.60 1999/10/25 05:53:18 bolo Exp $
+ $Id: w_base.h,v 1.61 2001/06/20 17:00:06 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -213,15 +213,15 @@ public:
     // static uint4_t		align(uint4_t sz);
 	*/
 #ifndef align
-#define alignonarg(a) (((uint4_t)a)-1)
-#define alignon(p,a) (((uint4_t)((char *)p + alignonarg(a))) & ~alignonarg(a))
+#define alignonarg(a) (((ptrdiff_t)a)-1)
+#define alignon(p,a) (((ptrdiff_t)((char *)p + alignonarg(a))) & ~alignonarg(a))
 
 #define ALIGNON 0x4
 #define ALIGNON1 (ALIGNON-1)
-#define align(sz) ((uint4_t)((sz + ALIGNON1) & ~ALIGNON1))
+#define align(sz) ((size_t)((sz + ALIGNON1) & ~ALIGNON1))
 #endif /* align */
 
-    static bool		is_aligned(uint4_t sz);
+    static bool		is_aligned(size_t sz);
     static bool		is_aligned(const void* s);
 
     static bool		is_big_endian();
@@ -284,7 +284,7 @@ w_base_t::align(uint4_t sz)
  *  w_base_t::is_aligned()					*
  *--------------------------------------------------------------*/
 inline bool
-w_base_t::is_aligned(uint4_t sz)
+w_base_t::is_aligned(size_t sz)
 {
     return (align(sz) == sz);
 }
@@ -292,7 +292,7 @@ w_base_t::is_aligned(uint4_t sz)
 inline bool
 w_base_t::is_aligned(const void* s)
 {
-    return is_aligned(CAST(uint4_t, s));
+    return is_aligned(CAST(ptrdiff_t, s));
 }
 
 /*--------------------------------------------------------------*

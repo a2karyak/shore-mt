@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: sthread.cpp,v 1.303 2000/01/25 21:56:20 bolo Exp $
+ $Id: sthread.cpp,v 1.308 2001/06/25 20:01:08 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -111,7 +111,6 @@ static	void	hack_signals();
 #endif
 
 #if defined(STHREAD_CORE_PTHREAD)
-#include <pthread.h>
 #include "stcore_pthread.h"
 #elif defined(STHREAD_CORE_WIN32)
 #include "stcore_win32.h"
@@ -574,7 +573,7 @@ w_rc_t sthread_t::shutdown()
  */
 
 sthread_main_t::sthread_main_t()
-: sthread_t(t_regular, false, false, "main_thread", 0)
+: sthread_t(t_regular, "main_thread", 0)
 {
 }
 
@@ -662,7 +661,7 @@ w_rc_t sthread_t::set_priority(priority_t priority)
  *  Sleep for timeout milliseconds.
  */
 
-void sthread_t::sleep(long timeout, const char *reason)
+void sthread_t::sleep(timeout_in_ms timeout, const char *reason)
 {
 	reason = (reason && *reason) ? reason : "sleep";
 
@@ -687,7 +686,7 @@ void sthread_t::wakeup()
  */  
 
 w_rc_t
-sthread_t::wait(long timeout)
+sthread_t::wait(timeout_in_ms timeout)
 {
 	/* A thread that hasn't been forked can't be wait()ed for.
 	   It's not a thread until it has been fork()ed. */
@@ -732,15 +731,13 @@ w_rc_t	sthread_t::fork()
 
 
 /*
- *  sthread_t::sthread_t(priority, block_immediate, auto_del, name)
+ *  sthread_t::sthread_t(priority, name)
  *
  *  Create a thread.  Until it starts running, a created thread
  *  is just a memory object.
  */
 
 sthread_t::sthread_t(priority_t		pr,
-		     bool		block_immediate,
-		     bool		auto_delete,
 		     const char 	*nm,
 		     unsigned		stack_size)
 : sthread_named_base_t(nm),
@@ -767,19 +764,6 @@ sthread_t::sthread_t(priority_t		pr,
 	if (!_core)
 		W_FATAL(fcOUTOFMEMORY);
 	_core->thread = (void *)this;
-	
-	/*
-	   Both of these features have problems.  So ... they have been
-	   removed!   These warning messages allow people to know
-	   something is broken so they can fix thread creation/deletion.
-	   */  
-	
-	if (auto_delete)
-		W_FORM2(cerr, ("sthread_t(%#lx): \"%s\": requesting auto-delete!\n",
-			  (long)this, nm ? nm : "<noname>"));
-	if (block_immediate)
-		W_FORM2(cerr,("sthread_t(%#lx): \"%s\": requesting block-immediate!\n",
-			  (long)this, nm ? nm : "<noname>"));
 	
 	/*
 	 *  Set a valid priority level
@@ -891,7 +875,26 @@ void sthread_t::_start()
 	if (thread_setjmp(_exit_addr) == 0) {
 		/* do not save sigmask */
 		w_assert1(_me == this);
+#ifdef STHREAD_CXX_EXCEPTION
+		/* Provide a "backstop" exception handler to catch uncaught
+		   exceptions in the thread.  This prevents them from going
+		   into never-never land. */
+		try {
+			run();
+		}
+		catch (...) {
+			cerr << endl
+			     << "sthread_t(id = " << id << "  name = " << name()
+			     << "): run() threw an exception."
+#if defined(W_DEBUG)
+			     << endl << *this
+#endif
+			     << endl
+			     << endl;
+		}
+#else
 		run();
+#endif
 	}
 
 	/* Returned from run(). Current thread is ending. */
@@ -919,7 +922,7 @@ void sthread_t::_start()
  *********************************************************************/
 w_rc_t
 sthread_t::block(
-    int4_t		timeout,	// 
+    timeout_in_ms	timeout,
     sthread_list_t*	list,		// list for thread after blocking
     const char* const	caller,		// for debugging only
     const void		*id)
@@ -1339,16 +1342,20 @@ void sthread_t::for_each_thread(ThreadFunc& f)
     }
 }
 
-void print_timeout(ostream& o, const long timeout)
+void print_timeout(ostream& o, const sthread_base_t::timeout_in_ms timeout)
 {
     if (timeout > 0)  {
 	o << timeout;
     }  else if (timeout >= -5)  {
-	const char* names[] = {"WAIT_IMMEDIATE", "WAIT_FOREVER", "WAIT_ANY", "WAIT_ALL",
-			"WAIT_SPECIFIED_BY_THREAD", "WAIT_SPECIFIED_BY_XCT"};
+	static const char* names[] = {"WAIT_IMMEDIATE",
+				      "WAIT_FOREVER",
+				      "WAIT_ANY",
+				      "WAIT_ALL",
+				      "WAIT_SPECIFIED_BY_THREAD",
+				      "WAIT_SPECIFIED_BY_XCT"};
 	o << names[-timeout];
     }  else  {
-	o << "UNKNOWN_VALUE(" << timeout << ")";
+	o << "UNKNOWN_TIMEOUT_VALUE(" << timeout << ")";
     }
 }
 
@@ -1421,7 +1428,7 @@ smutex_t::acquire(int4_t timeout)
 	if (timeout == WAIT_IMMEDIATE)
 	    ret = RC(stTIMEOUT);
 	else  {
-	    DBGTHRD(<<"block on mutex " << (long)this);
+	    DBGTHRD(<<"block on mutex " << this);
 	    SthreadStats.mutex_wait++;
 	    ret = sthread_t::block(timeout, &waiters, name(), this);
 	}
@@ -1526,7 +1533,7 @@ scond_t::~scond_t()
  *  
  */
 w_rc_t
-scond_t::wait(smutex_t& m, int4_t timeout)
+scond_t::wait(smutex_t& m, timeout_in_ms timeout)
 {
     w_rc_t rc;
 
@@ -1668,7 +1675,7 @@ sevsem_t::reset(int* pcnt)
  *
  *********************************************************************/
 w_rc_t
-sevsem_t::wait(long timeout)
+sevsem_t::wait(timeout_in_ms timeout)
 {
     W_COERCE( _mutex.acquire() );
     if (_post_cnt == 0)  {
@@ -1917,8 +1924,8 @@ void sthread_t::find_stack(void *addr)
 	
 	while (i.next())  {
 		if (address_in_stack(*(i.curr()->_core), addr)) {
-			W_FORM2(cout, ("*** address %#lx found in ...\n",
-				  (long)addr));
+			cout << "*** address " << addr << " found in ..."
+			     << endl;
 			i.curr()->print(cout);
 		}
 	}

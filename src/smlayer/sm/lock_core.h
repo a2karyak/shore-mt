@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='LOCK_CORE_H'>
 
- $Id: lock_core.h,v 1.38 1999/06/07 19:04:10 kupsch Exp $
+ $Id: lock_core.h,v 1.39 2001/06/26 18:33:55 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -145,7 +145,7 @@ public:
 
 private:
     uint4_t		deadlock_check_id;
-    u_long		_hash(u_long) const;
+    uint4_t		_hash(uint4_t) const;
     rc_t	_check_deadlock(xct_t* xd, bool* deadlock_found = 0);
     rc_t	_find_cycle(xct_t* self);
     void	_update_cache(xct_t *xd, const lockid_t& name, mode_t m);

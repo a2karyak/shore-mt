@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='SDISK_WIN32_ASYNC_H'>
 
- $Id: sdisk_win32_async.h,v 1.11 2000/06/01 21:32:39 bolo Exp $
+ $Id: sdisk_win32_async.h,v 1.12 2001/06/05 03:48:40 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -79,7 +79,7 @@ class sdisk_win32_async_t : public sdisk_win32_t {
 	struct SyncThread {
 		HANDLE		handle;		/* to sync */
 		HANDLE		thread;
-#ifdef _MT
+#if defined(_MT) && !defined(WIN32_THREADS_ONLY)
 		unsigned	threadId;
 		static unsigned	__stdcall	_start(void *);
 #else

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='W_HASH_H'>
 
- $Id: w_hash.h,v 1.30 1999/12/10 16:08:25 bolo Exp $
+ $Id: w_hash.h,v 1.31 2001/04/18 17:22:59 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -41,23 +41,23 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 template <class T, class K> class w_hash_t;
 template <class T, class K> class w_hash_i;
 
-inline w_base_t::uint4_t hash(int i)  {
+inline w_base_t::uint4_t w_hash(int i)  {
     return i;
 }
 
-inline w_base_t::uint4_t hash(w_base_t::uint4_t i)  {
+inline w_base_t::uint4_t w_hash(w_base_t::uint4_t i)  {
     return i;
 }
 
-inline w_base_t::uint4_t hash(w_base_t::int4_t i)   {
+inline w_base_t::uint4_t w_hash(w_base_t::int4_t i)   {
     return CAST(w_base_t::uint4_t,i);
 }
 
-inline w_base_t::uint4_t hash(w_base_t::uint2_t i)  {
+inline w_base_t::uint4_t w_hash(w_base_t::uint2_t i)  {
     return i;
 }
 
-inline w_base_t::uint4_t hash(w_base_t::int2_t i)   {
+inline w_base_t::uint4_t w_hash(w_base_t::int2_t i)   {
     return CAST(w_base_t::int2_t, i);
 }
 
@@ -193,7 +193,7 @@ template <class T, class K>
 w_hash_t<T, K>&
 w_hash_t<T, K>::push(T* t)
 {
-    _tab[ hash(_keyof(*t)) & _mask].push(t);
+    _tab[w_hash(_keyof(*t)) & _mask].push(t);
     ++_cnt;
     return *this;
 }
@@ -201,7 +201,7 @@ w_hash_t<T, K>::push(T* t)
 template <class T, class K>
 w_hash_t<T, K>& w_hash_t<T, K>::append(T* t)
 {
-    _tab[ hash(_keyof(*t)) & _mask].append(t);
+    _tab[w_hash(_keyof(*t)) & _mask].append(t);
     ++_cnt;
     return *this;
 }
@@ -210,7 +210,7 @@ template <class T, class K>
 T*
 w_hash_t<T, K>::lookup(const K& k) const
 {
-    w_list_t<T>& list = _tab[hash(k) & _mask];
+    w_list_t<T>& list = _tab[w_hash(k) & _mask];
     w_list_i<T> i( list );
     register T* t;
     int4_t count;
@@ -228,7 +228,7 @@ template <class T, class K>
 T*
 w_hash_t<T, K>::remove(const K& k)
 {
-    w_list_i<T> i(_tab[ hash(k) & _mask ]);
+    w_list_i<T> i(_tab[w_hash(k) & _mask ]);
     while (i.next() && ! (_keyof(*i.curr()) == k));
 
     if (i.curr()) {
@@ -243,7 +243,7 @@ void
 w_hash_t<T, K>::remove(T* t)
 {
     w_assert3(_linkof(*t).member_of() ==
-	      &_tab[ hash(_keyof(*t)) & _mask ]);
+	      &_tab[w_hash(_keyof(*t)) & _mask ]);
     _linkof(*t).detach();
     --_cnt;
 }

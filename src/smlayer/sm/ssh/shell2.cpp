@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: shell2.cpp,v 1.45 2000/02/02 03:28:50 bolo Exp $
+ $Id: shell2.cpp,v 1.46 2001/06/20 17:13:33 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -777,12 +777,12 @@ _t_test_typed_btree(
 
 		case test_u8:
 		    DBG(<<"j=" << j
-			<< " values_i8[sorted[j]] = " << (unsigned)
+			<< " values_i8[sorted[j]] = " << (w_base_t::uint8_t)
 			    values_i8[sorted[j]]
-			<< " values_i8[sorted[j-1]] = " << (unsigned)
+			<< " values_i8[sorted[j-1]] = " << (w_base_t::uint8_t)
 			    values_i8[sorted[j-1]]
 			);
-		    w_assert1((unsigned) values_i8[sorted[j]] >= (unsigned)
+		    w_assert1((w_base_t::uint8_t) values_i8[sorted[j]] >= (w_base_t::uint8_t)
 				    values_i8[sorted[j-1]]);
 		    if(values_i8[sorted[j]] == values_i8[sorted[j-1]]) {
 			duplicates++;
@@ -937,9 +937,9 @@ _t_test_typed_btree(
 		    break;
 
 		case test_u8:
-		    DBG( << j << " : " <<  (unsigned) values_i8[j] 
+		    DBG( << j << " : " <<  (w_base_t::uint8_t) values_i8[j] 
 			    << " /\t"  << sorted[j]
-			    << " :\t" << (unsigned) values_i8[sorted[j]]
+			    << " :\t" << (w_base_t::uint8_t)values_i8[sorted[j]]
 			    << (char * )(duplicated[j]?"*":"")
 			    );
 		    break;
@@ -2032,9 +2032,9 @@ _t_test_typed_btree(
 			    break;
 
 			    case test_u8:
-			    DBG(<<"i8=" <<(unsigned) i8
+			    DBG(<<"i8=" <<(w_base_t::uint8_t) i8
 				<< " expect " 
-				<< (unsigned) values_i8[sorted[elemvalue]]);
+				<< (w_base_t::uint8_t) values_i8[sorted[elemvalue]]);
 			    w_assert1(i8 == values_i8[sorted[elemvalue]]);
 			    break;
 

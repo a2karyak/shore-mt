@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='SYSDEFS_H'>
 
- $Id: sysdefs.h,v 1.34 1999/10/25 18:34:11 bolo Exp $
+ $Id: sysdefs.h,v 1.35 2001/09/13 21:14:45 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -50,20 +50,6 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #include <limits.h>
 #ifdef Decstation
 #include <sysent.h>
-#endif
-#include <w_rusage.h>
-#include <os_types.h>
-
-#ifdef _WINDOWS
-/* This stuff is picked up from winsock.h which is included globally
-   at the moment.  That will change soon, but global visibility
-   of networking stuff is not something to have. */
-#else
-#include <sys/socket.h>
-#include <sys/signal.h>
-#include <sys/ioctl.h>
-#include <netinet/in.h>
-#include <netdb.h>
 #endif
 
 #include <w_stream.h>

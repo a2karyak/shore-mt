@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: nbox.cpp,v 1.15 1999/06/07 19:02:44 kupsch Exp $
+ $Id: nbox.cpp,v 1.16 2001/09/13 15:16:51 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -432,7 +432,7 @@ void nbox_t::put(const char* s)
     	>> c[2] >> array[2] >> c[3] >> array[3];
     /* XXX check error on stream, delimiters, etc */
 #else
-    n = sscanf((char* /*keep g++ happy*/)s, "%d.%ld.%ld.%ld.%ld", &dim,
+    n = sscanf(C_STRING_BUG s, "%d.%ld.%ld.%ld.%ld", &dim,
 		&array[0], &array[1], &array[2], &array[3]);
     w_assert1(n==5 && dim == 2);
 #endif

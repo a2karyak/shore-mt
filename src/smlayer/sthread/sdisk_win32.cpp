@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: sdisk_win32.cpp,v 1.7 1999/06/08 17:40:04 bolo Exp $
+ $Id: sdisk_win32.cpp,v 1.8 2001/06/09 17:29:58 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -88,7 +88,7 @@ DWORD	sdisk_win32_t::convert_access(int flags)
 }
 
 
-DWORD	sdisk_win32_t::convert_share(int flags)
+DWORD	sdisk_win32_t::convert_share(int W_UNUSED(flags))
 {
 	DWORD	share_mode = 0;
 
@@ -156,7 +156,7 @@ w_rc_t	sdisk_win32_t::make(const char *name, int flags, int mode,
 	w_rc_t		e;
 
 	disk = 0;	/* default value*/
-	
+
 	ud = new sdisk_win32_t;
 	if (!ud)
 		return RC(fcOUTOFMEMORY);
@@ -257,7 +257,7 @@ w_rc_t	sdisk_win32_t::_open(const char *name,
 
 		_isDevice = true;
 	}
-		
+
 
 	HANDLE f;
 	f = CreateFile(name, access_mode, share_mode, &sa, create_mode,
@@ -289,7 +289,7 @@ w_rc_t	sdisk_win32_t::_open(const char *name,
 			&dg.BytesPerSector,
 			&dg.FreeClusters,
 			&dg.Clusters);
-		
+
 		/* Default values for filestat_t fields that aren't
 		   retrieved by normal means. */
 		if (ok) {
@@ -313,15 +313,15 @@ w_rc_t	sdisk_win32_t::_open(const char *name,
 }
 
 
-w_rc_t	sdisk_win32_t::open(const char *name, int flags, int mode)
+w_rc_t	sdisk_win32_t::open(const char *name, int flags, int W_UNUSED(mode))
 {
 	DWORD	access_mode;
 	DWORD	share_mode;
 	DWORD	create_mode;
 	DWORD	attributes;
-	
+
 	access_mode = convert_access(flags);
-			
+
 	share_mode = convert_share(flags);
 
 	create_mode = convert_create(flags);
@@ -511,7 +511,7 @@ w_rc_t	sdisk_win32_t::seek(fileoff_t pos, int origin, fileoff_t &newpos)
 	LONG	to[2];
 	DWORD	n;
 	getOffset(to, pos);
-		
+
 #ifdef LARGEFILE_AWARE
 	DWORD	err;
 	n = SetFilePointer(_handle, to[0], to+1, method);
@@ -551,7 +551,7 @@ w_rc_t	sdisk_win32_t::truncate(fileoff_t size)
 	DWORD	err;
 	LONG	here[2];
 	here[0] = here[1] = 0;
-	
+
 
 	/* Where are we? */
 	n = SetFilePointer(_handle, here[0], here+1, FILE_CURRENT);
@@ -588,7 +588,7 @@ w_rc_t	sdisk_win32_t::truncate(fileoff_t size)
 	n = SetFilePointer(_handle, there[0], 0, FILE_BEGIN);
 	if (n == SETFP_FAILED)
 		return RC(fcWIN32);
-	
+
 	bool	ok;
 	ok = SetEndOfFile(_handle);
 	if (!ok)	/* XXX re-seek */
@@ -600,7 +600,7 @@ w_rc_t	sdisk_win32_t::truncate(fileoff_t size)
 			return RC(fcWIN32);
 	}
 #endif
-	
+
 	return RCOK;
 }
 
@@ -626,9 +626,9 @@ w_rc_t	sdisk_win32_t::sync()
 		if (n != ERROR_ACCESS_DENIED && n != ERROR_INVALID_FUNCTION)
 			return RC2(fcWIN32, n);
 	}
-	
+
 	return RCOK;
-	
+
 
 }
 
@@ -653,7 +653,7 @@ w_rc_t	sdisk_win32_t::stat(filestat_t &st)
 	}
 
 	bool	ok;
-	
+
 	BY_HANDLE_FILE_INFORMATION	info;
 	ok = GetFileInformationByHandle(_handle, &info);
 	if (!ok)
@@ -716,7 +716,7 @@ w_rc_t	sdisk_win32_t::getGeometry(disk_geometry_t &_dg)
 	PARTITION_INFORMATION	pi;
 #define	_pi	pi
 #endif
-	
+
 	ok = DeviceIoControl(_handle,
 		IOCTL_DISK_GET_PARTITION_INFO,
 		0, 0,

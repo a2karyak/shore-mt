@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: sthread_cpu.cpp,v 1.7 2000/01/11 21:44:02 bolo Exp $
+ $Id: sthread_cpu.cpp,v 1.8 2001/06/06 17:32:05 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -52,7 +52,6 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #endif
 
 #if defined(STHREAD_CORE_PTHREAD)
-#include <pthread.h> 
 #include "stcore_pthread.h"
 #elif defined(STHREAD_CORE_WIN32)
 #include "stcore_win32.h" 

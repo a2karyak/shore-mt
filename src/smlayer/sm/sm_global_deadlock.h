@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='SM_GLOBAL_DEADLOCK_H'>
 
- $Id: sm_global_deadlock.h,v 1.32 1999/12/24 01:50:55 bolo Exp $
+ $Id: sm_global_deadlock.h,v 1.33 2001/04/18 17:22:59 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -545,7 +545,7 @@ class GtidTableElem  {
 typedef w_hash_t<GtidTableElem, const gtid_t> GtidTable;
 typedef w_hash_i<GtidTableElem, const gtid_t> GtidTableIter;
 
-w_base_t::uint4_t hash(const gtid_t &g);
+w_base_t::uint4_t w_hash(const gtid_t &g);
 
 
 class CentralizedGlobalDeadlockServer  {

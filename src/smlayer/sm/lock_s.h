@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='LOCK_S_H'>
 
- $Id: lock_s.h,v 1.66 1999/06/07 19:04:12 kupsch Exp $
+ $Id: lock_s.h,v 1.68 2001/06/26 16:48:46 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -308,7 +308,7 @@ istream& operator>>(istream& o, lockid_t::user4_t& u);
 #include "lock_s_inline.h"
 #endif
 
-inline uint4_t hash(const lockid_t& id)
+inline w_base_t::uint4_t w_hash(const lockid_t& id)
 {
     return id.hash();
 }

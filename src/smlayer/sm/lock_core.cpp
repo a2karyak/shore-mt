@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: lock_core.cpp,v 1.98 2000/02/02 03:57:29 bolo Exp $
+ $Id: lock_core.cpp,v 1.100 2001/06/26 18:33:55 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -536,7 +536,7 @@ lock_request_t::is_quark_marker() const
 // number requested.  Lowest allowable
 // hash table option size is 64.
 
-static const u_long primes[] = {
+static const uint4_t primes[] = {
 	/* 0x40, 64, 2**6 */ 61,
 	/* 0x80, 128, 2**7  */ 127,
 	/* 0x100, 256, 2**8 */ 251,
@@ -561,7 +561,7 @@ static const u_long primes[] = {
 lock_head_t*
 lock_core_m::find_lock(const lockid_t& n, bool create)
 {
-    uint4_t idx = _hash(hash(n));
+    uint4_t idx = _hash(w_hash(n));
 
     ACQUIRE(idx);
     lock_head_t* lock = 0;
@@ -580,10 +580,14 @@ lock_core_m::find_lock(const lockid_t& n, bool create)
     return lock;
 }
 
-lock_core_m::lock_core_m(uint sz) : 
-	deadlock_check_id(0), _htab(0), _htabsz(0), _hashmask(0), _hashshift(0)
-	, lockHeadPool(offsetof(lock_head_t, chain)),
-	_requests_allocated(0)
+lock_core_m::lock_core_m(uint sz)
+: deadlock_check_id(0),
+  _htab(0),
+  _htabsz(0),
+  _hashmask(0),
+  _hashshift(0),
+  lockHeadPool(offsetof(lock_head_t, chain)),
+  _requests_allocated(0)
 {
     /* round up to the next power of 2 */
     int b=0; // count bits shifted
@@ -1099,7 +1103,7 @@ lock_core_m::release(
 
     w_assert3(xd == me()->xct());
     w_assert3(MUTEX_IS_MINE(xd->lock_info()->mutex));
-    uint4_t idx = _hash(hash(name));
+    uint4_t idx = _hash(w_hash(name));
 
     if (!lock) {
 	ACQUIRE(idx);
@@ -1223,7 +1227,7 @@ lock_core_m::wakeup_waiters(lock_head_t*& lock)
 #ifndef EGCS_BUG_2
         uint4_t idx; // belongs here
 #endif
-	idx = _hash(hash(name));
+	idx = _hash(w_hash(name));
 	ACQUIRE(idx);
 	lock = find_lock(_htab[idx].chain, name);
 
@@ -1340,7 +1344,7 @@ lock_core_m::release_duration(
 		    continue;
 		}
 		lock = request->get_lock_head();
-		ACQUIRE(_hash(hash(lock->name)));
+		ACQUIRE(_hash(w_hash(lock->name)));
 		MUTEX_ACQUIRE(lock->mutex);
 		W_COERCE(release(xd, lock->name, lock, request, true) );
 	    }
@@ -1357,7 +1361,7 @@ lock_core_m::release_duration(
 		DBG(<<"top request is " << request << "=="
 			<< *request << " lock " << lock << "=" << lock->name );
 
-		ACQUIRE(_hash(hash(lock->name)));
+		ACQUIRE(_hash(w_hash(lock->name)));
 		MUTEX_ACQUIRE(lock->mutex);
 		DBG(<<"lock->name = " << lock->name);
 		if (!(lock->name.lspace() == lockid_t::t_extent && 
@@ -1368,7 +1372,7 @@ lock_core_m::release_duration(
 		}  else  {
 		    lock->name.extract_extent(*ext_to_free);
 		    MUTEX_RELEASE(lock->mutex);
-		    RELEASE(_hash(hash(lock->name)));
+		    RELEASE(_hash(w_hash(lock->name)));
 		    DBG(<<" found extent to free : "<< *ext_to_free );
 	DBG(<<"#########################################################");
 		    return RC(eFOUNDEXTTOFREE);
@@ -1450,7 +1454,7 @@ lock_core_m::close_quark(
 
 	    lock = request->get_lock_head();
 
-	    ACQUIRE(_hash(hash(lock->name)));
+	    ACQUIRE(_hash(w_hash(lock->name)));
 	    MUTEX_ACQUIRE(xd->lock_info()->mutex);
 	    MUTEX_ACQUIRE(lock->mutex);
 
@@ -1473,7 +1477,7 @@ lock_core_m::close_quark(
 
 
 
-
+/* XXX why isn't this in the class? */
 xct_t*		last_waiter = 0;
 
 rc_t lock_core_m::_check_deadlock(xct_t* self, bool* deadlock_found)
@@ -1827,7 +1831,7 @@ lock_core_m::_dump(ostream &o)
 void
 lock_core_m::ForEachLockGranteeXctWithoutMutexes(const lockid_t& n, LockCoreFunc& f)
 {
-    uint4_t idx = _hash(hash(n));
+    uint4_t idx = _hash(w_hash(n));
 
     lock_head_t* lock = 0;
     w_list_i<lock_head_t> lockIter(_htab[idx].chain);
@@ -2142,10 +2146,10 @@ lock_core_m::stats(
 		if (j ==  mx) {
 		    w_list_i<lock_head_t> iter( bk->chain );
 		    cerr << "COLLISIONS FOR MAX: " << endl;
-		    u_long		h;
+		    uint4_t		h;
 		    lock_head_t* 	lock;
 		    while (lock = iter.next())  {
-			h = hash(lock->name);
+			h = w_hash(lock->name);
 			cerr << "id " << lock->name 
 			    << "->hash->" << ::form("0x%x",h)
 			    << "->_hash->" << _hash(h)
@@ -2267,11 +2271,11 @@ lock_core_m::stats(
 #endif /* EXPENSIVE_LOCK_STATS */
 
 #if HASH_FUNC==1
-u_long	
-lock_core_m::_hash(u_long id) const
+uint4_t
+lock_core_m::_hash(uint4_t id) const
 {
     u_char 	c;
-    u_long	res=id; 
+    uint4_t	res=id; 
     const u_char *cp = (const u_char *)&id;
     u_short	s;
 
@@ -2281,7 +2285,7 @@ lock_core_m::_hash(u_long id) const
 	    c ^= *(cp++);
 	    c ^= *(cp++);
 	    c ^= *cp;
-	    res = (u_long)c;
+	    res = (uint4_t)c;
 	    break;
 
 	case 1:
@@ -2289,11 +2293,11 @@ lock_core_m::_hash(u_long id) const
 	    s ^= *(cp++)<<BPB;
 	    s ^= *(cp++);
 	    s ^= *(cp++)<<BPB;
-	    res = (u_long)s;
+	    res = (uint4_t)s;
 	    break;
 	case 2:
 	    s = id & 0xffffff00 >> 8;
-	    res = (u_long) s;
+	    res = (uint_4) s;
 	    break;
     }
     return	res & _hashmask;
@@ -2301,10 +2305,10 @@ lock_core_m::_hash(u_long id) const
 #endif
 
 #if HASH_FUNC==2
-u_long	
-lock_core_m::_hash(u_long id) const
+uint4_t
+lock_core_m::_hash(uint4_t id) const
 {
-    u_long 	res;
+    uint4_t 	res;
 
     id *= id;
     // pull out some middle bits
@@ -2314,19 +2318,19 @@ lock_core_m::_hash(u_long id) const
 #endif
 
 #if HASH_FUNC==3
-u_long	
-lock_core_m::_hash(u_long id) const
+uint4_t
+lock_core_m::_hash(uint4_t id) const
 {
     return id % _htabsz;
 }
 #endif
 
 #if HASH_FUNC==4
-u_long	
-lock_core_m::_hash(u_long id) const
+uint4_t
+lock_core_m::_hash(uint4_t id) const
 {
-    u_long 	r = id & 0xffff0000 >> 16;
-    u_long  res = r * (id & 0xffff);  
+    uint4_t 	r = id & 0xffff0000 >> 16;
+    uint4_t	res = r * (id & 0xffff);  
 	// pull out some middle bits
     return	res & _hashmask;
 }

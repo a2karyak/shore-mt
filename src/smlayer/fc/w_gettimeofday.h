@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='W_GETTIMEOFDAY_H'>
 
- $Id: w_gettimeofday.h,v 1.7 1999/06/07 19:02:53 kupsch Exp $
+ $Id: w_gettimeofday.h,v 1.9 2001/09/18 20:14:35 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -48,7 +48,7 @@ struct timezone {
 };
 #endif /* _WINDOWS */
 
-#if !defined(SOLARIS2) && !defined(Irix) && !defined(AIX41) 
+#if !defined(SOLARIS2) && !defined(Irix) && !defined(AIX41)  && !defined(Linux) && !defined(HPUX8)
 #if defined(__GNUG__) || defined(_WINDOWS)
 extern "C" {
     int gettimeofday(timeval*, struct timezone*);

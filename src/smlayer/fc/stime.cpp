@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: stime.cpp,v 1.27 1999/11/22 20:02:48 bolo Exp $
+ $Id: stime.cpp,v 1.28 2001/09/18 20:14:34 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -85,6 +85,9 @@ typedef struct timeval	_stime_t;
 #elif defined(SOLARIS2)
 #define	os_timezone	timezone
 #define	os_altzone	altzone
+#elif defined(HPUX8)
+#define	os_timezone	timezone
+#define	os_daylight	daylight
 #endif
 
 
@@ -97,7 +100,7 @@ typedef struct timeval	_stime_t;
    fixed.
  */
 
-#if !defined(SOLARIS2) && !defined(AIX41)
+#if !defined(SOLARIS2) && !defined(AIX41) && !defined(HPUX8)
 extern "C" int gettimeofday(struct timeval *, struct timezone *);
 #endif
 
@@ -651,7 +654,10 @@ stime_t stime_t::gmtOffset()
 #else
 	tm = localtime(&t);
 #endif
-#ifdef os_timezone
+#if defined(os_daylight)
+	/* XXX best effort to adjust for DST */
+	return sec(-(os_timezone - (daylight == 1 ? 60*60 : 0)));
+#elif defined(os_timezone)
 	return sec(-(tm->tm_isdst == 1 ? os_altzone : os_timezone));
 #else
 	return sec(tm->tm_gmtoff);

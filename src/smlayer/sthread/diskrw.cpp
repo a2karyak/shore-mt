@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: diskrw.cpp,v 1.119 2000/02/22 21:51:58 bolo Exp $
+ $Id: diskrw.cpp,v 1.120 2001/09/18 22:09:55 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -1176,7 +1176,7 @@ clean_shutdown(int DBG_ONLY(why))
 	char key[40];
 
 	while(n==7) {
-#if defined(Linux) || defined(__NetBSD__) || defined(OSF1)	/* pid_t is a int */
+#if defined(Linux) || defined(__NetBSD__) || defined(OSF1) || defined(HPUX8)	/* pid_t is a int */
 	    n = fscanf(res, "m %d %s %s %s %s %d %d\n",
 		&id, key, perm,  person, group, &owner, &last);
 #else

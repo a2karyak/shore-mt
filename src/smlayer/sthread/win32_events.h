@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='WIN32_EVENTS_H'>
 
- $Id: win32_events.h,v 1.12 2000/02/17 23:14:38 bolo Exp $
+ $Id: win32_events.h,v 1.13 2001/06/05 03:48:39 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -132,7 +132,7 @@ private:
 
 		/* Runtime info */
 		HANDLE	thread;
-#ifdef _MT
+#if defined(_MT) && !defined(WIN32_THREADS_ONLY)
 		unsigned	thread_id;
 #else
 		DWORD		thread_id;
@@ -191,7 +191,7 @@ private:
 		/* Putting the thread start function in here is a pain,
 		   but if not done it needs to be made a friend, and it is
 		   still difficult to hide it. */
-#ifdef _MT
+#if defined(_MT) && !defined(WIN32_THREADS_ONLY)
 		static unsigned	__stdcall	__start(void *);
 #else
 		static DWORD	__stdcall	__start(void *);

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: sdisk_win32_async.cpp,v 1.11 2000/06/01 21:32:39 bolo Exp $
+ $Id: sdisk_win32_async.cpp,v 1.13 2001/06/09 17:30:03 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -59,6 +59,9 @@ extern class sthread_stats SthreadStats;
 #include <win32_events.h>
 #include <sdisk_win32_async.h>
 
+#if defined(_MT) && !defined(WIN32_THREADS_ONLY)
+#include <process.h>
+#endif
 
 const	int	stBADFD = sthread_base_t::stBADFD;
 const	int	stINVAL = sthread_base_t::stINVAL;
@@ -107,7 +110,7 @@ static unsigned setMaxAsync(unsigned numAsync, unsigned maxAsync)
 	}
 	if (numAsync > maxAsync)
 		numAsync = maxAsync;
-	
+
 	return numAsync;
 }
 
@@ -167,7 +170,7 @@ w_rc_t	sdisk_win32_async_t::make(const char *name, int flags, int mode,
 	w_rc_t		e;
 
 	disk = 0;	/* default value*/
-	
+
 	ud = new sdisk_win32_async_t;
 	if (!ud)
 		return RC(fcOUTOFMEMORY);
@@ -228,7 +231,7 @@ w_rc_t	sdisk_win32_async_t::open(const char *name, int flags, int mode)
 #ifdef SDISK_WIN32_ASYNC_ASYNC
 	/* XXX If the sync thread can't be started it isn't the end
 	   of the world.  We could always fallback */
-	
+
 	if (_use_async)
 		W_COERCE(syncThread.start(_handle));
 #endif
@@ -253,7 +256,7 @@ w_rc_t	sdisk_win32_async_t::open(const char *name, int flags, int mode)
 
 	lock.rename("m:", "sdisk:", s);
 	available.rename("c:", "sdisk:", s);
-	
+
 	return RCOK;
 }
 
@@ -759,7 +762,7 @@ w_rc_t	sdisk_win32_async_t::writev(const iovec_t *iov, int iovcnt, int &done)
 		iov = newVec;
 		iovcnt = newCnt;
 	}
-		
+
 	unsigned	slot;
 	W_COERCE(allocate_slot(slot));
 
@@ -969,7 +972,7 @@ w_rc_t	sdisk_win32_async_t::seek(fileoff_t pos, int origin, fileoff_t &newpos)
 		return RC(stINVAL);
 		break;
 	}
-		
+
 	newpos = _pos;
 	return RCOK;
 }
@@ -994,7 +997,7 @@ w_rc_t	sdisk_win32_async_t::truncate(fileoff_t size)
 	}
 
 	lock.release();
-	
+
 	return e;
 }
 
@@ -1050,7 +1053,7 @@ w_rc_t	sdisk_win32_async_t::sync()
 #endif
 		}
 		lock.release();
-	
+
 		e = syncThread.sync();
 
 		W_COERCE(lock.acquire());
@@ -1106,7 +1109,7 @@ w_rc_t	sdisk_win32_async_t::sync()
 
 	sthread_t::yield();
 #endif	/* SDISK_WIN32_ASYNC_ASYNC */
-	
+
 	return e;
 }
 
@@ -1151,7 +1154,7 @@ w_rc_t	sdisk_win32_async_t::SyncThread::start(HANDLE flush_handle)
 	W_COERCE(done.change(_done));
 	W_COERCE(sthread_t::io_start(done));
 
-#ifdef _MT
+#if defined(_MT) && !defined(WIN32_THREADS_ONLY)
 	h = (HANDLE) _beginthreadex(NULL, 0,
 				    _start, this,
 				    0,
@@ -1178,7 +1181,7 @@ w_rc_t	sdisk_win32_async_t::SyncThread::stop()
 	ok = SetEvent(request);
 	if (!ok)
 		W_FATAL(fcWIN32);
-	
+
 	/* XXX could setup a wait event on the thread */
 	DWORD	err;
 	err = WaitForSingleObject(thread, INFINITE);
@@ -1210,7 +1213,7 @@ w_rc_t	sdisk_win32_async_t::SyncThread::sync()
 	ok = SetEvent(request);
 	if (!ok)
 		W_FATAL(fcWIN32);
-	
+
 	W_COERCE(done.wait(sthread_t::WAIT_FOREVER));
 
 	return _err ? RC2(fcWIN32, _err) : RCOK;
@@ -1263,7 +1266,7 @@ DWORD	sdisk_win32_async_t::SyncThread::run()
 	return 0;
 }
 
-#ifdef _MT
+#if defined(_MT) && !defined(WIN32_THREADS_ONLY)
 #define	THREAD_RETURNS	unsigned
 #else
 #define	THREAD_RETURNS	DWORD

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: hash_lru.cpp,v 1.25 1999/10/25 18:28:26 bolo Exp $
+ $Id: hash_lru.cpp,v 1.26 2001/09/17 17:23:46 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -44,14 +44,24 @@ hash_lru_t<TYPE, KEY>::_in_htab(hash_lru_entry_t<TYPE, KEY>* e)
     return e->link.member_of() != &_unused;
 }
 
+/* XXX this is disgusting.   There was inline code doing
+	int(&(_entry->XXX))
+   Where _entry == 0 and XXX == member name, to determine the offsetof
+   XXX in hash_lru_entry_t.  offsetof() should really be used for that.
+   However there is a big problem betweent the CPP and the c++ compiler
+   parsing that whole mess.  I introduced this macro and the comment so
+   document why this is being used so it doesn't appear to be magick.
+ */
+#define hash_lru_offsetof(name,member)	((size_t)(&(name->member)))
+
 template <class TYPE, class KEY>
 hash_lru_t<TYPE, KEY>::hash_lru_t(int n, const char *desc) 
     : ref_cnt(0), 
       hit_cnt(0),
       _mutex(desc),
       _entry(0), 
-      _htab(n * 2, int(&(_entry->key)), int(&(_entry->link))),
-      _unused(int(&(_entry->link))),
+      _htab(n * 2, hash_lru_offsetof(_entry, key), hash_lru_offsetof(_entry, link)),
+      _unused(hash_lru_offsetof(_entry, link)),
       _clock(-1), 
       _total(n)
 {
@@ -62,6 +72,10 @@ hash_lru_t<TYPE, KEY>::hash_lru_t(int n, const char *desc)
 	_unused.append(&_entry[i]);
     }
 }
+
+#ifdef hash_lru_offsetof
+#undef hash_lru_offsetof
+#endif
 
 template <class TYPE, class KEY>
 hash_lru_t<TYPE, KEY>::~hash_lru_t()

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: restart.cpp,v 1.131 2000/01/17 20:43:53 bolo Exp $
+ $Id: restart.cpp,v 1.132 2001/04/17 18:51:37 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -1187,11 +1187,11 @@ dirty_pages_tab_t::remove(const lpid_t& pid)
  *
  *********************************************************************/
 NORET
-sm_undo_thread_t::sm_undo_thread_t(
-    xct_t*		xd)
-    : smthread_t(t_regular), _xd(xd)
+sm_undo_thread_t::sm_undo_thread_t(xct_t *xd)
+: smthread_t(t_regular),
+  _xd(xd)
 {
-    rename("undo thread");
+	rename("undo thread");
 }
 
 

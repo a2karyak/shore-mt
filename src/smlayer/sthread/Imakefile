@@ -1,6 +1,6 @@
 /*<std-header style='imakefile' orig-src='shore'>
 
- $Id: Imakefile,v 1.109 1999/11/23 18:25:44 kupsch Exp $
+ $Id: Imakefile,v 1.111 2001/09/18 22:09:53 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -144,7 +144,7 @@ sfile_handler_winsock.cpp += sfile_handler_winsock.cpp
 
 add_to_group(sfile_handler_unix, sfile_handler_select)
 
-#if defined(IS_SOLARIS2)	/* Or other systems were poll is efficient */
+#if defined(IS_SOLARIS2) || defined(IS_HPUX8)	/* Or other systems were poll is efficient */
 add_to_group(sfile_handler_unix, sfile_handler_poll)
 #else
 unused_group(sfile_handler_poll)
@@ -261,29 +261,33 @@ generic_tsl.asm += tsl.S
 
 #if defined(IS_MIPS_ULTRIX42)
 add_to_group(common, ultrix_tsl)
+#define	HAVE_TSL
 #else
 unused_group(ultrix_tsl)
 #endif
 
 #if defined(IS_RS6000_AIX41)
 add_to_group(common, aix_tsl)
+#define	HAVE_TSL
 #else
 unused_group(aix_tsl)
 #endif
 
 #if defined(IS_RS6000_AIX32)
 add_to_group(common, fake_tsl)
+#define	HAVE_TSL
 #else
 unused_group(fake_tsl)
 #endif
 
 #if defined(IS_NT) && !defined(USE_GCC)	/* XXX really i386 and visual c++ */
 add_to_group(common, win32_tsl)
+#define	HAVE_TSL
 #else
 unused_group(win32_tsl)
 #endif
 
-#if !(defined(IS_MIPS_ULTRIX42) || defined(IS_RS6000_AIX41) || defined(IS_RS6000_AIX32) || (defined(IS_NT) && !defined(USE_GCC)))
+#if !defined(HAVE_TSL)
 add_to_group(common, generic_tsl)
 #else
 unused_group(generic_tsl)

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: bf.cpp,v 1.222 1999/10/25 18:24:58 bolo Exp $
+ $Id: bf.cpp,v 1.223 2001/04/17 18:51:37 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -310,7 +310,7 @@ static int _strategy = 0;
  *********************************************************************/
 NORET
 bf_cleaner_thread_t::bf_cleaner_thread_t(vid_t v)
-    : smthread_t(t_time_critical, false, false, "bf_cleaner"),
+    : smthread_t(t_time_critical, "bf_cleaner"),
       _vol(v),
       _is_running(false),
       _retire(false),

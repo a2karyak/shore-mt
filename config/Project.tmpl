@@ -1,6 +1,6 @@
 /*<std-header style='imake' orig-src='shore'>
 
- $Id: Project.tmpl,v 1.258 2000/11/29 22:05:55 bolo Exp $
+ $Id: Project.tmpl,v 1.259 2001/06/06 22:31:27 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -524,7 +524,11 @@ CMNT
  * the asm strings.)
  */
 #define USE_GCC
+#ifdef GCC_IMPLICIT_TEMPLATE
+#define GCCFLAGS
+#else
 #define GCCFLAGS  -fno-implicit-templates  -DEXPLICIT_TEMPLATE
+#endif
 
 #ifndef TRACECODE
 #define	TRACECODE DEBUGCODE
@@ -910,7 +914,7 @@ CMNT
 CMNT Static linking can cause problems if libraries are out
 CMNT of date, so we no longer use it.
 CMNT
-LD = $(GCC) 
+LD = $(GCC)
 
 #endif
 
@@ -927,7 +931,7 @@ CMNT -lsocket is really only needed if you touch the network
 GLOBAL_LDFLAGS = -lm -lnsl -lsocket 
 CMNT -lposix4 is only needed for posix real-time stuff
 #if defined(LINK_POSIX4) || defined(USE_POSIX_TIME)
-GLOBAL_LDFALGS += -lposix4
+GLOBAL_LDFLAGS += -lposix4
 #endif
 CMNT -ldl is really only needed if you use tcl, need dependencies
 GLOBAL_LDFLAGS += -ldl
@@ -937,6 +941,9 @@ GLOBAL_LDFLAGS += -lpthread
 #elif IS_LINUX
 CMNT -ldl is really only needed if you use tcl, need dependencies
 GLOBAL_LDFLAGS += -lm -ldl
+#if defined(LINK_PTHREAD)
+GLOBAL_LDFLAGS += -lpthread
+#endif
 #elif IS_NT && IS_DOSDEV
 #ifdef OLD_WINSOCK
 WINSOCK = wsock32.LIBEXT

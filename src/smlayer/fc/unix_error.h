@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='UNIX_ERROR_H'>
 
- $Id: unix_error.h,v 1.16 1999/06/07 19:02:47 kupsch Exp $
+ $Id: unix_error.h,v 1.17 2001/02/02 23:33:33 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -40,7 +40,7 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #ifndef _WINDOWS
 /* Some boxes need errno declared, others have it in errno.h */
 
-#if !defined(SOLARIS2)
+#if !defined(SOLARIS2) && !defined(Linux)
 extern int errno;
 #endif
 
@@ -64,7 +64,9 @@ extern "C" {
     void perror(const char *s);
 #   endif
 
+#if !defined(Linux)
 char *strerror(int errnum);
+#endif
 
 #ifdef __cplusplus
 }

@@ -1,6 +1,6 @@
 # <std-header style='make' orig-src='shore'>
 #
-#  $Id: GNUmakefile,v 1.35 2001/01/25 20:22:21 bolo Exp $
+#  $Id: GNUmakefile,v 1.36 2001/09/11 22:22:16 bolo Exp $
 #
 # SHORE -- Scalable Heterogeneous Object REpository
 #
@@ -202,6 +202,7 @@ default: $(MAKEFILE)
 MAKEMAKE_OPT = --topDir=. --buildTopDir=$(BUILD_DIR) --curPath=. $(DOSPATHS)
 
 IMAKE_BOOTSTRAP_OPTIONS = --build_dir=$(BUILD_DIR) --imake_dir=$(IMAKE_DIR) --createDirs
+IMAKE_BOOTSTRAP_OPTIONS += --make=$(MAKE)
 ifdef IMAKE_EXEC_NAME
 IMAKE_BOOTSTRAP_OPTIONS += --imake_exec_name=$(IMAKE_EXEC_NAME)
 MAKEMAKE_OPT += --imakeExecName=$(IMAKE_EXEC_NAME)

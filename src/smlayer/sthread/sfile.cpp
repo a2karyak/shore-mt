@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: sfile.cpp,v 1.21 2000/02/01 23:59:20 bolo Exp $
+ $Id: sfile.cpp,v 1.22 2001/09/18 22:09:57 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -117,19 +117,11 @@ int write(int x, const void *y, int z)
 
 
 
-#ifdef hpux
-	/* XXX broken */
-	inline select(int nfds, fd_set* rfds, fd_set* wfds, fd_set* efds,
-		      struct timeval* t)
-	{
-	    return select(nfds, (int*) rfds, (int*) wfds, (int*) efds, t);
-	}
-#else
 #if !defined(AIX32) && !defined(AIX41)
 	extern int select(int, fd_set *, fd_set *, fd_set *, struct timeval *);
 #endif
 #endif
-#endif
+
 	/* for FD_ZERO */
 #define	bzero(a,c)	memset(a, '\0', c);
 

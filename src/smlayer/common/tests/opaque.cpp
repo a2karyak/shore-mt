@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: opaque.cpp,v 1.12 2000/01/13 18:49:23 bolo Exp $
+ $Id: opaque.cpp,v 1.13 2001/04/17 18:23:01 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -83,6 +83,18 @@ int main()
 	cout << "value of s = " << *s << endl;
 	cout << "length of s = " << s->length() << endl;
     }
+
+    {
+	s = (server_handle_t *)dummy; // aligned, if possible
+	*s = "BYTEORDER";
+	cout << "value of s = " << *s << endl;
+	cout << "length of s = " << s->length() << endl;
+	s->hton();
+	cout << "hton length of s = " << hex << s->length() << endl;
+	s->ntoh();
+	cout << "ntoh length of s = " << hex << s->length() << endl;
+    }
+
     return 0;
 }
 

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: sort.cpp,v 1.124 1999/11/05 20:37:07 bolo Exp $
+ $Id: sort.cpp,v 1.125 2001/09/18 22:25:58 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -421,7 +421,8 @@ sort_stream_i::get_cmp_func(key_info_t::key_type_t type, bool up)
     }
 }
 
-static const long _marker_ = min_int4; 
+/* XXX this should be handled as a sized type */
+static const int _marker_ = min_int4; 
 
 sort_desc_t::sort_desc_t() 
 {

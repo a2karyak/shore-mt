@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: stcore.cpp,v 1.34 1999/06/07 19:06:08 kupsch Exp $
+ $Id: stcore.cpp,v 1.35 2001/06/20 03:22:58 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -32,7 +32,8 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 /*  -- do not edit anything above this line --   </std-header>*/
 
 /*
- *   NewThreads is Copyright 1992, 1993, 1994, 1995, 1996, 1997 by:
+ *   NewThreads is Copyright 1992, 1993, 1994, 1995, 1996, 1997,
+ *   1998, 1999, 2000 by:
  *
  *	Josef Burger	<bolo@cs.wisc.edu>
  *	Dylan McNamee	<dylan@cse.ogi.edu>
@@ -187,6 +188,9 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #ifdef Mc68000
 #define StackGrowsUp	0
 #endif
+#ifdef Alpha
+#define	StackGrowsUp	0
+#endif
 
 
 #ifdef Sparc
@@ -241,6 +245,22 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #define	STACK_ALIGN	8
 #define	OURFRAME	((WENEED + STACK_ALIGN-1) & ~(STACK_ALIGN-1))	
 #endif /* Rs6000 */
+
+#ifdef Alpha
+/* The trap and memory barriers in the context switcher
+   assure that floating point and memory operations are synchronized...
+   This guarantees that exceptions are delivered to the thread
+   which created them.  They other also allow the context
+   switcher to correctly switch context between multiple processors.
+ */
+/* regs r9 ... r15 and ra */
+#define	INTREGS	(sizeof(long) * 8)
+/* f2 ... f9 */
+#define	FPREGS	(sizeof(double) * 8)
+#define	WENEED	(INTREGS + FPREGS)
+#define	STACK_ALIGN	64
+#define	OURFRAME	((WENEED + STACK_ALIGN-1) & ~(STACK_ALIGN-1))	
+#endif /* Alpha */
 
 
 /*
@@ -496,6 +516,32 @@ void sthread_core_switch(sthread_core_t* old, sthread_core_t* _new)
 			");
 	}
 #endif /* Rs6000 */
+#ifdef Alpha
+	asm volatile("lda $30, %0($30)" : : "i" (-OURFRAME));
+	asm volatile("stq $9, 0($30);
+		stq $10, 8($30);
+		stq $11, 16($30);
+		stq $12, 24($30);
+		stq $13, 32($30);
+		stq $14, 40($30);
+		stq $15, 48($30);
+		stq $26, 56($30);");
+
+	if (old_core->use_float) {
+		asm volatile("
+			trapb;
+			lda $28, 64($sp);
+			stt $f2, 0($28);
+			stt $f3, 8($28);
+			stt $f4, 16($28);
+			stt $f5, 24($28);
+			stt $f6, 32($28);
+			stt $f7, 40($28);
+			stt $f8, 48($28);
+			stt $f9, 56($28);
+			trapb");
+	}
+#endif /* Alpha */
 
 	/* switch stack-pointers */
 #ifdef Mips
@@ -541,6 +587,13 @@ void sthread_core_switch(sthread_core_t* old, sthread_core_t* _new)
 	asm volatile("oril %0, 1, 0;" : "=r" (old_core->save_sp));
 	asm volatile("oril 1, %0, 0;" : : "r" (new_core->save_sp));
 #endif
+
+#ifdef Alpha
+	asm volatile("mb;
+		addq $30,0, %0;" : "=r" (old_core->save_sp));
+	asm volatile("mb;
+		addq %0, 0, $30;" : : "r" (new_core->save_sp));
+#endif /* Alpha */
 
 	if (new_core->is_virgin) {
 		/* first time --- call procedure directly */
@@ -614,6 +667,12 @@ void sthread_core_switch(sthread_core_t* old, sthread_core_t* _new)
 			oril 31,1, 0;"
 			      : : "i" (-MINFRAME) );
 #endif
+#ifdef Alpha
+		/* align the stack pointer */
+		asm volatile("bic $30, %0, $30" : : "i" (STACK_ALIGN-1));
+		/* new frame pointer */
+		asm volatile("bis $30, $30, $15");
+#endif /* Alpha */
 
 		(new_core->start_proc)(new_core->start_arg);
 		/* this should never be reached */
@@ -831,6 +890,30 @@ void sthread_core_switch(sthread_core_t* old, sthread_core_t* _new)
 	/* restore the old stack pointer */
 	asm volatile("l 1, 0(1)");
 #endif /* Rs6000 */
+
+#ifdef Alpha
+	asm volatile("ldq $9, 0($30);
+		ldq $10, 8($30);
+		ldq $11, 16($30);
+		ldq $12, 24($30);
+		ldq $13, 32($30);
+		ldq $14, 40($30);
+		ldq $15, 48($30);
+		ldq $26, 56($30);");
+
+	if (new_core->use_float) {
+		asm volatile("lda $28, 64($30);
+			ldt $f2, 0($28);
+			ldt $f3, 8($28);
+			ldt $f4, 16($28);
+			ldt $f5, 24($28);
+			ldt $f6, 32($28);
+			ldt $f7, 40($28);
+			ldt $f8, 48($28);
+			ldt $f9, 56($28);");
+	}
+	asm volatile("lda $30, %0($30)" : : "i" (OURFRAME));
+#endif /* Alpha */
 
 }
 

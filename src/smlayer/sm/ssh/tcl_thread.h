@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='TCL_THREAD_H'>
 
- $Id: tcl_thread.h,v 1.33 2000/03/02 23:52:31 bolo Exp $
+ $Id: tcl_thread.h,v 1.34 2001/04/17 18:51:38 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -48,9 +48,7 @@ public:
     NORET			tcl_thread_t(
 	int 			    ac, 
 	char* 			    av[], 
-	Tcl_Interp* 		    parent,
-	bool			    block_immediate = false,		     
-	bool			    auto_delete = false);
+	Tcl_Interp* 		    parent);
     NORET			~tcl_thread_t();
 
     Tcl_Interp*			get_ip() { return ip; }

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='SHELL_H'>
 
- $Id: shell.h,v 1.40 2000/03/02 22:21:02 bolo Exp $
+ $Id: shell.h,v 1.41 2001/02/02 23:33:35 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -68,7 +68,7 @@ extern void check_sp(const char *, int);
 
 #define SSH_VERBOSE 
 
-#if !defined(SOLARIS2) && !defined(HPUX8) && !defined(_WINDOWS)
+#if !defined(SOLARIS2) && !defined(HPUX8) && !defined(_WINDOWS) && !defined(Linux)
 extern "C" {
     extern	int	strcasecmp(const char *, const char *);	
 }

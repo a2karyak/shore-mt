@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: smthread.cpp,v 1.72 2000/02/02 03:57:32 bolo Exp $
+ $Id: smthread.cpp,v 1.73 2001/04/17 18:51:37 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -136,12 +136,10 @@ smthread_t::smthread_t(
     st_proc_t* f,
     void* arg,
     priority_t priority,
-    bool block_immediate,
-    bool auto_delete,
     const char* name,
     timeout_in_ms lockto,
     unsigned stack_size)
-: sthread_t(priority, block_immediate, auto_delete, name, stack_size),
+: sthread_t(priority, name, stack_size),
   _proc(f),
   _arg(arg),
   _block("m:smblock"),
@@ -154,12 +152,10 @@ smthread_t::smthread_t(
 
 smthread_t::smthread_t(
     priority_t priority,
-    bool block_immediate,
-    bool auto_delete,
     const char* name,
     timeout_in_ms lockto,
     unsigned stack_size)
-: sthread_t(priority, block_immediate, auto_delete, name, stack_size),
+: sthread_t(priority, name, stack_size),
   _proc(0),
   _arg(0),
   _block("m:smblock"),

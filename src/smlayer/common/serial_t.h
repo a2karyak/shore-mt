@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='SERIAL_T_H'>
 
- $Id: serial_t.h,v 1.57 1999/06/07 19:02:31 kupsch Exp $
+ $Id: serial_t.h,v 1.60 2001/06/26 16:48:35 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -157,9 +157,9 @@ struct serial_t {
 
 private:
 	bool _incr(
-		unsigned long 	*what,
-		uint4_t	  		amt,
-		unsigned long 	*overflow
+		uint4_t		*what,
+		uint4_t		amt,
+		uint4_t		*overflow
 	);
 
 public:
@@ -374,7 +374,7 @@ public:
 };
 
 #ifdef __cplusplus
-inline u_long hash(const serial_t& s)
+inline w_base_t::uint4_t w_hash(const serial_t& s)
 {
 #ifdef BITS64
 	return s.data._low;  // this is reasonable since _low changes a lot

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='HASH_LRU_H'>
 
- $Id: hash_lru.h,v 1.35 1999/06/07 19:02:24 kupsch Exp $
+ $Id: hash_lru.h,v 1.36 2001/06/22 17:31:38 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -123,7 +123,8 @@ public:
    
     void dump();
     int size() {return _total;}  // size of the hash table
-    unsigned long ref_cnt, hit_cnt;
+    unsigned	ref_cnt;
+    unsigned	hit_cnt;
 private:
     smutex_t _mutex; /* initialized with descriptor by constructor */
     void _remove(const TYPE*& t);

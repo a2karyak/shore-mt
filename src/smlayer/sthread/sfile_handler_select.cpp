@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: sfile_handler_select.cpp,v 1.9 1999/06/07 19:06:06 kupsch Exp $
+ $Id: sfile_handler_select.cpp,v 1.10 2001/09/18 22:09:57 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -71,14 +71,7 @@ extern class sthread_stats SthreadStats;
 
 #define FD_NONE	-1	/* invalid unix file descriptor */
 
-#ifdef HPUX8
-inline int select(int nfds, fd_set* rfds, fd_set* wfds, fd_set* efds,
-	      struct timeval* t)
-{
-    return select(nfds, (int*) rfds, (int*) wfds, (int*) efds, t);
-}
-
-#elif !defined(AIX32) && !defined(AIX41)
+#if !defined(AIX32) && !defined(AIX41)
 
 extern "C" int select(int, fd_set *, fd_set *, fd_set *, struct timeval *);
 

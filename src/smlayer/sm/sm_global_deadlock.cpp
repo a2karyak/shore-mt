@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: sm_global_deadlock.cpp,v 1.52 2000/01/24 19:35:41 kupsch Exp $
+ $Id: sm_global_deadlock.cpp,v 1.53 2001/04/17 18:51:37 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -1229,9 +1229,8 @@ rc_t CentralizedGlobalDeadlockClient::AddToWaitForList(
 
 NORET
 CentralizedGlobalDeadlockClient::ReceiverThread::ReceiverThread()
-:   
-    smthread_t(t_regular, false, false, "DeadlockClient"),
-    deadlockClient(0)
+: smthread_t(t_regular, "DeadlockClient"),
+  deadlockClient(0)
 {
 }
 
@@ -1696,8 +1695,7 @@ const gtid_t& CentralizedGlobalDeadlockServer::IdToGtid(uint4_t id)
 
 NORET
 CentralizedGlobalDeadlockServer::ReceiverThread::ReceiverThread()
-:   
-    smthread_t(t_regular, false, false, "DeadlockServer")
+: smthread_t(t_regular, "DeadlockServer")
 {
 }
 

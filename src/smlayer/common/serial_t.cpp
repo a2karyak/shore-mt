@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: serial_t.cpp,v 1.33 1999/06/07 19:02:31 kupsch Exp $
+ $Id: serial_t.cpp,v 1.34 2001/06/23 06:06:18 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -100,12 +100,12 @@ istream& operator>>(istream& i, serial_t& s)
 
 bool
 serial_t::_incr(
-	unsigned long *what,
-	uint4_t		  amt,
-	unsigned long *overflow
+	uint4_t		*what,
+	uint4_t		amt,
+	uint4_t		*overflow
 )
 {
-	unsigned long temp = *what;
+	uint4_t	temp = *what;
 	temp += amt;
 	if( ((*overflow) = (temp & ~max_any)) ) {
 		// overflow occurred
@@ -137,7 +137,7 @@ serial_t::increment(uint4_t amount)
 	bool	 was_ondisk = ((data._low & mask_disk)==mask_disk);
 
 	// don't change this if overflow occurs; use temp variables
-	unsigned long l, h, overflow;
+	uint4_t	l, h, overflow;
 
 	// turn off remote
 #ifdef BITS64
@@ -149,7 +149,7 @@ serial_t::increment(uint4_t amount)
 #endif
 
 	// get low half, shifted
-	l = (unsigned long)((data._low>>1));
+	l = data._low>>1;
 
 	// increment the low half
 	if( _incr(&l, amount, &overflow)) {

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='LID_S_H'>
 
- $Id: lid_s.h,v 1.28 1999/06/07 19:04:09 kupsch Exp $
+ $Id: lid_s.h,v 1.30 2001/06/26 16:48:46 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -184,7 +184,7 @@ public:
     vid_t vid;
     serial_t serial;
 }
-inline uint4_t hash(const lid_cache_key_t& k) {return hash}
+inline w_base_t::uint4_t w_hash(const lid_cache_key_t& k) {return hash}
 #endif
 
 /*<std-footer incl-file-exclusion='LID_S_H'>  -- do not edit anything below this line -- */

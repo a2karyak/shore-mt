@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: thread1.cpp,v 1.39 1999/08/03 16:13:37 bolo Exp $
+ $Id: thread1.cpp,v 1.40 2001/04/17 18:51:39 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -116,7 +116,7 @@ protected:
 
 class overflow_thread_t : public sthread_t {
 public:
-	overflow_thread_t() : sthread_t(t_regular, false, false, "overflow")
+	overflow_thread_t() : sthread_t(t_regular, "overflow")
 	{ }
 
 protected:
@@ -128,7 +128,7 @@ protected:
 
 class error_thread_t : public sthread_t {
 public:
-	error_thread_t() : sthread_t(t_regular, false, false, "error")
+	error_thread_t() : sthread_t(t_regular, "error")
 	{ }
 
 protected:
@@ -432,7 +432,7 @@ void pong_thread_t::run()
 
 
 timer_thread_t::timer_thread_t()
-    : sthread_t(t_regular, 0, 0, "timer")
+    : sthread_t(t_regular, "timer")
 {
 }
 

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='LGREC_H'>
 
- $Id: lgrec.h,v 1.39 1999/10/24 16:29:43 bolo Exp $
+ $Id: lgrec.h,v 1.40 2001/09/18 20:09:01 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -86,7 +86,22 @@ struct lg_tag_indirect_s {
      *  in a "store", so a stid_t is used.
      */
     snum_t      store;		// store for pages
-    fill2	filler;		// for alignment
+
+#if 1
+    /*
+     * XXX This should go the way of the dodo.   As a side-effect of other
+     * data structure sizes changing, the fill here (used to be a fill2)
+     * was no longer necessary.   However, nobody noticed, it was left
+     * in, and so the fill2 caused the need for a compiler generated 2
+     * bytes for alignment.   The uninitialized data caused purify hits.
+     * The real solution for this is to completely delete this the next
+     * time real work is done on the log.  In the interim, I've switched
+     * it to a fill4 to solve the uninitialized hits from purify.  This
+     * solution does NOT invalidate any existing logs, since the size
+     * still matches.
+     */
+    fill4	filler;		// for alignment
+#endif
 };
 
 /*

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: file_scan.cpp,v 1.19 1999/07/19 21:55:58 nhall Exp $
+ $Id: file_scan.cpp,v 1.20 2001/04/17 18:51:38 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -239,7 +239,7 @@ public:
 	int	retval;
 
 	smthread_user_t(int ac, char **av) 
-		: smthread_t(t_regular, false, false, "smthread_user_t"),
+		: smthread_t(t_regular, "smthread_user_t"),
 		argc(ac), argv(av), retval(0) { }
 	~smthread_user_t()  {}
 	void run();

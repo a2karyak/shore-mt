@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='W_RUSAGE_H'>
 
- $Id: w_rusage.h,v 1.10 2000/01/14 19:34:39 bolo Exp $
+ $Id: w_rusage.h,v 1.11 2001/09/18 20:14:35 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -57,8 +57,14 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
  * available (if anything)  on the host system.
  */
 
+/* XXX using kernel include file to do this is bogus.   It would be better
+   to say "enough of the actual defines are defined", rather than determining
+   whether the kernel include file has been sucked in.  Heck, we might
+   not be including the right file! */
+
 /* _SYS_RESOURCE_H_ for *BSD unix boxes */
-#if !defined(_SYS_RESOURCE_H) && !defined(_SYS_RESOURCE_H_)
+/* _SYS_RESOURCE_INCLUDED for HPUX */
+#if !defined(_SYS_RESOURCE_H) && !defined(_SYS_RESOURCE_H_) && !defined(_SYS_RESOURCE_INCLUDED)
 #define	_SYS_RESOURCE_H
 
 /*
@@ -119,13 +125,6 @@ struct	rusage {
 
 
 #endif	/* _SYS_RESOURCE_H */
-
-#ifdef HPUX8
-#	include <sys/syscall.h>
-#	define getrusage(a, b)  syscall(SYS_GETRUSAGE, a, b)
-
-	extern "C" syscall(int, int, void*);
-#endif /* HPUX8 */
 
 #ifndef Linux
 #ifndef getrusage

@@ -1,6 +1,6 @@
 /*<std-header style='imakefile' orig-src='shore'>
 
- $Id: Imakefile,v 1.143 1999/06/07 19:02:22 kupsch Exp $
+ $Id: Imakefile,v 1.146 2001/09/17 18:58:40 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -33,21 +33,20 @@ INCLUDE_DIRS += \
 	$(COMMON_INCL)
 
 init_file_group(libcommon)
+init_file_group(regex)
 init_file_group(installed)
 
 libcommon.h += \
-	aix_tid_t.h auto_release.h basics.h bitmap.h devid_t.h		\
-        dual_assert.h hash_lru.h hash_lru.cpp hostname.h kvl_t.h	\
-	latch.h lid_t.h option.h regcomp_i.h regerror_i.h regex.h	\
-	regex_posix.h regex2.h regex_cclass.h regex_cname.h		\
-        regex_engine.cpp regex_engine_i.h regex_utils.h serial_t.h	\
+	auto_release.h basics.h bitmap.h devid_t.h			\
+	dual_assert.h hash_lru.h hash_lru.cpp hostname.h kvl_t.h	\
+	latch.h lid_t.h option.h regex_posix.h serial_t.h		\
 	serial_t_data.h	sm_vas.h stid_t.h tid_t.h umemcmp.h vec_t.h	\
 	vid_t.h zvec_t.h
 
 libcommon.cpp += \
-        basics.cpp bitmap.cpp devid_t.cpp latch.cpp lid_t.cpp kvl_t.cpp	\
-	option.cpp regcomp.cpp regerror.cpp regex_posix.cpp regexec.cpp \
-	regfree.cpp serial_t.cpp stid_t.cpp tid_t.cpp vec_mkchunk.cpp	\
+	basics.cpp bitmap.cpp devid_t.cpp latch.cpp lid_t.cpp kvl_t.cpp	\
+	option.cpp regex_posix.cpp					\
+	serial_t.cpp stid_t.cpp tid_t.cpp vec_mkchunk.cpp		\
 	vec_t.cpp vid_t.cpp
 
 ERROR_FILES = \
@@ -61,6 +60,21 @@ ERROR_FILES = \
  * have been generated.
  */
 
+regex.h += \
+	regcomp_i.h regerror_i.h regex.h	\
+	regex2.h regex_cclass.h regex_cname.h	\
+	regex_engine.cpp regex_engine_i.h regex_utils.h
+
+regex.cpp += \
+	regcomp.cpp regerror.cpp regexec.cpp \
+	regfree.cpp
+
+#ifndef IS_ALPHA_OSF1
+add_to_group(libcommon, regex)
+#else
+unused_group(regex)
+#endif
+
 gen_error_codes(libcommon, opt_error.dat, -d, $(ERROR_FILES))
 
 libcommon.lib_name = $(COMMON_LIB)
@@ -72,9 +86,10 @@ installed.h = \
 	basics.h vec_t.h zvec_t.h lid_t.h serial_t.h dual_assert.h	\
 	serial_t_data.h tid_t.h option.h devid_t.h			\
 	sm_vas.h stid_t.h vid_t.h latch.h bitmap.h kvl_t.h
-installed.gen.h = opt_error_def_gen.h platform.h
+installed.gen.h = opt_error_def_gen.h
 
 install_copy(include/common, $(installed.h))
+install_copy(include/common, $(installed.gen.h))
 install_copy(lib, $(COMMON_LIB))
 
 
