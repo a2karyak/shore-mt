@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='LOG_H'>
 
- $Id: log.h,v 1.77 1999/12/10 05:29:43 bolo Exp $
+ $Id: log.h,v 1.78 2001/11/27 18:11:40 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -147,7 +147,9 @@ protected:
 	fileoff_t		_space_available;// in freeable or freed partitions
 
     };
-    struct _shared_log_info  *	_shared;
+    static _shared_log_info	__shared;
+    struct _shared_log_info	*_shared;
+
 public:
     void			start_log_corruption() { _shared->_log_corruption_on = true; }
     lsn_t 			master_lsn()	{ return _shared->_master_lsn; }

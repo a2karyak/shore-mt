@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='FILE_S_H'>
 
- $Id: file_s.h,v 1.34 1999/06/07 19:04:04 kupsch Exp $
+ $Id: file_s.h,v 1.35 2002/01/04 21:50:41 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -83,9 +83,9 @@ struct rectag_t {
     /* 12 or 16 */
 
 #if ALIGNON == 0x8
-#ifndef BITS64
+#ifndef SERIAL_BITS64
     fill4	filler;		// for 8 byte alignment with small serial#s
-#endif /* not BITS64 */
+#endif
     /* 16 */
 #endif /* ALIGNON 8 bytes */
 

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: w_base.cpp,v 1.46 2001/09/18 20:14:34 bolo Exp $
+ $Id: w_base.cpp,v 1.47 2002/01/28 06:54:45 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -305,10 +305,10 @@ __strtou8(
     }
     return u8;
 
+#elif defined(ARCH_LP64)
+    return is_signed? strtol(str, endptr, base): strtoul(str, endptr, base);
 #elif defined(__NetBSD__)
     return is_signed? ::strtoq(str, endptr, base): ::strtouq(str, endptr, base);
-#elif defined(Alpha)
-    return is_signed? strtol(str, endptr, base): strtoul(str, endptr, base);
 #else
     return is_signed? strtoll(str, endptr, base): strtoull(str, endptr, base);
 #endif

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: sfile_win32.cpp,v 1.7 2001/09/15 18:30:03 bolo Exp $
+ $Id: sfile_win32.cpp,v 1.8 2002/01/05 18:17:16 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -120,7 +120,7 @@ int sfile_t::convert_mode(int unixmode)
 w_rc_t sfile_t::setFlag(int the_flag, bool set_them)
 {
 	int	r;
-	u_long	flags;
+	unsigned long	flags;	/* XXX DWORD? */
 	w_rc_t	e;
 
 	if (the_flag != FIONBIO)

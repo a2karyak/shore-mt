@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: event.cpp,v 1.19 2001/09/18 22:09:56 bolo Exp $
+ $Id: event.cpp,v 1.20 2002/01/25 00:15:18 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -210,7 +210,7 @@ w_rc_t	sthread_t::setup_signals(sigset_t &lo_spl, sigset_t &hi_spl)
 	/* POSIX way -- expects handler to take no parameters */
 	
 	struct sigaction sact;
-	sact.sa_handler = W_POSIX_HANDLER _caught_signal;
+	sact.sa_handler = _caught_signal;
 	sact.sa_mask = nset;
 	sact.sa_flags = 0;
 

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: rtree.cpp,v 1.141 1999/06/07 19:04:25 kupsch Exp $
+ $Id: rtree.cpp,v 1.142 2002/01/03 01:25:18 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -37,10 +37,6 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #ifdef __GNUG__
 #    pragma implementation "rtree.h"
 #    pragma implementation "rtree_p.h"
-#endif
-
-#ifndef _MSC_VER
-#include <values.h>
 #endif
 
 #include <math.h>

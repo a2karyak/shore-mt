@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: srv_log.cpp,v 1.56 1999/12/10 05:29:46 bolo Exp $
+ $Id: srv_log.cpp,v 1.57 2002/01/28 07:32:31 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -161,8 +161,8 @@ srv_log::srv_log(
     if(wrbufsize>0) {
 	_writebuf = new log_buf (shmbase + rdbufsize, wrbufsize); // deleted in ~srv_log
     }
-    DBGTHRD(<< "_readbuf is at " << (unsigned int)_readbuf);
-    DBGTHRD(<< "_writebuf->buf is at " << ((unsigned int)shmbase + rdbufsize) );
+    DBGTHRD(<< "_readbuf is at " << W_ADDR(_readbuf));
+    DBGTHRD(<< "_writebuf->buf is at " << W_ADDR(shmbase + rdbufsize) );
 
     w_assert1(is_aligned(readbuf()));
     w_assert1(is_aligned(writebuf()));
@@ -1422,8 +1422,8 @@ partition_t::read(logrec_t *&rp, lsn_t &ll, int fd)
     rp = (logrec_t *)(readbuf() + off);
 
     DBGTHRD(<< "off= " << ((int)off)
-	<< "readbuf()@ " << ((unsigned int)readbuf())
-	<< " rp@ " << ((unsigned int)rp)
+	<< "readbuf()@ " << W_ADDR(readbuf())
+	<< " rp@ " << W_ADDR(rp)
     );
 
     while (leftover > 0) {
@@ -1463,7 +1463,7 @@ partition_t::read(logrec_t *&rp, lsn_t &ll, int fd)
 	    DBGTHRD(<<" leftover now=" << leftover);
 	}
     }
-    DBGTHRD( << "readbuf()@ " << ((unsigned int)readbuf())
+    DBGTHRD( << "readbuf()@ " << W_ADDR(readbuf())
 	<< " first 4 chars are: "
 	<< (int)(*((char *)readbuf()))
 	<< (int)(*((char *)readbuf()+1))

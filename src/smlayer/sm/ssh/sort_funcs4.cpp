@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: sort_funcs4.cpp,v 1.11 1999/10/25 18:17:31 bolo Exp $
+ $Id: sort_funcs4.cpp,v 1.12 2002/01/03 01:06:23 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -595,6 +595,7 @@ t_multikey_sort_file(Tcl_Interp* ip, int ac, char* av[])
 		smsize_t buff =  0;
 		if(make_aligned[k]) {
 		    /* make sure each key is 8-byte aligned */
+		    /* XXX use align tools */
 		    if(offset & 0x7) {
 			buff = offset + 8;
 			buff &= ~0x7;

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='BASICS_H'>
 
- $Id: basics.h,v 1.66 1999/06/30 18:45:00 bolo Exp $
+ $Id: basics.h,v 1.67 2002/01/03 01:06:15 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -107,12 +107,12 @@ inline int u4i(uint4_t x) {assert(x<=(unsigned)max_int4); return int(x); }
 
 inline bool is_aligned(smsize_t sz)
 {
-    return (align(sz) == sz);
+	return w_base_t::is_aligned(sz);
 }
 
 inline bool is_aligned(const void* p)
 {
-    return is_aligned((unsigned int) p);
+	return w_base_t::is_aligned(p);
 }
 
     /* used by sm and all layers: */

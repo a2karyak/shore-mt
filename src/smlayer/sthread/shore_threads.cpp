@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: shore_threads.cpp,v 1.8 1999/06/07 19:06:08 kupsch Exp $
+ $Id: shore_threads.cpp,v 1.9 2002/02/04 18:24:15 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -204,16 +204,26 @@ pure_thread_id_equal(void *id1_p, void *id2_p)
 }
 #endif
 
+/*
+ * NOTICE_STACK_CHANGE in combination with INIT_EXPLICIT gives
+ * the best behavior for Pure software with native sthreads.
+ * Purify doesn't attempt to do anything with threads until
+ * it is explicitly initialized.    Other combinations just
+ * don't work well, for purify starts prodding the threads package
+ * at random ... even before it is constructed, and before
+ * purify is explicitly initialized.   It can be made to work,
+ * but it is hacky, and it doesn't work well.
+ */
 
 int pure_thread_switch_protocol = 
-#ifdef PURE_THREAD_OLD
+#if 1 || defined(PURE_THREAD_OLD)
 PURE_THREAD_PROTOCOL_NOTICE_STACK_CHANGE
 #else
 PURE_THREAD_PROTOCOL_EXPLICIT_CONTEXT_SWITCH
 #endif
 ;
 
-#ifdef PURE_THREAD_OLD
+#if 0 || defined(PURE_THREAD_OLD)
 int pure_thread_init_protocol = PURE_THREAD_INIT_IMPLICIT;
 #else
 int pure_thread_init_protocol = PURE_THREAD_INIT_EXPLICIT;

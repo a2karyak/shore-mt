@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: opaque.cpp,v 1.13 2001/04/17 18:23:01 bolo Exp $
+ $Id: opaque.cpp,v 1.14 2001/11/30 02:01:01 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -71,7 +71,7 @@ int main()
 	s = (server_handle_t *)dummy; // aligned, if possible
 	*s = "ALIGNED";
 	// If we print the address to cout, we can't diff with a .out file
-	cerr << "(not an error: )address of s = " << hex << (unsigned int) s << endl;
+	cerr << "(not an error: )address of s = " << W_ADDR(s) << endl;
 	cout << "value of s = " << *s << endl;
 	cout << "length of s = " << s->length() << endl;
     }
@@ -79,7 +79,7 @@ int main()
     {
 	s = (server_handle_t *)d; // unaligned, if possible
 	*s = "NOTALIGNED";
-	cerr << "(not an error: )address of s = " << hex << (unsigned int) s << endl;
+	cerr << "(not an error: )address of s = " << W_ADDR(s) << endl;
 	cout << "value of s = " << *s << endl;
 	cout << "length of s = " << s->length() << endl;
     }

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: thread1.cpp,v 1.40 2001/04/17 18:51:39 bolo Exp $
+ $Id: thread1.cpp,v 1.42 2001/11/30 01:28:26 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -153,6 +153,7 @@ bool	TestAssert = false;
 bool	TestFatal = false;
 bool	TestErrorInThread = false;
 bool	verbose = false;
+bool	WorkerThreadExit = true;	/* default is exit via longjmp */
 
 worker_thread_t		**worker;
 int			*ack; 
@@ -163,7 +164,7 @@ int	parse_args(int argc, char **argv)
 	int	errors = 0;
 	int	c;
 
-	while ((c = getopt(argc, argv, "afn:p:s:g:o:xdTv")) != EOF) {
+	while ((c = getopt(argc, argv, "afn:p:s:g:o:xXdTv")) != EOF) {
 		switch (c) {
 		case 'n':
 			NumThreads = atoi(optarg);
@@ -182,6 +183,9 @@ int	parse_args(int argc, char **argv)
 			break;
 		case 'x':
 			ThreadExit = true;
+			break;
+		case 'X':
+			WorkerThreadExit = false;
 			break;
 		case 'd':
 			DumpThreads = true;
@@ -391,7 +395,10 @@ void worker_thread_t::run()
 {
     cout << "Hello, world from " << work_id << endl;
     ack[work_id] = 1;
-    sthread_t::end();
+
+    /* test the return-through stack mechanism */
+    if (WorkerThreadExit)
+        sthread_t::end();
 }
 
 

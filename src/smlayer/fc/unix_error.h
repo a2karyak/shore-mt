@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='UNIX_ERROR_H'>
 
- $Id: unix_error.h,v 1.17 2001/02/02 23:33:33 bolo Exp $
+ $Id: unix_error.h,v 1.18 2002/01/25 15:28:06 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -50,7 +50,9 @@ extern const char *const sys_errlist[];
 extern char *sys_errlist[];
 #endif
 
+#if !defined(__NetBSD__)
 extern int sys_nerr;
+#endif
 #endif
 
 #ifndef _WINDOWS 

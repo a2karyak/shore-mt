@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: log_base.cpp,v 1.31 2000/03/09 20:52:58 bolo Exp $
+ $Id: log_base.cpp,v 1.32 2001/11/27 18:11:40 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -43,7 +43,7 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #include <w_strstream.h>
 
 /* Until/unless we put this into shared memory: */
-static struct log_base::_shared_log_info  __shared;
+log_base::_shared_log_info  log_base::__shared;
 
 /*********************************************************************
  *

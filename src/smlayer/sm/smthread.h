@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='SMTHREAD_H'>
 
- $Id: smthread.h,v 1.91 2001/04/17 18:51:38 bolo Exp $
+ $Id: smthread.h,v 1.93 2002/01/28 06:54:50 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -104,6 +104,22 @@ class smthread_t : public sthread_t {
 	int	prev_pin_count; // previous # of rsrc_m pins
 	bool	_in_sm;  	// thread is in sm ss_m:: function
 	timeout_in_ms lock_timeout;	// timeout to use for lock acquisitions
+#ifdef ARCH_LP64
+	/* XXX Really want kc_buf aligned to the alignment of the most
+	   restrictive type. It would be except sizeof above bool == 8,
+	   and timeout_in_ms is 4 bytes. */
+#ifdef notyet
+	/* This would do it but it wastes space.   Perhaps the thing to do
+	   is to make a class for the kc_stuff -- with big pages it
+	   causes offsets of commonly used things in the TCB to become
+	   large -- which causes 2 instructions to be used for the offset
+	   and blows caching out of the water.  Something that dynamically
+	   resizes might be just the ticket. */
+	most_restrictive_aligned_type	_fill;
+#else
+	fill4	_fill;		
+#endif
+#endif
 	char	kc_buf[smlevel_0::page_sz];
 	int	kc_len;
 	cvec_t	kc_vec;

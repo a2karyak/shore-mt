@@ -1,6 +1,6 @@
-/*<std-header orig-src='shore' incl-file-exclusion='SERIAL_T_DATA_H'>
+/*<std-header orig-src='shore' incl-file-exclusion='PAGE_ALIAS_H'>
 
- $Id: serial_t_data.h,v 1.14 2002/01/04 21:50:38 bolo Exp $
+ $Id: page_alias.h,v 1.2 2002/01/28 06:54:50 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -27,29 +27,30 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 
 */
 
-#ifndef SERIAL_T_DATA_H
-#define SERIAL_T_DATA_H
+#ifndef PAGE_ALIAS_H
+#define PAGE_ALIAS_H
 
 #include "w_defines.h"
 
 /*  -- do not edit anything above this line --   </std-header>*/
 
-#define SERIAL_T_GUTS_H
+/* This is a hack.  This information should really be generated at
+   compile time from the size of the actual data structures.   Or
+   the code which depends upon this should just 'new' the appropriate
+   data structures.   However, this puts all the dependencies in one
+   place for now without doing major work. */
 
-#ifdef __GNUG__
-#pragma interface
-#endif
+/* All the aliases are the same size for now, could change in future */
 
-struct serial_t_data {
-#ifdef SERIAL_BITS64
-	uint4_t _high;
-	uint4_t high() const { return _high; }
+#if defined(ARCH_LP64)
+#define	PAGE_ALIAS	40
 #else
-	uint4_t high() const { return _low; }
+#define	PAGE_ALIAS	24
 #endif
-	uint4_t _low;
-};
 
-/*<std-footer incl-file-exclusion='SERIAL_T_DATA_H'>  -- do not edit anything below this line -- */
+#define	PAGE_ALIAS_FILE		(PAGE_ALIAS)
+#define	PAGE_ALIAS_LGDATA	(PAGE_ALIAS)
+
+/*<std-footer incl-file-exclusion='PAGE_ALIAS_H'>  -- do not edit anything below this line -- */
 
 #endif          /*</std-footer>*/

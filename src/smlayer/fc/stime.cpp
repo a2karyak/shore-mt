@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: stime.cpp,v 1.28 2001/09/18 20:14:34 bolo Exp $
+ $Id: stime.cpp,v 1.30 2002/01/04 23:43:35 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -100,7 +100,7 @@ typedef struct timeval	_stime_t;
    fixed.
  */
 
-#if !defined(SOLARIS2) && !defined(AIX41) && !defined(HPUX8)
+#if !defined(SOLARIS2) && !defined(AIX41) && !defined(HPUX8) && !defined(Linux)
 extern "C" int gettimeofday(struct timeval *, struct timezone *);
 #endif
 
@@ -189,7 +189,7 @@ static inline int sign(const int i)
 }
 
 
-#if !defined(HPUX8) && !defined(__xlC__) && !defined(_WIN32)
+#if !defined(HPUX8) && !defined(__xlC__) && !defined(_WIN32) && !defined(Linux)
 static inline int abs(const int i)
 {
 	return i >= 0 ? i : -i;

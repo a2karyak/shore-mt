@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: newsort.cpp,v 1.30 2000/02/08 17:29:53 bolo Exp $
+ $Id: newsort.cpp,v 1.37 2002/02/18 20:10:56 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -68,14 +68,43 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
  * XXX if you use a gcc which issues real 8 byte integer load/stores
  * for modern sparc boxes you'll need to turn on strict int8 alignment
  */
-#if defined(Alpha)
+#if (ALIGNON == 0x8)
+/* everything is aligned */
+#elif defined(ARCH_LP64)
+/* this isn't used since ALIGNON == 0x8 in this case, historical */
 #define	STRICT_INT8_ALIGNMENT
 #define	STRICT_F8_ALIGNMENT
-#else
+#elif defined(Snake)
+/* XXX something wrong with fastnew? */
+#define STRICT_INT8_ALIGNMENT
+#define STRICT_F8_ALIGNMENT
+#elif !defined(I386)
 /* This is sort of a generic catch-all, because the f8 comparisons existed
    long before the i8 problems. */
 #define	STRICT_F8_ALIGNMENT
 #endif
+
+/* XXX only used to verify proper alignment when strict alignment is
+   not enabled.   This should all be rectified, but the strict alignment
+   had different meaning previously. */
+
+/* XXX too many ia32 systems only give you x4 alignment on x8 objects
+   need to look into this further.   Our alignment model may need
+   more tweaking.  And it should take into account machines were we
+   can run 4 byte aligned for 8 byte objects and it works too.  Arggh. */
+
+#if defined(I386) || defined(_WIN32)
+/* Win32 alignment isn't what it could be.  This should be investigated
+   further.  These alignments give the previous behavior. */ 
+#define	_ALIGN_F8	0x4
+#define	_ALIGN_IU8	0x4
+#else
+#define	_ALIGN_F8	0x8
+#define	_ALIGN_IU8	0x8
+#endif
+
+#define	ALIGN_MASK_F8	(_ALIGN_F8-1)
+#define	ALIGN_MASK_IU8	(_ALIGN_IU8-1)
 
 
 const int max_keys_handled = 5; // TODO: make more flexible
@@ -209,13 +238,19 @@ private:
     void _create_buf();
 
 public:
+    /* XXX really want alignment to align(_d_scratch) */
+    /* XXXX these should use the align tools */	
     static smsize_t   _align(smsize_t amt) { /* align to 8 bytes */
 	if(amt & 0x7) { amt &= ~0x7; amt += 0x8; }
 	return amt;
     }
-    static char *   _alignAddr(char * cp) { /* align to 8 bytes */
-	smsize_t x = smsize_t(cp);
-	return (char *)(_align(x));
+    static char *   _alignAddr(char *cp) { /* align to 8 bytes */
+	ptrdiff_t arith = (ptrdiff_t) cp;
+	if (arith & 0x7) {
+		arith &= ~0x7;
+		arith += 0x8;
+	}
+	return (char *) arith;
     }
 
     NORET limited_space(smsize_t buffer_sz) : 
@@ -227,6 +262,7 @@ public:
 	_buf_hiwat(0)
     {
 	/* Round up buffer size to nearest 1K */
+	/* XXX use align tools;magic number */
 	if(_buffer_sz & 0x3ff) {
 	    _buffer_sz &= ~0x3ff;
 	    _buffer_sz += 0x400;
@@ -2920,7 +2956,7 @@ tape_t::prime_record(const sort_keys_t &info,
 	 */
 
 	DBG(
-	    << (unsigned int)(this)
+	    << this
 	    <<" :Read in tmp rec " << _rid
 	    << " for original record " << _meta->shpid() 
 		    << "." << _meta->slotid()
@@ -3571,7 +3607,7 @@ run_mgr::_prepare_key(
 	 */
 	w_assert3(kdesc.is_in_obj());
     }
-    DBG(<<"leave _prepare_key, keyloc=" << (unsigned int)(buffer));
+    DBG(<<"leave _prepare_key, keyloc=" << W_ADDR(buffer));
 
     // unpins lgpage TODO does not! it's an argument!!
     return RCOK; // unpins
@@ -5485,6 +5521,8 @@ int sort_keys_t::uint8_cmp(uint4_t W_IFDEBUG(klen1), const void* kval1,
     ADD_TSTAT_SORT(sort_memcpy_cnt, 2);
     ADD_TSTAT_SORT(sort_memcpy_bytes, 2*sizeof(w_base_t::uint8_t));
 #else
+    w_assert3(((ptrdiff_t)kval1 & ALIGN_MASK_IU8) == 0);
+    w_assert3(((ptrdiff_t)kval2 & ALIGN_MASK_IU8) == 0);
     const w_base_t::uint8_t	&u1 = *(const w_base_t::uint8_t *) kval1;
     const w_base_t::uint8_t	&u2 = *(const w_base_t::uint8_t *) kval2;
 #endif
@@ -5509,6 +5547,8 @@ int sort_keys_t::int8_cmp(uint4_t W_IFDEBUG(klen1), const void* kval1,
     ADD_TSTAT_SORT(sort_memcpy_cnt, 2);
     ADD_TSTAT_SORT(sort_memcpy_bytes, 2*sizeof(w_base_t::int8_t));
 #else
+    w_assert3(((ptrdiff_t)kval1 & ALIGN_MASK_IU8) == 0);
+    w_assert3(((ptrdiff_t)kval2 & ALIGN_MASK_IU8) == 0);
     const w_base_t::int8_t	&i1 = *(const w_base_t::int8_t *) kval1;
     const w_base_t::int8_t	&i2 = *(const w_base_t::int8_t *) kval2;
 #endif
@@ -5618,6 +5658,8 @@ int sort_keys_t::f8_cmp(uint4_t W_IFDEBUG(klen1), const void* kval1,
     ADD_TSTAT_SORT(sort_memcpy_cnt, 2);
     ADD_TSTAT_SORT(sort_memcpy_bytes, 2*sizeof(w_base_t::f8_t));
 #else
+    w_assert3(((ptrdiff_t)kval1 & ALIGN_MASK_F8) == 0);
+    w_assert3(((ptrdiff_t)kval2 & ALIGN_MASK_F8) == 0);
     const w_base_t::f8_t &d1 = *(const w_base_t::f8_t *) kval1;
     const w_base_t::f8_t &d2 = *(const w_base_t::f8_t *) kval2;
 #endif

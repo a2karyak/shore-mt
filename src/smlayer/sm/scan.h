@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='SCAN_H'>
 
- $Id: scan.h,v 1.86 1999/06/07 19:04:27 kupsch Exp $
+ $Id: scan.h,v 1.87 2002/01/22 21:48:09 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -41,6 +41,9 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #ifndef XCT_DEPENDENT_H
 #include <xct_dependent.h>
 #endif /* XCT_DEPENDENT_H */
+
+#include <page_alias.h>
+
 /*
 
     Scans can be performed on B+tree and R-tree indexes and on files
@@ -387,7 +390,7 @@ private:
     // file_p		        page;
     inline 
     file_p&     		_page() { return *(file_p*) _page_alias;}
-    char        		_page_alias[24];
+    char        		_page_alias[PAGE_ALIAS_FILE];
     sdesc_t			_cached_sdesc;
 };
 

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: thread2.cpp,v 1.50 2000/02/02 00:08:49 bolo Exp $
+ $Id: thread2.cpp,v 1.51 2001/11/08 20:41:43 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -262,6 +262,7 @@ int main(int argc, char **argv)
     int c;
     int errors = 0;
     const	char *s;
+    const	char *diskrw = "./diskrw";	/* don't need "." in path. */ 
 
 #ifdef _WIN32
     /* Don't know /tmp on Win32 until runtime */
@@ -273,7 +274,7 @@ int main(int argc, char **argv)
     if (s && *s)
     	io_dir = s;
 
-    while ((c = getopt(argc, argv, "i:b:t:d:klfvV:hR")) != EOF) {
+    while ((c = getopt(argc, argv, "i:b:t:d:klfvV:hRD:")) != EOF) {
 	   switch (c) {
 	   case 'i':
 		   NumIOs = atoi(optarg);
@@ -308,6 +309,9 @@ int main(int argc, char **argv)
 	   case	'h':
 		    histograms = true;
 		    break;
+	   case 'D':
+		   diskrw = optarg;
+		   break;
 	   default:
 		   errors++;
 		   break;
@@ -328,6 +332,7 @@ int main(int argc, char **argv)
 	   return 1;
     }
 
+    sthread_t::set_diskrw_name(diskrw);
 
     w_rc_t	e;
     char	*buf;

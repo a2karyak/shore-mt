@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: sdisk_diskrw.cpp,v 1.17 2001/09/18 22:09:56 bolo Exp $
+ $Id: sdisk_diskrw.cpp,v 1.19 2002/01/02 23:51:57 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -80,7 +80,7 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #include <vfork.h>
 #endif
 
-#if defined(Mips) && !defined(Irix)
+#if defined(Mips) && !defined(Irix)	/* aka ultrix? */
 extern "C" int vfork();
 #endif
 
@@ -102,6 +102,9 @@ extern "C" int vfork();
 #endif
 #endif
 
+#ifndef _WIN32
+#define	FORK_DUMMY_DISKRW
+#endif
 
 #include <unix_stats.h>
 
@@ -733,20 +736,36 @@ w_rc_t	sdisk_handler_t::finish_shared()
 	/*
 	 *  Free shared memory previous allocated.
 	 */
-#ifndef _WINDOWS
-	if (kill(_dummy_disk, SIGUSR2) == -1 ||
-	    waitpid(_dummy_disk, 0, 0) == -1)  {
-		cerr << "warning: error killing dummy disk pid " 
+#ifdef FORK_DUMMY_DISKRW
+	int	n;
+
+	n = kill(_dummy_disk, SIGUSR2);
+	if (n == -1) {
+		cerr << "warning: error killing dummy disk pid "
+		     << _dummy_disk << endl
+		     << RC(fcOS);
+	}
+	/* XXX in other cases we just die if we can't kill */
+	n = (n == -1) ? 0 : waitpid(_dummy_disk, 0, 0);
+	if (n == -1) {
+		cerr << "warning: error waitpid dummy disk pid " 
 			<< _dummy_disk << endl
 			<< RC(fcOS) << endl;
 	}
 #endif
 	for (unsigned i = 0; i < open_max; i++)  {
 		if (diskport[i].pid && diskport[i].pid != -1) {
-#ifndef _WINDOWS
-			if (kill(diskport[i].pid, SIGTERM) == -1 ||
-			    waitpid(diskport[i].pid, 0, 0) == -1)  {
+#ifdef FORK_DUMMY_DISKRW
+			n = kill(diskport[i].pid, SIGTERM);
+			if (n == -1) {
 				cerr << "warning: error killing disk pid " 
+					<< diskport[i].pid << endl
+					<< RC(fcOS) << endl;
+			}
+			/* XXX in other cases we just die if we can't kill */
+			n = (n == -1) ? 0 : waitpid(diskport[i].pid, 0, 0);
+			if (n == -1) {
+				cerr << "warning: error waitpid disk pid " 
 					<< diskport[i].pid << endl
 					<< RC(fcOS) << endl;
 			}
@@ -826,7 +845,7 @@ w_rc_t sdisk_handler_t::init_shared(unsigned size)
 
 	svcport->sleep = 1;
 
-#ifndef _WIN32
+#ifdef FORK_DUMMY_DISKRW
 	/*
 	 *  Fork a dummy diskrw process that monitors longevity of
 	 *  this process.
@@ -1451,16 +1470,16 @@ w_rc_t	sdisk_handler_t::map_iovec(const iovec_t *iov, int iovcnt,
 			|| (uint)(diskv[i].bfoff + diskv[i].nbytes) > shmem_seg.size())   {
 #ifdef W_DEBUG
 			cerr 
-			<<" iov[i].iov_base=" << (int)(iov[i].iov_base)
-			<<" iov[i].iov_len=" << (int)(iov[i].iov_len)
+			<<" iov[i].iov_base=" << W_ADDR(iov[i].iov_base)
+			<<" iov[i].iov_len=" << iov[i].iov_len
 			<< endl
 			<<" diskv[i].bfoff=" << diskv[i].bfoff
 			<<" diskv[i].nbytes=" << diskv[i].nbytes
 			<< endl
-			<<" shmem_seg.base()=" << (int)(shmem_seg.base())
+			<<" shmem_seg.base()=" << W_ADDR(shmem_seg.base())
 			<<" shmem_seg.size()=" << shmem_seg.size()
 			<<" shmem_seg.last_byte=" 
-			<< (((int) shmem_seg.base()) + shmem_seg.size() - 1)
+			<< (((long) shmem_seg.base()) + shmem_seg.size() - 1)
 			<< endl;
 #endif
 			return RC(stBADADDR);

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='DISKRW_H'>
 
- $Id: diskrw.h,v 1.68 2000/02/22 21:25:14 bolo Exp $
+ $Id: diskrw.h,v 1.69 2001/11/13 21:11:15 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -185,10 +185,10 @@ public:
     int outstanding() const  { return _outstanding; }
 
     void put(const diskmsg_t& m, bool getlock=true) {
-	w_assert1(cnt < qsize);
 	if(getlock) {
 	    ACQUIRE(lock);	
 	}
+	w_assert1(cnt < qsize);
 	msg[tail]= m, ++cnt;
 	if (++tail >= qsize) tail = 0;
 	++_outstanding; // not used

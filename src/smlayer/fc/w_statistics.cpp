@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: w_statistics.cpp,v 1.26 1999/06/07 19:02:57 kupsch Exp $
+ $Id: w_statistics.cpp,v 1.27 2002/01/24 21:59:35 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -501,6 +501,11 @@ w_statistics_t::find_str(const w_stat_module_t *m, int i) const
 	return m->strings[i];
 }
 
+/* XXX The 'long' and 'unsigned long' casts for 'v' and 'l' exist
+   because 'v' and 'l' are only 'int' width on 64 bit machines.  That
+   is a historical problem that can be fixed once stats support sized
+   types in addition to named types. */
+
 ostream	&
 operator<<(ostream &out, const w_statistics_t &s) 
 {
@@ -530,7 +535,7 @@ operator<<(ostream &out, const w_statistics_t &s)
 				if((s._print_flags & w_statistics_t::print_nonzero_only)==0 || 
 					(m->values[i]._u.v != 0)) {
 					W_FORM2(out,("%*.*s: ", field, field, m->strings[i]));
-					W_FORM2(out,("%10d",m->values[i]._u.v));
+					W_FORM2(out,("%10lu", (unsigned long) m->values[i]._u.v));
 					out << endl;
 				}
 				break;
@@ -538,7 +543,7 @@ operator<<(ostream &out, const w_statistics_t &s)
 				if((s._print_flags & w_statistics_t::print_nonzero_only)==0 || 
 					(m->values[i]._u.l != 0)) {
 					W_FORM2(out,("%*.*s: ", field, field, m->strings[i]));
-					W_FORM2(out,("%10d",m->values[i]._u.l));
+					W_FORM2(out,("%10ld", (long) m->values[i]._u.l));
 					out << endl;
 				}
 				break;

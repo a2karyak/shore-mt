@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: lock_core.cpp,v 1.100 2001/06/26 18:33:55 bolo Exp $
+ $Id: lock_core.cpp,v 1.102 2002/01/24 23:47:41 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -51,7 +51,7 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 
 #ifdef EXPLICIT_TEMPLATE
 template class w_list_const_i<lock_request_t>;
-template class w_auto_delete_array_t<u_int>;
+template class w_auto_delete_array_t<unsigned>;
 #endif
 
 
@@ -2084,7 +2084,7 @@ lock_core_m::stats(
 ) const
 {
     FUNC(lock_core_m::stats);
-    register u_long 	used=0, mn=uint4_t, mx=0, t=0, md=0;
+    uint4_t 		used=0, mn=uint4_max, mx=0, t=0, md=0;
     float   		var = 0.0;
     float		abl = 0.0;
     double 		stddev=0.0;
@@ -2112,8 +2112,8 @@ lock_core_m::stats(
     }
     if (used > 0) {
 	// space for computing mode
-	u_int*	mode = new u_int[mx+1];
-	w_auto_delete_array_t<u_int> auto_del_mode(mode);
+	unsigned*	mode = new unsigned[mx+1];
+	w_auto_delete_array_t<unsigned> auto_del_mode(mode);
 
 	for(i=0; i<=mx; i++)
 	    mode[i]=0;

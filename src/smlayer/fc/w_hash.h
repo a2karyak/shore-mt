@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='W_HASH_H'>
 
- $Id: w_hash.h,v 1.31 2001/04/18 17:22:59 bolo Exp $
+ $Id: w_hash.h,v 1.32 2002/01/04 05:47:14 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -41,8 +41,14 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 template <class T, class K> class w_hash_t;
 template <class T, class K> class w_hash_i;
 
-inline w_base_t::uint4_t w_hash(int i)  {
-    return i;
+inline w_base_t::uint4_t w_hash(long l)
+{
+	return (w_base_t::uint4_t) l;
+}
+
+inline w_base_t::uint4_t w_hash(unsigned long l)
+{
+	return (w_base_t::uint4_t) l;
 }
 
 inline w_base_t::uint4_t w_hash(w_base_t::uint4_t i)  {

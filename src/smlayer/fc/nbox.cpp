@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: nbox.cpp,v 1.16 2001/09/13 15:16:51 bolo Exp $
+ $Id: nbox.cpp,v 1.18 2002/01/04 05:47:12 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -37,12 +37,14 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #   pragma implementation
 #endif
 
-#include <stdlib.h>
-#include <iostream.h>
-#include <math.h>
 #include <w.h>
 #include <nbox.h>
 
+#include <stdlib.h>
+#include <math.h>
+
+#include <iostream.h>
+#include <w_strstream.h>
 #include <stdio.h>
 
 #ifndef MIN
@@ -432,7 +434,7 @@ void nbox_t::put(const char* s)
     	>> c[2] >> array[2] >> c[3] >> array[3];
     /* XXX check error on stream, delimiters, etc */
 #else
-    n = sscanf(C_STRING_BUG s, "%d.%ld.%ld.%ld.%ld", &dim,
+    n = sscanf(C_STRING_BUG s, "%d.%d.%d.%d.%d", &dim,
 		&array[0], &array[1], &array[2], &array[3]);
     w_assert1(n==5 && dim == 2);
 #endif

@@ -1,6 +1,6 @@
 /*<std-header style='imake' orig-src='shore'>
 
- $Id: Project.tmpl,v 1.261 2001/10/08 20:24:45 bolo Exp $
+ $Id: Project.tmpl,v 1.269 2002/02/13 22:53:16 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -329,6 +329,7 @@ PWD = $(shell pwd)
 PLATFORM = Platform
 ARCH = Arch
 OPSYS = OpSys
+ARCHMODE = ArchMode
 
 /*
  * Common libraries and their include locations
@@ -621,7 +622,10 @@ DEBUGFLAGS += -DW_TRACE
 #  else	/* IS_UNIX */
     CCOPTIMIZE =  -O
     CFRONTOPTIMIZE =  -O 
-#if defined(BUILD_SMLAYER_ONLY)
+#ifdef FORCE_EGCS
+    CMNT Egcs croaks with O2 but not with O1/O
+    GCCOPTIMIZE =  -O1 -finline-functions -fexpensive-optimizations
+#elif defined(BUILD_SMLAYER_ONLY)
     CMNT Shore compiles and tests with optimization on g++
     GCCOPTIMIZE =  -O2 -finline-functions -fexpensive-optimizations
 #else
@@ -767,7 +771,7 @@ GCCDEBUGSYMBOLS = -g3
 #endif
 
 /* XXXX this should probably be the fallback if nothing else is defined */
-#if IS_SPARC_SUNOS41 || IS_SPARC_SOLARIS2 || IS_I386_LINUX || IS_R6000_AIX32 || IS_RS6000_AIX41 || IS_NETBSD || IS_OSF1 || IS_CYGWIN
+#if IS_SPARC_SUNOS41 || IS_SPARC_SOLARIS2 || IS_LINUX || IS_R6000_AIX32 || IS_RS6000_AIX41 || IS_NETBSD || IS_OSF1 || IS_CYGWIN
     /*  SUN ATT CC does not seem to know about //, ansi cpp #, ## 
      *  so we use gcc.  SUN cc also doesn't seem to handle any of 
      *  the above, so we use gcc for everything
@@ -897,8 +901,12 @@ CPLUSOPTIMIZE = $(GCCOPTIMIZE)
 
 CCFLAGS = GCCFLAGS
 CC = $(GCC) -x c 
+#ifdef GCC_BROKEN_WARNINGS
+WARN_FLAGS += -Wall -W -Wpointer-arith -Wwrite-strings -Wmissing-prototypes 
+#else
 WARN_FLAGS += -Wall -W -Wpointer-arith -Wwrite-strings -Wstrict-prototypes 
 WARN_FLAGS += -Wmissing-prototypes -Wmissing-declarations -Wnested-externs
+#endif
 #ifndef GCC_NO_WARN_VIRTUAL
 WARN_FLAGS += -Woverloaded-virtual 
 #endif
@@ -963,20 +971,46 @@ GLOBAL_LDFLAGS = -lm
 GLOBAL_LDFLAGS += -lstdc++ 
 #endif
 
+/* Programs using Pure products need some include files and stub libraries */
+#if defined(USE_PURE)
+PURE_INCLS =
+PURE_STUBS =
+#ifdef USE_PURIFY
+PURE_INCLS += -I$(PURIFY_DIR)/include
+#ifdef PURE_STUBS_NEW
+PURE_STUBS += $(PURIFY_DIR)/lib/libpurify_stubs.LIBEXT
+#else
+PURE_STUBS += $(PURIFY_DIR)/lib/pure_stubs.LIBEXT
+#endif
+#endif /* PURIFY */
+#ifdef USE_QUANTIFY
+PURE_INCLS += -I$(QUANT_DIR)/include
+#ifdef PURE_STUBS_NEW
+PURE_STUBS += $(QUANT_DIR)/lib/libquantify_stubs.LIBEXT
+#else
+PURE_STUBS += $(QUANT_DIR)/lib/pure_stubs.LIBEXT
+#endif
+#endif /* QUANTIFY */
+#ifdef USE_PURECOV
+PURE_INCLS += -I$(PURECOV_DIR)/include
+#ifdef PURE_STUBS_NEW
+PURE_STUBS += $(PURECOV_DIR)/lib/libpurecov_stubs.LIBEXT
+#else
+PURE_STUBS += $(PURECOV_DIR)/lib/pure_stubs.LIBEXT
+#endif
+#endif /* PURE COVERAGE */
+#endif /* USE_PURE */
 
+#ifdef USE_PURE
 /* Programs using Purify products need a set of function stubs
    to use when they aren't running under the pure product. */
-#if defined(USE_PURE)
-#ifdef USE_PURIFY
-GLOBAL_LDFLAGS += $(PURIFY_DIR)/lib/pure_stubs.LIBEXT
+GLOBAL_LDFLAGS += $(PURE_STUBS)
 #endif
-#ifdef USE_QUANTIFY
-GLOBAL_LDFLAGS += $(QUANT_DIR)/lib/pure_stubs.LIBEXT
+
+#if defined(IS_HPUX8) && DEBUGGERSYMBOLS == ON
+/* This must be the last object linked */
+GLOBAL_LDFLAGS += /opt/langtools/lib/end.o
 #endif
-#ifdef USE_PURECOV
-GLOBAL_LDFLAGS += $(PURECOV_DIR)/lib/pure_stubs.LIBEXT
-#endif
-#endif /* PURE_STUBS */
 
 GLOBAL_WINDOWS_LDFLAGS = $(subst -subsystem:console, -subsystem:windows, $(GLOBAL_LDFLAGS))
 
@@ -1008,6 +1042,12 @@ CCFLAGS += -D_LARGEFILE64_SOURCE=1
 CCFLAGS += -D_FILE_OFFSET_BITS=64
 #endif
 #endif	/* LARGEFILE_AWARE */
+
+#if defined(STHREAD_TSL_PTHREAD) &&  defined(IS_LINUX)
+/* XXX need to configure include files when using posix spinlocks on
+   Linux; need to have the posix 2K variant, plus normal BSD includes. */
+CCFLAGS += -D_XOPEN_SOURCE=600 -D_BSD_SOURCE
+#endif
 
 /*
  * Tools
@@ -1069,7 +1109,7 @@ ETAG_FLAGS =
 CTAGS = $(CTAGS_DIR)/ctags $(CTAG_FLAGS)
 ETAGS = $(CTAGS_DIR)/etags $(ETAG_FLAGS)
 
-#if IS_SNAKE_HPUX8 || IS_I860_OSF1AD || IS_DOSDEV
+#if IS_I860_OSF1AD || IS_DOSDEV
 RANLIB_IFNEEDED = $(ECHO) skipping ranlib 
 /* Posix grep */
 GREP = grep -E
@@ -1112,16 +1152,8 @@ INCLUDE_DIRS += -I'$(VCPP_DIR)/mfc/include'
 #endif
 #endif
 
-#ifdef _PURIFY_
-INCLUDE_DIRS += -I$(PURIFY_DIR)/include
-#endif
-
-#ifdef _QUANTIFY_
-INCLUDE_DIRS += -I$(QUANT_DIR)/include
-#endif
-
-#ifdef _PURECOV_
-INCLUDE_DIRS += -I$(PURECOV_DIR)/include
+#ifdef USE_PURE
+INCLUDE_DIRS += $(PURE_INCLS)
 #endif
 
 #ifdef TIME_COMPILES
@@ -1132,7 +1164,10 @@ TIME =
 
 CPPFLAGS =
 
-PLATFORM_FLAGS = -D$(ARCH) -D$(OPSYS) 
+PLATFORM_FLAGS = -D$(ARCH) -D$(OPSYS)
+#ifdef ArchMode
+PLATFORM_FLAGS += -D$(ARCHMODE)
+#endif
 
 LOCAL_CFLAGS =
 PURIFY_FLAGS =

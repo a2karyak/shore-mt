@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: lid_t.cpp,v 1.33 1999/06/07 19:02:26 kupsch Exp $
+ $Id: lid_t.cpp,v 1.34 2002/01/04 21:50:37 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -49,11 +49,11 @@ const lvid_t    lvid_t::null;
 const lid_t     lid_t::null; 
 
 const char* lid_t::key_descr =
-#   ifdef BITS64
+#ifdef SERIAL_BITS64
 					"u4u4u4u4";
-#   else
+#else
 					"u4u4u4";
-#   endif /*BITS64*/
+#endif
 
 ostream& operator<<(ostream& o, const lvid_t& lvid)
 {

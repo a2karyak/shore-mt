@@ -2,7 +2,7 @@
 
 # <std-header style='shell' orig-src='shore'>
 #
-#  $Id: all,v 1.7 1999/06/07 19:02:36 kupsch Exp $
+#  $Id: all,v 1.8 2002/01/03 00:08:29 bolo Exp $
 #
 # SHORE -- Scalable Heterogeneous Object REpository
 #
@@ -29,6 +29,7 @@
 #
 #   -- do not edit anything above this line --   </std-header>
 
+PATH=.:$PATH
 
 function run_kvl {
     kvl 3.2 abc 
@@ -49,7 +50,7 @@ function execute  {
 		print "diff failed"
 	    fi
 	else
-	    print "run failed"
+	    print "run failed $?"
 	fi
 	cat $of >> $2
 	rm $of
@@ -57,7 +58,7 @@ function execute  {
     elif $1 >> $2 2>&1; then
 	print "ok"
     else
-	print "run failed"
+	print "run failed $?"
     fi
 }
 

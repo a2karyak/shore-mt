@@ -1,13 +1,13 @@
-#!/bin/ksh 
+#!/bin/sh
 
 # <std-header style='shell' orig-src='shore'>
 #
-#  $Id: all,v 1.18 2002/01/03 00:16:12 bolo Exp $
+#  $Id: alpha_hack,v 1.1 2002/01/30 18:05:32 bolo Exp $
 #
 # SHORE -- Scalable Heterogeneous Object REpository
 #
-# Copyright (c) 1994-99 Computer Sciences Department, University of
-#                       Wisconsin -- Madison
+# Copyright (c) 1994-2002 Computer Sciences Department, University of
+#                         Wisconsin -- Madison
 # All Rights Reserved.
 #
 # Permission to use, copy, modify and distribute this software and its
@@ -29,52 +29,9 @@
 #
 #   -- do not edit anything above this line --   </std-header>
 
-function execute  {
-    print -n "$1\t--> running --> "
-    print "running $1" >> $2
-    if ./$1 >> $2 2>&1; then
-	print "ok"
-    else
-	print "failed - $?"
-    fi
-}
-
-rm -f /tmp/all*.out
-outf=/tmp/all$$.out
-execute bit $outf
-execute "box 4 5,-908,300,44444/55555,-1,1,82"  $outf
-execute "box 3 -908,300,44444/-1,1,82"  $outf
-execute "box 2 -908,44444/-1,1"  $outf
-
-execute cq1 $outf
-execute cq2 $outf
-
-execute errlogtest $outf
-execute "fastnew fast 100000 200"  $outf
-execute "fastnew regular 100000 200"  $outf
-
-execute hash1 $outf
-execute hash2 $outf
-
-execute list1 $outf
-execute list2 $outf
-execute list3 $outf
-
-execute heap $outf
-
-execute ntime $outf
-
-execute random $outf
-
-execute rc $outf
-
-execute stats $outf
-
-echo "timer takes about 20 sec to run..."
-execute timer $outf
-
-execute vector $outf
-
-
-print
-print "result in $outf"
+mkdir -p unused
+mv regcomp_i.h regerror_i.h regex.h unused/
+mv regex2.h regex_cclass.h regex_cname.h unused/
+mv regex_engine.cpp regex_engine_i.h regex_utils.h unused/
+mv regcomp.cpp regerror.cpp regexec.cpp unused/
+mv regfree.cpp unused/

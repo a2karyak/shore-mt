@@ -1,6 +1,6 @@
 /*<std-header style='asm' orig-src='shore'>
 
- $Id: tsl.S,v 1.22 2001/06/20 04:28:21 bolo Exp $
+ $Id: tsl.S,v 1.24 2002/01/25 00:36:28 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -202,6 +202,9 @@ PROC(_tsl_examine)
 #define	PROC(x)	.text ; .align 2 ; .globl x ; x:
 
 #if defined(linux) && !defined(SYSV)
+#define	SYSV
+#endif
+#if defined(__NetBSD__) && defined(__ELF__)
 #define	SYSV
 #endif
 
@@ -681,3 +684,71 @@ FUNC(tsl_examine)
 	.end
 	
 #endif /* Alpha */
+
+#if defined(ia64) || defined(__ia64)
+
+/* XXX can choose many size on ia64.   Using 4 for now since that
+   matches the alignment on the other platforms, including 64 bit.
+   8 is tested and works also. */
+
+#define	LOCK_SIZE	4
+
+#if LOCK_SIZE == 4
+#define	CMPX	cmpxchg4
+#define	CMP	cmp4
+#define	LD	ld4
+#define	ST	st4
+#elif LOCK_SIZE == 8
+#define	CMPX	cmpxchg8
+#define	CMP	cmp
+#define	LD	ld8
+#define	ST	st8
+#else
+#error	"Unknown LOCK_SIZE"
+#endif
+
+/* The architecture book recomends a non-locked check up-front
+   to reduce RWM memory traffic.  However, it increases the
+   instruction path length.   Spinlocks in most systems are
+   not heavily contested, so this may be worse than not using
+   it.  However if the spinlock protected paths are longer, this
+   will reduce the cost. */
+#if 1
+#define	UNLOCKED_CHECK
+#endif
+
+#define	zero	r0
+#define	ret0	r8
+#define	arg0	r32
+#define	arg1	r33
+
+#define	FUNC(x)	.align 16 ; .global x  ; .proc x ; x: ; .prologue ; .body
+#define	ENDFUNC(x)	.endp	x
+
+FUNC(tsl)
+#ifdef UNLOCKED_CHECK
+        LD     ret0 = [arg0]
+        ;;
+        CMP.eq  p6, p7 = 0, ret0
+(p7)    br.ret.spnt     b0
+#endif
+	mov	ar.ccv = 0
+	CMPX.acq	r8 = [arg0], arg1, ar.ccv ; ;
+	br.ret.sptk.many	b0
+	ENDFUNC(tsl)
+
+FUNC(tsl_release)
+	ST.rel	[arg0] = zero ; ;
+	br.ret.sptk.many	b0
+	ENDFUNC(tsl_release)
+
+FUNC(tsl_init)
+	ST	[arg0] = zero
+	br.ret.sptk.many	b0
+	ENDFUNC(tsl_init)
+
+FUNC(tsl_examine)
+	LD	ret0 = [arg0]
+	br.ret.sptk.many	b0
+	ENDFUNC(tsl_examine)
+#endif	/* ia64 */

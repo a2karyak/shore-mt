@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: w_factory_fast.cpp,v 1.12 2000/02/01 23:35:54 bolo Exp $
+ $Id: w_factory_fast.cpp,v 1.15 2002/02/18 20:08:36 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -49,7 +49,8 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
    argument, instead of doing 4 implicitly.  That has caused no 
    end of problems.  Anyway, some system require different memory
    alignment in allocations.   That's what this does */
-#if defined(Sparc) || defined(Alpha)
+/* XXX use align tools */
+#if defined(Sparc) || defined(ARCH_LP64) || defined(Snake)
 #define	fastnew_align(x)	alignon(x,8)
 #define	is_fastnew_aligned(x)	((((ptrdiff_t)(x)) & 0x7) == 0)
 #else

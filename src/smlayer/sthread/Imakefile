@@ -1,6 +1,6 @@
 /*<std-header style='imakefile' orig-src='shore'>
 
- $Id: Imakefile,v 1.112 2001/10/08 20:17:27 bolo Exp $
+ $Id: Imakefile,v 1.115 2002/02/13 22:06:09 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -39,6 +39,7 @@ init_file_group(ultrix_tsl)
 init_file_group(aix_tsl)
 init_file_group(fake_tsl)
 init_file_group(win32_tsl)
+init_file_group(pthread_tsl)
 init_file_group(generic_tsl)
 init_file_group(purify)
 init_file_group(diskrw_only)
@@ -46,6 +47,7 @@ init_file_group(common)
 init_file_group(diskrw)
 init_file_group(core)
 init_file_group(win32_core)
+init_file_group(win32f_core)
 init_file_group(pthread_core)
 init_file_group(std_core)
 init_file_group(init_winsock)
@@ -89,13 +91,16 @@ stat.gen.h += \
 win32_core.h += stcore_win32.h
 win32_core.cpp += sthread_core_win32.cpp
 
+win32f_core.h += stcore_win32f.h
+win32f_core.cpp += sthread_core_win32f.cpp
+
 pthread_core.h += stcore_pthread.h
 pthread_core.cpp += sthread_core_pthread.cpp
 
 std_core.h += stcore.h
 std_core.cpp += sthread_core.cpp stcore.cpp 
 
-#if !defined(STHREAD_CORE_WIN32) && !defined(STHREAD_CORE_PTHREAD)
+#if !defined(STHREAD_CORE_WIN32) && !defined(STHREAD_CORE_WIN32F) && !defined(STHREAD_CORE_PTHREAD)
 #define	STHREAD_CORE_STD
 #endif
 
@@ -104,11 +109,19 @@ add_to_group(core, pthread_core)
 #else
 unused_group(pthread_core)
 #endif
+
 #if defined(STHREAD_CORE_WIN32)
 add_to_group(core, win32_core)
 #else
 unused_group(win32_core)
 #endif
+
+#if defined(STHREAD_CORE_WIN32F)
+add_to_group(core, win32f_core)
+#else
+unused_group(win32f_core)
+#endif
+
 #if defined(STHREAD_CORE_STD)
 add_to_group(core, std_core)
 #else
@@ -238,7 +251,8 @@ libsthread.h += \
 	scoped_rename.h	\
 	strace.h	\
 	sthread_stats.h \
-	os_interface.h os_fcntl.h
+	os_interface.h os_fcntl.h \
+	sthread_gcc.h
 
 #ifdef IS_NT
 /* This is disgusting, but need way to add partial groups for now. */
@@ -249,7 +263,18 @@ ultrix_tsl.cpp += ultrix_tsl.cpp
 aix_tsl.cpp += aix_tsl.cpp
 fake_tsl.cpp += fake_tsl.cpp
 win32_tsl.cpp += win32_tsl.cpp
+pthread_tsl.cpp += pthread_tsl.cpp
 generic_tsl.asm += tsl.S
+
+#if defined(STHREAD_TSL_PTHREAD)
+add_to_group(common, pthread_tsl)
+#define	HAVE_TSL
+#else
+unused_group(pthread_tsl)
+#endif
+
+/* XXX with pthread TSL it over-rides per-arch choices; perhaps the
+   should all be ndef HAVE_TSL? */
 
 #if defined(IS_MIPS_ULTRIX42)
 add_to_group(common, ultrix_tsl)

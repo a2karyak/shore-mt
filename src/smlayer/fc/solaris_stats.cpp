@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: solaris_stats.cpp,v 1.12 1999/06/07 19:02:46 kupsch Exp $
+ $Id: solaris_stats.cpp,v 1.13 2001/10/13 17:47:41 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -35,6 +35,9 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #pragma implementation "solaris_stats.h"
 #endif
 
+#include <w_workaround.h>
+#include "solaris_stats.h"
+
 #include <stddef.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -43,11 +46,8 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #include <fcntl.h>
 #include <sys/ioctl.h>
 
-#include <stream.h>
-#include <strstream.h>
-
-#include <w_workaround.h>
-#include "solaris_stats.h"
+#include <iostream.h>
+#include <w_strstream.h>
 
 #define MILLION 1000000
 

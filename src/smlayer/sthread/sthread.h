@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='STHREAD_H'>
 
- $Id: sthread.h,v 1.183 2001/06/23 21:44:54 bolo Exp $
+ $Id: sthread.h,v 1.187 2002/02/13 22:06:11 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -68,7 +68,7 @@ class smthread_t;
    If sigsetjmp() / siglongjmp() is available, use them, as they
    guarantee control of the save/restore of the signal mask */
 
-#if defined(SUNOS41) || defined(SOLARIS2) || defined(Ultrix42) || defined(HPUX8) || defined(AIX32) || defined(AIX41)
+#if defined(SUNOS41) || defined(SOLARIS2) || defined(Ultrix42) || defined(HPUX8) || defined(AIX32) || defined(AIX41) || defined(Linux) || defined(__NetBSD__) || defined(OSF1)
 #define POSIX_SETJMP
 #endif
 
@@ -121,6 +121,8 @@ class scond_t;
 class sevsem_t;
 
 struct sthread_core_t;
+
+struct sthread_exception_t;
 
 class	svcport_t;
 
@@ -528,6 +530,10 @@ private:
 
     sthread_t*			_ready_next;	// used in ready_q_t
     sthread_timer_t*		_tevent;	// used in sleep/wakeup
+
+    sthread_exception_t		*_exception;	// exception context
+    /* XXX alignment probs in derived thread classes.  Sigh */
+    fill4			_ex_fill;
 
     /* Per-thread heap management */
     size_t			_bytes_allocated;

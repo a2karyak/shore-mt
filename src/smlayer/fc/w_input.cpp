@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: w_input.cpp,v 1.8 1999/12/11 03:05:52 bolo Exp $
+ $Id: w_input.cpp,v 1.9 2001/11/27 17:30:20 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -383,7 +383,7 @@ w_base_t::_scan_uint8(
 		    // we can't get into start state
 		    // once we've left it.
 		}
-#endif notdef
+#endif
 		tell_start += chewamt; 
 		break;
 

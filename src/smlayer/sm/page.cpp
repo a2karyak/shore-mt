@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: page.cpp,v 1.138 1999/10/25 18:25:01 bolo Exp $
+ $Id: page.cpp,v 1.139 2002/01/28 07:29:23 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -1309,8 +1309,8 @@ page_p::splice(slotid_t idx, slot_length_t start, slot_length_t len, const cvec_
 		w_assert1(chunksize > 0);
 		DBG(<<"copying " << chunksize 
 			<< " amt left=" << amt2move
-			<< " from =" << (unsigned int)from
-			<< " to =" << (unsigned int)to
+			<< " from =" << W_ADDR(from)
+			<< " to =" << W_ADDR(to)
 			);
 		memcpy(to, from, chunksize);
 		amt2move -= chunksize;
@@ -1673,8 +1673,8 @@ page_p::_shift_compress(slotid_t from,
 
 	if(firstpartlen) {
 	    DBG(<<"memcpy("
-		<< (unsigned int)p << ","
-		<< (int)(shift_scratch + s.offset + firstpartoff) << ","
+		<< W_ADDR(p) << ","
+		<< W_ADDR(shift_scratch + s.offset + firstpartoff) << ","
 		<< firstpartlen );
 	    memcpy(p, shift_scratch + s.offset + firstpartoff, firstpartlen);
 	    p += firstpartlen;
@@ -1682,8 +1682,8 @@ page_p::_shift_compress(slotid_t from,
 	// skip middle
 	if(secondpartlen) {
 	    DBG(<<"memcpy("
-		<< (unsigned int)p << ","
-		<< (int)(shift_scratch + s.offset + secondpartoff) << ","
+		<< W_ADDR(p) << ","
+		<< W_ADDR(shift_scratch + s.offset + secondpartoff) << ","
 		<< secondpartlen );
 	    memcpy(p, shift_scratch + s.offset + secondpartoff , secondpartlen);
 	    p += secondpartlen;
@@ -1718,8 +1718,8 @@ page_p::_shift_compress(slotid_t from,
 		<< " firstpartoff " << firstpartoff
 		<< " firstpartlen " << firstpartlen);
 	    DBG(<<"memcpy("
-		<< (unsigned int)p << ","
-		<< (int)(shift_scratch + t.offset + firstpartoff) << ","
+		<< W_ADDR(p) << ","
+		<< W_ADDR(shift_scratch + t.offset + firstpartoff) << ","
 		<< firstpartlen );
 	    memcpy(p, shift_scratch + t.offset + firstpartoff, firstpartlen);
 	    p += firstpartlen;
@@ -1730,16 +1730,16 @@ page_p::_shift_compress(slotid_t from,
 		<< " middlelen " << middlelen
 		);
 	DBG(<<"memcpy("
-	    << (unsigned int)p << ","
-	    << (int)(shift_scratch + s_old_offset + middleoff) << ","
+	    << W_ADDR(p) << ","
+	    << W_ADDR(shift_scratch + s_old_offset + middleoff) << ","
 	    << middlelen );
 	memcpy(p, shift_scratch + s_old_offset + middleoff, middlelen);
 	p += middlelen;
 
 	if(secondpartlen) {
 	    DBG(<<"memcpy("
-		<< (unsigned int)p << ","
-		<< (int)(shift_scratch + t.offset + secondpartoff) << ","
+		<< W_ADDR(p) << ","
+		<< W_ADDR(shift_scratch + t.offset + secondpartoff) << ","
 		<< secondpartlen );
 	    memcpy(p, shift_scratch + t.offset + secondpartoff, secondpartlen);
 	    p += secondpartlen;

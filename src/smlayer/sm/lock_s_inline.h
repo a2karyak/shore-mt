@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='LOCK_S_INLINE_H'>
 
- $Id: lock_s_inline.h,v 1.8 1999/06/07 19:04:13 kupsch Exp $
+ $Id: lock_s_inline.h,v 1.9 2001/11/08 20:45:42 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -623,7 +623,10 @@ INLINE uint4_t
 lockid_t::hash() const
 {
     uint4_t value =  lspace_bits() ^ vid_bits() ^ page_bits() ^ slot_kvl_bits();
-    if (lspace_bits() >= t_user1)  {
+    if (lspace_bits() == t_extent) {
+	    value ^= extent_bits();
+    }
+    else if (lspace_bits() >= t_user1)  {
 	value ^= store_bits();
     }
     return value;
@@ -653,6 +656,14 @@ lockid_t::hash() const
 
     // slot
     t ^= slot_kvl_bits();
+
+    /* XXX untested with HASH<3, might want to check distribution */
+    // extent, if appropriate
+    if (lspace() == t_extent)
+	    t ^= extent_bits();
+
+    /* XXX may need to hash differently for user locks, however,
+       store_bits() are already wired into this hash */
 
     return t;
 }

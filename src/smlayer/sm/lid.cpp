@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: lid.cpp,v 1.149 2000/02/02 03:14:27 bolo Exp $
+ $Id: lid.cpp,v 1.150 2002/01/04 21:50:41 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -88,13 +88,13 @@ const char* lid_m::remote_index_key = "SSM_RESERVED_remote_logical_id_index";
  * For the reverse map, the key type is 
  * 	uint4_t,uint4_t (volume id) + 1 or 2 uint4_t for the serial#
  */
-#ifdef BITS64
+#ifdef SERIAL_BITS64
     static const uint4_t lid_key_type_len = 2;
     static const uint4_t remote_lid_key_type_len = 4;
 #else
     static const uint4_t lid_key_type_len = 1;
     static const uint4_t remote_lid_key_type_len = 3;
-#endif /* BITS64 */
+#endif
 static key_type_s lid_key_type[lid_key_type_len];
 static key_type_s remote_lid_key_type[remote_lid_key_type_len];
 

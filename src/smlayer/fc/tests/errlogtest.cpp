@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: errlogtest.cpp,v 1.10 1999/06/07 19:03:02 kupsch Exp $
+ $Id: errlogtest.cpp,v 1.11 2001/11/30 02:27:03 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -73,7 +73,7 @@ testfunc array[] = {
 void 
 alltests(ErrLog *e, void *arg)
 {
-	int i = (int) arg;
+	int i = (int) (long) arg;
 	testfunc f = array[i-1];
 	w_assert3(f);
 	cerr << __LINE__<< " " << "alltests: test " << i  << " on " << e->ident() << "...";

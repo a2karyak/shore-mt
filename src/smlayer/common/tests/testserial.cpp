@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: testserial.cpp,v 1.13 2000/02/02 03:02:43 bolo Exp $
+ $Id: testserial.cpp,v 1.14 2002/01/04 21:50:38 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -31,7 +31,9 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 
 /*  -- do not edit anything above this line --   </std-header>*/
 
-#undef BITS64 
+/* XXX this should test either way?   Or is it just for testing for 
+   uniform results? */
+#undef SERIAL_BITS64 
 
 #define MaxTestInc 5
 #define MXDIFF (MaxTestInc+3)
@@ -181,7 +183,7 @@ int main()
 	COMPARE(x8remote,x8copy);
 
 	serial_t_data	g8  = {  8
-#ifdef BITS64
+#ifdef SERIAL_BITS64
 		, 8
 #endif
 	};
@@ -194,7 +196,7 @@ int main()
 	// g-l-over should overflow into the high word but not overflow
 	// completely
 	static serial_t_data	glover  = { 
-#ifdef BITS64
+#ifdef SERIAL_BITS64
 		serial_t::max_any-MXDIFF, // don't overflow the whole thing
 		~0 - MXDIFF
 #else
@@ -217,7 +219,7 @@ int main()
 	// g-h-over should overflow the high word 
 
 	static serial_t_data	ghover  = {
-#ifdef BITS64
+#ifdef SERIAL_BITS64
 		serial_t::max_any, 
 		~0 - MXDIFF
 #else

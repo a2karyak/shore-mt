@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: sfile_handler_winsock.cpp,v 1.22 2000/02/01 23:57:54 bolo Exp $
+ $Id: sfile_handler_winsock.cpp,v 1.23 2002/01/05 18:17:14 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -83,7 +83,7 @@ template class w_list_i<sfile_hdl_base_t>;
 extern "C" int __fd_is_set(SOCKET fd, const fd_set FAR *set) ;
 int __fd_is_set(SOCKET fd, const fd_set FAR *set) 
 {
-    u_int i;
+    unsigned i;
     for (i=0; i< set->fd_count; i++) {
 	if( set->fd_array[i] == fd) {
 	    return 1;

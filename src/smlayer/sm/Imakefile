@@ -1,6 +1,6 @@
 /*<std-header style='imakefile' orig-src='shore'>
 
- $Id: Imakefile,v 1.122 2001/10/08 20:17:26 bolo Exp $
+ $Id: Imakefile,v 1.124 2002/02/26 00:35:00 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -72,7 +72,7 @@ libsm.h += \
 	sm_int_2.h sm_int_3.h sm_int_4.h sm_io.h sm_s.h smstats.h	\
 	smthread.h sort.h sort_s.h srv_log.h sysdefs.h unix_log.h	\
 	vol.h xct.h xct_dependent.h xct_impl.h zkeyed.h bitmapvector.h	\
-	extent.h histo.h page_h.h
+	extent.h histo.h page_h.h page_alias.h
 
 coord.cpp += \
 	coord.cpp subord.cpp coord_log.cpp coord_thread.cpp participant.cpp \
@@ -101,7 +101,7 @@ ERROR_FILES = e_error_enum_gen.h e_errmsg_gen.h e_einfo_gen.h
 STAT_DEF_FILES = sm_stats_t_def_gen.h \
 	smthread_stats_t_def_gen.h \
 	sm2pc_stats_t_def_gen.h 
-	
+
 stat.gen.h +=  \
 	sm_stats_t_struct_gen.h \
 	sm_stats_t_msg_gen.h  \
@@ -140,7 +140,7 @@ build_library(libsm)
 install_copy(include/sm, e_error_enum_gen.h $(STAT_DEF_FILES) )
 install_copy(include/sm, coord.h file_s.h lexify.h \
 		lock_s.h lock_s_inline.h \
-		pin.h scan.h sdesc.h sm.h sm_base.h  \
+		page_alias.h pin.h scan.h sdesc.h sm.h sm_base.h  \
 		sm_du_stats.h sm_escalation.h \
 		sm_global_deadlock.h \
 		sm_int_0.h sm_int_1.h sm_int_2.h sm_int_3.h sm_int_4.h \

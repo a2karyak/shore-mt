@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: log_buf.cpp,v 1.28 2000/02/03 04:11:32 bolo Exp $
+ $Id: log_buf.cpp,v 1.30 2002/02/13 17:27:26 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -155,7 +155,7 @@ log_buf::insertskip()
     DBGTHRD(<<" BEFORE insertskip" << *this);
 
     skip_log *s = new (__skip_log) skip_log;
-    w_assert3(_bufsize - s->length() >= (unsigned long)len());
+    w_assert3(_bufsize - (fileoff_t)s->length() >= len());
 
     // Copy a skip record to the end of the buffer.
 

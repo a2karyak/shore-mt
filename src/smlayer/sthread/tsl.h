@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='TSL_H'>
 
- $Id: tsl.h,v 1.21 2001/09/21 07:13:59 bolo Exp $
+ $Id: tsl.h,v 1.23 2002/01/04 06:31:41 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -36,7 +36,7 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 
 /*
  * The Testandset package is Copyright 1993, 1994, 1995, 1997, 
- * 1998, 1999 by:
+ * 1998, 1999, 2000, 2001 by:
  *
  *	Josef Burger	<bolo@cs.wisc.edu>
  *
@@ -50,7 +50,14 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
  * lock definition file for testandset() package.
  */
 
+#ifdef STHREAD_TSL_PTHREAD
+#include <pthread.h>
+#endif
+
 typedef struct tslcb_t {
+#if defined(STHREAD_TSL_PTHREAD)
+	pthread_spinlock_t	lock;	
+#else
 #if defined(hp800) || defined(hppa)
     /*
      * gads, what a kludge
@@ -99,12 +106,18 @@ typedef struct tslcb_t {
 	int	lock;
 #endif
 
+#if defined(ia64) || defined(__ia64)
+	int	lock;
+#endif
+#endif
 } tslcb_t;
 
+extern "C" {
 extern void tsl_init(tslcb_t *it);
-extern unsigned tsl(tslcb_t*, int);
-extern void tsl_release(tslcb_t*);
-extern unsigned tsl_examine(tslcb_t*) ;
+extern unsigned tsl(tslcb_t *, int);
+extern void tsl_release(tslcb_t *);
+extern unsigned tsl_examine(tslcb_t *);
+}
 
 /*<std-footer incl-file-exclusion='TSL_H'>  -- do not edit anything below this line -- */
 

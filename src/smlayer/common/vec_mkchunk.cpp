@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: vec_mkchunk.cpp,v 1.12 1999/06/07 19:02:34 kupsch Exp $
+ $Id: vec_mkchunk.cpp,v 1.13 2001/11/30 02:01:01 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -94,7 +94,7 @@ vec_t::mkchunk(
 					first_chunk_len = maxsize;
 				}
 
-		DBG(<<"put " << ((unsigned int)this->ptr(i)) << 
+		DBG(<<"put " << W_ADDR(this->ptr(i)) << 
 			"+" << first_chunk_offset << ", " << first_chunk_len);
 
 				result.put((char*)this->ptr(i)+first_chunk_offset,first_chunk_len);
@@ -116,7 +116,7 @@ vec_t::mkchunk(
 				// use the whole thing
 				used += is_using;
 
-				DBG(<<"put " << ((unsigned int)this->ptr(i)) << ", " << is_using);
+				DBG(<<"put " << W_ADDR(this->ptr(i)) << ", " << is_using);
 				result.put(this->ptr(i),is_using);
 			} else {
 				// gotta use part

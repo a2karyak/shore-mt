@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: sm.cpp,v 1.464 2000/11/28 21:00:18 bolo Exp $
+ $Id: sm.cpp,v 1.467 2002/01/28 07:32:29 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -91,6 +91,11 @@ int4_t	smlevel_0::defaultLockEscalateToVolumeThreshold = dontEscalate;
 // Whenever a change is made to data structures stored on a volume,
 // volume_format_version be incremented so that incompatibilities
 // will be detected.
+//
+// Different ALIGNON values are NOT reflected in the version number,
+// so it is still possible to create incompatible volumes by changing
+// ALIGNON.
+//
 //  1 = original
 //  2 = lid and lgrex indexes contain vid_t
 //  3 = lid index no longer contains vid_t
@@ -106,15 +111,31 @@ int4_t	smlevel_0::defaultLockEscalateToVolumeThreshold = dontEscalate;
 //  13 = Large volumes : changed size of snum_t and extnum_t
 //  14 = Changed size of lsn_t, hence log record headers were rearranged
 //       and page headers changed.  Small disk address
-//  15 = Same as 14, but with large disk addresses
+//  15 = Same as 14, but with large disk addresses.
+//  16 = Align body of page to an eight byte boundary.  This should have 
+//       occured in 14, but there are some people using it, so need seperate
+//       numbers.
+//  17 = Same as 16 but with large disk addresses.   
 
-#ifdef SM_ODS_COMPAT_13
-uint4_t	smlevel_0::volume_format_version = 13;
-#elif defined(SM_DISKADDR_LARGE)
-uint4_t	smlevel_0::volume_format_version = 15;
+#if defined(SM_ODS_COMPAT_13)
+#define	VOLUME_FORMAT	13
 #else
-uint4_t	smlevel_0::volume_format_version = 14;
+/* With on-disk 14 there is a choice of "small" or "large" disk addresses;
+   to stop mismatches from occuring we chew up two format numbers. */
+#if defined(SM_ODS_COMPAT_14)
+#define	BASE_FORMAT	14
+#else
+#define	BASE_FORMAT	16
 #endif
+#if defined(SM_DISKADDR_LARGE)
+#define	VOLUME_FORMAT	(BASE_FORMAT+1)
+#else
+#define	VOLUME_FORMAT	(BASE_FORMAT)
+#endif
+#endif
+
+uint4_t	smlevel_0::volume_format_version = VOLUME_FORMAT;
+
 
 // used to prevent xct creation during volume dismount
 smutex_t	ss_m::_begin_xct_mutex("begin_xct");
@@ -705,7 +726,7 @@ ss_m::ss_m(
 	W_COERCE(e);
     }
     w_assert1(is_aligned(shmbase));
-    DBG(<<"SHM at address" << ((unsigned int)shmbase));
+    DBG(<<"SHM at address" << W_ADDR(shmbase));
 
 
     /*
@@ -1527,7 +1548,7 @@ ss_m::config_info(sm_config_info_t& info)
     info.logging  = (ss_m::log != 0);
 
 
-#ifdef BITS64
+#ifdef SERIAL_BITS64
     info.serial_bits64  = true;
 #else
     info.serial_bits64  = false;

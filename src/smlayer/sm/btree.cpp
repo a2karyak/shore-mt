@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: btree.cpp,v 1.277 2000/02/22 20:32:18 bolo Exp $
+ $Id: btree.cpp,v 1.278 2002/01/02 20:49:29 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -769,7 +769,6 @@ btree_m::get_du_statistics(
     base_stat_t	level_cnt = 0;
 
     btree_p page[2];
-    btrec_t rec[2];
     int c = 0;
 
     /*

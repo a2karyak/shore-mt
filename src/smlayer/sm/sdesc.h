@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='SDESC_H'>
 
- $Id: sdesc.h,v 1.44 1999/12/07 22:55:47 bolo Exp $
+ $Id: sdesc.h,v 1.45 2002/01/29 05:54:25 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -75,6 +75,14 @@ public:
 				// unused an maybe will never be
 				// used
 
+#ifndef SM_ODS_COMPAT_14
+    u_char	isf;		// index split factor
+
+    fill1	_f1;		// keep it 8 byte aligned and leave
+    fill2	_f2;            // room for future expansion
+    fill4	_f3;	
+#endif
+
     /*
      * This is an additional store used by the file facility
      * to store large record pages.  This is only a temporary
@@ -98,6 +106,9 @@ public:
 	    const serial_t& lid_, uint4_t nkc_, const key_type_s* kc_) 
     :   store(store_), stype(stype_), ntype(ntype_),
 	cc(cc_), eff(eff_),
+#ifndef SM_ODS_COMPAT_14
+	isf(50),
+#endif
 	large_store(0),
 	root(root_),
 	logical_id(lid_), nkc(nkc_)
@@ -113,9 +124,12 @@ public:
 	store = other.store; 
 	stype = other.stype; 
 	ntype = other.ntype;
-	// pff = other.pff; 
-	eff = other.eff; 
 	cc = other.cc;
+	// pff = other.pff; 
+	eff = other.eff;
+#ifndef SM_ODS_COMPAT_14
+	isf = other.isf;
+#endif
 	root = other.root; 
 	logical_id = other.logical_id;
 	nkc = other.nkc;

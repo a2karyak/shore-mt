@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='PAGE_S_H'>
 
- $Id: page_s.h,v 1.25 1999/06/07 19:04:19 kupsch Exp $
+ $Id: page_s.h,v 1.27 2002/01/15 23:47:24 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -96,15 +96,20 @@ public:
 	int2_t	_rflag;
     };
     enum {
-	data_sz = (smlevel_0::page_sz - 
-		   2 * sizeof(lsn_t) 
-		   - sizeof(lpid_t) -
-		   2 * sizeof(shpid_t) 
-		   - sizeof(space_t) -
-		   4 * sizeof(int2_t) - 
-		   2 * sizeof(int4_t) -
-		   2 * sizeof(slot_t)),
-	max_slot = data_sz / sizeof(slot_t) + 2
+	    hdr_sz = (0
+		      + 2 * sizeof(lsn_t) 
+		      + sizeof(lpid_t)
+		      + 2 * sizeof(shpid_t) 
+		      + sizeof(space_t)
+		      + 4 * sizeof(int2_t)
+		      + 2 * sizeof(int4_t)
+		      + 2 * sizeof(slot_t)
+#if !defined(SM_ODS_COMPAT_14) || (ALIGNON == 0x8)
+		      + sizeof(fill4)
+#endif
+		      + 0),
+	    data_sz = (smlevel_0::page_sz - hdr_sz),
+	    max_slot = data_sz / sizeof(slot_t) + 2
     };
 
  
@@ -119,6 +124,19 @@ public:
     uint2_t	tag;			// page_p::tag_t
     uint4_t	store_flags;		// page_p::store_flag_t
     uint4_t	page_flags;		// page_p::page_flag_t
+#if !defined(SM_ODS_COMPAT_14) || (ALIGNON == 0x8)
+    /* Yes, the conditions above are  correct.  The default is 8 byte
+       alignment.  If compatability mode is wanted, it reverts to 4 ...
+       unless 8 byte alignment is specified, in which case we need 
+       the filler. */
+    /* XXX really want alignment to the aligned object size for
+       a particular architecture.   Fortunately this works for all
+       common platforms and the above types.  A better solution would
+       be to specify a desired alignment, or make 'data' a union which
+       contains the type that has the most restrictive alignment
+       constraints. */
+    fill4	_fill0;			// align to 8-byte boundary
+#endif
     char 	data[data_sz];		// must be aligned
     slot_t	reserved_slot[1];	// 2nd slot (declared to align
 					// end of _data)

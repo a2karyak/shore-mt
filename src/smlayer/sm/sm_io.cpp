@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: sm_io.cpp,v 1.31 1999/10/25 18:32:04 bolo Exp $
+ $Id: sm_io.cpp,v 1.32 2002/01/04 05:47:18 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -73,7 +73,6 @@ public:
 #define extent_info_cache_i hash_lru_i<extnum_struct_t, stid_t>
 
 #ifdef EXPLICIT_TEMPLATE
-template class w_auto_delete_array_t<extnum_t>;
 template class extent_info_cache_t;
 template class extent_info_cache_i;
 //typedef hash_lru_entry_t<extnum_t, stid_t> extent_info_cache_entry_t;

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='PIN_H'>
 
- $Id: pin.h,v 1.84 1999/06/07 19:04:20 kupsch Exp $
+ $Id: pin.h,v 1.85 2002/01/22 21:48:09 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -41,6 +41,8 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #ifndef FILE_S_H
 #include <file_s.h>
 #endif /* FILE_S_H */
+
+#include <page_alias.h>
 
 /***********************************************************************
    The pin_i class (located in pin.h) is used to pin ranges of bytes in
@@ -306,8 +308,9 @@ private:
     //lgdata_p	_data_page;
     file_p&	_hdr_page() const;
     lgdata_p&	_data_page() const;
-    char        _hdr_page_alias[24]; // see comment above 4 reason 4 alias
-    char        _data_page_alias[24]; // see comment above 4 reason 4 alias
+    /* see comment above 4 reason 4 alias */
+    char        _hdr_page_alias[PAGE_ALIAS_FILE];
+    char        _data_page_alias[PAGE_ALIAS_LGDATA];
 
     // disable
     NORET	pin_i(const pin_i&);

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: errlog.cpp,v 1.19 2000/02/02 15:31:09 bolo Exp $
+ $Id: errlog.cpp,v 1.20 2002/01/03 01:20:39 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -491,7 +491,7 @@ is_logstream(ostream &o)
 ostream & 
 flush_and_setprio(ostream& o, LogPriority p)
 {
-    // cerr << "flush_and_setprio o=" << ::hex((unsigned int)&o) << endl;
+    // cerr << "flush_and_setprio o=" << &o << endl;
     logstream *l = is_logstream(o);
     if(l) {
 	l->_log->_flush(false); 

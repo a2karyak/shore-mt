@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='COORD_H'>
 
- $Id: coord.h,v 1.41 1999/08/06 15:18:57 bolo Exp $
+ $Id: coord.h,v 1.42 2002/01/25 01:25:55 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -109,6 +109,8 @@ class message_t;
 
 class participant : public smlevel_0 {
     friend class  	twopc_thread_t;
+
+protected:
     typedef smlevel_0::commit_protocol commit_protocol;
 
 public:

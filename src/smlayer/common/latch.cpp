@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: latch.cpp,v 1.38 1999/06/07 19:02:25 kupsch Exp $
+ $Id: latch.cpp,v 1.39 2001/11/13 23:15:05 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -90,7 +90,7 @@ latch_t::acquire(latch_mode_t m, sthread_t::timeout_in_ms timeout)
     W_COERCE(_mutex.acquire());
     sthread_t* self = sthread_t::me();
 
-    DBGTHRD(<< "want to acquire in mode " << int(m) << *this);
+    DBGTHRD(<< "want to acquire in mode " << W_ENUM(m) << *this);
 
     // note that if no thread holds the latch, then the while is skipped
     while (_cnt[0]) {  // while some thread holds a latch
@@ -142,10 +142,12 @@ latch_t::acquire(latch_mode_t m, sthread_t::timeout_in_ms timeout)
 	w_assert3(_cnt[0] > 0);
 	SthreadStats.latch_wait++;
 
-// temporary for debugging
- //cerr << "thread " 
- //<< self->name() 
- //<< " awaits latch with mutex " << _mutex.name() << endl;
+#if 0
+	// temporary for debugging
+	cerr << "thread " 
+	     << self->name() 
+	     << " awaits latch with mutex " << _mutex.name() << endl;
+#endif
 
 	w_rc_t rc = _waiters.wait(_mutex, timeout);
 	if (rc)  {

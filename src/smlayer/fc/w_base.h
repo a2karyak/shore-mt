@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='W_BASE_H'>
 
- $Id: w_base.h,v 1.61 2001/06/20 17:00:06 bolo Exp $
+ $Id: w_base.h,v 1.68 2002/01/28 07:27:58 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -133,7 +133,15 @@ void 	w_space(int line, const char *file);
  * indicates that this enum would be printed if it had a printer,
  * rather than wanting the integer value of the enum
  */
-#define	W_ENUM(x)	((int)x)
+#define	W_ENUM(x)	((int)(x))
+
+/*
+ * Cast to treat a pointer as a non-(char *) value.  This is used when
+ * a operator<< is used on a pointer.   Without this cast, some values
+ * would bind to 'char *' and attempt  to print a string, rather than
+ * printing the desired pointer value.
+ */
+#define	W_ADDR(x)	((void *)(x))
 
 class w_rc_t;
 
@@ -147,7 +155,12 @@ public:
      */
     typedef unsigned char	u_char;
     typedef unsigned short	u_short;
+#ifdef FC_COMPAT_32BIT_ULONG
+    /* keep u_long 32 bits on a 64 bit platform; see shore.def */
+    typedef unsigned		u_long;
+#else
     typedef unsigned long	u_long;
+#endif
     // typedef w_rc_t		rc_t;
 
     /*
@@ -157,8 +170,8 @@ public:
     typedef u_char		uint1_t;
     typedef short		int2_t;
     typedef u_short		uint2_t;
-    typedef long		int4_t;
-    typedef u_long		uint4_t;
+    typedef int			int4_t;
+    typedef u_int		uint4_t;
 
 #ifdef _MSC_VER
 #    if defined(_INTEGRAL_MAX_BITS) && (_INTEGRAL_MAX_BITS >= 64)
@@ -216,7 +229,19 @@ public:
 #define alignonarg(a) (((ptrdiff_t)a)-1)
 #define alignon(p,a) (((ptrdiff_t)((char *)p + alignonarg(a))) & ~alignonarg(a))
 
+    /* XXX record alignment shouldn't be tied to allocator and natural
+       alignment properties.   However, that is how this has all been
+       setup to work ... which was wrong from the beginning.   I'm slowly
+       fixing alignment so that several alignments (record, allocator,
+       max natural) can exist in the system.   At least this allows
+       switching between alignments with relative ease. */
+
+#if defined(SM_RECORD_ALIGN_8) || defined(ARCH_LP64)
+#define ALIGNON 0x8
+#else
 #define ALIGNON 0x4
+#endif
+
 #define ALIGNON1 (ALIGNON-1)
 #define align(sz) ((size_t)((sz + ALIGNON1) & ~ALIGNON1))
 #endif /* align */
@@ -270,15 +295,14 @@ istream &operator>>(istream &i, w_base_t::uint8_t &t);
 /*--------------------------------------------------------------*
  *  w_base_t::align()						*
  *--------------------------------------------------------------*/
-/*
- * NEH: turned into a macro
+#if 0	/* NEH: turned into a macro */
 inline w_base_t::uint4_t
 w_base_t::align(uint4_t sz)
 {
     return (sz + ((sz & align_mod) ? 
 		  (align_on - (sz & align_mod)) : 0));
 }
-*/
+#endif
 
 /*--------------------------------------------------------------*
  *  w_base_t::is_aligned()					*
@@ -292,6 +316,8 @@ w_base_t::is_aligned(size_t sz)
 inline bool
 w_base_t::is_aligned(const void* s)
 {
+    /* XXX works OK if there is a size mismatch because we are looking
+       at the *low* bits */
     return is_aligned(CAST(ptrdiff_t, s));
 }
 

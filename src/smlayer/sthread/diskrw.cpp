@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: diskrw.cpp,v 1.120 2001/09/18 22:09:55 bolo Exp $
+ $Id: diskrw.cpp,v 1.124 2002/01/25 00:15:13 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -80,7 +80,7 @@ struct iovec {
 	void	*iov_base;
 	int	iov_len;
 };
-#elif !defined(AIX41) && !defined(SOLARIS2) && !defined(OSF1)
+#elif !defined(AIX41) && !defined(SOLARIS2) && !defined(OSF1) && !defined(Linux)
 extern "C" {
 	extern int writev(int, const struct iovec *, int);
 	extern int readv(int, const struct iovec *, int);
@@ -113,6 +113,10 @@ extern "C" {
 #define	O_BINARY	0
 #endif
 
+#if defined(SOLARIS2) || defined(Linux)
+#define	DISKRW_LOCK_LOCKF
+#endif
+
 
 enum {
 	stOS = fcOS
@@ -138,6 +142,8 @@ enum {
  *	smode		: create-mode for stats file
  */
 
+#define	DISKRW_DEFAULT_NAME	"<noname_diskrw>"
+
 #ifdef _WINDOWS
 w_shmem_t*  shmem_seg;
 #else
@@ -152,6 +158,14 @@ int 		statfd = -1;
 const char	*path = 0;
 int 		smode = 0755;
 unsigned	open_max = 0;
+#ifndef _WIN32
+/* XXX there is a context problem, since there really are differnt filenames,
+   but when diskrw is threads in the address space there all share the
+   common variables.   Once diskrw is modular, this won't matter, but for
+   now this allows debugging of diskrw on Unix.  diskrw is no longer
+   used on WIN32, but I don't want to break the existing code. */
+const char	*fname = DISKRW_DEFAULT_NAME;
+#endif
 
 
 
@@ -542,9 +556,16 @@ int    main(int argc, char* argv[])
     diskport_t	*dp = 0;
     bool	raw_disk = false;
     int		fflags = 0;
-    const char	*fname = "<noname-diskrw>";
+#ifdef _WIN32
+    const char	*fname = DISKRW_DEFAULT_NAME;
+#endif
 
 #if defined(DEBUG_DISKRW)
+    /* XXX change cerr to line-buffered so that multiple
+       diskrw's don't trample on each other's output.   If that is
+       not doable, output to a strstream and output the strstream
+       in a chunk -- gross but workable. */
+
     cerr << "diskrw: pid=" << getpid() << ':';
     for (i = 0; i < argc; i ++)
 	cerr << ' ' << argv[i];
@@ -713,7 +734,7 @@ int    main(int argc, char* argv[])
      * Grab advisory lock 
      * TODO: equiv for WINDOWS
      */
-#if defined(SOLARIS2) 
+#ifdef DISKRW_LOCK_LOCKF
     /* 
      * Unfortunately, using the lockf() library function,
      * we're stuck with write locks in all cases, and 
@@ -757,7 +778,7 @@ int    main(int argc, char* argv[])
 	    }
 	}
     }
-#endif /* SOLARIS2 */
+#endif /* DISKRW_LOCK_LOCKF */
 
     /*
      *  If file is raw, then set up writebuf to cache writes
@@ -1315,7 +1336,7 @@ setup_signal()
 #ifdef POSIX_SIGNALS
     // specify specific actions for some signals
     struct sigaction sact;
-    sact.sa_handler = W_POSIX_HANDLER caught_signal;
+    sact.sa_handler = caught_signal;
     sact.sa_flags = 0;
 #ifdef SA_RESTART
     sact.sa_flags |= SA_RESTART;
@@ -1374,7 +1395,7 @@ setup_signal()
     }
 
 #if 1
-    sact.sa_handler = W_POSIX_HANDLER SIG_IGN;
+    sact.sa_handler = SIG_IGN;
     sigemptyset(&sact.sa_mask);
     sact.sa_flags = 0;
     sigaction(SIGINT, &sact, 0);

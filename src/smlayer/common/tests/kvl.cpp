@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: kvl.cpp,v 1.12 2000/01/13 18:49:23 bolo Exp $
+ $Id: kvl.cpp,v 1.13 2002/01/15 22:46:22 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -47,7 +47,9 @@ int main(int argc, const char *argv[])
 	cerr << "Usage: " << argv[0]
 		<< " <store-id: x.y> <key: string> [<elem: string >]"
 		<< endl;
-    } else {
+	return 1;
+    }
+    else {
 	int v;
 	int st;
 	{

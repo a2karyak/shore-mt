@@ -1,6 +1,6 @@
 /*<std-header style='imake' orig-src='shore'>
 
- $Id: shore.def.example,v 1.109 2001/06/06 22:31:27 bolo Exp $
+ $Id: shore.def.example,v 1.121 2002/02/21 16:06:41 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -86,6 +86,13 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #undef USE_DIR_SCHEME_FILE
 
 /*
+ * If you use the "nt_unixstyle.def" DIR_SCHEME_FILE, you will need to set
+ * this to the driver letter of the root of the "unix" partition on NT.
+ * Just specify the drive-letter, not quotes or anything
+ */
+#undef UNIX_PATHS
+
+/*
  * Define if you want a .cvsignore file generated which contains all the files
  * which this directory generates.  Makes cvs update not show these files as
  * unknown.
@@ -100,6 +107,17 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
  */
 #undef FORCE_GCC
 #undef FORCE_CC
+
+/*
+ * If you want to compile with an EGCS compiler you will need
+ * to define this.   It tweaks the build system a little so that
+ * EGCS will work.
+ *
+ * *** Note that you MUST have OPTIMIZE==ON if you use EGCS.  EGCS
+ * does not generate correct code unless optimization is enabled
+ * and FORCE_EGCS is set.
+ */
+#undef FORCE_EGCS
 
 /*
  * Define this if you want to specify a specific gcc to use,
@@ -254,6 +272,14 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #define	GCC_NO_WARN_VIRTUAL
 
 /*
+ * Enable this if you are using the brain-damaged "gcc-2.96" which
+ * shipped with various versions of Linux.  That compiler is not a
+ * real gcc release and is broken in many aspects.  Among them, it
+ * ignores a lot of warning arguments.
+ */
+#undef GCC_BROKEN_WARNINGS
+
+/*
  * Enable this to have gcc generate templates implicitly.  The 
  * default is to generate template instantiations explicitly.
  * This does NOT work on all platforms and all toolchains.  It
@@ -297,7 +323,12 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #define DONT_TRUST_PAGE_LSN
 
 /*
- * This defines the SM page size in bytes
+ * This defines the SM page size in bytes.   The smallest page
+ * size currently allowed is 1024 bytes.   A smaller page size could
+ * be specified if some assumptions in arithmetic that a page size is
+ * a multiple of 1024 were fixed.    The largest page size that is
+ * allowed is 32768.   This is caused by limitations of the 2 byte
+ * values used in the on-page record or slot descriptions.
  */
 /* for sources */
 #define SM_PAGESIZE 8192
@@ -313,7 +344,7 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
  * rather that 32 bit, define this:
  */
 /* for sources */
-#undef BITS64
+#undef SERIAL_BITS64
 
 /*
  * Define this if you want to use the server-to-server coordination
@@ -390,6 +421,22 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
  * threads package.
  */
 #undef STHREAD_CORE_WIN32
+
+/*
+ * Define this if you want to use thread cores which use win32 fibers.
+ * Useful for debugging or using tools (such as PURIFY).  Should not
+ * normally be used as it changes some of the "normal" behaviors of the
+ * threads package.
+ */
+#undef STHREAD_CORE_WIN32F
+
+/*
+ * Define this if you want pthread spinlock's to be used for syncrhonization
+ * purposed.   This was added to allow an all-pthread implementation to 
+ * aid ports of shore to unsupported architectures which do have pthreads
+ * implemented.    To use this LINK_PTHREAD will probably be needed.
+ */
+#undef STHREAD_TSL_PTHREAD
 
 /*
  * Define this if you want sthreads to work with C++ exception
@@ -520,6 +567,20 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #undef PURIFY_ZERO
 
 /*
+ * Configure Pure software products to use the "new" per-product
+ * stub libs instead of the older "pure_stubs" lib.  This issue is
+ * incomplete, because the individual stub files don't have the same
+ * semantics as the "global" stubs do.  In particular, the "generic"
+ * pure functions may not be stubbed correctly.  However, this fix is
+ * enough to allow Pure software to work until a better solution is
+ * developed.
+ * 
+ * This will work with the -2002 and -5.3 Pure Software releases.  It
+ * may work correctly with some earlier releases too.
+ */
+#define PURE_STUBS_NEW
+
+/*
  * define this if you want expensive instrumentation
  * of the fastnew memory management.
  *
@@ -585,6 +646,9 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
  * options:
  *	STHREAD_CORE_PTHREAD
  *	BUILD_OLAP_SERVER
+ *
+ * Note that LINK_PTHREAD will break native threads on some platforms, such
+ * as Linux.
  */
 #undef LINK_PTHREAD
 
@@ -702,6 +766,20 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #undef FC_DEBUG_WIN32_LOCK
 
 /*
+ * Defined this if you want u_long to be 'unsigned' instead of
+ * 'unsigned long'.  This is ONLY for 64 bit machines.  It keeps
+ * the sizes of some statistics that are declared as u_long the
+ * same size as on a 32 bit machine.   The system works correctly
+ * without it ... though it has been tested extensively with it
+ * turned on before a bunch of u_longs that were problems were
+ * eliminated.
+ *
+ * This will go away once the statistics types are typedefed and 
+ * controlled in some sane manor -- instead of with ad-hoc types.
+ */
+#undef FC_COMPAT_32BIT_ULONG
+
+/*
  * The default number of sharers of a latch is 4.  If you want to 
  * allow more sharing of a latch, #define this to the integer value
  * of the maximum number of sharers allowed.  This has been tested
@@ -725,8 +803,65 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
  * volume and log format which allow large "disk addresses".
  * However, even with "small" disk addresses, it is not compatible
  * with the old on-disk representation.
+ *
+ * This only works with 32 bit versions of the system, it can not be
+ * used with 64 bit versions.   It also can not be used on systems that
+ * need/want 8 byte memory alignment.   The On Disk 13 format doesn't go
+ * along with that.
+ *
+ * You will also need to specify SM_ODS_COMPAT_XX for  versions XX greater
+ * than 13 to make things work correctly.
+ *
+ * IN OTHER WORDS, DON'T USE THIS UNLESS YOU HAVE A VERSION 13 SHORE LOG AND
+ * VOLUME WHICH YOU NEED TO USE.   YOU WON'T BE ABLE TO USE NEWER SHORE 
+ * FEATURES AND IT MAY NOT WORK ANYWAY.  :)
  */
 #undef SM_ODS_COMPAT_13
+
+/*
+ * Define this if you want the system to be compatible with volume
+ * version (14,15) On-Disk-Structures used in the first two interim 
+ * snapshots and the broken "SM 2.0" release.   Briefly the data bytes
+ * on the page were NOT 8 byte aligned in ODS 14 and earlier.   This
+ * causes problems on 64 bit architectures and also on 32 bit architectures
+ * which want to have doubles and 8 byte integers be aligned to their
+ * native size.
+ *
+ * Typically you would only want to use this if you have existing shore
+ * volumes which you want to keep using until you can find time to reload
+ * them into a shore with a more recent on-disk-structure version.
+ */
+#undef SM_ODS_COMPAT_14
+
+/*
+ * Define this if you want records to be aligned to 8 byte boundaries
+ * instead of 4 byte boundaries.   This increases the pre-record overhead
+ * from 12 to 16 bytes.   However it allows for fp. doubles and quad word
+ * integers to be properly aligned.   Without this you would need to
+ * memcpy structures and types that required x8 alignment from the pin
+ * to be accessed correctly.
+ *
+ * The option doesn't do anything on 64 bit architectures, they require
+ * 8 byte alignment.   Note that changing the record alignment will change
+ * the size of the on-disk structures -- this is not reflected in the
+ * volume version number.   Note that if you use 8 byte alignment with
+ * any of the compatability modes that you will break the on-disk alignment
+ * anyway.
+ *
+ * In general this is a mess and once it is fixed in a general way the
+ * the on-disk format will be stabilized and a lot of this stuff will
+ * go away or be generalized.   Backwards compatability will be removed too,
+ * since the old volumes really are broken.
+ *
+ * Note that this will not work correctly on win32.  Due to previous
+ * assumptions (which are being removed slowly, see above) record alignment  
+ * is tied to the alignment of natural data types.   On unix boxes this
+ * assumption holds true (doubles are 8x aligned).  However win32 only
+ * aligns 8 byte quantities to 4x alignments.   So, the data structures
+ * will be setup for x8 alignment, but checks in the code for proper
+ * in-memory (versus in-record) alignment will fail.
+ */
+#undef SM_RECORD_ALIGN_8
 
 /*
  * Define this if you want the system on-disk structures to have

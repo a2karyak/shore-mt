@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: serial_t.cpp,v 1.34 2001/06/23 06:06:18 bolo Exp $
+ $Id: serial_t.cpp,v 1.35 2002/01/04 21:50:37 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -59,17 +59,17 @@ const serial_t serial_t::max_remote(serial_t::max_any, true);  // all bits set
 const serial_t serial_t::null;  		  // only low bit  set
 
 const char* serial_t::key_descr =
-#   ifdef BITS64
+#ifdef SERIAL_BITS64
 					"u4u4";
-#   else
+#else
 					"u4";
-#   endif /*BITS64*/
+#endif
 
 
 ostream& operator<<(ostream& o, const serial_t_data& g)
 {
     return o 
-#ifdef BITS64
+#ifdef SERIAL_BITS64
 	<< g._high << "."
 #endif
 	<< g._low;
@@ -77,12 +77,12 @@ ostream& operator<<(ostream& o, const serial_t_data& g)
 
 istream& operator>>(istream& i, serial_t_data& g)
 {
-#ifdef BITS64
+#ifdef SERIAL_BITS64
     char c;
 #endif
 
     return i 
-#ifdef BITS64
+#ifdef SERIAL_BITS64
 	>> g._high  >> c 
 #endif
 	>> g._low;
@@ -129,7 +129,7 @@ serial_t::increment(uint4_t amount)
 	// higher layer has to enforce this:
 	dual_assert3(amount < max_inc); 
 
-#ifdef BITS64
+#ifdef SERIAL_BITS64
 	bool	 was_remote = ((data._high & mask_remote)==mask_remote);
 #else
 	bool	 was_remote = ((data._low & mask_remote)==mask_remote);
@@ -140,7 +140,7 @@ serial_t::increment(uint4_t amount)
 	uint4_t	l, h, overflow;
 
 	// turn off remote
-#ifdef BITS64
+#ifdef SERIAL_BITS64
 	h = data._high;
 	data._high &= ~mask_remote;
 #else
@@ -155,7 +155,7 @@ serial_t::increment(uint4_t amount)
 	if( _incr(&l, amount, &overflow)) {
 		// lower half overflowed
 
-#ifndef BITS64
+#ifndef SERIAL_BITS64
 		goto _overflow;
 #else
 		// don't compile this if we only have a low half
@@ -176,7 +176,7 @@ serial_t::increment(uint4_t amount)
 		data._low |= mask_disk;
 	}
 	if(was_remote) {
-#ifdef BITS64
+#ifdef SERIAL_BITS64
 		data._high |= mask_remote;
 #else
 		data._low |= mask_remote;
@@ -192,7 +192,7 @@ _overflow:
 		data._low |= mask_disk;
 	}
 	if(was_remote) {
-#ifdef BITS64
+#ifdef SERIAL_BITS64
 		data._high |= mask_remote;
 #else
 		data._low |= mask_remote;

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: xct.cpp,v 1.201 2000/02/02 03:57:34 bolo Exp $
+ $Id: xct.cpp,v 1.202 2001/11/30 01:30:01 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -273,7 +273,7 @@ dumpThreadById(int i) {
     PrintSmthreadById f(cout, i);
     smthread_t::for_each_smthread(f);
 }
-#endif W_DEBUG
+#endif /* W_DEBUG */
 
 xct_t::state_t
 xct_t::state() const

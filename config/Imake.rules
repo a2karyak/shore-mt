@@ -1,6 +1,6 @@
 /*<std-header style='imake' orig-src='shore'>
 
- $Id: Imake.rules,v 1.155 2000/11/15 20:40:40 bolo Exp $
+ $Id: Imake.rules,v 1.156 2002/02/01 18:09:30 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -59,7 +59,7 @@ COLON = :
 EMPTY_VAR =
 SPACE = $(EMPTY_VAR) $(EMPTY_VAR)
 
-#if IS_SNAKE_HPUX8
+#if IS_SNAKE_HPUX8 && USE_CC
 EXTRA_LD_FLAGS = $(CPLUSFLAGS)
 #else
 EXTRA_LD_FLAGS = 

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: bf_core.cpp,v 1.57 2000/02/02 03:13:02 bolo Exp $
+ $Id: bf_core.cpp,v 1.58 2001/11/30 01:41:14 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -925,8 +925,7 @@ bf_core_m::_remove(bfcb_t*& p)
     // multi-user situation(s)
     if (p->latch.is_hot())  {
 #ifdef W_DEBUG
-	cerr << "latch " << (unsigned int)&(p->latch) 
-	    << " is hot " <<endl;
+	cerr << "latch " << &(p->latch) << " is hot " << endl;
 	dumpthreads();
 #endif /* W_DEBUG */
 

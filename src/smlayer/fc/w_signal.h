@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='W_SIGNAL_H'>
 
- $Id: w_signal.h,v 1.18 1999/06/07 19:02:57 kupsch Exp $
+ $Id: w_signal.h,v 1.19 2002/01/25 00:37:05 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -64,7 +64,10 @@ typedef void (*_W_ANSI_C_HANDLER)( int );
 #define W_ANSI_C_HANDLER (_W_ANSI_C_HANDLER) /* type-cast */
 
 /* POSIX defines sigaction() and  its handler differently from standard C */
-typedef void (*_W_POSIX_HANDLER)(...);
+/* if you want to use the full 3 argument handler and your posix
+   system doesn't have the sa_sigaction union member, use this cast
+   to coerce it into sa_handler. */
+typedef void (*_W_POSIX_HANDLER)(int);
 #define W_POSIX_HANDLER (_W_POSIX_HANDLER) /* type-cast */
 
 /* prevent use of bsd functions -- use posix ones instead */

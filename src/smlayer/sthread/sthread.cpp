@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: sthread.cpp,v 1.308 2001/06/25 20:01:08 bolo Exp $
+ $Id: sthread.cpp,v 1.312 2002/02/13 22:06:10 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -86,7 +86,7 @@ static void hack_aix_signals();
 
 #ifndef _WINDOWS
 /* XXX In general signal handling needs to be improved.  Until then,
-   we do the best we can to ignore it. */ 
+   we do the best we can to ignore it. */
 static	void	hack_signals();
 #endif
 
@@ -106,7 +106,7 @@ static	void	hack_signals();
 
 /* Choose an appropriate thread core.  These will be classes  ...
    one of these days. */
-#if !defined(STHREAD_CORE_PTHREAD) && !defined(STHREAD_CORE_WIN32)
+#if !defined(STHREAD_CORE_PTHREAD) && !defined(STHREAD_CORE_WIN32) && !defined(STHREAD_CORE_WIN32F)
 #define	STHREAD_CORE_STD
 #endif
 
@@ -114,11 +114,31 @@ static	void	hack_signals();
 #include "stcore_pthread.h"
 #elif defined(STHREAD_CORE_WIN32)
 #include "stcore_win32.h"
+#elif defined(STHREAD_CORE_WIN32F)
+#include "stcore_win32f.h"
 #elif defined(STHREAD_CORE_STD)
 #include "stcore.h"
 #else
 #error "no thread core selected"
 #endif
+
+
+/* Only need to switch exceptions if using standard thread cores; if we
+   are sitting on top of other thread packages use their facilities.  Of
+   course if they don't do it we may need to turn this on anyway. */
+
+#if defined(STHREAD_CORE_STD) && defined(__GNUC__)
+/* egcs and later have exception handling which is supported.  The 2.8
+   series may have it, but it never worked and there is no way to test
+   it. */ 
+#if W_GCC_THIS_VER >= W_GCC_VER(2,90)
+#define	STHREAD_EXCEPTION_SWITCH
+/* XXX inheritance comes later, this works for now and allows inlining */
+#define	gcc_exception_t	sthread_exception_t
+#include "sthread_gcc.h"
+#endif
+#endif
+
 
 #ifdef PURIFY
 #include <purify.h>
@@ -137,9 +157,9 @@ extern w_rc_t init_winsock();
 
 
 //////////////////////////////////////////////
-// YOU MUST MAKE  
+// YOU MUST MAKE
 // W_FASTNEW_STATIC_DECL
-// the first thing in the file so that it 
+// the first thing in the file so that it
 // gets constructed before any threads do!
 //
 //////////////////////////////////////////////
@@ -164,8 +184,8 @@ bool sthread_t::isStackOK(const char *file, int line)
 	ok = sthread_core_stack_ok(from_core, (this==me()) ? 2:0);
 
 	if (!ok)
-		cerr << "*** Stack corruption at " 
-			<< file << ":" << line 
+		cerr << "*** Stack corruption at "
+			<< file << ":" << line
 			<< " in thread " << me()->id << " ***" << endl
 			<< *this << endl;
 
@@ -188,7 +208,7 @@ void sthread_t::check_all_stacks(const char *file, int line)
 	}
 
 	if (corrupt > 0) {
-		cerr << "sthread_t::check_all: " << corrupt 
+		cerr << "sthread_t::check_all: " << corrupt
 		<< " thread stacks, dieing" << endl;
 		W_FATAL(fcINTERNAL);
 	}
@@ -296,7 +316,7 @@ static int sthread_signals_are_blocked()
     sigprocmask(SIG_SETMASK, 0, &checkset);
     return sigismember(&checkset, SIGUSR2);
 }
-#endif	
+#endif
 
 #if !defined(HPUX8) && !defined(Irix)
 #define	HAVE_SYS_SIGLIST
@@ -319,7 +339,7 @@ void print_sigmask()
 	int		i;
 	sigset_t	mask;
 	bool		blocked = false;
-	
+
 	sigprocmask(SIG_BLOCK, 0, &mask);
 	for (i = 0; i < NSIG; i++) {
 		if (sigismember(&mask, i)) {
@@ -334,7 +354,7 @@ void print_sigmask()
 #ifdef HAVE_SYS_SIGLIST
 				cout << " '" << sys_siglist[i] <<  "'";
 #else
-				cout.form(" 'signal_%d'", i); 
+				cout.form(" 'signal_%d'", i);
 #endif
 			}
 	}
@@ -367,7 +387,7 @@ void sthread_t::_ctxswitch(status_t s)
        has just run, or is just about to run.
        1) It has/will run recently.
        2) It won't be in the ready_q, and the change_priority() will fail.
-     */  
+     */
     if (_idle_thread
 	&&  doner != _idle_thread && taker != _idle_thread
 	&&  _idle_priority_phase++ > _idle_priority_push) {
@@ -383,7 +403,7 @@ void sthread_t::_ctxswitch(status_t s)
 	if (new_pri != old_pri) {
 #if 0
 		W_FORM(cout)("== Change priority of idle thread from %d to %d ==\n",
-			  _idle_thread->_priority, new_pri); 
+			  _idle_thread->_priority, new_pri);
 #endif
 		_ready_q->change_priority(_idle_thread, (priority_t) new_pri);
 	}
@@ -401,7 +421,7 @@ void sthread_t::_ctxswitch(status_t s)
     case t_defunct:
 	/* The current thread is exiting.  There MUST be another thread to
 	   switch to */
-	w_assert1(taker != _me);	
+	w_assert1(taker != _me);
 
 	if (_me) {
 	    /* XXX if a context switch occurs here, threads break */
@@ -450,7 +470,7 @@ void sthread_t::_ctxswitch(status_t s)
        off.  This is always the FAST stack check, a more
        comprehensive job is done by check_all if requested. */
     if (doner && !sthread_core_stack_ok(doner->_core, 1)) {
-	    cerr << "*** Stack overflow at thread switch from" 
+	    cerr << "*** Stack overflow at thread switch from"
 		<< endl << *doner << endl;
 	    W_FATAL(fcINTERNAL);
     }
@@ -462,15 +482,18 @@ void sthread_t::_ctxswitch(status_t s)
     (_me = taker)->_status = t_running;
 
     if (doner != taker)  {
+#ifdef STHREAD_EXCEPTION_SWITCH
+	    sthread_exception_switch(doner->_exception, taker->_exception);
+#endif
 	    sthread_core_switch(doner->_core, taker->_core);
     }
-    
-    /* Current thread resumes after context switch -- 
+
+    /* Current thread resumes after context switch --
      * this means that _me has changed back since we set it.
      *
      * NB: this assertion fails if we are calling
      * thread switch from gdb from an arbitrary place, and
-     * we don't switch back before we "continue", 
+     * we don't switch back before we "continue",
      * because it didn't come through this function.
      */
     w_assert3(_me == doner && _me->_status == t_running);
@@ -511,16 +534,16 @@ w_rc_t	sthread_t::startup()
 	sthread_main_t *main = new sthread_main_t;
 	if (!main)
 		W_FATAL(fcOUTOFMEMORY);
+	_main_thread = main;
 	W_COERCE( main->fork() );
 	_ctxswitch(t_boot);
 	if (_me != main)
 		W_FATAL(stINTERNAL);
-	_main_thread = main;
 
 #if defined(PURIFY)
 	/* The main thread is different from all other threads. */
 	purify_name_thread(me()->name());
-#endif	
+#endif
 
 	/*
 	 *  Bring the idle thread to life.
@@ -528,10 +551,11 @@ w_rc_t	sthread_t::startup()
 	sthread_t *idle = new sthread_idle_t;
 	if (!idle)
 		W_FATAL(fcOUTOFMEMORY);
-	W_COERCE( idle->fork() );
 	_idle_thread = idle;
+	W_COERCE( idle->fork() );
 
 	yield();	// force the idle thread to start
+
 #ifndef _WINDOWS
 	w_assert3(in_cs);
 #endif
@@ -594,7 +618,7 @@ void sthread_main_t::run()
  *
  *  Handle signals.
  */
- 
+
 void sthread_t::_caught_signal(int sig)
 {
     // cerr << "_caught_signal " << dec << sig << endl;
@@ -605,7 +629,7 @@ void sthread_t::_caught_signal(int sig)
 #if 0
     _caught_signal_io(sig);
 #endif
-   
+
     w_assert3(!in_cs);
     /* nothing more process */
 }
@@ -616,8 +640,8 @@ void sthread_t::_caught_signal(int sig)
  *
  *  Current thread do not make floating point calculations if
  *  flag is TRUE. FALSE otherwise.
- * 
- *  Optimization. We do not need to save some floating point 
+ *
+ *  Optimization. We do not need to save some floating point
  *  registers when context switching.
  */
 
@@ -671,7 +695,7 @@ void sthread_t::sleep(timeout_in_ms timeout, const char *reason)
 /*
  *  sthread_t::wakeup()
  *
- *  Cancel sleep 
+ *  Cancel sleep
  */
 
 void sthread_t::wakeup()
@@ -683,7 +707,7 @@ void sthread_t::wakeup()
 /*
  *  Wait for this thread to end. This method returns when this thread
  *  end or when timeout expires.
- */  
+ */
 
 w_rc_t
 sthread_t::wait(timeout_in_ms timeout)
@@ -694,7 +718,7 @@ sthread_t::wait(timeout_in_ms timeout)
 		return RC(stOS);
 
 	/*
-	 *  Wait on _terminate sevsem. This sevsem is posted when 
+	 *  Wait on _terminate sevsem. This sevsem is posted when
 	 *  the thread ends.
 	 */
 	return _terminate->wait(timeout);
@@ -702,7 +726,7 @@ sthread_t::wait(timeout_in_ms timeout)
 
 
 /*
- * sthread_t::fork()  
+ * sthread_t::fork()
  *
  * Turn the "chunk of memory" into a real-live thread.
  */
@@ -752,9 +776,10 @@ sthread_t::sthread_t(priority_t		pr,
   _terminate(new sevsem_t(0, "terminate")),
   _core(0),
   _status(t_virgin),
-  _priority(pr), 
+  _priority(pr),
   _ready_next(0),
   _tevent(0),
+  _exception(0),
   _bytes_allocated(0), _allocations(0), _high_water_mark(0)
 {
 	if (!_terminate)
@@ -764,15 +789,15 @@ sthread_t::sthread_t(priority_t		pr,
 	if (!_core)
 		W_FATAL(fcOUTOFMEMORY);
 	_core->thread = (void *)this;
-	
+
 	/*
 	 *  Set a valid priority level
 	 */
-	if (_priority > max_priority) 
+	if (_priority > max_priority)
 		_priority = max_priority;
-	else if (_priority <= min_priority) 
+	else if (_priority <= min_priority)
 		_priority = min_priority;
-	
+
 	/*
 	 *  Initialize the core.
 	 */
@@ -780,6 +805,12 @@ sthread_t::sthread_t(priority_t		pr,
 		cerr << "sthread_t: cannot initialize thread core" << endl;
 		W_FATAL(stINTERNAL);
 	}
+
+#ifdef STHREAD_EXCEPTION_SWITCH
+	_exception = new sthread_exception_t;
+	if (!_exception)
+		W_FATAL(fcOUTOFMEMORY);
+#endif
 }
 
 
@@ -833,6 +864,11 @@ sthread_t::~sthread_t()
 
 	delete _core;
 	_core = 0;
+
+#ifdef STHREAD_EXCEPTION_SWITCH
+	delete _exception;
+	_exception = 0;
+#endif
 
 	if (_rc)  {/*nothing*/;}
 	delete _terminate;
@@ -917,7 +953,7 @@ void sthread_t::_start()
  *
  *  sthread_t::block(timeout, list, caller)
  *
- *  Block the current thread and puts it on list. 
+ *  Block the current thread and puts it on list.
  *
  *********************************************************************/
 w_rc_t
@@ -977,7 +1013,7 @@ sthread_t::block(
 	    tevent = _me->_tevent = new (buf) sthread_timer_t(when, *_me);
 	    _event_q.schedule(*tevent);
     }
-    
+
     /*
      *  Give up CPU
      */
@@ -989,7 +1025,7 @@ sthread_t::block(
     if ( (tevent = _me->_tevent) )  {
 	    if (!tevent->fired()) {
 		    /* Someone called sthread_t::wakeup() before
-		     * timer went off 
+		     * timer went off
 		     */
 		    _event_q.cancel(*tevent);
 	    }
@@ -1029,7 +1065,7 @@ sthread_t::unblock(const w_rc_t& rc)
      *  Save rc (will be returned by block())
      */
     if (_rc)  {;}
-    if (&rc) 
+    if (&rc)
 	_rc = rc;
     else
 	_rc = RCOK;
@@ -1058,7 +1094,7 @@ void sthread_t::yield(bool do_select) // default is false
     w_assert3(_me->_status == t_running);
 
     if(do_select) {
-	// we put the idle thread on the ready 
+	// we put the idle thread on the ready
 	// queue ahead of us
 	w_assert3(_idle_thread != 0);
 	_ready_q->change_priority(_idle_thread, _me->_priority);
@@ -1071,8 +1107,8 @@ void sthread_t::yield(bool do_select) // default is false
 /*
  *  sthread_t::end()
  *
- *  End thread prematurely (vis-a-vis naturally by returning 
- *  from run()). 
+ *  End thread prematurely (vis-a-vis naturally by returning
+ *  from run()).
  */
 void sthread_t::end()
 {
@@ -1085,7 +1121,7 @@ void sthread_t::end()
 			<< " main thread end()ing." << endl;
 		::exit(0);
 	}
-	
+
 	/* return to cleanup code in start() */
 	thread_longjmp(_me->_exit_addr, -1);
 }
@@ -1297,27 +1333,29 @@ ostream &sthread_t::print(ostream &o) const
 	o
 	<< "priority = " << sthread_t::priority_strings[priority()]
 	<< ", status = " << sthread_t::status_strings[status()];
-	o << endl;	      
+	o << endl;
 
 	o << *_core << endl;
 
 	if (user)
 		o << "user = " << user << endl;
-	
+
 	if (status() == t_blocked && _blocked)
 		o << "blocked on: " << *_blocked;
-	
+
 	_trace.print(o);
-	
+
 	if (status() != t_defunct  &&  !sthread_core_stack_ok(_core, 0))
 		cerr << "***  warning:  Thread stack overflow  ***" << endl;
-	
+
+	/* XXX this belongs in some fastnew code, not in the thread package */
+
 	if(_high_water_mark != 0) {
-	    o << "heap: " 
+	    o << "heap: "
 		<< _bytes_allocated << " bytes allocated in "
-		<< _allocations << " calls " 
-		<< (_allocations * w_fastnew_t::overhead() ) << 
-			" bytes overhead" 
+		<< _allocations << " calls "
+		<< (_allocations * w_fastnew_t::overhead() ) <<
+			" bytes overhead"
 		<< " high water mark=" << _high_water_mark
 		<<endl;
 	}
@@ -1398,7 +1436,7 @@ smutex_t::~smutex_t()
  *  if some other thread is holding the mutex.
  *
  *********************************************************************/
-w_rc_t 
+w_rc_t
 smutex_t::acquire(int4_t timeout)
 {
     // FUNC(smutex_t::acquire);
@@ -1437,7 +1475,7 @@ smutex_t::acquire(int4_t timeout)
     if (! ret.is_error()) {
 	self->push_resource_alloc(name(), this);
     }
-#endif 
+#endif
     return ret;
 }
 
@@ -1489,10 +1527,10 @@ smutex_t::release()
     w_assert3(holder == sthread_t::me());
 
 
-#if defined(W_DEBUG) || defined(SHORE_TRACE) 
+#if defined(W_DEBUG) || defined(SHORE_TRACE)
     holder->pop_resource_alloc(this);
-#endif 
-   
+#endif
+
     holder = waiters.pop();
     if (holder) {
 	W_COERCE( holder->unblock() );
@@ -1530,7 +1568,7 @@ scond_t::~scond_t()
  *  Wait for a condition. Current thread release mutex and wait
  *  up to timeout milliseconds for the condition to fire. When
  *  the thread wakes up, it re-acquires the mutex before returning.
- *  
+ *
  */
 w_rc_t
 scond_t::wait(smutex_t& m, timeout_in_ms timeout)
@@ -1546,7 +1584,7 @@ scond_t::wait(smutex_t& m, timeout_in_ms timeout)
 
 	SthreadStats.scond_wait++;
     }
-    
+
     return rc;
 }
 
@@ -1605,14 +1643,14 @@ sevsem_t::sevsem_t(int is_post, const char* name)
  *********************************************************************/
 sevsem_t::~sevsem_t()
 {
-    if ((_mutex.acquire(WAIT_IMMEDIATE) != RCOK) || 
+    if ((_mutex.acquire(WAIT_IMMEDIATE) != RCOK) ||
 	_cond.is_hot())  {
 	cerr << "sevsem_t::~sevsem_t:  fatal error --- semaphore busy\n";
 	W_FATAL(stINTERNAL);
     }
 
     _mutex.release();
-} 
+}
 
 
 
@@ -1661,7 +1699,7 @@ sevsem_t::reset(int* pcnt)
 	_post_cnt = 0;
 	_mutex.release();
 	return RCOK;
-    } 
+    }
     _mutex.release();
     return RC(stSEMALREADYRESET);
 }
@@ -1749,10 +1787,10 @@ sthread_name_t::rename(
 }
 
 void
-sthread_named_base_t::unname() { 
-	if(_name) { 
-		delete _name; _name=0; 
-	} 
+sthread_named_base_t::unname() {
+	if(_name) {
+		delete _name; _name=0;
+	}
 }
 
 void
@@ -1763,9 +1801,9 @@ sthread_named_base_t::rename(
     const char*		n2,
     const char*		n3)
 {
-    // NB: instead of delete/realloc, just wipe out 
+    // NB: instead of delete/realloc, just wipe out
     // the old name and re-use the space if we
-    // have a new non-null name  
+    // have a new non-null name
     // unname();
     if(n1) {
 	if(_name) {
@@ -1798,7 +1836,7 @@ NORET
 sthread_priority_list_t::sthread_priority_list_t()
     : w_descend_list_t<sthread_t, sthread_t::priority_t> (
 	offsetof(sthread_t, _priority),
-	offsetof(sthread_t, _link))  
+	offsetof(sthread_t, _link))
 {
 }
 
@@ -1820,7 +1858,7 @@ const smthread_t* sthread_t::dynamic_cast_to_const_smthread() const
  *
  *  dumpthreads()
  *  For debugging, but it's got to be
- *  present in servers compiled without debugging.  
+ *  present in servers compiled without debugging.
  *
  *********************************************************************/
 void dumpthreads()
@@ -1862,14 +1900,13 @@ static	void	hack_signals()
 		cerr << "Warning: can't ignore SIGPIPE:" << endl << e << endl;
 		return;
 	}
-	sa.sa_handler = W_POSIX_HANDLER SIG_IGN;
+	sa.sa_handler = SIG_IGN;
 	kr = sigaction(SIGPIPE, &sa, 0);
 	if (kr == -1) {
 		w_rc_t	e = RC(sthread_base_t::stOS);
 		cerr << "Warning: can't ignore SIGPIPE:" << endl << e << endl;
 		return;
 	}
-	
 }
 #endif
 
@@ -1921,7 +1958,7 @@ extern bool address_in_stack(sthread_core_t &core, void *address);
 void sthread_t::find_stack(void *addr)
 {
 	w_list_i<sthread_t> i(*sthread_t::_class_list);
-	
+
 	while (i.next())  {
 		if (address_in_stack(*(i.curr()->_core), addr)) {
 			cout << "*** address " << addr << " found in ..."
@@ -1959,7 +1996,7 @@ w_base_t::int8_t 	sthread_init_t::max_os_file_size;
 
 #ifdef _WIN32
 LONG WINAPI
-__ef(LPEXCEPTION_POINTERS p) 
+__ef(LPEXCEPTION_POINTERS p)
 {
     DWORD flags = p->ExceptionRecord->ExceptionFlags;
     W_FORM2(cerr, ("***** NT EXCEPTION (%#lx, flags=%#lx): %d params\n",
@@ -1977,10 +2014,10 @@ __ef(LPEXCEPTION_POINTERS p)
 
     switch(p->ExceptionRecord->ExceptionCode) {
     case EXCEPTION_ACCESS_VIOLATION:
-	W_FORM2(cerr, 
+	W_FORM2(cerr,
 	    ("***** access violation : %s of info[0] occurred at info[1]\n",
 	    (char *)((p->ExceptionRecord->ExceptionInformation[0]==0)? "read":
-	    (p->ExceptionRecord->ExceptionInformation[0]==1)? "write": 
+	    (p->ExceptionRecord->ExceptionInformation[0]==1)? "write":
 	    "unknown")));
 	break;
 
@@ -2044,7 +2081,7 @@ __ef(LPEXCEPTION_POINTERS p)
 static	void	hack_large_file_stuff(w_base_t::int8_t &max_os_file_size)
 {
     /*
-     * Get limits on file sizes imposed by the operating 
+     * Get limits on file sizes imposed by the operating
      * system and shell.
      */
 
@@ -2085,12 +2122,12 @@ typedef struct rlimit	os_rlimit_t;
 	 * negative, since r.rlim_cur is unsigned and
 	 * fileoff_t is signed (sigh).
 	 */
-	if (max_os_file_size < 0) { 
+	if (max_os_file_size < 0) {
 		max_os_file_size = w_base_t::uint8_t(r.rlim_cur) >> 1;
 		w_assert1( max_os_file_size > 0);
 	}
 #else
-	/* 
+	/*
 	 * resource limits not yet implemented : we're stuck
 	 * with small files for the time being
 	 */
@@ -2144,9 +2181,9 @@ sthread_init_t::sthread_init_t()
 		 */
 		if (! w_error_t::insert(
 			"Threads Package",
-			error_info, 
+			error_info,
 			sizeof(error_info) / sizeof(error_info[0])))   {
-		    
+
 		    cerr << "sthread_init_t::sthread_init_t: "
 			 << " cannot register error code" << endl;
 
@@ -2162,7 +2199,7 @@ sthread_init_t::sthread_init_t()
 #endif
 
 		/*
-		 * There is a chance that the static _w_fastnew member 
+		 * There is a chance that the static _w_fastnew member
 		 * not been constructed yet.
 		 */
 		W_FASTNEW_STATIC_PTR_DECL_INIT(sthread_name_t, 100);

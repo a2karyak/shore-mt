@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='W_WORKAROUND_H'>
 
- $Id: w_workaround.h,v 1.51 2000/03/17 20:15:41 bolo Exp $
+ $Id: w_workaround.h,v 1.53 2002/02/14 07:06:07 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -38,14 +38,33 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 /* see below for more info on GNUG_BUG_12 */
 #define GNUG_BUG_12(arg) arg
 
-#if 	defined(__GNUC__) && (__GNUC_MINOR__ < 5)
+#ifdef __GNUC__
+
+/* Mechanism to make disjoint gcc numbering appear linear for comparison
+   purposes.  Without this all the Shore gcc hacks break when a new major
+   number is encountered. */
+
+#define	W_GCC_VER(major,minor)	(((major) << 16) + (minor))
+
+#ifndef __GNUC_MINOR__	/* gcc-1.something -- No minor version number */
+#define	W_GCC_THIS_VER	W_GCC_VER(__GNUC__,0)
+#else
+#define	W_GCC_THIS_VER	W_GCC_VER(__GNUC__,__GNUC_MINOR__)
+#endif
+
+
+/* true if THIS gcc version is <= the specified major,minor prerequisite */
+#define	W_GCC_PREREQ(major,minor)	\
+	(W_GCC_THIS_VER >= W_GCC_VER(major,minor))
+
+#if 	W_GCC_THIS_VER < W_GCC_VER(2,5)
+/* XXX all the following tests assume this filter is used */
 #error	This software requires gcc 2.5.x or a later release.
 #error  Gcc 2.6.0 is preferred.
 #endif
 
-#ifdef __GNUC__
 
-#   if (__GNUC_MINOR__ < 6)
+#if W_GCC_THIS_VER < W_GCC_VER(2,6)
 
     /*
      * G++ also has a bug in calling the destructor of a template
@@ -71,7 +90,7 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
      */
 #   define GNUG_BUG_8 1
 
-#endif /* __GNUC_MINOR__ < 6 */
+#endif /* gcc < 2.6 */
 
     /*
      * #12
@@ -84,12 +103,12 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
      * 	istrstream(c) >> i;
     */
 
-#   if __GNUC_MINOR__ > 5
+#if W_GCC_THIS_VER > W_GCC_VER(2,5)
 #	undef GNUG_BUG_12	
 #   	define GNUG_BUG_12(arg) (arg)
-#   endif
+#endif
 
-#   if __GNUC_MINOR__ > 5
+#if W_GCC_THIS_VER > W_GCC_VER(2,5)
 /*
  * 	GNU 2.6.0  : template functions that are 
  *  not member functions don't get exported from the
@@ -101,13 +120,13 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
  * Cannot explicitly instantiate function templates.
  */
 #define 	GNUG_BUG_14 1
-#	endif
+#endif
 
-#	if __GNUC_MINOR__ > 6
+#if W_GCC_THIS_VER > W_GCC_VER(2,6)
 /* gcc 2.7.2 has bogus warning messages; it doesn't inherit pointer
    properties correctly */
 #define		GNUG_BUG_15  1
-#	endif
+#endif
 
 /* Gcc 64 bit integer math incorrectly optimizes range comparisons such as
    if (i64 < X || i64 > Y)
@@ -122,7 +141,7 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
  * Migration to standard C++
  *
  ******************************************************************************/
-#if (__GNUC__ == 2) && (__GNUC_MINOR__>=90)
+#if W_GCC_THIS_VER >= W_GCC_VER(2,90)
 /*
  * EGCS is 2.90 (which really screws up any attempt to fix 
  * things based on __GNUC_MINOR__ and __GNUC__
@@ -130,7 +149,7 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
  */
 #endif
 
-#if (__GNUC__ == 2) && (__GNUC_MINOR__>=90)
+#if W_GCC_THIS_VER >= W_GCC_VER(2,90)
 #define EGCS_BUG_1
     /*  Certain statements cause egc 1.1.1 to croak. */
 #define EGCS_BUG_2
@@ -139,7 +158,7 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
      */
 #endif
 
-#   if (__GNUC_MINOR__ < 8) 
+#if W_GCC_THIS_VER < W_GCC_VER(2,8)
 #   define BIND_FRIEND_OPERATOR_PART_1(TYP,TMPL) /**/
 #   define BIND_FRIEND_OPERATOR_PART_1B(TYP1,TYP2,TMPLa,TMPLb) /**/
 #   define BIND_FRIEND_OPERATOR_PART_2(TYP) /**/
@@ -258,13 +277,23 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
    of W_SCAN macros could encapuslate input scanning too.
  */  
 #if defined(__GNUG__)
+#if W_GCC_THIS_VER < W_GCC_VER(3,0)
+#define	FC_IOSTREAM_FORM_METHOD
+#else
+#define	FC_NEED_UNBOUND_FORM
+#endif
+#elif defined(_MSC_VER)
+#define	FC_NEED_UNBOUND_FORM
+#endif
+
+#ifdef FC_IOSTREAM_FORM_METHOD
 #define	W_FORM(stream)		stream . form
 #else
 #define	W_FORM(stream)		stream << form	
 #endif
 
 /* Grab our form if needed.  */
-#if defined(_MSC_VER)
+#ifdef FC_NEED_UNBOUND_FORM
 extern const char *form(const char *, ...);
 #endif
 

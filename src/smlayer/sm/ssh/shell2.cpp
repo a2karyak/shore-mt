@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: shell2.cpp,v 1.46 2001/06/20 17:13:33 bolo Exp $
+ $Id: shell2.cpp,v 1.49 2002/02/18 22:56:15 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -119,6 +119,7 @@ cvt2typed_value(
 	    break;
 
 	default:
+	    cerr << "Unknown comparison type " << W_ENUM(t) << endl;
 	    W_FATAL(ss_m::eNOTIMPLEMENTED);
 	    break;
     }
@@ -2922,7 +2923,13 @@ t_sort_file(Tcl_Interp* ip, int ac, char* av[])
 	info.len = bbox.klen();
 	break;
     }
-    info.est_reclen = MIN(info.len, 4);
+
+    /* XXX Record Alignment not memory alignment.
+       The alignon makes the estimate match the actual minimum
+       size the record will actually be.   Probably the lower level
+       code in the SM should do something equivalent for space
+       estimation.   However, this is here. */
+    info.est_reclen = MAX(info.len, ALIGNON);
 
     if (use_logical_id(ip)) {
 	lstid_t in_fid;

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: lexify.cpp,v 1.27 2001/06/20 17:00:13 bolo Exp $
+ $Id: lexify.cpp,v 1.33 2002/02/18 20:10:57 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -85,6 +85,53 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 
 #include "sm_int_0.h"
 #include "lexify.h"
+
+/* XXX alignment is currently a mess.   This just puts the controls
+ * for everything into one place so it can be tweaked easily.  
+ *
+ * The code aligned doubles on sparc to their natural size, but allowed
+ * x4 alignment on other architectures -- which is actually wrong since
+ * it slows down doubles on those platforms.
+ *
+ * [iu]8 was aligned to 4 bytes, when really it should be aligned to 8
+ * bytes due to it's natural size.
+ *
+ * All this has an interaction with alignment of things in pages too,
+ * which is another bizarre interaction I don't even what to get into
+ * now.
+ *
+ * If page/record alignment is changed to 8 bytes, strict alignment can
+ * be used for all architectures.
+ */
+
+/* XXX random 4 byte alignments on i386 screw this up */
+#if (!defined(I386) && (ALIGNON == 0x8)) || defined(ARCH_LP64)
+#define	STRICT_INT8_ALIGNMENT
+#define	STRICT_F8_ALIGNMENT
+#elif defined(Sparc) || defined(Snake)
+/* This is a bogus mixed-mode alignment which should go?? */
+#define	STRICT_F8_ALIGNMENT
+#endif
+
+#ifdef STRICT_INT8_ALIGNMENT
+#define	_ALIGN_IU8	0x8
+#else
+#define	_ALIGN_IU8	0x4
+#endif
+
+#ifdef STRICT_F8_ALIGNMENT
+#define	_ALIGN_F8	0x8
+#else
+#define	_ALIGN_F8	0x4
+#endif
+
+#define	ALIGN_MASK_F8	(_ALIGN_F8-1)
+#define	ALIGN_MASK_F4	(0x4-1)
+
+#define	ALIGN_MASK_IU8	(_ALIGN_IU8-1)
+#define	ALIGN_MASK_IU4	(0x4-1)
+#define	ALIGN_MASK_IU2	(0x2-1)
+
 
 #ifdef EXPLICIT_TEMPLATE
 template class w_auto_delete_array_t<sortorder::uint1_t>;
@@ -490,6 +537,7 @@ sortorder::dbl_unlexify(
      * can do better -- unfortunately, sometimes it doesn't
      * really know what the alignment is...
      */
+    /* XXX align tools */
     switch((ptrdiff_t)result & 0x7) {
 	case 0x00:
 	    *result = res;
@@ -560,6 +608,7 @@ sortorder::lexify(
 	    float_lexify(*(f4_t *)d, res, Fperm);
 	    break;
 
+	    /* XXX shouldn't need copy with strict alignment */
 	case kt_f8: {
 	    double dbl;
 	    memcpy(&dbl, d, sizeof(f8_t));
@@ -599,17 +648,17 @@ sortorder::unlexify(
 
 	case kt_i2:
 	    /* XXX why aren't the alignment tools used for all of these? */
-	    w_assert3(((ptrdiff_t)res & 0x1) == 0x0);
+	    w_assert3(((ptrdiff_t)res & ALIGN_MASK_IU2) == 0x0);
 	    int_unlexify(str, true, 2,  res, I2perm);
 	    break;
 
 	case kt_i4:
-	    w_assert3(((ptrdiff_t)res & 0x3) == 0x0);
+	    w_assert3(((ptrdiff_t)res & ALIGN_MASK_IU4) == 0x0);
 	    int_unlexify(str, true, 4, res, I4perm);
 	    break;
 
 	case kt_i8:
-	    w_assert3(((ptrdiff_t)res & 0x3) == 0x0);
+	    w_assert3(((ptrdiff_t)res & ALIGN_MASK_IU8) == 0x0);
 	    int_unlexify(str, true, 8, res, I8perm);
 	    break;
 
@@ -618,23 +667,23 @@ sortorder::unlexify(
 	    break;
 
 	case kt_u2:
-	    w_assert3(((ptrdiff_t)res & 0x1) == 0x0);
+	    w_assert3(((ptrdiff_t)res & ALIGN_MASK_IU2) == 0x0);
 	    int_unlexify(str, false, 2, res, I2perm);
 	    break;
 
 	case kt_u4:
-	    w_assert3(((ptrdiff_t)res & 0x3) == 0x0);
+	    w_assert3(((ptrdiff_t)res & ALIGN_MASK_IU4) == 0x0);
 	    int_unlexify(str, false, 4, res, I4perm);
 	    break;
 
 	case kt_u8:
-	    w_assert3(((ptrdiff_t)res & 0x3) == 0x0);
+	    w_assert3(((ptrdiff_t)res & ALIGN_MASK_IU8) == 0x0);
 	    int_unlexify(str, false, 8, res, I8perm);
 	    break;
 
 	case kt_f4:
 	    // should be at least 4-byte aligned
-	    w_assert3(((ptrdiff_t)res & 0x3) == 0x0);
+	    w_assert3(((ptrdiff_t)res & ALIGN_MASK_F4) == 0x0);
 	    float_unlexify(str, Fperm, (f4_t *)res);
 	    break;
 
@@ -642,11 +691,7 @@ sortorder::unlexify(
 	    // should be at least 4-byte aligned
 	    // architectures' alignment requirements
 	    // for doubles might differ.
-
-	    w_assert3(((ptrdiff_t)res & 0x3) == 0x0);
-#ifdef Sparc
-	    w_assert3(((ptrdiff_t)res & 0x7) == 0x0);
-#endif
+	    w_assert3(((ptrdiff_t)res & ALIGN_MASK_F8) == 0x0);
 	    dbl_unlexify(str, Dperm, (f8_t *)res);
 	    break;
 

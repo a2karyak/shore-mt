@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='SERIAL_T_H'>
 
- $Id: serial_t.h,v 1.60 2001/06/26 16:48:35 bolo Exp $
+ $Id: serial_t.h,v 1.61 2002/01/04 21:50:37 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -90,7 +90,7 @@ struct serial_t {
 		mask_remote = 0x80000000,  // set --> off-volume-reference
 #	endif /* !HP_CC_BUG_1 */
 
-#ifdef BITS64
+#ifdef SERIAL_BITS64
 #	define OVERFLOWBITS 31
 #else
 #	define OVERFLOWBITS 30
@@ -119,9 +119,9 @@ struct serial_t {
 		/* makes a null serial_t */
     serial_t( bool ondisk=true)
 		{ 
-#			ifdef BITS64
+#ifdef SERIAL_BITS64
 			data._high = 0;
-#			endif
+#endif
 			data._low = ondisk?mask_disk:mask_zero;
 		} 
 
@@ -136,17 +136,17 @@ struct serial_t {
 			// carefully written so that it works whether data
 			// has _low only or _low and _high...
 			*/
-#			ifdef BITS64
+#ifdef SERIAL_BITS64
 			data._high = 0;
-#			endif
+#endif
 
 			data._low = (start << 1) | mask_disk;
 
-#			ifdef BITS64
+#ifdef SERIAL_BITS64
 			data._high |= remote ? mask_remote : mask_zero; 
-#			else
+#else
 			data._low |= remote ? mask_remote : mask_zero; 
-#			endif
+#endif
 		}
 
     serial_t(const serial_t& s) 	{ *this = s; } 
@@ -177,7 +177,7 @@ public:
     bool equiv(const serial_t &s) const {
 		// remote is never == local
 		return
-#ifdef BITS64
+#ifdef SERIAL_BITS64
 			(data._high==s.data._high) &&
 #endif
 		((data._low  & ~mask_disk)==(s.data._low & ~mask_disk));
@@ -219,7 +219,7 @@ public:
 		 // compare 2 serial_ts 
     bool operator==(const serial_t& s) const { 
 		return (data._low == s.data._low)
-#ifdef BITS64
+#ifdef SERIAL_BITS64
 			&& (data._high==s.data._high) 
 #endif
 		;
@@ -227,7 +227,7 @@ public:
 		 // compare a serial_t  with a data 
     bool operator==(const serial_t_data& s) const { 
 		return (data._low == s._low)
-#ifdef BITS64
+#ifdef SERIAL_BITS64
 		 	&& (data._high==s._high) 
 #endif
 		;
@@ -270,11 +270,11 @@ public:
 			//
 			// dual_assert3(is_remote() == s.is_remote()); 
 			return  
-#ifdef BITS64
+#ifdef SERIAL_BITS64
 			(data._high < s.data._high) || ((data._high==s.data._high) && 
 #endif
 				(data._low <= s.data._low)
-#ifdef BITS64
+#ifdef SERIAL_BITS64
 				)
 #endif
 			;
@@ -283,11 +283,11 @@ public:
 		 // compare a serial_t  with a data 
     bool operator<=(const serial_t_data& g) const { 	
 			return
-#ifdef BITS64
+#ifdef SERIAL_BITS64
 			(data._high < g._high) || ((data._high==g._high) && 
 #endif
 				(data._low <= g._low)
-#ifdef BITS64
+#ifdef SERIAL_BITS64
 				)
 #endif
 			;
@@ -303,11 +303,11 @@ public:
 			//
 			// dual_assert3(is_remote() == s.is_remote()); 
 			return 
-#ifdef BITS64
+#ifdef SERIAL_BITS64
 			(data._high < s.data._high) || ((data._high==s.data._high) && 
 #endif
 				(data._low < s.data._low)
-#ifdef BITS64
+#ifdef SERIAL_BITS64
 				)
 #endif
 			;
@@ -315,11 +315,11 @@ public:
 		 // compare a serial_t  with a data 
     bool operator<(const serial_t_data& g) const { 	
 			return
-#ifdef BITS64
+#ifdef SERIAL_BITS64
 			(data._high < g._high) || ((data._high==g._high) && 
 #endif
 				(data._low < g._low)
-#ifdef BITS64
+#ifdef SERIAL_BITS64
 				)
 #endif
 			;
@@ -376,7 +376,7 @@ public:
 #ifdef __cplusplus
 inline w_base_t::uint4_t w_hash(const serial_t& s)
 {
-#ifdef BITS64
+#ifdef SERIAL_BITS64
 	return s.data._low;  // this is reasonable since _low changes a lot
 #else
 	return s.data._low;
