@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: shell.cpp,v 1.310 2000/03/02 22:21:08 bolo Exp $
+ $Id: shell.cpp,v 1.315 2003/02/01 17:49:06 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -172,7 +172,7 @@ make_vid_from_lvid(const char* lv)
 }
 
 bool 
-tcl_scan_boolean(char *rep, bool &result)
+tcl_scan_boolean(const char *rep, bool &result)
 {
     if (strcasecmp(rep, "true") == 0) {
 	    result = true;
@@ -186,10 +186,10 @@ tcl_scan_boolean(char *rep, bool &result)
     return false;
 }
 
-ss_m::ndx_t cvt2ndx_t(char* s); //forward ref
+ss_m::ndx_t cvt2ndx_t(const char *s); //forward ref
 
 void
-cvt2lockid_t(char* str, lockid_t &n)
+cvt2lockid_t(const char *str, lockid_t &n)
 {
     stid_t stid;
     lpid_t pid;
@@ -203,7 +203,7 @@ cvt2lockid_t(char* str, lockid_t &n)
     lockid_t::user4_t u4;
     int len = strlen(str);
 
-    istrstream ss(str, len);
+    istrstream ss(VCPP_BUG_1 str, len);
 
     /* This switch conversion is used, because the previous,
        "try everything" was causing problems with I/O streams.
@@ -214,11 +214,7 @@ cvt2lockid_t(char* str, lockid_t &n)
 	    ss >> stid;
 	    break;
     case 'x':
-	    str[0] = 's'; // GAK
-	    ss >> stid;
-	    extid.vol = stid.vol;
-	    extid.ext = (snum_t) stid.store;
-	    str[0] = 'x'; // GAK
+	    ss >> extid;
 	    break;
     case 'r':
 	    ss >> rid;
@@ -309,7 +305,7 @@ use_logical_id(Tcl_Interp* ip)
 {
     extern const char* Logical_id_flag_tcl; // from ssh.cpp
 
-    char* value = Tcl_GetVar(ip, TCL_CVBUG Logical_id_flag_tcl, TCL_GLOBAL_ONLY); 
+    TCL_GETX char* value = Tcl_GetVar(ip, TCL_CVBUG Logical_id_flag_tcl, TCL_GLOBAL_ONLY); 
     w_assert1(value != NULL);
     char result = value[0];
     bool ret = false;
@@ -348,7 +344,7 @@ parse_vec(const char *c, int len)
 }
 
 static int
-t_checkpoint(Tcl_Interp* ip, int ac, char* /*av*/[])
+t_checkpoint(Tcl_Interp* ip, int ac, TCL_AV char* /*av*/[])
 {
     if (check(ip, "", ac, 1))  return TCL_ERROR;
     DO(sm->checkpoint());
@@ -356,7 +352,7 @@ t_checkpoint(Tcl_Interp* ip, int ac, char* /*av*/[])
 }
 
 static int
-t_sleep(Tcl_Interp* ip, int ac, char* av[])
+t_sleep(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "milliseconds", ac, 2))  return TCL_ERROR;
     int timeout = atoi(av[1]);
@@ -366,7 +362,7 @@ t_sleep(Tcl_Interp* ip, int ac, char* av[])
 
 
 static int
-t_begin_xct(Tcl_Interp* ip, int ac, char*[])
+t_begin_xct(Tcl_Interp* ip, int ac, TCL_AV char*[])
 {
     if (check(ip, "", ac, 1)) return TCL_ERROR;
 
@@ -378,7 +374,7 @@ t_begin_xct(Tcl_Interp* ip, int ac, char*[])
 }
 
 static int
-t_commit_xct(Tcl_Interp* ip, int ac, char* av[])
+t_commit_xct(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "[lazy]", ac, 1, 2)) return TCL_ERROR;
     bool lazy = false;
@@ -397,7 +393,7 @@ t_commit_xct(Tcl_Interp* ip, int ac, char* av[])
 }
 
 static  int
-t_chain_xct(Tcl_Interp* ip, int ac, char* av[])
+t_chain_xct(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "[lazy]", ac, 1, 2))  return TCL_ERROR;
     bool lazy = false;
@@ -421,7 +417,7 @@ t_chain_xct(Tcl_Interp* ip, int ac, char* av[])
 }
 
 static int
-t_set_coordinator(Tcl_Interp* ip, int ac, char* av[])
+t_set_coordinator(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
 
     if (check(ip, "handle", ac, 2)) return TCL_ERROR;
@@ -431,7 +427,7 @@ t_set_coordinator(Tcl_Interp* ip, int ac, char* av[])
 }
 
 static int
-t_enter2pc(Tcl_Interp* ip, int ac, char* av[])
+t_enter2pc(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "gtid_t", ac, 2)) return TCL_ERROR;
     gtid_t	g(av[1]);
@@ -440,7 +436,7 @@ t_enter2pc(Tcl_Interp* ip, int ac, char* av[])
 }
 
 static int
-t_recover2pc(Tcl_Interp* ip, int ac, char* av[])
+t_recover2pc(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "gtid_t", ac, 2)) return TCL_ERROR;
 
@@ -454,7 +450,7 @@ t_recover2pc(Tcl_Interp* ip, int ac, char* av[])
 }
 
 static int
-t_num_active(Tcl_Interp* ip, int ac, char*[] )
+t_num_active(Tcl_Interp* ip, int ac, TCL_AV char* [])
 {
     if (check(ip, "", ac, 1)) return TCL_ERROR;
 
@@ -466,7 +462,7 @@ t_num_active(Tcl_Interp* ip, int ac, char*[] )
 }
 
 static int
-t_num_prepared(Tcl_Interp* ip, int ac, char*[] )
+t_num_prepared(Tcl_Interp* ip, int ac, TCL_AV char*[])
 {
     if (check(ip, "", ac, 1)) return TCL_ERROR;
 
@@ -485,7 +481,7 @@ t_num_prepared(Tcl_Interp* ip, int ac, char*[] )
 }
 
 static int
-t_prepare_xct(Tcl_Interp* ip, int ac, char* /*av*/[])
+t_prepare_xct(Tcl_Interp* ip, int ac, TCL_AV char* [])
 {
     if (check(ip, "", ac, 1)) return TCL_ERROR;
     sm_stats_info_t *s=0;
@@ -507,7 +503,7 @@ t_prepare_xct(Tcl_Interp* ip, int ac, char* /*av*/[])
 }
 
 int
-t_abort_xct(Tcl_Interp* ip, int ac, char* /*av*/[])
+t_abort_xct(Tcl_Interp* ip, int ac, TCL_AV char* [])
 {
     if (check(ip, "", ac, 1)) return TCL_ERROR;
     sm_stats_info_t *s=0;
@@ -524,7 +520,7 @@ t_abort_xct(Tcl_Interp* ip, int ac, char* /*av*/[])
 }
 
 static int
-t_save_work(Tcl_Interp* ip, int ac, char* /*av*/[])
+t_save_work(Tcl_Interp* ip, int ac, TCL_AV char* [])
 {
     if (check(ip, "", ac, 1))  return TCL_ERROR;
     sm_save_point_t sp;
@@ -536,7 +532,7 @@ t_save_work(Tcl_Interp* ip, int ac, char* /*av*/[])
 }
 
 static int
-t_rollback_work(Tcl_Interp* ip, int ac, char* av[])
+t_rollback_work(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "savepoint", ac, 2))  return TCL_ERROR;
     sm_save_point_t sp;
@@ -547,7 +543,7 @@ t_rollback_work(Tcl_Interp* ip, int ac, char* av[])
 }
 
 static int
-t_open_quark(Tcl_Interp* ip, int ac, char* /*av*/[])
+t_open_quark(Tcl_Interp* ip, int ac, TCL_AV char* [])
 {
     if (check(ip, "", ac, 1))  return TCL_ERROR;
 
@@ -560,7 +556,7 @@ t_open_quark(Tcl_Interp* ip, int ac, char* /*av*/[])
 }
 
 static int
-t_close_quark(Tcl_Interp* ip, int ac, char* av[])
+t_close_quark(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "close_quark quark", ac, 2, 2))  return TCL_ERROR;
 
@@ -571,7 +567,7 @@ t_close_quark(Tcl_Interp* ip, int ac, char* av[])
 }
 
 static int
-t_xct(Tcl_Interp* ip, int ac, char* /*av*/[])
+t_xct(Tcl_Interp* ip, int ac, TCL_AV char* [])
 {
     if (check(ip, "", ac, 1))  return TCL_ERROR;
 
@@ -582,7 +578,7 @@ t_xct(Tcl_Interp* ip, int ac, char* /*av*/[])
 }
 
 static int
-t_attach_xct(Tcl_Interp* ip, int ac, char* av[])
+t_attach_xct(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "xct", ac, 2))
 	return TCL_ERROR;
@@ -593,7 +589,7 @@ t_attach_xct(Tcl_Interp* ip, int ac, char* av[])
 }
 
 static int
-t_detach_xct(Tcl_Interp* ip, int ac, char* av[])
+t_detach_xct(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "xct", ac, 2))
 	return TCL_ERROR;
@@ -604,7 +600,7 @@ t_detach_xct(Tcl_Interp* ip, int ac, char* av[])
 }
 
 static int
-t_state_xct(Tcl_Interp* ip, int ac, char* av[])
+t_state_xct(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "xct", ac, 2))
 	return TCL_ERROR;
@@ -644,7 +640,7 @@ t_state_xct(Tcl_Interp* ip, int ac, char* av[])
 }
 
 static int
-t_tid_to_xct(Tcl_Interp* ip, int ac, char* av[])
+t_tid_to_xct(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "xct", ac, 2))
 	return TCL_ERROR;
@@ -659,7 +655,7 @@ t_tid_to_xct(Tcl_Interp* ip, int ac, char* av[])
     return TCL_OK;
 }
 static int
-t_xct_to_tid(Tcl_Interp* ip, int ac, char* av[])
+t_xct_to_tid(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "xct", ac, 2))
 	return TCL_ERROR;
@@ -673,7 +669,7 @@ t_xct_to_tid(Tcl_Interp* ip, int ac, char* av[])
 }
 
 static int
-t_dump_xcts(Tcl_Interp* ip, int ac, char*[])
+t_dump_xcts(Tcl_Interp* ip, int ac, TCL_AV char*[])
 {
     if (check(ip, "", ac, 1))
 	return TCL_ERROR;
@@ -683,7 +679,7 @@ t_dump_xcts(Tcl_Interp* ip, int ac, char*[])
 }
 
 static int
-t_force_buffers(Tcl_Interp* ip, int ac, char*[])
+t_force_buffers(Tcl_Interp* ip, int ac, TCL_AV char*[])
 {
     if (check(ip, "[flush]", ac, 1,2)) return TCL_ERROR;
     bool flush = false;
@@ -696,7 +692,7 @@ t_force_buffers(Tcl_Interp* ip, int ac, char*[])
  
 
 static int
-t_force_vol_hdr_buffers(Tcl_Interp* ip, int ac, char* av[])
+t_force_vol_hdr_buffers(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "lvid", ac, 2)) return TCL_ERROR;
     // keep compiler quiet about unused parameters
@@ -710,7 +706,7 @@ t_force_vol_hdr_buffers(Tcl_Interp* ip, int ac, char* av[])
  
 
 static int
-t_snapshot_buffers(Tcl_Interp* ip, int ac, char* av[])
+t_snapshot_buffers(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "", ac, 1))
 	return TCL_ERROR;
@@ -732,7 +728,7 @@ t_snapshot_buffers(Tcl_Interp* ip, int ac, char* av[])
 }
 
 static int
-t_mem_stats(Tcl_Interp* ip, int ac, char* av[])
+t_mem_stats(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "[reset]", ac, 1,2))
 	return TCL_ERROR;
@@ -758,7 +754,7 @@ t_mem_stats(Tcl_Interp* ip, int ac, char* av[])
 }
 
 static int
-t_gather_xct_stats(Tcl_Interp* ip, int ac, char* av[])
+t_gather_xct_stats(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "[reset]", ac, 1,2))
 	return TCL_ERROR;
@@ -785,7 +781,7 @@ t_gather_xct_stats(Tcl_Interp* ip, int ac, char* av[])
 }
 
 static int
-t_gather_stats(Tcl_Interp* ip, int ac, char* av[])
+t_gather_stats(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "[reset]", ac, 1,2))
 	return TCL_ERROR;
@@ -815,7 +811,7 @@ t_gather_stats(Tcl_Interp* ip, int ac, char* av[])
 sm_config_info_t global_sm_config_info;
 
 static int
-t_config_info(Tcl_Interp* ip, int ac, char*[])
+t_config_info(Tcl_Interp* ip, int ac, TCL_AV char*[])
 {
     if (check(ip, "", ac, 1))
 	return TCL_ERROR;
@@ -830,7 +826,7 @@ t_config_info(Tcl_Interp* ip, int ac, char*[])
 }
 
 static int
-t_set_disk_delay(Tcl_Interp* ip, int ac, char* av[])
+t_set_disk_delay(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "milli_sec", ac, 2))
 	return TCL_ERROR;
@@ -842,7 +838,7 @@ t_set_disk_delay(Tcl_Interp* ip, int ac, char* av[])
 }
 
 static int
-t_start_log_corruption(Tcl_Interp* ip, int ac, char* /*av*/[])
+t_start_log_corruption(Tcl_Interp* ip, int ac, TCL_AV char* [])
 {
     if (check(ip, "", ac, 1))
 	return TCL_ERROR;
@@ -853,7 +849,7 @@ t_start_log_corruption(Tcl_Interp* ip, int ac, char* /*av*/[])
 }
 
 static int
-t_sync_log(Tcl_Interp* ip, int ac, char* /*av*/[])
+t_sync_log(Tcl_Interp* ip, int ac, TCL_AV char* [])
 {
     if (check(ip, "", ac, 1))
 	return TCL_ERROR;
@@ -864,7 +860,7 @@ t_sync_log(Tcl_Interp* ip, int ac, char* /*av*/[])
 }
 
 static int
-t_vol_root_index(Tcl_Interp* ip, int ac, char* av[])
+t_vol_root_index(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "vid", ac, 2))
 	return TCL_ERROR;
@@ -893,7 +889,7 @@ t_vol_root_index(Tcl_Interp* ip, int ac, char* av[])
 }
 
 static int
-t_get_volume_meta_stats(Tcl_Interp* ip, int ac, char* av[])
+t_get_volume_meta_stats(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "vid [t_cc_none|t_cc_volume]", ac, 2, 3))  {
 	return TCL_ERROR;
@@ -935,7 +931,7 @@ template class w_auto_delete_t<sm_stats_info_t>;
 #endif
 
 static int
-t_get_file_meta_stats(Tcl_Interp* ip, int ac, char* av[])
+t_get_file_meta_stats(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     const char errString[] = "vid storeNumList [batch|dont_batch] [t_cc_none|t_cc_file]";
 
@@ -951,8 +947,8 @@ t_get_file_meta_stats(Tcl_Interp* ip, int ac, char* av[])
     vid_t vid;
     istrstream anon(av[1], strlen(av[1])); anon >> vid;
 
-    int numFiles;
-    char** listElements;
+    int			numFiles;
+    TCL_SLIST	char	**listElements;
     if (Tcl_SplitList(ip, av[2], &numFiles, &listElements) != TCL_OK)  {
 	return TCL_ERROR;
     }
@@ -1004,7 +1000,7 @@ t_get_file_meta_stats(Tcl_Interp* ip, int ac, char* av[])
 }
 
 static int
-t_dump_buffers(Tcl_Interp* ip, int ac, char*[])
+t_dump_buffers(Tcl_Interp* ip, int ac, TCL_AV char*[])
 {
     if (check(ip, "", ac, 1)) return TCL_ERROR;
     DO(sm->dump_buffers(cout));
@@ -1012,7 +1008,7 @@ t_dump_buffers(Tcl_Interp* ip, int ac, char*[])
 }
 
 static int
-t_get_volume_quota(Tcl_Interp* ip, int ac, char* av[])
+t_get_volume_quota(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "vid", ac, 2))  return TCL_ERROR;
     smlevel_0::smksize_t capacity, used;
@@ -1027,7 +1023,7 @@ t_get_volume_quota(Tcl_Interp* ip, int ac, char* av[])
 }
 
 static int
-t_get_device_quota(Tcl_Interp* ip, int ac, char* av[])
+t_get_device_quota(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "device", ac, 2))  return TCL_ERROR;
     smlevel_0::smksize_t capacity, used;
@@ -1039,7 +1035,7 @@ t_get_device_quota(Tcl_Interp* ip, int ac, char* av[])
 }
 
 static int
-t_format_dev(Tcl_Interp* ip, int ac, char* av[])
+t_format_dev(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "device size_in_KB 'force/noforce'", ac, 4)) 
 	return TCL_ERROR;
@@ -1050,7 +1046,7 @@ t_format_dev(Tcl_Interp* ip, int ac, char* av[])
 }
 
 static int
-t_mount_dev(Tcl_Interp* ip, int ac, char* av[])
+t_mount_dev(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     // return volume count
     if (check(ip, "device [local_lvid_for_vid]", ac, 2, 3))
@@ -1078,7 +1074,7 @@ t_mount_dev(Tcl_Interp* ip, int ac, char* av[])
 }
 
 static int
-t_dismount_dev(Tcl_Interp* ip, int ac, char* av[])
+t_dismount_dev(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "device", ac, 2))
 	return TCL_ERROR;
@@ -1090,7 +1086,7 @@ t_dismount_dev(Tcl_Interp* ip, int ac, char* av[])
 }
 
 static int
-t_dismount_all(Tcl_Interp* ip, int ac, char* av[])
+t_dismount_all(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "", ac, 1))
 	return TCL_ERROR;
@@ -1102,7 +1098,7 @@ t_dismount_all(Tcl_Interp* ip, int ac, char* av[])
 }
 
 static int
-t_list_devices(Tcl_Interp* ip, int ac, char* av[])
+t_list_devices(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "", ac, 1))
 	return TCL_ERROR;
@@ -1128,7 +1124,7 @@ t_list_devices(Tcl_Interp* ip, int ac, char* av[])
 }
 
 static int
-t_list_volumes(Tcl_Interp* ip, int ac, char* av[])
+t_list_volumes(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "device", ac, 2))
 	return TCL_ERROR;
@@ -1147,7 +1143,7 @@ t_list_volumes(Tcl_Interp* ip, int ac, char* av[])
 }
 
 static int
-t_generate_new_lvid(Tcl_Interp* ip, int ac, char* av[])
+t_generate_new_lvid(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "", ac, 1))
 	return TCL_ERROR;
@@ -1165,7 +1161,7 @@ t_generate_new_lvid(Tcl_Interp* ip, int ac, char* av[])
 }
 
 static int
-t_create_vol(Tcl_Interp* ip, int ac, char* av[])
+t_create_vol(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "device lvid quota_in_KB ['skip_raw_init']", ac, 4, 5)) 
 	return TCL_ERROR;
@@ -1186,7 +1182,7 @@ t_create_vol(Tcl_Interp* ip, int ac, char* av[])
 }
 
 static int
-t_destroy_vol(Tcl_Interp* ip, int ac, char* av[])
+t_destroy_vol(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "lvid", ac, 2)) 
 	return TCL_ERROR;
@@ -1198,7 +1194,7 @@ t_destroy_vol(Tcl_Interp* ip, int ac, char* av[])
 }
 
 static int
-t_add_logical_id_index(Tcl_Interp* ip, int ac, char* av[])
+t_add_logical_id_index(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "lvid reserved", ac, 3)) return TCL_ERROR;
    
@@ -1211,7 +1207,7 @@ t_add_logical_id_index(Tcl_Interp* ip, int ac, char* av[])
 }
 
 static int
-t_has_logical_id_index(Tcl_Interp* ip, int ac, char* av[])
+t_has_logical_id_index(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "lvid", ac, 2)) return TCL_ERROR;
    
@@ -1226,7 +1222,7 @@ t_has_logical_id_index(Tcl_Interp* ip, int ac, char* av[])
 }
 
 static int
-t_get_du_statistics(Tcl_Interp* ip, int ac, char* av[])
+t_get_du_statistics(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     // borthakur : June, 1994
     if (check(ip, "vid|stid [pretty] [noaudit]", ac, 2, 3, 4))  return TCL_ERROR;
@@ -1257,7 +1253,7 @@ t_get_du_statistics(Tcl_Interp* ip, int ac, char* av[])
 	return TCL_ERROR;
     }
 
-    char* str = av[1];
+    TCL_AV char* str = av[1];
     int len = strlen(av[1]);
 
     if (use_logical_id(ip)) {
@@ -1299,7 +1295,7 @@ t_get_du_statistics(Tcl_Interp* ip, int ac, char* av[])
 }
 
 static int
-t_preemption_simulated(Tcl_Interp* ip, int ac, char* [])
+t_preemption_simulated(Tcl_Interp* ip, int ac, TCL_AV char* [])
 {
     if (check(ip, "", ac, 1)) return TCL_ERROR;
   
@@ -1318,7 +1314,7 @@ t_preemption_simulated(Tcl_Interp* ip, int ac, char* [])
 #define av /*av not used*/
 #endif
 static int
-t_purify_print_string(Tcl_Interp* ip, int ac, char* av[])
+t_purify_print_string(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 #undef av
 {
     if (check(ip, "string", ac, 2))  {
@@ -1337,7 +1333,7 @@ t_purify_print_string(Tcl_Interp* ip, int ac, char* av[])
 #endif
 
 static int
-t_simulate_preemption(Tcl_Interp* ip, int ac, char* av[])
+t_simulate_preemption(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 #ifndef USE_SSMTEST
 #undef av
 #endif
@@ -1367,7 +1363,7 @@ t_simulate_preemption(Tcl_Interp* ip, int ac, char* av[])
 
 }
 static int
-t_set_debug(Tcl_Interp* ip, int ac, char** W_IFTRACE(av))
+t_set_debug(Tcl_Interp* ip, int ac, TCL_AV char** W_IFTRACE(av))
 {
     if (check(ip, "[flag_string]", ac, 1, 2)) return TCL_ERROR;
   
@@ -1385,7 +1381,7 @@ t_set_debug(Tcl_Interp* ip, int ac, char** W_IFTRACE(av))
 }
 
 static int
-t_set_store_property(Tcl_Interp* ip, int ac, char* av[])
+t_set_store_property(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "fid property", ac, 3))  
 	return TCL_ERROR;
@@ -1406,7 +1402,7 @@ t_set_store_property(Tcl_Interp* ip, int ac, char* av[])
 }
 
 static int
-t_get_store_property(Tcl_Interp* ip, int ac, char* av[])
+t_get_store_property(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "fid", ac, 2))  
 	return TCL_ERROR;
@@ -1431,7 +1427,7 @@ t_get_store_property(Tcl_Interp* ip, int ac, char* av[])
 }
 
 static int
-t_set_lock_level(Tcl_Interp* ip, int ac, char* av[])
+t_set_lock_level(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "file|page|record", ac, 2))  
 	return TCL_ERROR;
@@ -1442,7 +1438,7 @@ t_set_lock_level(Tcl_Interp* ip, int ac, char* av[])
 
 
 static int
-t_get_lock_level(Tcl_Interp* ip, int ac, char* [])
+t_get_lock_level(Tcl_Interp* ip, int ac, TCL_AV char* [])
 {
     if (check(ip, "", ac, 1))  
 	return TCL_ERROR;
@@ -1456,7 +1452,7 @@ t_get_lock_level(Tcl_Interp* ip, int ac, char* [])
 }
 
 static int
-t_create_index(Tcl_Interp* ip, int ac, char* av[])
+t_create_index(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
      //            1   2       3                                        4           5
     if (check(ip, "vid ndxtype [\"tmp|regular|load_file|insert_file\"] [keydescr] [t_cc_none|t_cc_kvl|t_cc_modkvl|t_cc_im] [small]", ac, 3, 4, 5,  6, 7))
@@ -1541,7 +1537,7 @@ t_create_index(Tcl_Interp* ip, int ac, char* av[])
 }
 
 static int
-t_destroy_md_index(Tcl_Interp* ip, int ac, char* av[])
+t_destroy_md_index(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "fid", ac, 2))
         return TCL_ERROR;
@@ -1559,7 +1555,7 @@ t_destroy_md_index(Tcl_Interp* ip, int ac, char* av[])
     return TCL_OK;
 }
 static int
-t_destroy_index(Tcl_Interp* ip, int ac, char* av[])
+t_destroy_index(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "fid", ac, 2))
         return TCL_ERROR;
@@ -1583,10 +1579,10 @@ t_destroy_index(Tcl_Interp* ip, int ac, char* av[])
 //
 static rc_t 
 prepare_for_blkld(sort_stream_i& s_stream, 
-	Tcl_Interp* ip, char* fid,
-	const char* type, 
-	const char* universe=NULL
-)
+		  Tcl_Interp* ip,
+		  TCL_AV char *fid,
+		  const char* type, 
+		  const char* universe=NULL)
 {
     key_info_t info;
     sort_parm_t sp;
@@ -1747,7 +1743,7 @@ if(t == test_spatial) {
 }
 
 static int
-t_blkld_ndx(Tcl_Interp* ip, int ac, char* av[])
+t_blkld_ndx(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     // arguments: 0         1    2     3
     // arguments: blkld_ndx stid nsrcs srcs [src*] [type [universe]]
@@ -1868,7 +1864,7 @@ t_blkld_ndx(Tcl_Interp* ip, int ac, char* av[])
 }
 
 static int
-t_blkld_md_ndx(Tcl_Interp* ip, int ac, char* av[])
+t_blkld_md_ndx(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "stid src hf he universe", ac, 6)) 
 	return TCL_ERROR;
@@ -1908,7 +1904,7 @@ t_blkld_md_ndx(Tcl_Interp* ip, int ac, char* av[])
 }
 
 static int
-t_print_index(Tcl_Interp* ip, int ac, char* av[])
+t_print_index(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "stid", ac, 2))
 	return TCL_ERROR;
@@ -1927,7 +1923,7 @@ t_print_index(Tcl_Interp* ip, int ac, char* av[])
 }
 
 static int
-t_print_md_index(Tcl_Interp* ip, int ac, char* av[])
+t_print_md_index(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "stid", ac, 2))
 	return TCL_ERROR;
@@ -1949,7 +1945,7 @@ t_print_md_index(Tcl_Interp* ip, int ac, char* av[])
 
 
 static int
-t_crash(Tcl_Interp* ip, int ac, char ** W_IFTRACE(av))
+t_crash(Tcl_Interp* ip, int ac, TCL_AV char ** W_IFTRACE(av))
 {
 
     if (check(ip, "str cmd", ac, 3))
@@ -1971,7 +1967,7 @@ extern w_rc_t out_of_log_space (xct_i*, xct_t *&,
 	smlevel_0::fileoff_t, smlevel_0::fileoff_t);
 
 static int
-t_restart(Tcl_Interp* ip, int ac, char* av[])
+t_restart(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "clean:bool", ac, 1, 2))
 	return TCL_ERROR;
@@ -2012,7 +2008,7 @@ t_restart(Tcl_Interp* ip, int ac, char* av[])
 #ifdef USE_COORD
 
 static int
-t_coord(Tcl_Interp* ip, int ac, char* av[])
+t_coord(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "vid", ac, 2))
 	return TCL_ERROR;
@@ -2027,7 +2023,7 @@ t_coord(Tcl_Interp* ip, int ac, char* av[])
 #endif
 
 static int
-t_create_file(Tcl_Interp* ip, int ac, char* av[])
+t_create_file(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "vid  [\"tmp|regular|load_file|insert_file\"] [cluster-page]",
 	      ac, 2, 3, 4)) 
@@ -2064,7 +2060,7 @@ t_create_file(Tcl_Interp* ip, int ac, char* av[])
 }
 
 static int
-t_destroy_file(Tcl_Interp* ip, int ac, char* av[])
+t_destroy_file(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "fid", ac, 2))
         return TCL_ERROR;
@@ -2083,7 +2079,7 @@ t_destroy_file(Tcl_Interp* ip, int ac, char* av[])
 }
 
 static int
-t_create_scan(Tcl_Interp* ip, int ac, char* av[])
+t_create_scan(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     FUNC(t_create_scan);
     if (check(ip, "stid cmp1 bound1 cmp2 bound2 [concurrency_t] [keydescr]", ac, 6, 8))
@@ -2204,7 +2200,7 @@ t_create_scan(Tcl_Interp* ip, int ac, char* av[])
 }
 
 static int
-t_scan_next(Tcl_Interp* ip, int ac, char* av[])
+t_scan_next(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "scanid [keydescr]", ac, 2, 3))
 	return TCL_ERROR;
@@ -2331,7 +2327,7 @@ t_scan_next(Tcl_Interp* ip, int ac, char* av[])
 }
 
 static int
-t_destroy_scan(Tcl_Interp* ip, int ac, char* av[])
+t_destroy_scan(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "scanid", ac, 2))
 	return TCL_ERROR;
@@ -2343,7 +2339,7 @@ t_destroy_scan(Tcl_Interp* ip, int ac, char* av[])
 }
 
 static int
-t_create_multi_recs(Tcl_Interp* ip, int ac, char* av[])
+t_create_multi_recs(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "fid hdr len_hint data count", ac, 6))
         return TCL_ERROR;
@@ -2388,7 +2384,7 @@ t_create_multi_recs(Tcl_Interp* ip, int ac, char* av[])
 }
 
 static int
-t_multi_file_append(Tcl_Interp* ip, int ac, char* av[])
+t_multi_file_append(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "scan hdr len_hint data count", ac, 6))
         return TCL_ERROR;
@@ -2428,7 +2424,7 @@ t_multi_file_append(Tcl_Interp* ip, int ac, char* av[])
 }
 
 static int
-t_multi_file_update(Tcl_Interp* ip, int ac, char* av[])
+t_multi_file_update(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "scan objsize ", ac, 3))
         return TCL_ERROR;
@@ -2462,7 +2458,7 @@ t_multi_file_update(Tcl_Interp* ip, int ac, char* av[])
 }
 
 static int
-t_create_rec(Tcl_Interp* ip, int ac, char* av[])
+t_create_rec(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "fid hdr len_hint data", ac, 5)) 
 	return TCL_ERROR;
@@ -2499,7 +2495,7 @@ t_create_rec(Tcl_Interp* ip, int ac, char* av[])
 }
 
 static int
-t_destroy_rec(Tcl_Interp* ip, int ac, char* av[])
+t_destroy_rec(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "rid", ac, 2)) 
 	return TCL_ERROR;
@@ -2523,7 +2519,7 @@ t_destroy_rec(Tcl_Interp* ip, int ac, char* av[])
 }
 
 static int
-t_read_rec_1(Tcl_Interp* ip, int ac, char* av[], bool dump_body_too)
+t_read_rec_1(Tcl_Interp* ip, int ac, TCL_AV char* av[], bool dump_body_too)
 {
     if (check(ip, "rid start length [num_pins]", ac, 4, 5)) 
 	return TCL_ERROR;
@@ -2593,18 +2589,18 @@ t_read_rec_1(Tcl_Interp* ip, int ac, char* av[], bool dump_body_too)
     return TCL_OK;
 }
 static int
-t_read_rec(Tcl_Interp* ip, int ac, char* av[])
+t_read_rec(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     return t_read_rec_1(ip, ac, av, true);
 }
 static int
-t_read_hdr(Tcl_Interp* ip, int ac, char* av[])
+t_read_hdr(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     return t_read_rec_1(ip, ac, av, false);
 }
 
 static int
-t_print_rec(Tcl_Interp* ip, int ac, char* av[])
+t_print_rec(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "rid start length", ac, 4)) 
 	return TCL_ERROR;
@@ -2649,7 +2645,7 @@ t_print_rec(Tcl_Interp* ip, int ac, char* av[])
 }
 
 static int
-t_read_rec_body(Tcl_Interp* ip, int ac, char* av[])
+t_read_rec_body(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "rid [start [length]]", ac, 2, 3, 4)) 
 	return TCL_ERROR;
@@ -2701,7 +2697,7 @@ t_read_rec_body(Tcl_Interp* ip, int ac, char* av[])
 }
 
 static int
-t_update_rec(Tcl_Interp* ip, int ac, char* av[])
+t_update_rec(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "rid start data", ac, 4)) 
 	return TCL_ERROR;
@@ -2730,7 +2726,7 @@ t_update_rec(Tcl_Interp* ip, int ac, char* av[])
 }
 
 static int
-t_update_rec_hdr(Tcl_Interp* ip, int ac, char* av[])
+t_update_rec_hdr(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "rid start hdr", ac, 4)) 
 	return TCL_ERROR;
@@ -2759,7 +2755,7 @@ t_update_rec_hdr(Tcl_Interp* ip, int ac, char* av[])
 }
 
 static int
-t_append_rec(Tcl_Interp* ip, int ac, char* av[])
+t_append_rec(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "rid data", ac, 3)) 
 	return TCL_ERROR;
@@ -2783,7 +2779,7 @@ t_append_rec(Tcl_Interp* ip, int ac, char* av[])
 }
 
 static int
-t_truncate_rec(Tcl_Interp* ip, int ac, char* av[])
+t_truncate_rec(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "rid amount", ac, 3)) 
 	return TCL_ERROR;
@@ -3024,7 +3020,7 @@ dump_scan( scan_file_i &scan, ostream &out, bool hex)
 
 
 static int
-t_scan_recs(Tcl_Interp* ip, int ac, char* av[])
+t_scan_recs(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "fid [start_rid]", ac, 2, 3)) 
 	return TCL_ERROR;
@@ -3072,7 +3068,7 @@ t_scan_recs(Tcl_Interp* ip, int ac, char* av[])
 }
 
 static int
-t_scan_rids(Tcl_Interp* ip, int ac, char* av[])
+t_scan_rids(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "fid [start_rid]", ac, 2, 3))
         return TCL_ERROR;
@@ -3141,7 +3137,7 @@ t_scan_rids(Tcl_Interp* ip, int ac, char* av[])
 }
 
 static int
-t_pin_create(Tcl_Interp* ip, int ac, char*[])
+t_pin_create(Tcl_Interp* ip, int ac, TCL_AV char*[])
 {
     if (check(ip, "", ac, 1))
 	return TCL_ERROR;
@@ -3160,7 +3156,7 @@ t_pin_create(Tcl_Interp* ip, int ac, char*[])
 }
 
 static int
-t_pin_destroy(Tcl_Interp* ip, int ac, char* av[])
+t_pin_destroy(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "pin", ac, 2))
 	return TCL_ERROR;
@@ -3172,7 +3168,7 @@ t_pin_destroy(Tcl_Interp* ip, int ac, char* av[])
 }
 
 static int
-t_pin_pin(Tcl_Interp* ip, int ac, char* av[])
+t_pin_pin(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "pin rec_id start [SH/EX]", ac, 4,5))
 	return TCL_ERROR;
@@ -3203,7 +3199,7 @@ t_pin_pin(Tcl_Interp* ip, int ac, char* av[])
 }
 
 static int
-t_pin_unpin(Tcl_Interp* ip, int ac, char* av[])
+t_pin_unpin(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "pin", ac, 2))
 	return TCL_ERROR;
@@ -3215,7 +3211,7 @@ t_pin_unpin(Tcl_Interp* ip, int ac, char* av[])
 }
 
 static int
-t_pin_repin(Tcl_Interp* ip, int ac, char* av[])
+t_pin_repin(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "pin [SH/EX]", ac, 2,3))
 	return TCL_ERROR;
@@ -3234,7 +3230,7 @@ t_pin_repin(Tcl_Interp* ip, int ac, char* av[])
 }
 
 static int
-t_pin_body(Tcl_Interp* ip, int ac, char* av[])
+t_pin_body(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "pin", ac, 2))
 	return TCL_ERROR;
@@ -3249,7 +3245,7 @@ t_pin_body(Tcl_Interp* ip, int ac, char* av[])
 }
 
 static int
-t_pin_body_cond(Tcl_Interp* ip, int ac, char* av[])
+t_pin_body_cond(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "pin", ac, 2))
 	return TCL_ERROR;
@@ -3268,7 +3264,7 @@ t_pin_body_cond(Tcl_Interp* ip, int ac, char* av[])
 }
 
 static int
-t_pin_next_bytes(Tcl_Interp* ip, int ac, char* av[])
+t_pin_next_bytes(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "pin", ac, 2))
 	return TCL_ERROR;
@@ -3287,7 +3283,7 @@ t_pin_next_bytes(Tcl_Interp* ip, int ac, char* av[])
 }
 
 static int
-t_page_containing(Tcl_Interp* ip, int ac, char* av[])
+t_page_containing(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "pin offset", ac, 3))
 	return TCL_ERROR;
@@ -3306,7 +3302,7 @@ t_page_containing(Tcl_Interp* ip, int ac, char* av[])
 }
 
 static int
-t_pin_hdr(Tcl_Interp* ip, int ac, char* av[])
+t_pin_hdr(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "pin", ac, 2))
 	return TCL_ERROR;
@@ -3321,7 +3317,7 @@ t_pin_hdr(Tcl_Interp* ip, int ac, char* av[])
 }
 
 static int
-t_pin_pinned(Tcl_Interp* ip, int ac, char* av[])
+t_pin_pinned(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "pin", ac, 2))
 	return TCL_ERROR;
@@ -3338,7 +3334,7 @@ t_pin_pinned(Tcl_Interp* ip, int ac, char* av[])
 }
 
 static int
-t_pin_large_impl(Tcl_Interp* ip, int ac, char* av[])
+t_pin_large_impl(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "pin", ac, 2))
 	return TCL_ERROR;
@@ -3354,7 +3350,7 @@ t_pin_large_impl(Tcl_Interp* ip, int ac, char* av[])
 }
 
 static int
-t_pin_is_small(Tcl_Interp* ip, int ac, char* av[])
+t_pin_is_small(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "pin", ac, 2))
 	return TCL_ERROR;
@@ -3371,7 +3367,7 @@ t_pin_is_small(Tcl_Interp* ip, int ac, char* av[])
 }
 
 static int
-t_pin_rid(Tcl_Interp* ip, int ac, char* av[])
+t_pin_rid(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "pin", ac, 2))
 	return TCL_ERROR;
@@ -3391,7 +3387,7 @@ t_pin_rid(Tcl_Interp* ip, int ac, char* av[])
 }
 
 static int
-t_pin_append_rec(Tcl_Interp* ip, int ac, char* av[])
+t_pin_append_rec(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "pin data", ac, 3))
 	return TCL_ERROR;
@@ -3406,7 +3402,7 @@ t_pin_append_rec(Tcl_Interp* ip, int ac, char* av[])
 }
 
 static int
-t_pin_update_rec(Tcl_Interp* ip, int ac, char* av[])
+t_pin_update_rec(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "pin start data", ac, 4))
 	return TCL_ERROR;
@@ -3422,7 +3418,7 @@ t_pin_update_rec(Tcl_Interp* ip, int ac, char* av[])
 }
 
 static int
-t_pin_update_rec_hdr(Tcl_Interp* ip, int ac, char* av[])
+t_pin_update_rec_hdr(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "pin start data", ac, 4))
 	return TCL_ERROR;
@@ -3438,7 +3434,7 @@ t_pin_update_rec_hdr(Tcl_Interp* ip, int ac, char* av[])
 }
 
 static int
-t_pin_truncate_rec(Tcl_Interp* ip, int ac, char* av[])
+t_pin_truncate_rec(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "pin amount", ac, 3))
 	return TCL_ERROR;
@@ -3452,7 +3448,7 @@ t_pin_truncate_rec(Tcl_Interp* ip, int ac, char* av[])
 }
 
 static int
-t_scan_file_create(Tcl_Interp* ip, int ac, char* av[])
+t_scan_file_create(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "fileid concurrency_t [start_rid]", ac, 3,4))
 	return TCL_ERROR;
@@ -3517,7 +3513,7 @@ t_scan_file_create(Tcl_Interp* ip, int ac, char* av[])
 }
 
 static int
-t_scan_file_destroy(Tcl_Interp* ip, int ac, char* av[])
+t_scan_file_destroy(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "scan", ac, 2))
 	return TCL_ERROR;
@@ -3530,7 +3526,7 @@ t_scan_file_destroy(Tcl_Interp* ip, int ac, char* av[])
 
 
 static int
-t_scan_file_cursor(Tcl_Interp* ip, int ac, char* av[])
+t_scan_file_cursor(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "scan ", ac, 2))
 	return TCL_ERROR;
@@ -3554,7 +3550,7 @@ t_scan_file_cursor(Tcl_Interp* ip, int ac, char* av[])
 }
 
 static int
-t_scan_file_next(Tcl_Interp* ip, int ac, char* av[])
+t_scan_file_next(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "scan start", ac, 3))
 	return TCL_ERROR;
@@ -3580,7 +3576,7 @@ t_scan_file_next(Tcl_Interp* ip, int ac, char* av[])
 
 
 static int
-t_scan_file_next_page(Tcl_Interp* ip, int ac, char* av[])
+t_scan_file_next_page(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "scan start", ac, 3))
 	return TCL_ERROR;
@@ -3606,7 +3602,7 @@ t_scan_file_next_page(Tcl_Interp* ip, int ac, char* av[])
 
 
 static int
-t_scan_file_finish(Tcl_Interp* ip, int ac, char* av[])
+t_scan_file_finish(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "scan", ac, 2))
 	return TCL_ERROR;
@@ -3617,7 +3613,7 @@ t_scan_file_finish(Tcl_Interp* ip, int ac, char* av[])
 }
 
 static int
-t_scan_file_append(Tcl_Interp* ip, int ac, char* av[])
+t_scan_file_append(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "scan hdr len_hint data", ac, 5)) 
 	return TCL_ERROR;
@@ -3645,7 +3641,7 @@ t_scan_file_append(Tcl_Interp* ip, int ac, char* av[])
 }
 
 static int
-t_create_assoc(Tcl_Interp* ip, int ac, char* av[])
+t_create_assoc(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "stid key el [keydescr] [concurrency]", ac, 4, 5, 6)) 
 		 // 1    2  3   4         5
@@ -3746,7 +3742,7 @@ t_create_assoc(Tcl_Interp* ip, int ac, char* av[])
 }
 
 static int
-t_destroy_assoc(Tcl_Interp* ip, int ac, char* av[])
+t_destroy_assoc(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "stid key el [keytype]", ac, 4, 5)) 
 	return TCL_ERROR;
@@ -3797,7 +3793,7 @@ t_destroy_assoc(Tcl_Interp* ip, int ac, char* av[])
     return TCL_OK;
 }
 static int
-t_destroy_all_assoc(Tcl_Interp* ip, int ac, char* av[])
+t_destroy_all_assoc(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "stid key", ac, 3)) 
 	return TCL_ERROR;
@@ -3824,7 +3820,7 @@ t_destroy_all_assoc(Tcl_Interp* ip, int ac, char* av[])
 }
 
 static int
-t_find_assoc(Tcl_Interp* ip, int ac, char* av[])
+t_find_assoc(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "stid key [keytype]", ac, 3, 4))
 	return TCL_ERROR;
@@ -3896,7 +3892,7 @@ t_find_assoc(Tcl_Interp* ip, int ac, char* av[])
 }
 
 static int
-t_create_md_index(Tcl_Interp* ip, int ac, char* av[])
+t_create_md_index(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "vid dim ndxtype", ac, 4))
 	return TCL_ERROR;
@@ -3922,7 +3918,7 @@ t_create_md_index(Tcl_Interp* ip, int ac, char* av[])
 }
 
 static int
-t_create_md_assoc(Tcl_Interp* ip, int ac, char* av[])
+t_create_md_assoc(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "stid box el", ac, 4))
 	return TCL_ERROR;
@@ -3946,7 +3942,7 @@ t_create_md_assoc(Tcl_Interp* ip, int ac, char* av[])
 
 
 static int
-t_find_md_assoc(Tcl_Interp* ip, int ac, char* av[])
+t_find_md_assoc(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "stid box", ac, 3))
 	return TCL_ERROR;
@@ -3976,7 +3972,7 @@ t_find_md_assoc(Tcl_Interp* ip, int ac, char* av[])
 
 
 static int
-t_destroy_md_assoc(Tcl_Interp* ip, int ac, char* av[])
+t_destroy_md_assoc(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "stid box el", ac, 4))
 	return TCL_ERROR;
@@ -4031,7 +4027,7 @@ static void boxGen(nbox_t* rect[], int number, const nbox_t& universe)
  a problem with deleteing  possibly in-use boxes.
  */
 static int
-t_next_box(Tcl_Interp* ip, int ac, char* av[])
+t_next_box(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "universe", ac, 2))
         return TCL_ERROR;
@@ -4060,7 +4056,7 @@ t_next_box(Tcl_Interp* ip, int ac, char* av[])
 
 
 static int
-t_draw_rtree(Tcl_Interp* ip, int ac, char* av[])
+t_draw_rtree(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "stid", ac, 3))
         return TCL_ERROR;
@@ -4087,7 +4083,7 @@ t_draw_rtree(Tcl_Interp* ip, int ac, char* av[])
 }
 
 static int
-t_rtree_stats(Tcl_Interp* ip, int ac, char* av[])
+t_rtree_stats(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "stid", ac, 2))
         return TCL_ERROR;
@@ -4122,7 +4118,7 @@ t_rtree_stats(Tcl_Interp* ip, int ac, char* av[])
 }
 
 static int
-t_rtree_scan(Tcl_Interp* ip, int ac, char* av[])
+t_rtree_scan(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "stid cond box [concurrency_t]", ac, 4, 5))
         return TCL_ERROR;
@@ -4196,7 +4192,7 @@ t_rtree_scan(Tcl_Interp* ip, int ac, char* av[])
 static sort_stream_i* sort_container;
 
 static int
-t_begin_sort_stream(Tcl_Interp* ip, int ac, char* av[])
+t_begin_sort_stream(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
 
     const int vid_arg=1;
@@ -4337,7 +4333,7 @@ t_begin_sort_stream(Tcl_Interp* ip, int ac, char* av[])
 }
     
 static int
-t_sort_stream_put(Tcl_Interp* ip, int ac, char* av[])
+t_sort_stream_put(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     // Puts typed key in header, string data in body
     if (check(ip, "type key data", ac, 4))
@@ -4360,7 +4356,7 @@ t_sort_stream_put(Tcl_Interp* ip, int ac, char* av[])
 }
 
 static int
-t_sort_stream_get(Tcl_Interp* ip, int ac, char* av[])
+t_sort_stream_get(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "next type", ac, 3))
 	return TCL_ERROR;
@@ -4471,7 +4467,7 @@ t_sort_stream_get(Tcl_Interp* ip, int ac, char* av[])
 }
 
 static int
-t_sort_stream_end(Tcl_Interp* ip, int ac, char* av[])
+t_sort_stream_end(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (sort_container) delete sort_container;
     sort_container = 0;
@@ -4484,7 +4480,7 @@ t_sort_stream_end(Tcl_Interp* ip, int ac, char* av[])
 
 
 static int
-t_link_to_remote_id(Tcl_Interp* ip, int ac, char* av[])
+t_link_to_remote_id(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "local_volume remote_id", ac, 3))
 	return TCL_ERROR;
@@ -4510,7 +4506,7 @@ t_link_to_remote_id(Tcl_Interp* ip, int ac, char* av[])
 }
 
 static int
-t_convert_to_local_id(Tcl_Interp* ip, int ac, char* av[])
+t_convert_to_local_id(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "remote_id", ac, 2))
 	return TCL_ERROR;
@@ -4534,7 +4530,7 @@ t_convert_to_local_id(Tcl_Interp* ip, int ac, char* av[])
 }
 
 static int
-t_lfid_of_lrid(Tcl_Interp* ip, int ac, char* av[])
+t_lfid_of_lrid(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "lrid", ac, 2))
 	return TCL_ERROR;
@@ -4557,7 +4553,7 @@ t_lfid_of_lrid(Tcl_Interp* ip, int ac, char* av[])
 }
 
 static int
-t_serial_to_rid(Tcl_Interp* ip, int ac, char* av[])
+t_serial_to_rid(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "lrid", ac, 2))
 	return TCL_ERROR;
@@ -4579,7 +4575,7 @@ t_serial_to_rid(Tcl_Interp* ip, int ac, char* av[])
 }
 
 static int
-t_serial_to_stid(Tcl_Interp* ip, int ac, char* av[])
+t_serial_to_stid(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "lstid", ac, 2))
 	return TCL_ERROR;
@@ -4601,7 +4597,7 @@ t_serial_to_stid(Tcl_Interp* ip, int ac, char* av[])
 }
 
 static int
-t_set_lid_cache_enable(Tcl_Interp* ip, int ac, char* av[])
+t_set_lid_cache_enable(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "enable/disable)", ac, 2) )
 	return TCL_ERROR;
@@ -4621,7 +4617,7 @@ t_set_lid_cache_enable(Tcl_Interp* ip, int ac, char* av[])
 }
 
 static int
-t_lid_cache_enabled(Tcl_Interp* ip, int ac, char* av[])
+t_lid_cache_enabled(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "", ac, 1) )
 	return TCL_ERROR;
@@ -4637,7 +4633,7 @@ t_lid_cache_enabled(Tcl_Interp* ip, int ac, char* av[])
 }
 
 static int
-t_test_lid_cache(Tcl_Interp* ip, int ac, char* av[])
+t_test_lid_cache(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "lvid num_add", ac, 3) )
 	return TCL_ERROR;
@@ -4654,7 +4650,7 @@ t_test_lid_cache(Tcl_Interp* ip, int ac, char* av[])
 }
 
 static int
-t_lock(Tcl_Interp* ip, int ac, char* av[])
+t_lock(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "entity mode [duration [timeout]]", ac, 3, 4, 5) )
 	return TCL_ERROR;
@@ -4730,7 +4726,7 @@ t_lock(Tcl_Interp* ip, int ac, char* av[])
 }
 
 static int
-t_dont_escalate(Tcl_Interp* ip, int ac, char* av[])
+t_dont_escalate(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "entity [\"dontPassOnToDescendants\"]", ac, 2, 3))
 	return TCL_ERROR;
@@ -4785,7 +4781,7 @@ t_dont_escalate(Tcl_Interp* ip, int ac, char* av[])
 }
 
 static int
-t_get_escalation_thresholds(Tcl_Interp* ip, int ac, char* /*av*/[])
+t_get_escalation_thresholds(Tcl_Interp* ip, int ac, TCL_AV char* [])
 {
     if (check(ip, "", ac, 1))
 	return TCL_ERROR;
@@ -4810,7 +4806,7 @@ t_get_escalation_thresholds(Tcl_Interp* ip, int ac, char* /*av*/[])
 }
 
 static int4_t
-parse_escalation_thresholds(char *s)
+parse_escalation_thresholds(const char *s)
 {
     int		result = atoi(s);
 
@@ -4823,11 +4819,11 @@ parse_escalation_thresholds(char *s)
 }
 
 static int
-t_set_escalation_thresholds(Tcl_Interp* ip, int ac, char* av[])
+t_set_escalation_thresholds(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
-    int		listArgc;
-    char**	listArgv;
-    const char*	errString = 
+    int			listArgc;
+    TCL_SLIST char	**listArgv;
+    const char		*errString = 
     "{toPage, toStore, toVolume} (0 =don't escalate, <0 =don't modify)";
 
     if (check(ip, errString, ac, 2))
@@ -4856,7 +4852,7 @@ t_set_escalation_thresholds(Tcl_Interp* ip, int ac, char* av[])
 #include <deadlock_events.h>
 
 static int
-t_start_deadlock_info_recording(Tcl_Interp* ip, int ac, char* /*av*/[])
+t_start_deadlock_info_recording(Tcl_Interp* ip, int ac, TCL_AV char* /*av*/[])
 {
     if (check(ip, "", ac, 1))
 	return TCL_ERROR;
@@ -4868,7 +4864,7 @@ t_start_deadlock_info_recording(Tcl_Interp* ip, int ac, char* /*av*/[])
 }
 
 static int
-t_stop_deadlock_info_recording(Tcl_Interp* ip, int ac, char* /*av*/[])
+t_stop_deadlock_info_recording(Tcl_Interp* ip, int ac, TCL_AV char* /*av*/[])
 {
     if (check(ip, "", ac, 1))
 	return TCL_ERROR;
@@ -4880,7 +4876,7 @@ t_stop_deadlock_info_recording(Tcl_Interp* ip, int ac, char* /*av*/[])
 
 
 static int
-t_lock_many(Tcl_Interp* ip, int ac, char* av[])
+t_lock_many(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "num_requests entity mode [duration [timeout]]", 
 	      ac, 4, 5, 6) )
@@ -4947,7 +4943,7 @@ t_lock_many(Tcl_Interp* ip, int ac, char* av[])
 }
 
 static int
-t_unlock(Tcl_Interp* ip, int ac, char* av[])
+t_unlock(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "entity", ac, 2) )
 	return TCL_ERROR;
@@ -4978,7 +4974,7 @@ t_unlock(Tcl_Interp* ip, int ac, char* av[])
 extern "C" void dumpthreads();
 
 static int
-t_dump_threads(Tcl_Interp* ip, int ac, char*[])
+t_dump_threads(Tcl_Interp* ip, int ac, TCL_AV char*[])
 {
     if (check(ip, "", ac, 1))
 	return TCL_ERROR;
@@ -4989,7 +4985,7 @@ t_dump_threads(Tcl_Interp* ip, int ac, char*[])
 }
 
 static int
-t_dump_histo(Tcl_Interp *ip, int ac, char *[])
+t_dump_histo(Tcl_Interp *ip, int ac, TCL_AV char *[])
 {
 	if (check(ip, "", ac, 1))
 		return TCL_ERROR;
@@ -5001,7 +4997,7 @@ t_dump_histo(Tcl_Interp *ip, int ac, char *[])
 
 
 static int
-t_dump_locks(Tcl_Interp* ip, int ac, char*[])
+t_dump_locks(Tcl_Interp* ip, int ac, TCL_AV char*[])
 {
     if (check(ip, "", ac, 1))
 	return TCL_ERROR;
@@ -5011,7 +5007,7 @@ t_dump_locks(Tcl_Interp* ip, int ac, char*[])
 }
 
 static int
-t_query_lock(Tcl_Interp* ip, int ac, char* av[])
+t_query_lock(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "entity", ac, 2) )
 	return TCL_ERROR;
@@ -5043,7 +5039,7 @@ t_query_lock(Tcl_Interp* ip, int ac, char* av[])
 }
 
 static int
-t_set_lock_cache_enable(Tcl_Interp* ip, int ac, char* av[])
+t_set_lock_cache_enable(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "enable/disable)", ac, 2) )
 	return TCL_ERROR;
@@ -5063,7 +5059,7 @@ t_set_lock_cache_enable(Tcl_Interp* ip, int ac, char* av[])
 }
 
 static int
-t_lock_cache_enabled(Tcl_Interp* ip, int ac, char* av[])
+t_lock_cache_enabled(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "", ac, 1) )
 	return TCL_ERROR;
@@ -5078,7 +5074,7 @@ t_lock_cache_enabled(Tcl_Interp* ip, int ac, char* av[])
 }
 
 static int
-t_print_lid_index(Tcl_Interp* ip, int ac, char* av[])
+t_print_lid_index(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "vid", ac, 2) )
 	return TCL_ERROR;
@@ -5095,7 +5091,7 @@ t_print_lid_index(Tcl_Interp* ip, int ac, char* av[])
 }
 
 static int
-t_create_many_rec(Tcl_Interp* ip, int ac, char* av[])
+t_create_many_rec(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "num_recs fid hdr len_hint chunkdata chunkcount", ac, 7)) 
 	return TCL_ERROR;
@@ -5154,7 +5150,7 @@ t_create_many_rec(Tcl_Interp* ip, int ac, char* av[])
 }
 
 static int
-t_update_rec_many(Tcl_Interp* ip, int ac, char* av[])
+t_update_rec_many(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "num_updates rid start data", ac, 5)) 
 	return TCL_ERROR;
@@ -5189,7 +5185,7 @@ t_update_rec_many(Tcl_Interp* ip, int ac, char* av[])
 
 
 static int
-t_lock_record_blind(Tcl_Interp* ip, int ac, char* av[])
+t_lock_record_blind(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "num", ac, 2))
 	return TCL_ERROR;
@@ -5221,7 +5217,7 @@ t_lock_record_blind(Tcl_Interp* ip, int ac, char* av[])
 
 
 static int
-t_testing(Tcl_Interp* ip, int ac, char* av[])
+t_testing(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "stid key times", ac, 4))
 	return TCL_ERROR;
@@ -5259,7 +5255,7 @@ t_testing(Tcl_Interp* ip, int ac, char* av[])
 }
 
 static int
-t_janet_setup(Tcl_Interp* ip, int ac, char* av[])
+t_janet_setup(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "stid nkeys", ac, 3))
 	return TCL_ERROR;
@@ -5284,7 +5280,7 @@ t_janet_setup(Tcl_Interp* ip, int ac, char* av[])
 }
 
 static int
-t_janet_lookup(Tcl_Interp* ip, int ac, char* av[])
+t_janet_lookup(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "stid nkeys nlookups", ac, 4))
 	return TCL_ERROR;
@@ -5321,7 +5317,7 @@ t_janet_lookup(Tcl_Interp* ip, int ac, char* av[])
 
 #ifdef USE_COORD
 static int
-t_startns(Tcl_Interp* ip, int ac, char* av[])
+t_startns(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "nsnamefile ", ac, 2)) 
 	return TCL_ERROR;
@@ -5333,7 +5329,7 @@ t_startns(Tcl_Interp* ip, int ac, char* av[])
 }
 
 static int
-t_startco(Tcl_Interp* ip, int ac, char* av[])
+t_startco(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "name ", ac, 2)) 
 	return TCL_ERROR;
@@ -5343,7 +5339,7 @@ t_startco(Tcl_Interp* ip, int ac, char* av[])
 }
 
 static int
-t_startsub(Tcl_Interp* ip, int ac, char* av[])
+t_startsub(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "myname ", ac, 3)) 
 	return TCL_ERROR;
@@ -5356,7 +5352,7 @@ t_startsub(Tcl_Interp* ip, int ac, char* av[])
 }
 
 static int
-t_co_sendtcl(Tcl_Interp* ip, int ac, char* av[])
+t_co_sendtcl(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "where cmd", ac, 3)) 
 	return TCL_ERROR;
@@ -5379,7 +5375,7 @@ t_co_sendtcl(Tcl_Interp* ip, int ac, char* av[])
 }
 
 int
-t_co_retire(Tcl_Interp* , int , char*[])
+t_co_retire(Tcl_Interp* , int , TCL_AV char*[])
 {
     if(co) {
 	delete co;
@@ -5389,7 +5385,7 @@ t_co_retire(Tcl_Interp* , int , char*[])
 }
 
 static int
-t_co_newtid(Tcl_Interp* ip, int ac, char* [])
+t_co_newtid(Tcl_Interp* ip, int ac, TCL_AV char* [])
 {
     if (check(ip, 0, ac, 1)) return TCL_ERROR;
 
@@ -5404,7 +5400,7 @@ t_co_newtid(Tcl_Interp* ip, int ac, char* [])
 }
 
 static int
-t_co_end(Tcl_Interp* ip, int ac, char* av[])
+t_co_end(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "gtid commit:true/false", ac, 3)) return TCL_ERROR;
 
@@ -5436,7 +5432,7 @@ t_co_end(Tcl_Interp* ip, int ac, char* av[])
 }
 
 static int
-t_co_retry_commit(Tcl_Interp* ip, int ac, char* av[])
+t_co_retry_commit(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, 0, ac, 2)) return TCL_ERROR;
 
@@ -5465,7 +5461,7 @@ t_co_retry_commit(Tcl_Interp* ip, int ac, char* av[])
 }
 
 static int
-t_co_commit(Tcl_Interp* ip, int ac, char* av[])
+t_co_commit(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     bool is_prepare = false;
     if(ac < 4) {
@@ -5509,7 +5505,7 @@ t_co_commit(Tcl_Interp* ip, int ac, char* av[])
 }
 
 static int
-t_co_addmap( Tcl_Interp* ip, int ac, char* av[])
+t_co_addmap( Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     int    num;
 
@@ -5550,14 +5546,14 @@ if(false) {
 }
 
 static int
-t_co_clearmap(Tcl_Interp* ip, int , char* [])
+t_co_clearmap(Tcl_Interp* ip, int , TCL_AV char* [])
 {
     DO( co->clear_map());
     return TCL_OK;
 }
 
 static int
-t_local_add(Tcl_Interp* ip, int , char* av[])
+t_local_add(Tcl_Interp* ip, int , TCL_AV char* av[])
 {
     gtid_t g(av[1]);
     tid_t t;
@@ -5570,7 +5566,7 @@ t_local_add(Tcl_Interp* ip, int , char* av[])
     return TCL_OK;
 }
 static int
-t_local_rm(Tcl_Interp* ip, int , char* av[])
+t_local_rm(Tcl_Interp* ip, int , TCL_AV char* av[])
 {
     gtid_t g(av[1]);
     tid_t t;
@@ -5584,7 +5580,7 @@ t_local_rm(Tcl_Interp* ip, int , char* av[])
 }
 
 static int
-t_co_print(Tcl_Interp* , int , char* [])
+t_co_print(Tcl_Interp* , int , TCL_AV char* [])
 {
     co->dump(cerr);
 
@@ -5592,7 +5588,7 @@ t_co_print(Tcl_Interp* , int , char* [])
 }
 
 static int
-t_gtid2tid(Tcl_Interp*ip , int ac , char* av[])
+t_gtid2tid(Tcl_Interp*ip , int ac , TCL_AV char* av[])
 {
     if (check(ip, "", ac, 2))
 	return TCL_ERROR;
@@ -5615,7 +5611,7 @@ t_gtid2tid(Tcl_Interp*ip , int ac , char* av[])
 const char *GlobalDeadlockServerName = "DeadlockServer";
 
 static int
-t_startdeadlockclient(Tcl_Interp* ip, int ac, char* [])
+t_startdeadlockclient(Tcl_Interp* ip, int ac, TCL_AV char* [])
 {
     if (check(ip, "", ac, 1))
 	return TCL_ERROR;
@@ -5643,7 +5639,7 @@ t_startdeadlockclient(Tcl_Interp* ip, int ac, char* [])
 }
 
 static int
-t_startdeadlockserver(Tcl_Interp* ip, int ac, char* [])
+t_startdeadlockserver(Tcl_Interp* ip, int ac, TCL_AV char* [])
 {
     if (check(ip, "", ac, 1))
 	return TCL_ERROR;
@@ -5670,7 +5666,7 @@ t_startdeadlockserver(Tcl_Interp* ip, int ac, char* [])
 }
 
 static int
-t_startdeadlockvictimizer(Tcl_Interp* ip, int ac, char* [])
+t_startdeadlockvictimizer(Tcl_Interp* ip, int ac, TCL_AV char* [])
 {
     if (check(ip, "", ac, 1))
 	return TCL_ERROR;
@@ -5681,7 +5677,7 @@ t_startdeadlockvictimizer(Tcl_Interp* ip, int ac, char* [])
 }
 
 static int
-t_stopdeadlockclient(Tcl_Interp* ip, int ac, char* [])
+t_stopdeadlockclient(Tcl_Interp* ip, int ac, TCL_AV char* [])
 {
     if (check(ip, "", ac, 1))
 	return TCL_ERROR;
@@ -5694,7 +5690,7 @@ t_stopdeadlockclient(Tcl_Interp* ip, int ac, char* [])
 }
 
 static int
-t_stopdeadlockserver(Tcl_Interp* ip, int ac, char* [])
+t_stopdeadlockserver(Tcl_Interp* ip, int ac, TCL_AV char* [])
 {
     if (check(ip, "", ac, 1))
 	return TCL_ERROR;
@@ -5708,7 +5704,7 @@ t_stopdeadlockserver(Tcl_Interp* ip, int ac, char* [])
 }
 
 static int
-t_stopdeadlockvictimizer(Tcl_Interp* ip, int ac, char* [])
+t_stopdeadlockvictimizer(Tcl_Interp* ip, int ac, TCL_AV char* [])
 {
     if (check(ip, "nsnamefile ", ac, 1))
 	return TCL_ERROR;
@@ -5751,7 +5747,7 @@ __printit(const char *what, int K, vtable_info_array_t  &x) {
 }
 
 static int
-t_vt_class_factory(Tcl_Interp* ip, int , char* [])
+t_vt_class_factory(Tcl_Interp* ip, int , TCL_AV char* [])
 {
     vtable_info_array_t  x;
     DO(ss_m::class_factory_collect(x));
@@ -5761,7 +5757,7 @@ t_vt_class_factory(Tcl_Interp* ip, int , char* [])
 }
 
 static int
-t_vt_class_factory_histo(Tcl_Interp* ip, int , char* [])
+t_vt_class_factory_histo(Tcl_Interp* ip, int , TCL_AV char* [])
 {
     vtable_info_array_t  x;
     DO(ss_m::class_factory_collect_histogram(x));
@@ -5770,7 +5766,7 @@ t_vt_class_factory_histo(Tcl_Interp* ip, int , char* [])
     return TCL_OK;
 }
 static int
-t_vt_thread(Tcl_Interp* ip, int , char* [])
+t_vt_thread(Tcl_Interp* ip, int , TCL_AV char* [])
 {
     vtable_info_array_t  x;
     DO(ss_m::thread_collect(x));
@@ -5780,7 +5776,7 @@ t_vt_thread(Tcl_Interp* ip, int , char* [])
 }
 
 static int
-t_vt_stats(Tcl_Interp* ip, int , char* [])
+t_vt_stats(Tcl_Interp* ip, int , TCL_AV char* [])
 {
     tclout << "vtable stats: not yet implemented" <<ends;
     Tcl_AppendResult(ip, tclout.str(), 0);
@@ -5788,7 +5784,7 @@ t_vt_stats(Tcl_Interp* ip, int , char* [])
 }
 
 static int
-t_vt_xct(Tcl_Interp* ip, int , char* [])
+t_vt_xct(Tcl_Interp* ip, int , TCL_AV char* [])
 {
     vtable_info_array_t  x;
     DO(ss_m::xct_collect(x));
@@ -5799,7 +5795,7 @@ t_vt_xct(Tcl_Interp* ip, int , char* [])
 }
 
 static int
-t_vt_bpool(Tcl_Interp* ip, int , char* [])
+t_vt_bpool(Tcl_Interp* ip, int , TCL_AV char* [])
 {
     vtable_info_array_t  x;
     DO(ss_m::bp_collect(x));
@@ -5810,7 +5806,7 @@ t_vt_bpool(Tcl_Interp* ip, int , char* [])
 }
 
 static int
-t_vt_lock(Tcl_Interp* ip, int , char* [])
+t_vt_lock(Tcl_Interp* ip, int , TCL_AV char* [])
 {
     vtable_info_array_t  x;
     DO(ss_m::lock_collect(x));
@@ -5821,7 +5817,7 @@ t_vt_lock(Tcl_Interp* ip, int , char* [])
 }
 
 static int
-t_st_stats(Tcl_Interp *, int argc, char **)
+t_st_stats(Tcl_Interp *, int argc, TCL_AV char **)
 {
 	if (argc != 1)
 		return TCL_ERROR;
@@ -5831,11 +5827,12 @@ t_st_stats(Tcl_Interp *, int argc, char **)
 }
 
 static int
-t_st_rc(Tcl_Interp *, int argc, char **argv)
+t_st_rc(Tcl_Interp *, int argc, TCL_AV char **argv)
 {
 	if (argc < 2)
 		return TCL_ERROR;
 
+	/* XXXX should this output to normal TCL output ??? */
 	for (int i = 1; i < argc; i++) {
 		w_rc_t	e = w_rc_t("error", 0, atoi(argv[i]));
 		cout << "RC(" << argv[i] << "):" <<
@@ -5845,6 +5842,9 @@ t_st_rc(Tcl_Interp *, int argc, char **argv)
 	return TCL_OK;
 }
 
+// XXX in its own file since it includes almost the whole world to
+// grab data structures to size.
+extern int t_sm_sizeof(Tcl_Interp *, int argc, TCL_AV char **argv);
 
 
 struct cmd_t {
@@ -6095,6 +6095,8 @@ static cmd_t cmd[] = {
     { "dump_threads", t_dump_threads },
     { "dump_histo", t_dump_histo },
 
+    { "sizeof", t_sm_sizeof },
+
     //
     // Performance tests
     //   Name format:
@@ -6153,12 +6155,10 @@ void dispatch_init()
 
 
 int
-_dispatch(
-    cmd_t *_cmd,
-    size_t sz,
-    const char *module,
-    Tcl_Interp* ip, int ac, char* av[]
-)
+_dispatch(cmd_t *_cmd,
+	  size_t sz,
+	  const char *module,
+	  Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     int ret = TCL_OK;
     cmd_t key;
@@ -6183,27 +6183,27 @@ _dispatch(
     return TCL_ERROR;
 }
 
-int st_dispatch(ClientData, Tcl_Interp *tcl, int argc, char **argv)
+int st_dispatch(ClientData, Tcl_Interp *tcl, int argc, TCL_AV char **argv)
 {
 	return _dispatch(sthread_cmd, sizeof(sthread_cmd), "sthread",
 			 tcl, argc, argv);
 }
 
 int
-vtable_dispatch(ClientData, Tcl_Interp* ip, int ac, char* av[])
+vtable_dispatch(ClientData, Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     return _dispatch( vtable_cmd,  sizeof(vtable_cmd), "vtable", ip, ac, av);
 }
 
 int
-sm_dispatch(ClientData, Tcl_Interp* ip, int ac, char* av[])
+sm_dispatch(ClientData, Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     return _dispatch( cmd,  sizeof(cmd), "sm", ip, ac, av);
 }
 
 #ifdef USE_COORD
 int
-co_dispatch(ClientData, Tcl_Interp* ip, int ac, char* av[])
+co_dispatch(ClientData, Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     return _dispatch( co_cmd,  sizeof(co_cmd), "co", ip, ac, av);
 }
@@ -6243,7 +6243,7 @@ ss_m::ndx_t 	type;
 };
 
 ss_m::ndx_t 
-cvt2ndx_t(char* s)
+cvt2ndx_t(const char *s)
 {
     for (nda_t* p = nda; p->name; p++)  {
 	if (streq(s, p->name))  return p->type;

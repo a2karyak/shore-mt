@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: sort_funcs4.cpp,v 1.12 2002/01/03 01:06:23 bolo Exp $
+ $Id: sort_funcs4.cpp,v 1.13 2003/01/31 22:47:40 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -285,7 +285,7 @@ cout << "check_multikey_file did  "
  */
 static int count_bv_objects =0;
 int
-t_multikey_sort_file(Tcl_Interp* ip, int ac, char* av[])
+t_multikey_sort_file(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     FUNC(t_multikey_sort_file);
     const int vid_arg =1;
@@ -466,7 +466,7 @@ t_multikey_sort_file(Tcl_Interp* ip, int ac, char* av[])
 	    cerr << "Not enough arguments for key " << k <<endl;
 	    return TCL_ERROR;
 	}
-	char *cp = av[arg];
+	TCL_AV char *cp = av[arg];
 	while(*cp) {
 	    switch(*cp++) {
 	    case 'F':

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='SM_S_H'>
 
- $Id: sm_s.h,v 1.84 2001/06/26 16:48:47 bolo Exp $
+ $Id: sm_s.h,v 1.85 2003/01/30 18:13:56 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -56,6 +56,7 @@ public:
     extnum_t	ext;
 
     friend ostream& operator<<(ostream&, const extid_t& x);
+    friend istream& operator>>(istream&, extid_t &x); 
 };
 
 #define LPID_T

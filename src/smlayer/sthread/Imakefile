@@ -1,6 +1,6 @@
 /*<std-header style='imakefile' orig-src='shore'>
 
- $Id: Imakefile,v 1.115 2002/02/13 22:06:09 bolo Exp $
+ $Id: Imakefile,v 1.119 2003/12/29 20:50:25 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -30,7 +30,7 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 INCLUDE_DIRS += \
 	$(FC_INCL)
 
-#ifdef USE_GCC
+#if defined(USE_GCC) && !defined(GCC_BROKEN_WARNINGS)
 CFLAGS += -fvolatile
 #endif
 
@@ -124,6 +124,14 @@ unused_group(win32f_core)
 
 #if defined(STHREAD_CORE_STD)
 add_to_group(core, std_core)
+#ifdef GCC_VER_3_WARNINGS
+/* XXX too many warnings */
+/* XXXX gcc 3 breaks so many things, this one isn't worth touching
+   with a 10 foot pole, and it would destroy the good CVS history. */
+stcore.OBJEXT: stcore.cpp
+	@echo "** The deprecated multi-line string warnings are expected **"
+	$(patsubst -Werror,,$(COMPILE.cpp)) $<
+#endif
 #else
 unused_group(std_core)
 #endif
@@ -252,7 +260,8 @@ libsthread.h += \
 	strace.h	\
 	sthread_stats.h \
 	os_interface.h os_fcntl.h \
-	sthread_gcc.h
+	sthread_gcc.h sthread_gcc3.h
+
 
 #ifdef IS_NT
 /* This is disgusting, but need way to add partial groups for now. */
@@ -314,7 +323,7 @@ unused_group(generic_tsl)
 purify.cpp += shore_threads.cpp
 purify.h += pure_threads.h
 
-#if defined(USE_PURIFY) && !defined(STHREAD_CORE_PTHREAD)
+#if (defined(USE_PURIFY) || defined(USE_QUANTIFY)) && !defined(STHREAD_CORE_PTHREAD)
 add_to_group(libsthread, purify)
 #else
 unused_group(purify)

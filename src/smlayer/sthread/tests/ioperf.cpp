@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: ioperf.cpp,v 1.43 2001/04/17 18:51:39 bolo Exp $
+ $Id: ioperf.cpp,v 1.44 2003/06/19 22:30:42 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -274,15 +274,15 @@ DBGTHRD(<<"io_thread_t::run");
 	<< " offset= " << _offset 
 	<< " left= " << (_block_cnt - i)
 	);
-/*
-cerr 
-<< " i=" << i
-<< " bytes=" << _total_bytes
-<< " block_size=" << _block_size
-<< " offset= " << _offset 
-<< " left= " << (_block_cnt - i)
-<<endl;
-*/
+#if 0
+	cerr 
+	<< " i=" << i
+	<< " bytes=" << _total_bytes
+	<< " block_size=" << _block_size
+	<< " offset= " << _offset 
+	<< " left= " << (_block_cnt - i)
+	<< endl;
+#endif
 
 	if ((_rw_flag == 'r') || (_rw_flag == 'b') ) {
 	    if(i % _nblocks == (_nblocks-1) ) {
@@ -398,9 +398,10 @@ main(int argc, char** argv)
     int		errors = 0;
     const char* fname = 0;
     char	rw_flag = 'r';
+    const char	*diskrw = "./diskrw";
 
     int	c;
-    while ((c = getopt(argc, argv, "lfks:n:crwbR")) != EOF) {
+    while ((c = getopt(argc, argv, "lfks:n:crwbRD:")) != EOF) {
     	switch (c) {
 	case 'l':
 		local_io = true;
@@ -428,7 +429,9 @@ main(int argc, char** argv)
 	case 'b':
 		rw_flag = c;
 		break;
-		
+	case 'D':
+		diskrw = optarg;
+		break;
 	default:
 		errors++;
 		break;
@@ -456,6 +459,9 @@ main(int argc, char** argv)
 
     if (use_random)
 	random_generator::generator.srand(block_cnt);
+
+    if (diskrw)
+	    sthread_t::set_diskrw_name(diskrw);
 
     U1.start();
     U3.start();

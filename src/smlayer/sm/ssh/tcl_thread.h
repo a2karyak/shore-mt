@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='TCL_THREAD_H'>
 
- $Id: tcl_thread.h,v 1.34 2001/04/17 18:51:38 bolo Exp $
+ $Id: tcl_thread.h,v 1.35 2003/01/31 22:47:41 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -38,16 +38,18 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #pragma interface
 #endif
 
+#include "tcl_workaround.h"
+
 class ss_m;
 extern ss_m* sm;
-extern int t_co_retire(Tcl_Interp* , int , char*[]);
+extern int t_co_retire(Tcl_Interp* , int , TCL_AV char*[]);
 extern void copy_interp(Tcl_Interp *ip, Tcl_Interp *pip);
 
 class tcl_thread_t : public smthread_t  {
 public:
     NORET			tcl_thread_t(
 	int 			    ac, 
-	char* 			    av[], 
+	TCL_AV char* 		    av[], 
 	Tcl_Interp* 		    parent);
     NORET			~tcl_thread_t();
 

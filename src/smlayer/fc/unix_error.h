@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='UNIX_ERROR_H'>
 
- $Id: unix_error.h,v 1.18 2002/01/25 15:28:06 bolo Exp $
+ $Id: unix_error.h,v 1.19 2003/12/01 23:51:02 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -60,13 +60,12 @@ extern int sys_nerr;
 extern "C" {
 #endif /*__cplusplus*/
 
-
+#if !defined(Linux)
     /* gcc 2.6.0 include files contain perror */
 #   if (!defined(__GNUC__)) || (__GNUC_MINOR__ < 6)
     void perror(const char *s);
 #   endif
 
-#if !defined(Linux)
 char *strerror(int errnum);
 #endif
 

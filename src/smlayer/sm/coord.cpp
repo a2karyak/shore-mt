@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: coord.cpp,v 1.48 1999/07/21 21:27:19 bolo Exp $
+ $Id: coord.cpp,v 1.49 2003/08/27 23:59:18 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -472,7 +472,11 @@ coordinator::handle_message(
     if(!t) {
 	DBG(<< "no resolving thread! forking..." );
 	t = fork_resolver(m.tid(), participant::coord_recovery_handler);
+#ifdef STHREAD_YIELD_STATIC
+	sthread_t::yield();
+#else
 	me()->yield();
+#endif
 	w_assert3(t);
 	if(t->error()) {
 	    if(t->error().err_num() == fcNOTFOUND) {
@@ -753,7 +757,11 @@ coordinator::_init(bool fork_listener)
 		}
 		W_COERCE(xct_auto.commit());   // end the short transaction
 
+#ifdef STHREAD_YIELD_STATIC
+		sthread_t::yield();
+#else
 		me()->yield();
+#endif
 	    }
 	    /*
 	     *  Wait for workers to finish
@@ -837,7 +845,11 @@ coordinator::_retry(const gtid_t& tid, participant::coord_thread_kind kind)
     if(!w) {
 	W_FATAL(eOUTOFMEMORY);
     }
+#ifdef STHREAD_YIELD_STATIC
+    sthread_t::yield();
+#else
     me()->yield();
+#endif
     // w->run() resolves the transaction */
     DBGTHRD(<<
 	"coordinator::_retry awaits coordinating thread to finish "

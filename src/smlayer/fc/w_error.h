@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='W_ERROR_H'>
 
- $Id: w_error.h,v 1.56 1999/08/25 01:25:06 kupsch Exp $
+ $Id: w_error.h,v 1.57 2002/06/26 04:13:51 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -38,16 +38,16 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #pragma interface
 #endif
 
+#include "fc_error_enum_gen.h"
+
 struct w_error_info_t {
-    w_base_t::uint4_t	err_num;
-    const char*		errstr;
+	w_base_t::uint4_t	err_num;
+	const char		*errstr;
 };
 
 class w_error_t : public w_base_t {
 public:
     typedef w_error_info_t info_t;
-
-#include "fc_error_enum_gen.h"
 
     // kludge: make err_num come first:
     const uint4_t		err_num;
@@ -166,21 +166,6 @@ w_error_t::~w_error_t()
 {
     delete[] VCPP_BUG_DELETE_CONST more_info_msg;
 }
-
-/* XXX automagic generation of this would be nice */
-const w_base_t::uint4_t fcINTERNAL	= w_error_t::fcINTERNAL;
-const w_base_t::uint4_t fcOS		= w_error_t::fcOS;
-const w_base_t::uint4_t fcFULL		= w_error_t::fcFULL;
-const w_base_t::uint4_t fcEMPTY		= w_error_t::fcEMPTY;
-const w_base_t::uint4_t fcOUTOFMEMORY	= w_error_t::fcOUTOFMEMORY;
-const w_base_t::uint4_t fcNOTFOUND	= w_error_t::fcNOTFOUND;
-const w_base_t::uint4_t fcNOTIMPLEMENTED= w_error_t::fcNOTIMPLEMENTED;
-const w_base_t::uint4_t fcREADONLY	= w_error_t::fcREADONLY;
-const w_base_t::uint4_t fcMIXED		= w_error_t::fcMIXED;
-const w_base_t::uint4_t fcFOUND		= w_error_t::fcFOUND;
-const w_base_t::uint4_t fcNOSUCHERROR	= w_error_t::fcNOSUCHERROR;
-const w_base_t::uint4_t fcWIN32		= w_error_t::fcWIN32;
-const w_base_t::uint4_t fcASSERT	= w_error_t::fcASSERT;
 
 /*<std-footer incl-file-exclusion='W_ERROR_H'>  -- do not edit anything below this line -- */
 

@@ -1,6 +1,6 @@
 /*<std-header orig-src='regex' incl-file-exclusion='REGEX_UTILS_H'>
 
- $Id: regex_utils.h,v 1.8 1999/06/07 19:02:30 kupsch Exp $
+ $Id: regex_utils.h,v 1.9 2003/06/19 19:19:48 bolo Exp $
 
 
 */
@@ -57,7 +57,7 @@ to the following restrictions:
 #else
 #define	DUPMAX	255
 #endif
-#define	INFINITY	(DUPMAX + 1)
+#define	REGEX_INFINITY	(DUPMAX + 1)
 #define	NC		(CHAR_MAX - CHAR_MIN + 1)
 typedef unsigned char uch;
 

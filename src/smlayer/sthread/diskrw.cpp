@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: diskrw.cpp,v 1.124 2002/01/25 00:15:13 bolo Exp $
+ $Id: diskrw.cpp,v 1.125 2003/12/09 13:52:58 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -192,8 +192,8 @@ fatal(int line)
 {
 
 #ifdef _WINDOWS
-    W_FORM2(cerr,("diskrw: pid=%d, threadid=%d: fatal error at line %d\n", 
-	getpid(),  GetCurrentThreadId(), line));
+	W_FORM(cerr)("diskrw: pid=%d, threadid=%d: fatal error at line %d\n", 
+		     getpid(),  GetCurrentThreadId(), line);
 #ifdef W_DEBUG
 	// NB: maybe this should be TerminateProcess?
 	DBGTHRD( << "FATAL ERROR: _endthreadex(-1)" );
@@ -721,7 +721,7 @@ int    main(int argc, char* argv[])
     fd = os_open(fname, fflags, mode);
     if (fd < 0) {
 	w_rc_t e = RC(fcOS);
-	W_FORM2(cerr,("diskrw: open(%s):\n", fname));
+	W_FORM(cerr)("diskrw: open(%s):\n", fname);
 	cerr << e << endl;
 	fatal(__LINE__);
     }
@@ -791,7 +791,7 @@ int    main(int argc, char* argv[])
 	if (! wbuf)  {
 	    w_rc_t e = RC(fcOUTOFMEMORY);
 	    // we will make do without the buffer
-	    W_FORM2(cerr, ("diskrw: %s: Warning: no write buffer:\n", fname));
+	    W_FORM(cerr)("diskrw: %s: Warning: no write buffer:\n", fname);
 	    cerr << e << endl;
 	}
 
@@ -911,7 +911,7 @@ int    main(int argc, char* argv[])
 
 	    if (os_close(fd) == -1) {
 		w_rc_t e = RC(fcOS);
-		W_FORM2(cerr,("diskrw: %s: close(%d):\n", fname, fd));
+		W_FORM(cerr)("diskrw: %s: close(%d):\n", fname, fd);
 		cerr << e << endl;
 		fatal(__LINE__);
 	    }
@@ -1066,7 +1066,7 @@ int    main(int argc, char* argv[])
 	    }
 	    break;
 	default:
-	    W_FORM2(cerr,("diskrw: %s: bad disk message op=%d\n", fname, m.op));
+	    W_FORM(cerr)("diskrw: %s: bad disk message op=%d\n", fname, m.op);
 	    fatal(__LINE__);
 	}
 
@@ -1110,7 +1110,7 @@ int    main(int argc, char* argv[])
 	    if (n != sizeof(token))
 		{
 		w_rc_t e = RC(fcOS);
-		W_FORM2(cerr, ("diskrw: %s: write token:\n", fname));
+		W_FORM(cerr)("diskrw: %s: write token:\n", fname);
 		cerr << e << endl;
 		fatal(__LINE__);
 	    }
@@ -1292,7 +1292,8 @@ caught_signal(int sig)
 	    }
 	    if (statfd > 0) writestats(true);
 #if defined(DEBUG_DISKRW)
-	    W_FORM2(cerr, ("diskrw: pid=%d: %s: SIGTERM ination\n", getpid(), fname));
+	    W_FORM(cerr)("diskrw: pid=%d: %s: SIGTERM ination\n",
+			 getpid(), fname);
 #endif /* DEBUG_DISKRW */
 	    exit(-1);
 	    break;

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: errlog.cpp,v 1.20 2002/01/03 01:20:39 bolo Exp $
+ $Id: errlog.cpp,v 1.21 2003/06/19 22:39:32 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -83,7 +83,7 @@ ErrLogInfo::ErrLogInfo(ErrLog *e)
 
 // grot- have to wrap w_keyed_list_t to get its destructor
 static w_keyed_list_t<ErrLogInfo,simple_string> 
-	_tab(offsetof(ErrLogInfo,_ident),offsetof(ErrLogInfo,hash_link));
+	_tab(W_KEYED_ARG(ErrLogInfo, _ident, hash_link));
 
 
 class errlog_dummy {

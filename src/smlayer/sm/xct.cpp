@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: xct.cpp,v 1.202 2001/11/30 01:30:01 bolo Exp $
+ $Id: xct.cpp,v 1.204 2003/08/24 23:47:54 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -81,8 +81,7 @@ template bool operator==(const opaque_quantity<max_server_handle_len> &,
  *
  *********************************************************************/
 smutex_t			xct_t::_xlist_mutex("_xctlist");
-w_descend_list_t<xct_t, tid_t>	xct_t::_xlist(offsetof(xct_t, _tid), 
-					      offsetof(xct_t, _xlink));
+w_descend_list_t<xct_t, tid_t>	xct_t::_xlist(W_KEYED_ARG(xct_t, _tid,_xlink));
 
 /*********************************************************************
  *
@@ -1364,6 +1363,9 @@ xct_log_warn_check_t::check(xct_t *& _victim)
 {
     if (me()->generate_log_warnings())  {
 	_victim = 0;
+	/* XXX this is bad, using _stats_ for active calculations of
+	   system performance!   Also note the race condition on
+	   this mentiond in a couple of XXX comments. */
 	w_base_t::base_stat_t	a = GET_STAT(log_bytes_active);
 	if( log_warn_exceed > 0
 		&& 

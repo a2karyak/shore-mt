@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: lock_core.cpp,v 1.102 2002/01/24 23:47:41 bolo Exp $
+ $Id: lock_core.cpp,v 1.103 2003/06/19 22:39:35 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -142,7 +142,7 @@ public:
 		    mutex("lkbkt"),
 #endif
 #endif
-		    chain(offsetof(lock_head_t, chain)) {
+		    chain(W_LIST_ARG(lock_head_t, chain)) {
     }
 
     private:
@@ -166,7 +166,7 @@ xct_lock_info_t::xct_lock_info_t()
     lock_level(lockid_t::t_record)
 {
     for (int i = 0; i < t_num_durations; i++)  {
-	list[i].set_offset(offsetof(lock_request_t, xlink));
+	list[i].set_offset(W_LIST_ARG(lock_request_t, xlink));
     }
 }
 
@@ -586,7 +586,7 @@ lock_core_m::lock_core_m(uint sz)
   _htabsz(0),
   _hashmask(0),
   _hashshift(0),
-  lockHeadPool(offsetof(lock_head_t, chain)),
+  lockHeadPool(W_LIST_ARG(lock_head_t, chain)),
   _requests_allocated(0)
 {
     /* round up to the next power of 2 */

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: sm.cpp,v 1.467 2002/01/28 07:32:29 bolo Exp $
+ $Id: sm.cpp,v 1.471 2003/10/20 04:01:06 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -60,6 +60,12 @@ class prologue_rc_t;
 
 #ifdef EXPLICIT_TEMPLATE
 template class w_auto_delete_t<SmStoreMetaStats*>;
+#endif
+
+#ifdef	FORCE_EGCS
+#define	W_IFEGCS(x)	x
+#else
+#define	W_IFEGCS(x)
 #endif
 
 bool	smlevel_0::shutdown_clean = true;
@@ -432,7 +438,18 @@ rc_t ss_m::_set_option_logsize(
 	);
 
     maxlogsize *= 1024;
-    if( maxlogsize > sthread_init_t::max_os_file_size) {
+
+    /* XXX this ISN'T a factor when using log-in-file, since the total
+       log size can be greater then the size of an individual log file.
+       BUT, it is a given when using a raw log, so I need to leave it
+       in for now.  The problem is that the option code has no idea
+       if the log is a raw log or a file log, so can't make the proper
+       choice to handle things correctly. */
+    /* XXX If you really want to use a file log >2GB on a machine
+       that isn't LARGEFILE_AWARE, ifdef out the following check
+       to allow your large log to work.  */
+
+    if (maxlogsize > sthread_init_t::max_os_file_size) {
 	    *err_stream << "Log size (sm_logsize) (" << maxlogsize 
 		<< ") exceeds limit (" << sthread_init_t::max_os_file_size
 		<< ") imposed by the operating system."
@@ -454,6 +471,40 @@ rc_t ss_m::_set_option_logsize(
 
     // maximum size of a log file
     max_logsz = fileoff_t(maxlogsize) / max_openlog;
+
+    /* Verify that an individual log partition will not be larger than the
+       OS allows for. */
+
+    if (max_logsz > sthread_init_t::max_os_file_size) {
+	    *err_stream << "Log segment size "
+	        << "(sm_logsize/" << W_IFEGCS((unsigned)) max_openlog
+		<< ") (" << max_logsz 
+		<< ") exceeds per-file (" << sthread_init_t::max_os_file_size
+		<< ") imposed by the operating system."
+		<<endl;
+	return RC(OPT_BadValue);
+    }
+
+    /* Enforce the built-in shore limit that a log partition can only
+       be as long as the file address in a lsn_t allows for...  2^31.
+       This is really the limit of a LSN, since LSNs map 1-1 with disk
+       addresses. */
+
+#ifdef SM_DISKADDR_LARGE
+    const fileoff_t	shore_logseg_limit = w_base_t::int8_max;
+#else
+    const fileoff_t	shore_logseg_limit = w_base_t::int4_max;
+#endif
+
+    if (max_logsz > shore_logseg_limit) {
+	    *err_stream << "Log segment size "
+	    	<< "(sm_logsize/" << W_IFEGCS((unsigned)) max_openlog
+		<< ") (" << max_logsz 
+		<< ") exceeds per-file limit (" << shore_logseg_limit
+		<< ") imposed by shore log/disk address."
+		<<endl;
+	return RC(OPT_BadValue);
+    }
 
     // take check points every 1Meg or 1/2 log file size.
     chkpt_displacement = MIN(max_logsz/2, 1024*1024);
@@ -1412,7 +1463,7 @@ ss_m::chain_xct(bool lazy)
 {
     SM_PROLOGUE_RC(ss_m::chain_xct, commitable_xct, 0);
     SMSCRIPT(<< "chain_xct");
-    sm_stats_info_t*  stats;
+    sm_stats_info_t	*stats = 0;
     W_DO( _chain_xct(stats, lazy) );
     /*
      * throw away the stats, since user isn't harvesting... 
@@ -2064,8 +2115,34 @@ ss_m::test_lid_cache(const lvid_t& lvid, int num_add)
 
 ostream& operator<<(ostream& o, const extid_t& x)
 {
-    return o << "x(" << x.vol << '.' << x.ext << ')';
+	return o << "x(" << x.vol << '.' << x.ext << ')';
 }
+
+/* XXX from stid parser, which is similar but different */
+istream& operator>>(istream& i, extid_t &extid)
+{
+	char c[5];
+	memset(c, '\0', sizeof(c));
+	i >> c[0];
+	if(i.good()) 
+		i >> c[1];
+	if(i.good()) 
+		i >> extid.vol;
+	if(i.good()) 
+		i >> c[2];
+	if(i.good()) 
+		i >> extid.ext;
+	if(i.good()) 
+		i >> c[3];
+	c[4] = '\0';
+	if (i) {
+		if (strcmp(c, "x(.)")) {
+			i.clear(ios::badbit|i.rdstate());  // error
+		}
+	}
+	return i;
+}
+
 
 ostream& operator<<(ostream& o, const lpid_t& pid)
 {

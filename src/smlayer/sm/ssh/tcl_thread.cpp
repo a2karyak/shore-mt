@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: tcl_thread.cpp,v 1.126 2001/04/17 18:51:38 bolo Exp $
+ $Id: tcl_thread.cpp,v 1.129 2003/08/27 23:59:19 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -81,16 +81,16 @@ char* tcl_thread_t::inter_thread_comm_buffer = 0;
 
 ss_m* sm = 0;
 
-extern int vtable_dispatch(ClientData, Tcl_Interp* ip, int ac, char* av[]);
-extern int sm_dispatch(ClientData, Tcl_Interp* ip, int ac, char* av[]);
+extern int vtable_dispatch(ClientData, Tcl_Interp* ip, int ac, TCL_AV char* av[]);
+extern int sm_dispatch(ClientData, Tcl_Interp* ip, int ac, TCL_AV char* av[]);
 #ifdef USE_COORD
-extern int co_dispatch(ClientData, Tcl_Interp* ip, int ac, char* av[]);
+extern int co_dispatch(ClientData, Tcl_Interp* ip, int ac, TCL_AV char* av[]);
 #endif
-extern int st_dispatch(ClientData, Tcl_Interp *, int, char **);
+extern int st_dispatch(ClientData, Tcl_Interp *, int, TCL_AV char **);
 
 extern const char* tcl_init_cmd;
 
-w_list_t<tcl_thread_t> tcl_thread_t::list(offsetof(tcl_thread_t, link));
+w_list_t<tcl_thread_t> tcl_thread_t::list(W_LIST_ARG(tcl_thread_t, link));
 class xct_i;
 extern w_rc_t out_of_log_space (xct_i*, xct_t *&,
 	smlevel_0::fileoff_t, smlevel_0::fileoff_t);
@@ -100,7 +100,7 @@ extern "C" void tcl_assert_failed();
 void tcl_assert_failed() {}
 
 static int
-t_debugflags(ClientData, Tcl_Interp* ip, int ac, char** W_IFTRACE(av))
+t_debugflags(ClientData, Tcl_Interp* ip, int ac, TCL_AV char** W_IFTRACE(av))
 {
     if (ac != 2 && ac != 1) {
 	Tcl_AppendResult(ip, "usage: debugflags [arg]", 0);
@@ -124,7 +124,7 @@ t_debugflags(ClientData, Tcl_Interp* ip, int ac, char** W_IFTRACE(av))
     return TCL_OK;
 }
 static int
-t_assert(ClientData, Tcl_Interp* ip, int ac, char* av[])
+t_assert(ClientData, Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (ac != 2) {
 	Tcl_AppendResult(ip, "usage: assert [arg]", 0);
@@ -144,7 +144,7 @@ t_assert(ClientData, Tcl_Interp* ip, int ac, char* av[])
 
 
 static int
-t_timeofday(ClientData, Tcl_Interp* ip, int ac, char* /*av*/[])
+t_timeofday(ClientData, Tcl_Interp* ip, int ac, TCL_AV char* /*av*/[])
 {
     if (ac > 1) {
 	Tcl_AppendResult(ip, "usage: timeofday", 0);
@@ -163,7 +163,7 @@ t_timeofday(ClientData, Tcl_Interp* ip, int ac, char* /*av*/[])
     return TCL_OK;
 }
 static int
-t_allow_remote_command(ClientData, Tcl_Interp* ip, int ac, char* av[])
+t_allow_remote_command(ClientData, Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (ac != 2) {
 	Tcl_AppendResult(ip, "usage: allow_remote_command [off|no|false|on|yes|true]", 
@@ -188,7 +188,7 @@ t_allow_remote_command(ClientData, Tcl_Interp* ip, int ac, char* av[])
 #define av
 #endif
 static int
-t_debuginfo(ClientData, Tcl_Interp* ip, int ac, char* av[])
+t_debuginfo(ClientData, Tcl_Interp* ip, int ac, TCL_AV char* av[])
 #if !defined(USE_SSMTEST) 
 #undef av
 #endif
@@ -234,7 +234,7 @@ t_debuginfo(ClientData, Tcl_Interp* ip, int ac, char* av[])
 }
 
 static int
-t_write_random(ClientData, Tcl_Interp* ip, int ac, char* av[])
+t_write_random(ClientData, Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (ac != 2) {
 	Tcl_AppendResult(ip, "usage: write_random filename", 0);
@@ -247,7 +247,7 @@ t_write_random(ClientData, Tcl_Interp* ip, int ac, char* av[])
 }
 
 static int
-t_read_random(ClientData, Tcl_Interp* ip, int ac, char* av[])
+t_read_random(ClientData, Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (ac != 2) {
 	Tcl_AppendResult(ip, "usage: read_random filename", 0);
@@ -260,7 +260,7 @@ t_read_random(ClientData, Tcl_Interp* ip, int ac, char* av[])
 }
 
 static int
-t_random(ClientData, Tcl_Interp* ip, int ac, char* av[])
+t_random(ClientData, Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (ac > 2) {
 	Tcl_AppendResult(ip, "usage: random [modulus]", 0);
@@ -291,7 +291,7 @@ t_random(ClientData, Tcl_Interp* ip, int ac, char* av[])
 }
 
 static int
-t_fork_thread(ClientData, Tcl_Interp* ip, int ac, char* av[])
+t_fork_thread(ClientData, Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (ac < 3)  {
 	Tcl_AppendResult(ip, "usage: ", av[0], " proc args", 0);
@@ -326,7 +326,7 @@ t_fork_thread(ClientData, Tcl_Interp* ip, int ac, char* av[])
 }
 
 static int
-t_sync(ClientData, Tcl_Interp* ip, int ac, char* av[])
+t_sync(ClientData, Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (ac != 1) {
 	Tcl_AppendResult(ip, "usage: ", av[0], 0);
@@ -339,7 +339,7 @@ t_sync(ClientData, Tcl_Interp* ip, int ac, char* av[])
 }
 
 static int
-t_sync_thread(ClientData, Tcl_Interp* ip, int ac, char* av[])
+t_sync_thread(ClientData, Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (ac == 1)  {
 	Tcl_AppendResult(ip, "usage: ", av[0],
@@ -355,7 +355,7 @@ t_sync_thread(ClientData, Tcl_Interp* ip, int ac, char* av[])
 }
 
 static int
-t_join_thread(ClientData, Tcl_Interp* ip, int ac, char* av[])
+t_join_thread(ClientData, Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (ac == 1)  {
 	Tcl_AppendResult(ip, "usage: ", av[0],
@@ -371,20 +371,25 @@ t_join_thread(ClientData, Tcl_Interp* ip, int ac, char* av[])
 }
 
 static int
-t_yield(ClientData, Tcl_Interp* ip, int ac, char* av[])
+t_yield(ClientData, Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (ac != 1)  {
 	Tcl_AppendResult(ip, "usage: ", av[0], 0);
 	return TCL_ERROR;
     }
 
+#ifdef STHREAD_YIELD_STATIC
+    sthread_t::yield();
+#else
     me()->yield();
+#endif
 
     return TCL_OK;
 }
 
 static int
-t_link_to_inter_thread_comm_buffer(ClientData, Tcl_Interp* ip, int ac, char* av[])
+t_link_to_inter_thread_comm_buffer(ClientData, Tcl_Interp* ip,
+				   int ac, TCL_AV char* av[])
 {
     if (ac != 2)  {
 	Tcl_AppendResult(ip, "usage: ", av[0], "variable", 0);
@@ -397,12 +402,12 @@ t_link_to_inter_thread_comm_buffer(ClientData, Tcl_Interp* ip, int ac, char* av[
 }
 
 static int
-t_exit(ClientData, Tcl_Interp *ip, int ac, char* av[])
+t_exit(ClientData, Tcl_Interp *ip, int ac, TCL_AV char* av[])
 {
     int e = (ac == 2 ? atoi(av[1]) : 0);
     cout << flush;
     if (e == 0)  {
-	Tcl_SetResult(ip, TCL_CVBUG TCL_EXIT_ERROR_STRING, TCL_STATIC);
+	Tcl_SetResult(ip, TCL_SETRES TCL_EXIT_ERROR_STRING, TCL_STATIC);
 	return TCL_ERROR;  // interpreter loop will catch this and exit
     }  else  {
 	_exit(e);
@@ -419,7 +424,7 @@ t_exit(ClientData, Tcl_Interp *ip, int ac, char* av[])
  */
 
 static int 
-t_time(ClientData, Tcl_Interp *interp,int argc, char **argv)
+t_time(ClientData, Tcl_Interp *interp,int argc, TCL_AV char **argv)
 {
     int count, i, result;
     stime_t start, stop;
@@ -476,7 +481,7 @@ t_time(ClientData, Tcl_Interp *interp,int argc, char **argv)
     return TCL_OK;
 }
 static int
-t_pecho(ClientData, Tcl_Interp* ip, int ac, char* av[])
+t_pecho(ClientData, Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     for (int i = 1; i < ac; i++) {
         cout << ((i > 1) ? " " : "") << av[i];
@@ -498,7 +503,7 @@ t_pecho(ClientData, Tcl_Interp* ip, int ac, char* av[])
 
 
 static int
-t_echo(ClientData, Tcl_Interp* ip, int ac, char* av[])
+t_echo(ClientData, Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     for (int i = 1; i < ac; i++) {
 	cout << ((i > 1) ? " " : "") << av[i];
@@ -511,7 +516,7 @@ t_echo(ClientData, Tcl_Interp* ip, int ac, char* av[])
 
 #ifdef UNDEF
 static int
-t_verbose(ClientData, Tcl_Interp* ip, int ac, char* av[])
+t_verbose(ClientData, Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     extern int verbose;
     
@@ -608,21 +613,24 @@ static void grab_vars(Tcl_Interp* ip, Tcl_Interp* pip)
     char	*p = safe_strtok(result, " ", context);
 
     while (p)  {
-	char* v = Tcl_GetVar(pip, p, TCL_GLOBAL_ONLY);
+	TCL_GETX char* v = Tcl_GetVar(pip, p, TCL_GLOBAL_ONLY);
 	if (v)  {
 	    Tcl_SetVar(ip, p, v, TCL_GLOBAL_ONLY);
 	    p = safe_strtok(0, " ", context);
 	} else {
 	    Tcl_VarEval(pip, "array names ", p, 0);
-	    char* s = safe_strtok(Tcl_GetStringResult(pip), " ", context);
+	    /* XXX const issues with return, want better? */
+	    char *sr = strdup(Tcl_GetStringResult(pip));
+	    char* s = safe_strtok(sr, " ", context);
 	    while (s)  {
 		v = Tcl_GetVar2(pip, p, s, TCL_GLOBAL_ONLY);
 		if (v)  {
 		    Tcl_SetVar2(ip, p, s, v, TCL_GLOBAL_ONLY);
 		}
 		s = safe_strtok(0, " ", context);
-		if (s)  *(s-1) = ' ';
+		if (s > sr)  *(s-1) = ' ';
 	    }
+	    free(sr);
 	    p[strlen(p)] = ' ';
 	    *last = '\0';
 	    p = safe_strtok(p, " ", context);
@@ -656,7 +664,7 @@ static void grab_procs(Tcl_Interp* ip, Tcl_Interp* pip)
 		ostrstream s(line, sizeof(line));
 		s << "info proc " << p << '\0';
 		Tcl_Eval(ip, line);
-		char *r = Tcl_GetStringResult(ip);
+		TCL_GETX char *r = Tcl_GetStringResult(ip);
 		if (!r || strcmp(r, p) == 0)  {
 		    // already have this proc
 		    continue;
@@ -928,12 +936,12 @@ static void process_stdin(Tcl_Interp* ip)
     while (1) {
 	cin.clear();
 	if (tty) {
-	    char* prompt = Tcl_GetVar(ip, TCL_CVBUG (partial ? "tcl_prompt2" :
+	    TCL_GETX char* prompt = Tcl_GetVar(ip, TCL_CVBUG (partial ? "tcl_prompt2" :
 					   "tcl_prompt1"), TCL_GLOBAL_ONLY);
 	    if (! prompt) {
 		if (! partial)  cout << "% " << flush;
 	    } else {
-		if (Tcl_Eval(ip, prompt) != TCL_OK)  {
+		if (Tcl_Eval(ip, TCL_CVBUG prompt) != TCL_OK)  {
 		    cerr << Tcl_GetStringResult(ip) << endl;
 		    Tcl_AddErrorInfo(ip,
 			 TCL_CVBUG "\n    (script that generates prompt)");
@@ -975,12 +983,12 @@ static void process_stdin(Tcl_Interp* ip)
 	Tcl_DStringFree(&buf);
 	if (result == TCL_OK)  {
 	    DBGTHRD("TCL_OK:" << Tcl_GetStringResult(ip));
-	    char *r = Tcl_GetStringResult(ip);
+	    TCL_GETX char *r = Tcl_GetStringResult(ip);
 	    if (*r) {
 		cout << r<< endl;
 	    }
 	} else {
-	    char *r = Tcl_GetStringResult(ip);
+	    TCL_GETX char *r = Tcl_GetStringResult(ip);
 	    if (result == TCL_ERROR && !strcmp(r, TCL_EXIT_ERROR_STRING))  {
 		DBGTHRD("TCL_ERROR:" << r);
 		break;
@@ -1114,7 +1122,7 @@ copy_interp(Tcl_Interp *ip, Tcl_Interp *pip)
 	    cerr << "tcl_thread_t(): Error evaluating command:"
 		    << tcl_init_cmd <<endl ;
 	    if (result != TCL_ERROR) cerr << "     " << result;
-	    char *r = Tcl_GetStringResult(ip);
+	    TCL_GETX char *r = Tcl_GetStringResult(ip);
 	    if (*r)  cerr << ": " << r;
 	    cerr << endl;
 	    w_assert3(0);;
@@ -1141,7 +1149,7 @@ copy_interp(Tcl_Interp *ip, Tcl_Interp *pip)
 }
 
 /* The increased stack size is because TCL is stack hungry */
-tcl_thread_t::tcl_thread_t(int ac, char* av[],
+tcl_thread_t::tcl_thread_t(int ac, TCL_AV char* av[],
 			   Tcl_Interp* pip)
 : smthread_t(t_regular, "tcl_thread", WAIT_FOREVER, sthread_t::default_stack * 2),
 #ifdef SSH_SYNC_OLD

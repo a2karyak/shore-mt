@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: crash.cpp,v 1.14 1999/06/07 19:04:00 kupsch Exp $
+ $Id: crash.cpp,v 1.15 2003/08/27 23:59:18 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -177,7 +177,11 @@ crashtest(
 		<< " durable_lsn is " << log->durable_lsn() );
 	}
 	// Just to be sure that everything's sent, flushed, etc.
+#ifdef STHREAD_YIELD_STATIC
+	sthread_t::yield();
+#else
 	me()->yield();
+#endif
 
 	/* skip destructors */
 	cerr << "CRASH " 

@@ -2,7 +2,7 @@
 
 # <std-header style='perl' orig-src='shore'>
 #
-#  $Id: makemake.pl,v 1.29 2000/01/14 05:27:55 bolo Exp $
+#  $Id: makemake.pl,v 1.30 2002/05/29 15:36:22 bolo Exp $
 #
 # SHORE -- Scalable Heterogeneous Object REpository
 #
@@ -41,6 +41,10 @@ my $makefileName = 'Makefile';
 my $defFile = 'config/shore.def';
 my $isDOS = 0;
 
+## new cygwin mounts drives as /cygdrive/D to stop confusion with
+## shares syntax, previous mounted as //D
+my $isNewCygwin = 1;
+
 
 sub CanonicalFilename
 {
@@ -65,7 +69,33 @@ sub CanonicalFilename
 sub CygwinName
 {
     my $filename = shift;
-    $filename =~ s|^([a-zA-Z]):|\$(SLASH)/$1| if $isDOS;
+    if ($isDOS) {
+    	if ($isNewCygwin) {
+	    ## new style cygnus drive /cygdrive/d -> d:
+	    ## need to use $SLASH??
+	    $filename =~ s|^([a-zA-Z]):|/cygdrive/$1|;
+	}
+	else {
+	    ## old style cygnus drive //d -> d:
+	    $filename =~ s|^([a-zA-Z]):|\$(SLASH)/$1|;
+	}
+    }
+    return $filename;
+}
+
+sub DosName
+{
+    my $filename = shift;
+
+    if ($isDOS) {
+    	## Convert e
+	## old style cygnus drive //d -> d:
+	$filename =~ s|^//([a-zA-Z])|$1:|;
+
+	## new style cygnus drive /cygdrive/d -> d:
+	$filename =~ s|^/cygdrive/([a-zA-Z])|$1:|;
+    }
+
     return $filename;
 }
 
@@ -210,10 +240,19 @@ $options{curPath} = $cwdDir if !$options{curPath};
 $imakeExec = "$imakeDir/$options{imakeExecName}" if ($options{imakeExecName});
 
 my $topDir = $options{topDir};
-my $buildTopDir = $options{buildTopDir};
-$buildTopDir =~ s|^//([a-zA-Z])|$1:|;
-my $curPath = $options{curPath};
+
 $isDOS = $options{dosPaths};
+
+my $buildTopDir = $options{buildTopDir};
+if ($isDOS) {
+    $buildTopDir = DosName($buildTopDir);
+    ## old style cygnus drive //d -> d:
+    #$buildTopDir =~ s|^//([a-zA-Z])|$1:|;
+    ## new style cygnus drive /cygdrive/d -> d:
+    #$buildTopDir =~ s|^/cygdrive/([a-zA-Z])|$1:|;
+}
+
+my $curPath = $options{curPath};
 
 if (!$ok || $options{help})  {
     Usage();

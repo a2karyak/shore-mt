@@ -1,6 +1,6 @@
 /*<std-header style='imakefile' orig-src='shore'>
 
- $Id: Imakefile,v 1.88 2002/01/31 21:19:14 bolo Exp $
+ $Id: Imakefile,v 1.91 2004/01/08 17:24:27 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -33,7 +33,7 @@ init_file_group(ssh.coord)
 ssh.cpp += \
 	ssh.cpp sort_funcs.cpp sort_funcs2.cpp sort_funcs3.cpp \
 	sort_funcs4.cpp shell.cpp shell2.cpp tcl_thread.cpp  ssh_error.cpp  \
-	out_of_log_space.cpp
+	out_of_log_space.cpp sm_sizeof.cpp
 ssh.h += \
 	shell.h ssh.h ssh_error.h tcl_thread.h sort_funcs.h
 
@@ -62,7 +62,15 @@ LIBRARY = $(SM_LIB) $(COMMON_LIB)
 INCLUDE_DIRS += $(OCOMM_INCL)
 LIBRARY += $(OCOMM_LIB) $(OCOMM_NS_LIB)
 #endif
-LIBRARY += $(STHREAD_LIB) $(FC_LIB) $(TCL_LIB)
+LIBRARY += $(STHREAD_LIB) $(FC_LIB)
+
+ADD_TCL=
+ADD_SYS_TCL=
+#ifdef TCL_LIB_DEPENDENCY
+ADD_TCL += $(TCL_LIB)
+#else
+ADD_SYS_TCL += $(TCL_LIB)
+#endif
 
 remote_target($(SM_LIB))
 
@@ -84,7 +92,8 @@ gen_error_codes(ssh, $(OCOMM_DIR)/ns_error.dat, -d, $(ns_error.h))
 gen_error_codes(ssh, $(OCOMM_DIR)/sc_error.dat, -d, $(sc_error.h))
 #endif
 
-ssh.libs += $(LIBRARY)
+ssh.libs += $(LIBRARY) $(ADD_TCL)
+ssh.sys_libs += $(ADD_SYS_TCL)
 ssh.exec_name = ssh
 
 build_exec(ssh)
@@ -131,6 +140,12 @@ MISC_SUBDIRS +=			\
 	log			\
 	scripts			\
 	volumes
+
+
+## I can never remember what I call it :)
+test-env: default-config-ssh
+
+ssh-default-config: default-config-ssh
 
 default-config-ssh:
 	$(CP) .sshrc.example .sshrc

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='W_HASH_H'>
 
- $Id: w_hash.h,v 1.32 2002/01/04 05:47:14 bolo Exp $
+ $Id: w_hash.h,v 1.33 2003/06/19 22:39:32 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -119,6 +119,10 @@ private:
 #endif
     ;
 };
+
+// XXX They are the same for now, avoids offsetof duplication
+#define	W_HASH_ARG(class,key,link)	W_KEYED_ARG(class, key, link)
+
 
 template <class T, class K>
 class w_hash_i : public w_base_t {

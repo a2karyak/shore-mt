@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: restart.cpp,v 1.132 2001/04/17 18:51:37 bolo Exp $
+ $Id: restart.cpp,v 1.133 2003/06/19 22:39:35 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -1037,9 +1037,9 @@ restart_m::undo_pass()
  *********************************************************************/
 NORET 
 dirty_pages_tab_t::dirty_pages_tab_t(int sz) 
-    : tab(sz, offsetof(dp_entry_t, pid), offsetof(dp_entry_t, link)),
-    cachedMinRecLSN(lsn_t::null),
-    validCachedMinRecLSN(false)
+: tab(sz, W_HASH_ARG(dp_entry_t, pid, link)),
+  cachedMinRecLSN(lsn_t::null),
+  validCachedMinRecLSN(false)
 { 
 }
 

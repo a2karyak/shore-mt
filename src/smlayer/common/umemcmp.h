@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='UMEMCMP_H'>
 
- $Id: umemcmp.h,v 1.19 1999/06/07 19:02:34 kupsch Exp $
+ $Id: umemcmp.h,v 1.20 2003/12/23 00:32:01 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -56,19 +56,22 @@ inline int __umemcmp(const unsigned char* p, const unsigned char* q, int n)
 }
 
 /*
+ * XXX this is a dangerous assumption; correct operation for umemcpy()
+ * should be verified!
+ *
  * So far only sparcs (sunos) have been found to need a special umemcmp.
  * On HPs and Decstation/ultrix the library version of memcmp
  * uses unsigned chars.
  */
-#if defined(Sparc)
+#if defined(COMMON_USE_UMEMCMP) || defined(Sparc)
 
-inline uint int_alignment_check(int i) 
+inline uint int_alignment_check(const void *i) 
 {
-    uint tmp = i & (sizeof(int)-1);
-    w_assert3(tmp == i % sizeof(int));
+    uint tmp = (ptrdiff_t) i & (sizeof(int)-1);
+    w_assert3(tmp == (ptrdiff_t) i % sizeof(int));
     return tmp;
 }
-inline bool is_int_aligned(int i)
+inline bool is_int_aligned(const void *i)
 {
     return int_alignment_check(i) == 0;
 }
@@ -85,8 +88,8 @@ inline int umemcmp_smart(const void* p_, const void* q_, int n)
 	return __umemcmp(p, q, n);
 
     // See if both are aligned to the same value
-    if (int_alignment_check(p-(unsigned char*)0) == int_alignment_check(q-(unsigned char*)0)) {
-	if (!is_int_aligned(p-(unsigned char*)0)) {
+    if (int_alignment_check(p) == int_alignment_check(q)) {
+	if (!is_int_aligned(p)) {
 	    // can't handle misaliged, use simple method
 	    return __umemcmp(p, q, n);
 	}

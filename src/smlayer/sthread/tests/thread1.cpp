@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: thread1.cpp,v 1.42 2001/11/30 01:28:26 bolo Exp $
+ $Id: thread1.cpp,v 1.43 2003/02/03 16:14:22 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -51,6 +51,8 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #define DefaultPongTimes  10000
 #define LocalMsgPongTimes 1000000
 #define RemoteMsgPongTimes 100000
+
+bool	DumpInThreads = false;
 
 
 class worker_thread_t : public sthread_t {
@@ -164,7 +166,7 @@ int	parse_args(int argc, char **argv)
 	int	errors = 0;
 	int	c;
 
-	while ((c = getopt(argc, argv, "afn:p:s:g:o:xXdTv")) != EOF) {
+	while ((c = getopt(argc, argv, "afn:p:s:g:o:xXdDTv")) != EOF) {
 		switch (c) {
 		case 'n':
 			NumThreads = atoi(optarg);
@@ -189,6 +191,9 @@ int	parse_args(int argc, char **argv)
 			break;
 		case 'd':
 			DumpThreads = true;
+			break;
+		case 'D':
+			DumpInThreads = true;
 			break;
 		case 'a':
 			TestAssert = true;
@@ -396,6 +401,9 @@ void worker_thread_t::run()
     cout << "Hello, world from " << work_id << endl;
     ack[work_id] = 1;
 
+    if (DumpInThreads)
+	cout << *this << endl;
+
     /* test the return-through stack mechanism */
     if (WorkerThreadExit)
         sthread_t::end();
@@ -435,6 +443,9 @@ void pong_thread_t::run()
 
     // cout.form("pong(%#lx) id=%d done\n", (long)this, id);
     note.done();
+
+    if (DumpInThreads)
+	cout << *this << endl;
 }
 
 
@@ -449,6 +460,8 @@ void timer_thread_t::run()
     W_FORM2(cout,("timeThread going to sleep for %d ms\n", SleepTime));
     sthread_t::sleep(SleepTime);
     cout << "timeThread awakened and die" << endl;
+    if (DumpInThreads)
+	cout << *this << endl;
 }
 
 

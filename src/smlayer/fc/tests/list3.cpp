@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: list3.cpp,v 1.22 2000/01/07 07:17:05 bolo Exp $
+ $Id: list3.cpp,v 1.23 2003/06/19 22:39:33 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -55,8 +55,8 @@ int main()
 	array[i].i = i;
 
     {
-	elem_ascend_list_t u(offsetof(elem3_t, i), 
-			     offsetof(elem3_t, link));
+	elem_ascend_list_t u(W_KEYED_ARG(elem3_t, i, link));
+
 	for (i = 0; i < 10; i += 2)   {
 	    u.put_in_order(&array[9 - i]);	// insert 9, 7, 5, 3, 1
 	}
@@ -97,8 +97,7 @@ int main()
     }
 
     {
-	elem_descend_list_t d(offsetof(elem3_t, i), 
-			      offsetof(elem3_t, link));
+	elem_descend_list_t d(W_KEYED_ARG(elem3_t, i, link));
 
 	for (i = 0; i < 10; i += 2)  {
 	    d.put_in_order(&array[9 - i]);	// insert 9, 7, 5, 3, 1

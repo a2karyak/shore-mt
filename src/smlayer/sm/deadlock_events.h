@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='DEADLOCK_EVENTS_H'>
 
- $Id: deadlock_events.h,v 1.13 1999/06/07 19:04:00 kupsch Exp $
+ $Id: deadlock_events.h,v 1.14 2003/06/19 22:39:34 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -71,7 +71,7 @@ XctWaitsForLockElem::~XctWaitsForLockElem()
 inline uint4_t
 XctWaitsForLockElem::link_offset()
 {
-    return offsetof(XctWaitsForLockElem, _link);
+    return W_LIST_ARG(XctWaitsForLockElem, _link);
 }
 
 typedef w_list_t<XctWaitsForLockElem> XctWaitsForLockList;
@@ -92,7 +92,7 @@ class GtidElem  {
 					};
 	static uint4_t		    link_offset()
 					{
-					    return offsetof(GtidElem, _link);
+					    return W_LIST_ARG(GtidElem, _link);
 					};
 	W_FASTNEW_CLASS_DECL(GtidElem);
 };

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='SM_BASE_H'>
 
- $Id: sm_base.h,v 1.143 2001/09/17 18:28:10 bolo Exp $
+ $Id: sm_base.h,v 1.144 2003/10/14 22:45:09 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -74,6 +74,9 @@ class option_t;
 #ifndef	SM_EXTENTSIZE
 #define	SM_EXTENTSIZE	8
 #endif
+#ifndef	SM_LOG_PARTITIONS
+#define	SM_LOG_PARTITIONS	8
+#endif
 
 typedef   w_rc_t	rc_t;
 
@@ -95,7 +98,7 @@ public:
 	max_xct_thread = 20,	// max threads in a xct
 	max_servers = 15,       // max servers to be connected with
 	max_keycomp = 20,	// max key component (for btree)
-	max_openlog = 8,	// max # log partitions
+	max_openlog = SM_LOG_PARTITIONS,	// max # log partitions
 	max_dir_cache = max_vols * 10,
 
 	/* XXX I want to propogate sthread_t::iovec_max here, but

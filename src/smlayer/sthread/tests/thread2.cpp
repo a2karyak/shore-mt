@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: thread2.cpp,v 1.51 2001/11/08 20:41:43 bolo Exp $
+ $Id: thread2.cpp,v 1.52 2003/02/03 16:11:04 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -41,7 +41,6 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #include <unistd.h>
 #endif
 #include <memory.h>
-#include <getopt.h>
 
 #include <w.h>
 #include <w_statistics.h>
@@ -274,9 +273,10 @@ int main(int argc, char **argv)
     if (s && *s)
     	io_dir = s;
 
-    while ((c = getopt(argc, argv, "i:b:t:d:klfvV:hRD:")) != EOF) {
+    while ((c = getopt(argc, argv, "i:n:b:t:d:klfvV:hRD")) != EOF) {
 	   switch (c) {
 	   case 'i':
+	   case 'n':
 		   NumIOs = atoi(optarg);
 		   break;
 	   case 'b':

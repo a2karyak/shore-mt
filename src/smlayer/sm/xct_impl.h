@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='XCT_IMPL_H'>
 
- $Id: xct_impl.h,v 1.23 1999/06/07 19:04:51 kupsch Exp $
+ $Id: xct_impl.h,v 1.24 2003/06/19 22:39:36 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -53,7 +53,7 @@ class stid_list_elem_t  {
 	    }
 	static uint4_t	link_offset()
 	    {
-		return offsetof(stid_list_elem_t, _link);
+		return W_LIST_ARG(stid_list_elem_t, _link);
 	    }
 	
 	W_FASTNEW_CLASS_DECL(stid_list_elem_t);

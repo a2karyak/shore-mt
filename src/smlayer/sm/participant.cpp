@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: participant.cpp,v 1.58 2001/04/17 18:51:37 bolo Exp $
+ $Id: participant.cpp,v 1.59 2003/06/19 22:39:35 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -275,7 +275,7 @@ participant::participant(
 	p == presumed_abort);
     w_assert1(_name_ep_map);
 
-    _threads = new twopc_thread_list_t(offsetof(twopc_thread_t, _list_link));
+    _threads = new twopc_thread_list_t(W_LIST_ARG(twopc_thread_t, _list_link));
     if(!_threads) {
 	W_FATAL(eOUTOFMEMORY);
     }

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: testserial.cpp,v 1.14 2002/01/04 21:50:38 bolo Exp $
+ $Id: testserial.cpp,v 1.18 2003/12/09 01:36:52 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -31,6 +31,8 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 
 /*  -- do not edit anything above this line --   </std-header>*/
 
+#include <w_workaround.h>
+
 /* XXX this should test either way?   Or is it just for testing for 
    uniform results? */
 #undef SERIAL_BITS64 
@@ -38,10 +40,41 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #define MaxTestInc 5
 #define MXDIFF (MaxTestInc+3)
 
-#include <w_strstream.h>
 #include <basics.h>
 #include <serial_t.h>
+
+#include <iostream.h>
+#ifndef _WIN32
+#include <stream.h>
+#endif
+
 #include <assert.h>
+
+#ifdef __GNUG__
+/* XXX gcc-3.2 broken, there is NO WAY to include the actual stream.h
+   include file with the various formatting functions.  THe
+   "backward compatability" include files includes iostream.h, not
+   stream.h */
+#if W_GCC_THIS_VER >= W_GCC_VER(3,0)
+#define	W_HACK_STREAM_H
+#endif
+#elif defined(_WIN32)
+/* Visual C++ just doesn't have the normal stream.h.  This used to be
+   a seperate hack, but now it just uses this hack. */
+#define W_HACK_STREAM_H
+#endif
+
+
+#if defined(W_HACK_STREAM_H)
+#define	hex(x)	hex << x << dec
+#define	dec(x)	dec << x
+#elif defined(_WIN32)
+// XXX missing stream.h and the output functions
+// XXX no longer used, retained in case of other visual c++ problems
+unsigned long hex (long j)  { return (unsigned long) j; }
+int dec (long j)  { return (int) j; }
+#endif
+
 
 #define P(z)  pp(#z,z); 
 
@@ -132,15 +165,10 @@ compare(
 	CMP(a,<,b);
 }
 #define COMPARE(a,b) {\
-	cout << "BEGIN { comparisons at "<< __LINE__ << " :" << __FILE__ << endl;\
+	cout << "BEGIN { comparisons of "<< #a << " vs " << #b << endl;\
 	compare(a,b);\
 	cout << "}" << endl;\
 }
-
-#ifdef _WINDOWS
-unsigned long hex (long j)  { return (unsigned long) j; }
-int dec (long j)  { return (int) j; }
-#endif
 
 // Give a hint to gcc to match the correct overloaded function
 #define	HINT(x)	unsigned(x)

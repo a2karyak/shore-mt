@@ -1,6 +1,6 @@
 /*<std-header style='imake' orig-src='shore'>
 
- $Id: Platform.select,v 1.30 2002/01/28 06:54:37 bolo Exp $
+ $Id: Platform.select,v 1.31 2003/10/18 02:57:39 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -165,6 +165,15 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #define IS_AIX3 1
 #endif
 #define IS_AIX 1
+#define Platform Arch OpSys
+#endif
+
+#if defined(__ppc__) && defined(__APPLE__)
+#define Arch PowerPC
+#define OpSys MacOSX
+#define __MacOSX__
+#define IS_POWERPC_MACOSX
+#define IS_MACOSX 1
 #define Platform Arch OpSys
 #endif
 

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: bf_prefetch.cpp,v 1.22 2001/04/17 18:51:37 bolo Exp $
+ $Id: bf_prefetch.cpp,v 1.23 2003/08/27 23:59:18 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -274,7 +274,11 @@ bf_prefetch_thread_t::request(
     DBGTHRD(<< "released mutex; signalling...");
     _activate.signal();
     DBGTHRD(<< "yield");
+#ifdef STHREAD_YIELD_STATIC
+    sthread_t::yield();
+#else
     me()->yield();
+#endif
     DBGTHRD(<< "returning from request");
     return _fix_error;
 }

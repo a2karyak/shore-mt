@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: opaque.cpp,v 1.14 2001/11/30 02:01:01 bolo Exp $
+ $Id: opaque.cpp,v 1.15 2003/06/24 19:46:22 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -90,7 +90,20 @@ int main()
 	cout << "value of s = " << *s << endl;
 	cout << "length of s = " << s->length() << endl;
 	s->hton();
-	cout << "hton length of s = " << hex << s->length() << endl;
+	// net order value to cerror since it can change depending on platform
+	cerr << "hton length of s = " << hex << s->length() << endl;
+	// but the bytes should always be the same!
+	cout << "hton bytes of s = ";
+	// XXX magic types/numbers, but "well known"
+	union {
+		uint4_t	l;
+		uint1_t	c[4];
+	} un;
+	un.l = s->length();
+	for (unsigned i = 0; i < sizeof(un.c); i++)
+		cout << ' ' << hex << (unsigned) un.c[i];
+	cout << endl;
+
 	s->ntoh();
 	cout << "ntoh length of s = " << hex << s->length() << endl;
     }

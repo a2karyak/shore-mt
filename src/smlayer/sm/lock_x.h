@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='LOCK_X_H'>
 
- $Id: lock_x.h,v 1.58 1999/10/29 23:11:59 bolo Exp $
+ $Id: lock_x.h,v 1.60 2003/12/01 20:41:03 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -290,17 +290,14 @@ lock_request_t::~lock_request_t()
 
 inline NORET
 lock_head_t::lock_head_t( const lockid_t& n, mode_t m)
-	: 
+: 
 #ifndef NOT_PREEMPTIVE
-#ifdef W_DEBUG
-      mutex("m:lkhdt"),  
-#else
-      mutex(0),  // make it unnamed
+  mutex(W_IFDEBUG("m:lkhdt")),  // unnamed if not debug
 #endif /* W_DEBUG */
-#endif
-	  name(n),
-	  queue(offsetof(lock_request_t, rlink)), granted_mode(m),
-	  waiting(false)
+  name(n),
+  queue(W_LIST_ARG(lock_request_t, rlink)),
+  granted_mode(m),
+  waiting(false)
 {
     INC_TSTAT(lock_head_t_cnt);
 }
@@ -309,11 +306,16 @@ inline lock_head_t*
 lock_request_t::get_lock_head() const
 {
 #ifdef W_DEBUG
-    // if not in list, returns garbage otherwise
-    if(! rlink.member_of()) return (lock_head_t*) 0;
-#endif /* W_DEBUG */
-    return (lock_head_t*) (((char*)rlink.member_of()) -
-			   offsetof(lock_head_t, queue));
+	// if not in list, returns garbage otherwise
+	if(! rlink.member_of()) return (lock_head_t*) 0;
+#elif defined(notyet)
+	/* XXX this should be a fatal error?  Or the DEBUG case
+	   should always be used???? */
+	w_assert1(rlink.member_of());
+#endif
+	// XXX perhaps this should be an "associated list"??
+	return (lock_head_t*) (((char*)rlink.member_of()) -
+			       w_offsetof(lock_head_t, queue));
 }
 
 /*<std-footer incl-file-exclusion='LOCK_X_H'>  -- do not edit anything below this line -- */

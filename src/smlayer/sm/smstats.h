@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='SMSTATS_H'>
 
- $Id: smstats.h,v 1.32 1999/06/07 19:04:40 kupsch Exp $
+ $Id: smstats.h,v 1.33 2003/08/24 23:51:32 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -72,6 +72,9 @@ public:
 	}
         friend ostream& operator<<(ostream&, const sm_stats_info_t& s);
 };
+
+extern sm_stats_info_t &operator+=(sm_stats_info_t &s, const sm_stats_info_t &t);
+extern sm_stats_info_t &operator-=(sm_stats_info_t &s, const sm_stats_info_t &t);
 
 struct sm_config_info_t {
     u_long page_size; 		// bytes in page, including all headers

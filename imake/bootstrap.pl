@@ -2,7 +2,7 @@
 
 # <std-header style='perl' orig-src='shore' no-defines='true'>
 #
-#  $Id: bootstrap.pl,v 1.16 2000/01/14 06:53:02 bolo Exp $
+#  $Id: bootstrap.pl,v 1.17 2002/05/30 14:56:51 bolo Exp $
 #
 # SHORE -- Scalable Heterogeneous Object REpository
 #
@@ -65,6 +65,60 @@ if (!$ok || $options{help})  {
 
 my $isDOS = $options{dosPaths};
 
+## "new" /cygdrive/d versus "old" //d handling of cygnus drive paths 
+my $isNewCygwin = 1;
+
+sub DosName
+{
+    my $filename = shift;
+
+#    printf("DosName(%s)", $filename);
+
+    ## convert either style of cygwin path
+    ## old style cygnus //d path
+    $filename =~ s|^//([a-zA-Z])|$1:|;
+    ## new style cygnus //d path
+    $filename =~ s|^/cygdrive/([a-zA-Z])|$1:|;
+
+#    printf(" -> %s\n", $filename);
+
+    return $filename;
+}
+
+sub CygwinName
+{
+    my $filename = shift;
+
+#    printf("CygwinName(%s)", $filename);
+
+    if ($isNewCygwin) {
+	$filename =~ s|^([a-zA-Z]):/?|/cygdrive/$1/|;
+    }
+    else {
+	$filename =~ s|^([a-zA-Z]):/?|//$1/|;
+    }
+
+#    printf(" -> %s\n", $filename);
+
+    return $filename;
+}
+
+sub AbsolutePath
+{
+    my $filename = shift;
+    my $atroot = 0;
+
+#    printf("AbsolutePath(%s)", $filename);
+
+    $atroot = $filename =~ /^\//;
+    if (!$atroot && $isDOS) {
+    	$atroot = 1 if $filename =~ /^[a-zA-Z]:/;
+    }
+
+#    printf(" -> %d\n", $atroot);
+
+    return $atroot;
+}
 
 sub CreateDirs
 {
@@ -84,12 +138,13 @@ sub CreateDirs
 
 use Cwd;
 my $cwdDir = cwd();
-$cwdDir =~ s/\\/\//g;
+$cwdDir =~ s|\\|/|g if $isDOS;
+
 
 my $build_dir = $options{build_dir};
-$build_dir = "$cwdDir/$build_dir" if $build_dir !~ /^\//;
+$build_dir = "$cwdDir/$build_dir" if !AbsolutePath($build_dir);
 $build_dir .= "/$options{imake_dir}";
-$build_dir =~ s|^//([a-zA-Z])|$1:| if $isDOS;
+$build_dir = DosName($build_dir) if $isDOS;
 
 CreateDirs($build_dir) if $options{createDirs} && $build_dir ne '-';
 
@@ -99,7 +154,7 @@ if (!$options{imake_exec_name})  {
 }
 
 my $target_build_dir = $build_dir;
-$target_build_dir =~ s/^(.):\/?/\/\/$1\// if $isDOS;
+$target_build_dir = CygwinName($target_build_dir) if $isDOS;
 
 my $makeflags = "-C $options{imake_dir} BUILD_DIR='$build_dir' TARGET_BUILD_DIR='$target_build_dir'";
 $makeflags .= " WINDOWS=1" if $isDOS;

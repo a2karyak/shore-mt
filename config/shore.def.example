@@ -1,6 +1,6 @@
 /*<std-header style='imake' orig-src='shore'>
 
- $Id: shore.def.example,v 1.121 2002/02/21 16:06:41 bolo Exp $
+ $Id: shore.def.example,v 1.129 2003/12/31 03:45:51 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -170,6 +170,13 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #undef TCL_DIR_VERSION
 #undef TCL_LIB_EXTENSION
 
+/*
+ * Define this if you want dependencies on the tcl library to exist
+ * in the generated makefiles.   This only works if a _path_ to
+ * the tcl library is provided, instead of a '-ltcl_lib' directive.
+ */
+#undef TCL_LIB_DEPENDENCY
+
 
 /*
  * Define this to select non-default version of Perl.
@@ -198,6 +205,13 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
  * Define this to use a different RM (rm) program in make:
  */
 #undef RMM 
+
+/*
+ * Define this if your 'rm -f' with no args generates a non-0 return code.
+ * You can fix it either by specifying a better RM via RMM, or this
+ * which specifies a bogus filename so that the broken RMs work.
+ */
+#undef RM_F_BROKEN
 
 /*
  * Define this when using Solaris since our solaris imake isn't
@@ -267,7 +281,7 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
  * treating virtual functions with the same name ... if one is
  * redefined the other is lost.  I plan on "fixing" the "problems"
  * in the source that this causes soon, but it is on by default
- * so gcc-2.95.2 will just work
+ * so gcc-2.95.2 (and newer) will just work.
  */
 #define	GCC_NO_WARN_VIRTUAL
 
@@ -280,12 +294,51 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #undef GCC_BROKEN_WARNINGS
 
 /*
+ * Enable THIS if you are using the default gcc on Linux Redhat 7.3
+ * boxes, with version string:
+ *	gcc version 2.96 20000731 (Red Hat Linux 7.3 2.96-110)
+ * This compiler has brain-damage which prevents it from compiling
+ * one (count it 1) statement in the source code.  To get around that
+ * problem, you will need to enable this option.  Note that this will
+ * cause system performance to be reduced a bit.   I would suggest 
+ * getting a better compiler.
+ */
+#undef	GCC_BROKEN_LINUX_2_96_110
+
+/*
+ * XXX this belongs in the sthread section, but is here because of
+ * the relavence to GCC_BROKEN_WARNINGS.
+ *
+ * If this is defined, uses of sthread_t::yield() in sm and ssh
+ * code will use yield() as a static method instead of a instance method.
+ * Aka sthread_t::yield() versus sthread_t::me()->yield().
+ *
+ * Yield is a static method ... but calling a static method as a instance
+ * method is a valid use ... what if you want to change method between
+ * static and instance at some point?    Because this change is ONLY
+ * needed for this ONE broken version of this ONE broken compiler,
+ * I am going to leave everything as it is, and just do all the changes
+ * inline for now.   Don't fix something that isn't broken.   For
+ * example, yield() could be made virtual so that different thread types
+ * could 'yield()' other resources when they themselves are yield()ing.
+ */
+#ifdef GCC_BROKEN_WARNINGS
+#define STHREAD_YIELD_STATIC
+#endif
+
+/*
  * Enable this to have gcc generate templates implicitly.  The 
  * default is to generate template instantiations explicitly.
  * This does NOT work on all platforms and all toolchains.  It
  * may increase executable sizes.
  */
 #undef GCC_IMPLICIT_TEMPLATE
+
+/*
+ * Enable this if you are using a gcc-3 series compiler.  The set of
+ * warning options needed is different than the gcc-2 series compilers.
+ */
+#undef GCC_VER_3_WARNINGS
 
 /* 
  * Directory to install bin, lib, include, and documents 
@@ -334,10 +387,34 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #define SM_PAGESIZE 8192
 
 /*
+ * Define this if you want to change the number of pages in a extent.
+ * The normal number of pages in an extent is 8.
+ * NOTE that this completely changes the on-disk format (depends on
+ * how many pages/extent you use) and is not well tested.  It does 
+ * work, however.
+ *
+ * The one case where you may want to use this is if you want to have
+ * larger volumes (> 10GB).   By increasing the number of pages per extent
+ * you'll reduce some overheads in shore and have better allocation speeds.
+ * In other words, a temporary fix until the underlying problem is fixed
+ */
+/* #define SM_EXTENTSIZE	8 */
+
+/*
  * Define this if you want clients aborted when the percent threshold of
  * log in use by all clients is exceeded.  should be less than 50.
  */
 #define SM_LOG_WARN_EXCEED_PERCENT 40
+
+/*
+ * Define this if you want to change the number of partitions in the
+ * shore log.  The default is 8.
+ * This can be a factor if you are using log-in-files.  Each log partition
+ * is currently limited to 2GB.  However you can have a larger log by
+ * increasing the number of partitions.
+ * This code has not been tested to any great extent :)
+ */
+/* #define SM_LOG_PARTITIONS	8 */
 
 /*
  * If you want 64 bit serial numbers (logical IDs)
@@ -661,6 +738,24 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #undef LINK_POSIX4
 
 /*
+ * Previous to shore-interim-3, shore automagically linked against
+ * -liberty on most platforms.   It is no longer required by default,
+ * at least on the systems I could currently test against.  In addition,
+ * some _linux_ distributions no longer have it.   I've changed
+ * it to a shore.def option incase it is still required on some systems.
+ * 
+ * This only affects builds using gcc.
+ */
+#undef LINK_LIBERTY
+
+/*
+ * Define this to add '-lg++' to the link list when using gcc.
+ * Shore hasn't been linking against it for some time, and this
+ * could probably just go away.
+ */
+#undef LINK_LGXX
+
+/*
  * Define this if you want a Win32 system to be compiled for and
  * to link against the debug version of the visual c++ runtimes.
  *
@@ -780,11 +875,51 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #undef FC_COMPAT_32BIT_ULONG
 
 /*
+ * Defines this if bolo's version of 'const char *form(const char *,...)'
+ * should be added to the FC library.   Some systems lack a stanalone
+ * form() function.   This one is also somewhat thread safe and such,
+ * though it is more optimistic than anything else.
+ *
+ * This happens automatically (seperate of the option) on systems with
+ * gcc-3.2 and Visual Studio; they lack the function or access to it.
+ */
+#undef FC_USE_FORM
+
+/*
+ * Define this if you want to specify a different size than
+ * the default (40 bytes) for global transaction IDs, gtids.
+ */
+#undef COMMON_GTID_LENGTH
+
+/*
+ * Define this if you want to specify a different size than
+ * the default (100 bytes) for server handle IDs.
+ */
+#undef COMMON_SERVER_HANDLE_LENGTH
+
+/*
+ * Define this if your system's memcmp() function makes _signed_
+ * comparisons on each character, instead of unsigned comparisons.
+ * This most likely corresponds to whether the default character
+ * type on your system is 'signed char'.   The symptom you'll see if
+ * this is needed is that key comparisons will go wacky.
+ *
+ * This option is enabled automagically on Sparc platforms in
+ * common/umemcmp.h, as the memcmp function on SunOS use signed comparison.
+ * All other systems shore runs on have a memcmp() which provides unsigned
+ * comparisons already, and that is used.
+ */
+#undef COMMON_USE_UMEMCMP
+
+/*
  * The default number of sharers of a latch is 4.  If you want to 
  * allow more sharing of a latch, #define this to the integer value
  * of the maximum number of sharers allowed.  This has been tested
  * with 8 and 16 sharers for correctness.  Above 16 sharers is
  * not recommended .... the algorithms needs to be improved.
+ *
+ * XXX this really changes common/latch parameters, but is labelled
+ * 'SM' as that is where latches really exist.
  */
 #undef SM_LATCH_SHARE_MAX
 
@@ -865,21 +1000,19 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 
 /*
  * Define this if you want the system on-disk structures to have
- * "large" (64 bit) disk addresses in the on-disk structures.
+ * "large" (64 bit) disk addresses in the on-disk structures.  The
+ * default size of a disk address is 32 bits.
+ *
+ * Using "large disk addresses" will allow individual log partitions
+ * to exceed the 2GB limit ... assuming that the underlying OS is capable
+ * of using files larger than 2GB.   Changing this is orthogonal to
+ * largefile support.
+ *
+ * This changes both the on-disk format of the log and volumes; the
+ * system adjusts the version number to prevent incompatibilities from
+ * occuring.
  */
 #undef SM_DISKADDR_LARGE
-
-/*
- * Define this if you want to specify a different size than
- * the default (40 bytes) for global transaction IDs, gtids.
- */
-#undef COMMON_GTID_LENGTH
-
-/*
- * Define this if you want to specify a different size than
- * the default (100 bytes) for server handle IDs.
- */
-#undef COMMON_SERVER_HANDLE_LENGTH
 
 /*
  * Define this if you want ssh to use the old, event semaphore 

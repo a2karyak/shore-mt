@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: sfile.cpp,v 1.23 2002/01/25 15:25:45 bolo Exp $
+ $Id: sfile.cpp,v 1.24 2003/12/01 23:56:04 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -174,6 +174,10 @@ int write(int x, const void *y, int z)
    all the I/O stuff switches to use size_t, the reverse will
    probably become true. */
 #if defined(Linux) || defined(__NetBSD__)	/* XXX AIX may want this too */
+#define	SFILE_HACK_SIZE_T(int_ptr)	((unsigned int *)(int_ptr))
+#elif defined(SOLARIS2)
+/* XXX same hack, but not certain it applies to all solarii versions.
+   Solaris  5.8 for certain, 5.7 looks like it has it also */
 #define	SFILE_HACK_SIZE_T(int_ptr)	((unsigned int *)(int_ptr))
 #else
 #define	SFILE_HACK_SIZE_T(int_ptr)	(int_ptr)

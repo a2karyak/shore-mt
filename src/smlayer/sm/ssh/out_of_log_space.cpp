@@ -62,7 +62,11 @@ w_rc_t out_of_log_space (xct_i* , xct_t *& xd,
 	 } else {
 	     // don't do anything  - give aborting xct a chance
 	     // to run
+#ifdef STHREAD_YIELD_STATIC
+	     sthread_t::yield();
+#else
 	     me()->yield();
+#endif
 	     xd = 0;
 	 }
 	 oven.release();

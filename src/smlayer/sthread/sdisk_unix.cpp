@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: sdisk_unix.cpp,v 1.14 2002/01/28 07:17:36 bolo Exp $
+ $Id: sdisk_unix.cpp,v 1.16 2002/11/19 21:16:37 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -131,6 +131,10 @@ int	sdisk_unix_t::convert_flags(int sflags)
 #endif
 	if (hasOption(sflags, OPEN_APPEND))
 		flags |= O_APPEND;
+#ifdef O_DIRECT
+	if (hasOption(sflags, OPEN_RAW))
+		flags |= O_DIRECT;
+#endif
 
 #if defined(O_BINARY)
 	/* NewThreads I/O, just like Unix, I/O, is always byte-for-byte */

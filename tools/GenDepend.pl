@@ -2,7 +2,7 @@
 
 # <std-header style='perl' orig-src='shore'>
 #
-#  $Id: GenDepend.pl,v 1.8 2000/01/14 05:27:55 bolo Exp $
+#  $Id: GenDepend.pl,v 1.10 2003/06/24 15:38:46 bolo Exp $
 #
 # SHORE -- Scalable Heterogeneous Object REpository
 #
@@ -78,6 +78,9 @@ if (!$options{objExtension}) {
 	$options{objExtension} = $isDOS ? '.obj' : '.o';
 }
 
+## new cygwin mounts drives as /cygdrive/D, previous mounted as //D
+## XXX convert to option
+my $isNewCygwin = 1;
 
 my $v = $options{verbose};
 
@@ -87,6 +90,7 @@ if ($v)  {
         print "\$options{$key} = $options{$key}\n";
     }
 }
+
 
 my $outfile = $options{outFile};
 open OUTFILE, ">$outfile" or die "open >$outfile";
@@ -110,9 +114,20 @@ foreach $file (@ARGV) {
     while (<CMDOUT>) {
 	if (/^\s*#\s*line\s*\d+\s+"(.*)"\s*$/ || /^\s*#\s*\d+\s+"(.*)"/)  {		# line num file
 	    my $depFile = $1;
+	    if ($depFile eq "<built-in>") {
+	    	next;
+	    }
 	    $depFile =~ tr/\\/\//;
 	    $depFile =~ s/\/+/\//g;
-	    $depFile =~ s|([a-zA-Z]):|//$1| if $isDOS;
+	    if ($isDOS) {
+	    	## map drive letters into cygwin paths
+	    	if ($isNewCygwin) {
+		    $depFile =~ s|([a-zA-Z]):|/cygdrive/$1|;
+		}
+		else {
+		    $depFile =~ s|([a-zA-Z]):|//$1|;
+		}
+	    }
 	    if ($depFile !~ /[: ]/)  {
 	        $dependency{$depFile}++;
 	    }

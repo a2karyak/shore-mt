@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: lid.cpp,v 1.150 2002/01/04 21:50:41 bolo Exp $
+ $Id: lid.cpp,v 1.151 2003/06/19 22:39:34 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -154,17 +154,17 @@ lid_m::lid_m(int max_vols, int max_lid_cache) :
 		_id_cache_enable(true)
 {
     // allocate the volume table
-    if (!(_vol_table = new w_hash_t<vol_lid_info_t, lvid_t>(
-	_num_vols,
-	offsetof(vol_lid_info_t, lvid),
-	offsetof(vol_lid_info_t, link))
-	)) {
+    _vol_table = new w_hash_t<vol_lid_info_t, lvid_t>(
+	    _num_vols,
+	    W_HASH_ARG(vol_lid_info_t, lvid, link));
+    if (!_vol_table)
 	W_FATAL(eOUTOFMEMORY);
-    }
 
-    if (!(_id_cache = new hash_lru_t<lid_cache_entry_t, lid_cache_key_t>(max_lid_cache, "lid_m cache"))) {
+    
+    _id_cache = new hash_lru_t<lid_cache_entry_t, lid_cache_key_t>(
+	    max_lid_cache, "lid_m cache");
+    if (!_id_cache)
 	W_FATAL(eOUTOFMEMORY);
-    }
 
     // verify that lid_entry_t::_id has the correct size
     lid_entry_t::check_id_size();

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: histo.cpp,v 1.12 1999/12/07 22:53:31 bolo Exp $
+ $Id: histo.cpp,v 1.13 2003/06/19 22:39:34 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -179,8 +179,8 @@ histoid_t::~histoid_t ()
 rc_t histoid_t::initialize_table()
 {
     htab = new w_hash_t<histoid_t, stid_t>( histoid_t::buckets_in_table,
-			offsetof(histoid_t, cmp.key()),
-			offsetof(histoid_t, link));
+					    W_HASH_ARG(histoid_t, cmp.key(),
+						       link));
 
     return MAKERC(!htab, eOUTOFMEMORY);
 }

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: vec_t.cpp,v 1.69 1999/06/07 19:02:35 kupsch Exp $
+ $Id: vec_t.cpp,v 1.71 2003/12/01 23:33:32 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -703,10 +703,16 @@ istream& operator>>(istream& is, cvec_t& v)
 	    */
 	}
 	if(err >0) {
-#if !defined(_MSC_VER)		/* XXX really MS c-lib bug */
-	    // TODO: _WINDOWS should have definition of set()
+#if defined(_MSC_VER)
+	    // XXX kludgy version of set, but it works
+	    is.clear(is.rdstate() | ios::badbit);
+#elif defined(__GNUC__) && W_GCC_THIS_VER >= W_GCC_VER(3,0)
+	    /* XXX gcc-3.2 */
+	    is.setstate(ios::badbit);
+#else
 	    is.set(ios::badbit);
 #endif
+
 	    state = done;
 	    err = is.tellg();
 	    //cerr << "error at byte #" << err <<endl;

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: bf.cpp,v 1.223 2001/04/17 18:51:37 bolo Exp $
+ $Id: bf.cpp,v 1.225 2003/08/27 23:59:18 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -343,7 +343,11 @@ bf_cleaner_thread_t::activate(bool force)
 	/* I noticed a repeatable performance gain whenever the
 	 *  cleaner thread is immediately yielded to.  
 	 */
+#ifdef STHREAD_YIELD_STATIC
+	sthread_t::yield();
+#else
 	me()->yield();
+#endif
     }
 }
 
@@ -529,7 +533,7 @@ bf_m::bf_m(uint4_t max, char *bp, uint4_t stratgy)
     if (! _core) W_FATAL(eOUTOFMEMORY);
 
     _cleaner_threads = new 
-	cleaner_thread_list_t(offsetof(bf_cleaner_thread_t, _link));
+	cleaner_thread_list_t(W_LIST_ARG(bf_cleaner_thread_t, _link));
     if (! _cleaner_threads) W_FATAL(eOUTOFMEMORY);
 
     bf_cleaner_thread_t::_histogram = new int[npages()+1];
@@ -954,7 +958,11 @@ bf_m::_fix(
     w_assert3(_core->latch_mode(b) >= mode);
 #if defined(W_DEBUG) || defined(USE_SSMTEST)
    if(_simulate_preemption) {
+#ifdef STHREAD_YIELD_STATIC
+	sthread_t::yield();
+#else
 	me()->yield();
+#endif
    }
 #endif /* W_DEBUG */
     return RCOK;
@@ -1216,7 +1224,11 @@ bf_m::unfix(const page_s* buf, bool dirty, int refbit)
 
 #if defined(W_DEBUG) || defined(USE_SSMTEST)
    if(_simulate_preemption) {
+#ifdef STHREAD_YIELD_STATIC
+	sthread_t::yield();
+#else
 	me()->yield();
+#endif
    }
 #endif /* W_DEBUG */
 
@@ -2259,7 +2271,11 @@ bf_m::set_dirty(const page_s* buf)
 	    INC_STAT(bf_kick_threshhold);
 	    vid_t v = b->pid.vol();
 	    activate_background_flushing(&v);
+#ifdef STHREAD_YIELD_STATIC
+	    sthread_t::yield();
+#else
 	    me()->yield();
+#endif
 	}
     }
     return RCOK;

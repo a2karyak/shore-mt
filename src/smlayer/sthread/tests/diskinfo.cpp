@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: diskinfo.cpp,v 1.16 2000/01/07 07:17:29 bolo Exp $
+ $Id: diskinfo.cpp,v 1.17 2003/10/14 22:42:55 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -85,9 +85,10 @@ void label_dg()
 		     "Cylinders", "Tracks", "Sectors");
 }
 
-
-bool	check_last = false;
-char	*io_buf;	/* Sthread I/O buffer */
+/* Seek to the last byte and try to read it */
+bool		check_last = false;
+const char	*diskrw = "./diskrw";
+char		*io_buf;	/* Sthread I/O buffer */
 
 
 w_rc_t test_diskinfo(const char *fname, bool stamp, disk_geometry_t *all)
@@ -166,6 +167,9 @@ int main(int argc, char **argv)
 		return 1;
 
 	w_rc_t	e;
+
+	sthread_t::set_diskrw_name(diskrw);
+
 	e = sthread_t::set_bufsize(1024*1024, io_buf);
 	if (e != RCOK)
 		W_COERCE(e);
@@ -193,10 +197,13 @@ static	int	parse_args(int argc, char **argv)
 	int	errors = 0;
 	int	c;
 
-	while ((c = getopt(argc, argv, "c")) != EOF) {
+	while ((c = getopt(argc, argv, "cD:")) != EOF) {
 		switch (c) {
 		case 'c':
 			check_last = true;
+			break;
+		case 'D':
+			diskrw = optarg;
 			break;
 		default:
 			errors++;
@@ -210,7 +217,8 @@ static	int	parse_args(int argc, char **argv)
 	if (errors)
 		cout << "Usage: " << argv[0]
 			<< " [-c]"
-			<< "path ..."
+			<< " [-D diskrw]"
+			<< " path ..."
 			<< endl;
 
 	return errors ? -1 : optind;

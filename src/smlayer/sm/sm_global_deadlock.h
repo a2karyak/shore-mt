@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='SM_GLOBAL_DEADLOCK_H'>
 
- $Id: sm_global_deadlock.h,v 1.33 2001/04/18 17:22:59 bolo Exp $
+ $Id: sm_global_deadlock.h,v 1.35 2003/06/19 22:57:34 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -65,7 +65,7 @@ class BlockedElem  {
 		};
 	static uint4_t		    link_offset()
 		{
-		    return offsetof(BlockedElem, _link);
+		    return W_LIST_ARG(BlockedElem, _link);
 		};
 	W_FASTNEW_CLASS_DECL(BlockedElem);
 };
@@ -89,7 +89,7 @@ class WaitForElem  {
 		};
 	static uint4_t                link_offset()
 		{
-		    return offsetof(WaitForElem, _link);
+		    return W_LIST_ARG(WaitForElem, _link);
 		};
 	W_FASTNEW_CLASS_DECL(WaitForElem);
 };
@@ -113,7 +113,7 @@ class WaitPtrForPtrElem  {
 		};
 	static uint4_t                link_offset()
 		{
-		    return offsetof(WaitPtrForPtrElem, _link);
+		    return W_LIST_ARG(WaitPtrForPtrElem, _link);
 		};
 	W_FASTNEW_CLASS_DECL(WaitPtrForPtrElem);
 };
@@ -134,7 +134,7 @@ class IdElem  {
 					};
 	static uint4_t		    link_offset()
 					{
-					    return offsetof(IdElem, _link);
+					    return W_LIST_ARG(IdElem, _link);
 					};
 	W_FASTNEW_CLASS_DECL(IdElem);
 };
@@ -262,7 +262,7 @@ class DeadlockClientCommunicator
 {
     enum { noId = DeadlockMsgHeader::noId };
     public:
-        friend CentralizedGlobalDeadlockClient;
+        friend class CentralizedGlobalDeadlockClient;
         
 	NORET			    DeadlockClientCommunicator(
 	    const server_handle_t&	theServerHandle,
@@ -344,7 +344,7 @@ class DeadlockServerCommunicator
 {
     enum { noId = DeadlockMsgHeader::noId };
     public:
-        friend CentralizedGlobalDeadlockServer;
+        friend class CentralizedGlobalDeadlockServer;
         
 	NORET			    DeadlockServerCommunicator(
 	    const server_handle_t&	theServerHandle,
@@ -550,7 +550,7 @@ w_base_t::uint4_t w_hash(const gtid_t &g);
 
 class CentralizedGlobalDeadlockServer  {
     private:
-	friend DeadlockServerCommunicator;
+	friend class DeadlockServerCommunicator;
         class ReceiverThread : public smthread_t
         {
 	    public:

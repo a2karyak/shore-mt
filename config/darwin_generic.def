@@ -1,0 +1,11 @@
+UTIL_DIR = /usr
+VCPP_DIR =
+TCL_DIR = /Local/tcl-8.3.4
+BISON_DIR = /usr/bin
+FLEX_DIR = /usr/bin
+PERL_DIR = /usr
+
+TCL_INCL = -I$(TCL_DIR)/include
+TCL_LIB = $(TCL_DIR)/lib/libtcl.a
+#define	TCL_DEF
+

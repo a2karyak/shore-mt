@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='EXTENT_H'>
 
- $Id: extent.h,v 1.8 1999/11/19 22:42:30 bolo Exp $
+ $Id: extent.h,v 1.9 2003/12/01 20:41:03 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -81,7 +81,7 @@ extlink_t::extlink_t(const extlink_t& e)
   pspacemap(e.pspacemap)
 {
     // this is needed elsewhere -- see extlink_p::set_byte
-    w_assert3(offsetof(extlink_t, pmap) == 0);
+    w_assert3(w_offsetof(extlink_t, pmap) == 0);
 }
 
 inline extlink_t& 

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: scan.cpp,v 1.151 1999/12/07 23:01:52 bolo Exp $
+ $Id: scan.cpp,v 1.152 2003/08/27 23:59:19 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -831,7 +831,11 @@ rc_t scan_file_i::_init(bool for_append)
 	this->_prefetch = new bf_prefetch_thread_t;
 	if (this->_prefetch) {
 	    W_COERCE( this->_prefetch->fork());
+#ifdef STHREAD_YIELD_STATIC
+	    sthread_t::yield();
+#else
 	    me()->yield(); // let it run
+#endif
 
 	    DBGTHRD(<<" requesting first page: " << curr_rid.pid);
 
@@ -915,7 +919,11 @@ scan_file_i::_next(pin_i*& pin_ptr, smsize_t start, bool& eof)
 		    // information is not protected by locks
 		    //
 		    _cursor.unpin();
+#ifdef STHREAD_YIELD_STATIC
+		    sthread_t::yield();
+#else
 		    me()->yield();
+#endif
 		    _error_occurred = RCOK;
 		    _error_occurred.reset();
 		    continue; // while loop

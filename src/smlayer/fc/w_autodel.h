@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='W_AUTODEL_H'>
 
- $Id: w_autodel.h,v 1.17 1999/06/07 19:02:50 kupsch Exp $
+ $Id: w_autodel.h,v 1.18 2003/10/13 22:03:50 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -83,7 +83,7 @@ private:
 
     // disabled
     NORET			w_auto_delete_t(const w_auto_delete_t&) {};
-    w_auto_delete_t&		operator=(const w_auto_delete_t) {return *this;};
+    w_auto_delete_t&		operator=(const w_auto_delete_t &) {return *this;};
 };
 
 
@@ -131,7 +131,7 @@ private:
     // disabled
     NORET			w_auto_delete_array_t(
 	const w_auto_delete_array_t&)  {}
-    w_auto_delete_array_t&	operator=(const w_auto_delete_array_t) {return *this;};
+    w_auto_delete_array_t&	operator=(const w_auto_delete_array_t &) {return *this;};
 };
 
 /*<std-footer incl-file-exclusion='W_AUTODEL_H'>  -- do not edit anything below this line -- */

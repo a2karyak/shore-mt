@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: stats.cpp,v 1.13 2000/01/13 18:49:23 bolo Exp $
+ $Id: stats.cpp,v 1.14 2003/06/19 18:43:51 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -100,19 +100,19 @@ statstest()
 		W_FORM2(cout,("\t%-30.30s %10.10d", 
 				ST.string(TEST_i), ST.int_val(TEST_i)) );
 			cout << endl;
-		W_FORM2(cout,("\t%-30.30s %10.10d", 
+		W_FORM2(cout,("\t%-30.30s %10.10u", 
 				ST.string(TEST_j), ST.uint_val(TEST_j)) );
 			cout << endl;
 		W_FORM2(cout,("\t%-30.30s %10.6f", 
 				ST.string(TEST_k), ST.float_val(TEST_k)) );
 			cout << endl;
-		/*
+#ifdef notyet
 		W_FORM2(cout,("\t%-30.30s %10.10d", 
 				ST.string(TEST_l), ST.float_val(TEST_l)) );
 			cout << endl;
-		*/
-		W_FORM2(cout,("\t%-30.30s %10.10d", 
-				ST.string(TEST_v), ST.float_val(TEST_v)) );
+#endif
+		W_FORM2(cout,("\t%-30.30s %10.10u", 
+				ST.string(TEST_v), ST.ulong_val(TEST_v)) );
 			cout << endl;
 		cout << endl;
 

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: log_base.cpp,v 1.32 2001/11/27 18:11:40 bolo Exp $
+ $Id: log_base.cpp,v 1.33 2003/03/15 03:05:33 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -267,7 +267,7 @@ log_base::parse_master_chkpt_string(
 	    w_assert3(separator == '_' || separator == '.');
 	    s >> others[number_of_others];
 	    DBG(<< number_of_others << ": extra lsn = " << 
-		others[number_of_others])
+		others[number_of_others]);
 	    if(!s.fail()) {
 		number_of_others++;
 	    }
@@ -292,7 +292,7 @@ log_base::parse_master_chkpt_contents(
 	    w_assert3(separator == '_' || separator == '.');
 	    s >> lsnlist[listlength];
 	    DBG(<< listlength << ": extra lsn = " << 
-		lsnlist[listlength])
+		lsnlist[listlength]);
 	    if(!s.fail()) {
 		listlength++;
 	    }

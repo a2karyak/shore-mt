@@ -1,6 +1,6 @@
-/*<std-header orig-src='shore' incl-file-exclusion='STHREAD_GCC_H'>
+/*<std-header orig-src='shore' incl-file-exclusion='STHREAD_GCC3_H'>
 
- $Id: sthread_gcc.h,v 1.2 2003/12/29 20:50:26 bolo Exp $
+ $Id: sthread_gcc3.h,v 1.1 2003/12/29 20:50:26 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -27,8 +27,8 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 
 */
 
-#ifndef STHREAD_GCC_H
-#define STHREAD_GCC_H
+#ifndef STHREAD_GCC3_H
+#define STHREAD_GCC3_H
 
 #include "w_defines.h"
 
@@ -36,7 +36,7 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 
 /*
  *   NewThreads is Copyright 1992, 1993, 1994, 1995, 1996, 1997, 1998,
- *                           1999, 2000, 2001, 2002 by:
+ *                           1999, 2000, 2001, 2002, 2003 by:
  *
  *	Josef Burger	<bolo@cs.wisc.edu>
  *	Dylan McNamee	<dylan@cse.ogi.edu>
@@ -69,134 +69,54 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
    to by the per-thread exception context.  The main thread's
    exception context just uses whatever was provided by the system */
 
-/* EGCS has excpetion handling which has been tested, earlier ones
-   have no testing. */
-   
-#if W_GCC_THIS_VER < W_GCC_VER(2,90)
-#error	"Exception handling not supported prior to EGCS (2.90)"
+#if W_GCC_THIS_VER < W_GCC_VER(3,0)
+#error	"gcc3 Exception handling not supported prior to gcc-3.0"
 #endif
 
-#if W_GCC_THIS_VER >= W_GCC_VER(2,95)
 /*
- * Older gcc's with exception handling, such as
+ * The nice thing about gcc3 exception handling is that it looked like
+ * there are actual user-visible exception interfaces .. including
+ * a user-visible API to use.   Way better than the gcc2 approach where
+ * it was all hidden under the covers.
+ * 
+ * Unfortunately, it is just better APIed within GCC, there is no external
+ * interface for it still.   So, just like the gcc2 handling, it is
+ * a bit of duplicating info that should be available.
  *
- *	gcc version egcs-2.91.66 19990314 (egcs-1.1.2 release)
- *
- * have a smaller 3 word context (no table_index).  The first
- * gcc which shore supports which has a larger context are the
- * gcc-2.95 series.
+ * The thread interaction problem mentioned in sthread_gcc.h still exists.
  */
-#define	GCC_CONTEXT_HAS_TABLE
-#endif
 
-struct gcc_exception_t {
-	struct eh_cleanup {
-		eh_cleanup	*next;
-		void		(*func)(void *);
-		void		*arg;
-	};
-
-	/* derive from this for actual contexts which need state */
-	struct eh_handler {
-		eh_handler	*next;
-		eh_cleanup	*cleanups;
-
-		eh_handler()
-		: next(0),
-		  cleanups(0)
-		{
-		}
-	};
-	
-	struct eh_context {
-		void			*handler_label;
-		eh_handler		*dynamic_handler_chain;
-		void			*info;
-#ifdef GCC_CONTEXT_HAS_TABLE
-		void			*table_index;
-#endif
-
-		eh_context()
-		: handler_label(0),
-		  dynamic_handler_chain(0),
-		  info(0)
-#ifdef GCC_CONTEXT_HAS_TABLE
-		  , table_index(0)
-#endif
-		{
-		}
-
-		inline eh_context &operator=(const eh_context &r)
-		{
-#if 1
-			/* inline memcpy for speed */
-			handler_label = r.handler_label;
-			dynamic_handler_chain = r.dynamic_handler_chain;
-			info = r.info;
-#ifdef GCC_CONTEXT_HAS_TABLE
-			table_index = r.table_index;
-#endif
+#ifdef notyet
+/* XXX if everything was visible, we could just use the real structures! */
+#include <unwind-cxx.h>
+typedef struct __cxa_eh_globals	gcc_exception_t;
 #else
-			memcpy(this, &r, sizeof(*this));
-#endif
-			return *this;
-		}
-
-		ostream &print(ostream &o) const
-		{
-			o << "eh_context(@" << this
-			  << ", hl = " << handler_label
-			  << ", dhc = " << dynamic_handler_chain
-			  << ", info = " << info
-#ifdef GCC_CONEXT_HAS_TABLE
-			  << ", table = " << table_index
-#endif
-			  << ')';
-			return o;
-		}
-	};
-
-	eh_context		context;
-	eh_handler		top_elt;
-
+struct gcc_exception_t {
+	void		*caughtExceptions;
+	unsigned	uncaughtExceptions;
 
 	gcc_exception_t()
-	{
-		context.dynamic_handler_chain = &top_elt;
-	}
-
-	ostream &print(ostream &o) const;
+	: caughtExceptions(0), uncaughtExceptions(0)
+	{ }
 };
+#endif
 
-ostream &operator<<(ostream &o, const gcc_exception_t::eh_context &ex)
-{
-	return ex.print(o);
-}
+/* XXX could use _fast_ variant if a earlier call to the slow
+   function can be generated in the thread system startup. */
 
-ostream &gcc_exception_t::print(ostream &o) const
-{
-	return o << context;
-}
-
-ostream &operator<<(ostream &o, const gcc_exception_t &ex)
-{
-	return ex.print(o);
-}
-
-
-/* It is actually a 'void *', but this works. */
-extern "C" gcc_exception_t::eh_context *__get_eh_context();
+/* Get the pointer to the space allocated for this CPUs exception context. */
+extern "C" gcc_exception_t *__cxa_get_globals();
 
 
 inline void sthread_exception_switch(gcc_exception_t	*from,
 				     gcc_exception_t	*to)
 {
-	    gcc_exception_t::eh_context &context = *__get_eh_context();
+	gcc_exception_t	&context = *__cxa_get_globals();	
 
-	    from->context = context;
-	    context = to->context;
+	*from = context;
+	context = *to;
 }
 
-/*<std-footer incl-file-exclusion='STHREAD_GCC_H'>  -- do not edit anything below this line -- */
+/*<std-footer incl-file-exclusion='STHREAD_GCC3_H'>  -- do not edit anything below this line -- */
 
 #endif          /*</std-footer>*/

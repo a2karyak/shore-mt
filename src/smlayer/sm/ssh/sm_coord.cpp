@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: sm_coord.cpp,v 1.61 2000/02/02 03:28:52 bolo Exp $
+ $Id: sm_coord.cpp,v 1.63 2003/08/27 23:59:19 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -40,14 +40,33 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #include <w_debug.h>
 #undef EXTERN
 #include <tcl.h>
+#include "tcl_workaround.h"
 #include "tcl_thread.h"
 #include "st_error_def_gen.h"
 #include "ns_error_def_gen.h"
 
+#ifdef STHREAD_YIELD_STATIC
+/* The broken linux gcc-2.96 has some problem (value computed not used)
+   with accessing static methods via '->'.   Why that is a problem
+   I don't really care,  this just lets it compile with that compiler
+   and make it work on "generic" linux distros.
+ */
+#endif
+
+#if 1
+/* However, on another note, the random yields in this code are just
+   bad.  Some are after fork() ... and in general there are enough of
+   those that maybe fork() should just yield() to simulate "live"
+   threads.   The other occurences of yield() seem to indicate sync
+   problems in this code ... which is not too surprising.  This
+   all should be looked at ... but without object comm, not much reason
+   to hack on it.
+*/
+#endif
 
 extern "C" void ip_eval(void *ip, char *c, char *const&, int, int&);
 // hack for aborting:
-extern int t_abort_xct(Tcl_Interp* ip, int ac, char* /*av*/[]);
+extern int t_abort_xct(Tcl_Interp* ip, int ac, TCL_AV char* []);
 
 static Endpoint	nullep;
 static EndpointBox	emptyBox;
@@ -705,7 +724,11 @@ sm_coordinator::init_either(const char *myname, Endpoint*& named)
 		W_FATAL(ss_m::eOUTOFMEMORY);
 	    }
 	    W_DO(_tclhandler[i]->fork());
+#ifdef STHREAD_YIELD_STATIC
+	    sthread_t::yield();
+#else
 	    me()->yield();
+#endif
 	}
     }
 
@@ -724,7 +747,11 @@ sm_coordinator::init_either(const char *myname, Endpoint*& named)
 	    W_FATAL(ss_m::eOUTOFMEMORY);
 	}
 	W_DO(_rendezvous->fork());
+#ifdef STHREAD_YIELD_STATIC
+	sthread_t::yield();
+#else
 	me()->yield();
+#endif
     }
 
     if(!_tcltimer) {
@@ -738,7 +765,11 @@ sm_coordinator::init_either(const char *myname, Endpoint*& named)
 	    W_FATAL(ss_m::eOUTOFMEMORY);
 	}
 	W_DO(_tcltimer->fork());
+#ifdef STHREAD_YIELD_STATIC
+	sthread_t::yield();
+#else
 	me()->yield();
+#endif
 	DBGTHRD(<<"_tcltimer thread id is " << _tcltimer->id);
     }
     return RCOK;
@@ -824,7 +855,11 @@ sm_coordinator::start_subord(const char *myname, const char *coord_name)
 	w_assert3(_rendezvous);
 	_rendezvous->kick(0);
 	DBG(<<"yield for rendezvous");
+#ifdef STHREAD_YIELD_STATIC
+	sthread_t::yield();
+#else
 	me()->yield();
+#endif
     }
     DBGTHRD(<<" rc = " << rc);
 
@@ -1265,7 +1300,11 @@ sm_coordinator::refresh_map(const char *c)
 	}
 	// Force a new rendezvous message to be sent
 	_rendezvous->kick(0);
+#ifdef STHREAD_YIELD_STATIC
+	sthread_t::yield();
+#else
 	me()->yield();
+#endif
 	return rc;
 
     } else {
@@ -1283,7 +1322,11 @@ sm_coordinator::add_map(int argc, const char **argv)
 	rc_t rc;
 	rc =   _ep_map->add(argc, argv);
 	_rendezvous->kick(0);
+#ifdef STHREAD_YIELD_STATIC
+	sthread_t::yield();
+#else
 	me()->yield();
+#endif
 	DBGTHRD(<<"add_map returns " << rc);
 	return rc;
     } else {
@@ -1479,7 +1522,11 @@ sm_tcl_handler_thread::run()
 		    }
 		    DBGTHRD("after notify, sender=" <<sender);
 		}
+#ifdef STHREAD_YIELD_STATIC
+		sthread_t::yield();
+#else
 		me()->yield();
+#endif
 
 		server_handle_t     srvaddr;
 		// Kick the coordinators
@@ -1528,8 +1575,8 @@ sm_tcl_handler_thread::run()
 			ss_m::errlog->clog <<info_prio 
 				<< "Tcl command returned error (aborting): " 
 				<< _reply << flushl;
-			char *dummy = (char *) "abort_xct";
-			(void)t_abort_xct(_ip,1, &dummy);
+			TCL_AV char *dummy = TCL_AV1 "abort_xct";
+			(void)t_abort_xct(_ip, 1, &dummy);
 			// detaches
 		    }
 		    w_assert3(me()->xct()==0);

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: w_input.cpp,v 1.9 2001/11/27 17:30:20 bolo Exp $
+ $Id: w_input.cpp,v 1.10 2003/09/02 19:51:28 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -428,7 +428,10 @@ w_base_t::_scan_uint8(
 		if(e != exx) {
 		   IOS_BACK(i, ch);
 		} else {
-		    tell_start = i.tellg()-1; // for possible error-handling
+		    /* XXX used to be tellg()-1, but no streampos
+		       arith allowed that way. */
+		    tell_start = i.tellg();
+		    tell_start -= 1;	// for possible error-handling
 		}
 		thresh = is_signed?  thresh_hex_signed : thresh_hex_unsigned;
 		break;

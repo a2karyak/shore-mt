@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: raw_log.cpp,v 1.51 2000/12/04 22:21:34 bolo Exp $
+ $Id: raw_log.cpp,v 1.53 2003/10/18 02:53:33 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -277,6 +277,12 @@ raw_log::raw_log(
     _shared->_maxLogDataSize = size - s->length();
     delete s;
     smlevel_0::chkpt_displacement = MIN(size/2, 1024*1024);
+
+    {
+	const char *s = getenv("SM_LOG_RAW_CHKPT");
+	if (s && *s && atoi(s) > 0)
+	    smlevel_0::chkpt_displacement = MIN(size/2, atoi(s) * 1024);
+    }
 
     // partition size needs to be at least 64KB
     w_assert1(size >= 64*1024);

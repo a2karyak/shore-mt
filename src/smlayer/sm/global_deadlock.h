@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='GLOBAL_DEADLOCK_H'>
 
- $Id: global_deadlock.h,v 1.12 1999/06/07 19:04:05 kupsch Exp $
+ $Id: global_deadlock.h,v 1.13 2003/06/19 22:39:34 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -65,7 +65,7 @@ class GtidElem  {
 					};
 	static uint4_t		    link_offset()
 					{
-					    return offsetof(GtidElem, _link);
+					    return W_LIST_ARG(GtidElem, _link);
 					};
 	W_FASTNEW_CLASS_DECL(GtidElem);
 };
@@ -106,7 +106,7 @@ XctWaitsForLockElem::~XctWaitsForLockElem()
 inline uint4_t
 XctWaitsForLockElem::link_offset()
 {
-    return offsetof(XctWaitsForLockElem, _link);
+    return W_LIST_ARG(XctWaitsForLockElem, _link);
 }
 
 typedef w_list_t<XctWaitsForLockElem> XctWaitsForLockList;

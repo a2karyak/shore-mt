@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: list2.cpp,v 1.22 2000/01/07 07:17:04 bolo Exp $
+ $Id: list2.cpp,v 1.23 2003/06/19 22:39:33 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -43,7 +43,7 @@ struct elem2_t {
 
 int main()
 {
-    w_list_t<elem2_t> l(offsetof(elem2_t, link));
+    w_list_t<elem2_t> l(W_LIST_ARG(elem2_t, link));
 
     elem2_t array[10];
 

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: vol.cpp,v 1.238 1999/11/19 22:42:39 bolo Exp $
+ $Id: vol.cpp,v 1.239 2003/12/01 20:41:04 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -88,7 +88,7 @@ extlink_t::extlink_t() : next(0), prev(0), owner(0),
      * copied with memcmp causing Purify headaches if
      * filler is not initialized
      */
-    w_assert3(offsetof(extlink_t, next) == sizeof(pmap));
+    w_assert3(w_offsetof(extlink_t, next) == sizeof(pmap));
 
     /* is the aligned pmap aligned properly? */
     w_assert3(sizeof(pmap)/2 == (sizeof(pmap)+1)/2);
@@ -293,7 +293,7 @@ extlink_i::update_pspacemap(extnum_t idx,
 	<< idx << " map="  << unsigned(map)
 	<< " how= " << int(how));
     _page.set_bytes(slot,  
-	offsetof(extlink_t, pspacemap), sizeof(map), 
+	w_offsetof(extlink_t, pspacemap), sizeof(map), 
 	(uint1_t *)&map,  how);
 }
 

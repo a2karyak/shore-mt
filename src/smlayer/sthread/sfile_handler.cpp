@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: sfile_handler.cpp,v 1.21 1999/06/07 19:06:05 kupsch Exp $
+ $Id: sfile_handler.cpp,v 1.23 2003/06/24 16:39:44 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -78,7 +78,7 @@ template class w_list_i<sfile_hdl_base_t>;
 
 
 sfile_handler_t::sfile_handler_t()
-: _list(offsetof(sfile_hdl_base_t, _link))
+: _list(W_LIST_ARG(sfile_hdl_base_t, _link))
 {
 }
 
@@ -123,8 +123,8 @@ w_rc_t	sfile_handler_t::_stop(sfile_hdl_base_t &hdl)
 	if (!owner)
 		return RC(sthread_t::stBADFD);	/*XXX overloaded*/
 	else if (owner != &_list) {
-		cerr.form("sfile_handler_t(%#lx): handle %#lx doesn't belong to me!\n",
-			  (long) this, (long) &hdl);
+		W_FORM(cerr)("sfile_handler_t(%#lx): handle %#lx doesn't belong to me!\n",
+			     (long) this, (long) &hdl);
 		return RC(sthread_t::stINUSE);
 	}
 

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: win32_events.cpp,v 1.18 2001/06/05 03:48:40 bolo Exp $
+ $Id: win32_events.cpp,v 1.19 2003/06/19 22:39:36 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -81,7 +81,7 @@ template class w_list_i<win32_event_t>;
 
 
 win32_event_handler_t::win32_event_handler_t()
-: _list(offsetof(win32_event_t, _link)),
+: _list(W_LIST_ARG(win32_event_t, _link)),
   ready(0),
   map(0),
   max_ready(0),

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='W_WORKAROUND_H'>
 
- $Id: w_workaround.h,v 1.53 2002/02/14 07:06:07 bolo Exp $
+ $Id: w_workaround.h,v 1.55 2003/12/01 20:41:03 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -175,6 +175,23 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 	<TYP1, TYP2>
 #   endif
 
+/* XXX
+ *  The gcc-3.x object model has changes which allow THIS to change
+ *  based upon inheritance and such.   That isn't a problem.  However,
+ *  they added a poor warning which breaks ANY use of offsetof(), even
+ *  legitimate cases where it is THE ONLY way to get the correct result and
+ *  where the result would be correct with the new model.  This offsetof
+ *  implementation is designed to avoid that particular compiler warning.
+ *  Until the GCC guys admit they are doing something dumb, we need to do this.
+ *
+ *  This could arguably belong in w_base.h, I put it here since w_base.h
+ *  always sucks this in and it is a compiler-dependency.
+ */
+#if W_GCC_THIS_VER >= W_GCC_VER(3,0)
+#define	w_offsetof(t,f)	\
+	((size_t)((char*)&(*(t*)sizeof(t)).f - (char *)&(*(t*)sizeof(t))))
+#endif
+
 #endif /* __GNUC__ */
 
 /******************************************************************************
@@ -210,18 +227,6 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
  * they are (char*).  this is to cast away the const in those cases.
  */
 #define C_STRING_BUG (char *)
-
-
-/******************************************************************************
- *
- * TCL bugs
- *
- ******************************************************************************/
-
-/*
- *tcl doesn't use const char* anywhere, and "string" is a const char*.
- */
-#define TCL_CVBUG (char *)
 
 
 /******************************************************************************
@@ -445,6 +450,11 @@ extern const char *form(const char *, ...);
 
 #ifndef VCPP_BUG_1
 #define VCPP_BUG_1 
+#endif
+
+
+#ifndef w_offsetof
+#define	w_offsetof(class,member)	offsetof(class,member)
 #endif
 
 /*<std-footer incl-file-exclusion='W_WORKAROUND_H'>  -- do not edit anything below this line -- */

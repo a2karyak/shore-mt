@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='OPTION_H'>
 
- $Id: option.h,v 1.29 1999/06/07 19:02:27 kupsch Exp $
+ $Id: option.h,v 1.30 2003/06/19 19:33:56 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -74,7 +74,7 @@ class option_group_t;
 //   valueM will be set to _default_value if set_value() is not called.
 //
 class option_t : public w_base_t {
-friend option_group_t;
+friend class option_group_t;
 public:
 
     // returns true if the option name matches matchName

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='W_DEBUG_H'>
 
- $Id: w_debug.h,v 1.15 2000/02/01 23:33:44 bolo Exp $
+ $Id: w_debug.h,v 1.16 2003/12/09 13:36:22 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -117,6 +117,14 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #include "regex_posix.h"
 #endif /* USE_REGEX */
 
+/* XXX missing type in vc++, hack around it here too, don't pollute
+   global namespace too badly. */
+#ifdef _WIN32
+typedef	long	w_dbg_fmtflags;
+#else
+typedef	ios::fmtflags	w_dbg_fmtflags;
+#endif
+
 /* ************************************************************************ 
  * 
  * DUMP, FUNC, and RETURN macros:
@@ -140,7 +148,7 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 
 #    define RETURN \
     		if(_debug.flag_on(fname_debug__,__FILE__)) {\
-		    long old = _debug.clog.setf(ios::dec, ios::basefield); \
+		    w_dbg_fmtflags old = _debug.clog.setf(ios::dec, ios::basefield); \
 		    _debug.clog  << __LINE__ << " " << _strip_filename(__FILE__) << ":" ; \
 		    _debug.clog.setf(old, ios::basefield); \
 		    _debug.clog << "return from " << fname_debug__ << flushl; }\
@@ -214,14 +222,14 @@ inline const char    *fname_debug_make_gcc_silent__() {
 
 
 #	define DBG1(a) if(_debug.flag_on((fname_debug__),__FILE__)) {\
-	    long old = _debug.clog.setf(ios::dec, ios::basefield); \
+	    w_dbg_fmtflags old = _debug.clog.setf(ios::dec, ios::basefield); \
 	    _debug.clog  << __LINE__ << " " << _strip_filename(__FILE__) << ":" ; \
 	    _debug.clog.setf(old, ios::basefield); \
 	    _debug.clog  a	<< flushl; \
     }
 
 #	define DBG1_NONL(a) if(_debug.flag_on((fname_debug__),__FILE__)) {\
-	    long old = _debug.clog.setf(ios::dec, ios::basefield); \
+	    w_dbg_fmtflags old = _debug.clog.setf(ios::dec, ios::basefield); \
 	    _debug.clog  << __LINE__ << " " << _strip_filename(__FILE__) << ":" ; \
 	    _debug.clog.setf(old, ios::basefield); \
 	    _debug.clog  a; \

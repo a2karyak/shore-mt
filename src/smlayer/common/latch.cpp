@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: latch.cpp,v 1.39 2001/11/13 23:15:05 bolo Exp $
+ $Id: latch.cpp,v 1.40 2002/11/14 02:07:11 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -248,6 +248,11 @@ latch_t::release()
 	uint2_t h;	// index into _holder and _cnt
 	int	  num_holders;
 	h = _held_by(self, num_holders);
+	if (h == max_sh) {
+		cerr << "ERROR: attempting to release a latch not owned"
+		     << " by thread " << self << endl
+		     << *this << endl;
+	}
 	w_assert1(h < max_sh);
 	w_assert3(_cnt[h] > 0);
 	w_assert3(num_holders > 1);

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='FILE_S_H'>
 
- $Id: file_s.h,v 1.35 2002/01/04 21:50:41 bolo Exp $
+ $Id: file_s.h,v 1.36 2003/12/01 20:41:03 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -121,7 +121,7 @@ public:
     const char* body() const;
 
     int body_offset() const { 
-		return offsetof(record_t,info)+align(tag.hdr_len);
+		return w_offsetof(record_t,info)+align(tag.hdr_len);
 	}
 
     lpid_t pid_containing(smsize_t offset, smsize_t& start_byte, const file_p& page) const;

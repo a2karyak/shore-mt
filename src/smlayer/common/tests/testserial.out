@@ -16,7 +16,7 @@ inc highover by 1 no overflow:[highover=2147483640,local,in_memory]
 inc highover by 2 no overflow:[highover=2147483644,local,in_memory]
 inc highover by 3 OVERFLOWED:[highover=2147483644,local,in_memory]
 inc highover by 4 OVERFLOWED:[highover=2147483644,local,in_memory]
-BEGIN { comparisons at 249 :testserial.cpp
+BEGIN { comparisons of highover vs hosave
 [a=2147483644,local,in_memory] !equiv [b=2147483638,local,in_memory]
 [b=2147483638,local,in_memory] !equiv [a=2147483644,local,in_memory]
 [a=2147483644,local,in_memory]!==[b=2147483638,local,in_memory]
@@ -26,7 +26,7 @@ BEGIN { comparisons at 249 :testserial.cpp
 [a=2147483644,local,in_memory]>[b=2147483638,local,in_memory]
 [a=2147483644,local,in_memory]!<[b=2147483638,local,in_memory]
 }
-BEGIN { comparisons at 250 :testserial.cpp
+BEGIN { comparisons of highover vs lowover
 [a=2147483644,local,in_memory]equiv[b=2147483644,local,in_memory]
 [b=2147483644,local,in_memory]equiv[a=2147483644,local,in_memory]
 [a=2147483644,local,in_memory]==[b=2147483644,local,in_memory]

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: sthread.cpp,v 1.312 2002/02/13 22:06:10 bolo Exp $
+ $Id: sthread.cpp,v 1.315 2003/12/29 20:50:25 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -131,7 +131,12 @@ static	void	hack_signals();
 /* egcs and later have exception handling which is supported.  The 2.8
    series may have it, but it never worked and there is no way to test
    it. */ 
-#if W_GCC_THIS_VER >= W_GCC_VER(2,90)
+
+#if W_GCC_THIS_VER >= W_GCC_VER(3, 0)
+#define	STHREAD_EXCEPTION_SWITCH
+#define	gcc_exception_t	sthread_exception_t
+#include "sthread_gcc3.h"
+#elif W_GCC_THIS_VER >= W_GCC_VER(2,90)
 #define	STHREAD_EXCEPTION_SWITCH
 /* XXX inheritance comes later, this works for now and allows inlining */
 #define	gcc_exception_t	sthread_exception_t
@@ -163,7 +168,9 @@ extern w_rc_t init_winsock();
 // gets constructed before any threads do!
 //
 //////////////////////////////////////////////
+#ifndef STHREAD_NO_FASTNEW_NAME_T
 W_FASTNEW_STATIC_PTR_DECL(sthread_name_t);
+#endif
 
 class sthread_stats SthreadStats;
 
@@ -516,7 +523,7 @@ w_rc_t	sthread_t::startup()
 	if (_ready_q == 0)
 		W_FATAL(fcOUTOFMEMORY);
 
-	_class_list = new sthread_list_t(offsetof(sthread_t, _class_link));
+	_class_list = new sthread_list_t(W_LIST_ARG(sthread_t, _class_link));
 	if (_class_list == 0)
 		W_FATAL(fcOUTOFMEMORY);
 
@@ -1742,11 +1749,13 @@ sevsem_t::query(int& pcnt)
 }
 
 
-sthread_name_t::sthread_name_t() {
-    memset(_name, '\0', sizeof(_name));
+sthread_name_t::sthread_name_t()
+{
+	memset(_name, '\0', sizeof(_name));
 }
 
-sthread_name_t::~sthread_name_t() {
+sthread_name_t::~sthread_name_t()
+{
 }
 
 void
@@ -1787,9 +1796,11 @@ sthread_name_t::rename(
 }
 
 void
-sthread_named_base_t::unname() {
-	if(_name) {
-		delete _name; _name=0;
+sthread_named_base_t::unname()
+{
+	if (_name) {
+		delete _name;
+		_name = 0;
 	}
 }
 
@@ -1834,9 +1845,8 @@ sthread_named_base_t::~sthread_named_base_t()
  *********************************************************************/
 NORET
 sthread_priority_list_t::sthread_priority_list_t()
-    : w_descend_list_t<sthread_t, sthread_t::priority_t> (
-	offsetof(sthread_t, _priority),
-	offsetof(sthread_t, _link))
+: w_descend_list_t<sthread_t, sthread_t::priority_t> (
+	W_KEYED_ARG(sthread_t, _priority, _link))
 {
 }
 
@@ -2198,6 +2208,7 @@ sthread_init_t::sthread_init_t()
 		hack_signals();
 #endif
 
+#ifndef STHREAD_NO_FASTNEW_NAME_T
 		/*
 		 * There is a chance that the static _w_fastnew member
 		 * not been constructed yet.
@@ -2206,6 +2217,7 @@ sthread_init_t::sthread_init_t()
 #ifndef NO_FASTNEW
 		if (sthread_name_t::_w_fastnew == 0)
 			W_FATAL(fcOUTOFMEMORY);
+#endif
 #endif
 
 		W_COERCE(sthread_t::startup());

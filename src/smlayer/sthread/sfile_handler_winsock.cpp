@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: sfile_handler_winsock.cpp,v 1.23 2002/01/05 18:17:14 bolo Exp $
+ $Id: sfile_handler_winsock.cpp,v 1.24 2003/06/19 22:39:36 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -205,7 +205,7 @@ static int gotenv = 0;	// hold over from sthreads integration
 
 
 sfile_handler_t::sfile_handler_t()
-    : _list(offsetof(sfile_hdl_base_t, _link))
+: _list(W_LIST_ARG(sfile_hdl_base_t, _link))
 {
 	memset(masks, '\0', sizeof(masks));// FD_ZERO(masks);
 	memset(ready, '\0', sizeof(ready));// FD_ZERO(ready);

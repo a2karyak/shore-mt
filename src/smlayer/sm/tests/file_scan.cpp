@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: file_scan.cpp,v 1.20 2001/04/17 18:51:38 bolo Exp $
+ $Id: file_scan.cpp,v 1.21 2003/12/01 20:54:43 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -43,18 +43,7 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 // This include brings in all header files needed for writing a VAs 
 #include "sm_vas.h"
 
-#ifdef _WINDOWS
 #include "getopt.h"
-#endif
-
-#if defined(__GNUG__) && __GNUC_MINOR__ < 6 && defined(Sparc)
-    extern "C" int getopt(int argc, char** argv, char* optstring);
-#endif
-
-#if defined(__GNUG__) && defined(Sparc)
-    extern char *optarg;
-    extern int optind, opterr;
-#endif
 
 ss_m* ssm = 0;
 

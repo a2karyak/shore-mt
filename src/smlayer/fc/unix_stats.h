@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='UNIX_STATS_H'>
 
- $Id: unix_stats.h,v 1.21 2000/02/01 23:32:18 bolo Exp $
+ $Id: unix_stats.h,v 1.22 2003/12/09 05:46:13 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -34,6 +34,8 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 
 /*  -- do not edit anything above this line --   </std-header>*/
 
+#include "w_workaround.h"
+
 /*
  * stats.h
  *
@@ -45,6 +47,15 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 
 #ifdef __GNUG__
 #pragma interface
+#endif
+
+#ifdef __GNUC__
+#if W_GCC_THIS_VER >= W_GCC_VER(3,0)
+/* XXX Something just goes wrong with the compatability streams here,
+   and it is totally unhappy with the forward decl.  Can't explain
+   why, and no real interest in beating my brains on their brain damage.  */
+#include <iostream.h>
+#endif
 #endif
 
 class ostream;

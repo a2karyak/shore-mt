@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: hash1.cpp,v 1.23 2000/01/07 07:17:04 bolo Exp $
+ $Id: hash1.cpp,v 1.24 2003/06/19 22:39:32 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -46,8 +46,7 @@ struct element_t {
 
 int main()
 {
-    w_hash_t<element_t, int> h(htsz, offsetof(element_t, i), 
-			       offsetof(element_t, link));
+    w_hash_t<element_t, int> h(htsz, W_HASH_ARG(element_t, i, link));
     element_t array[nrecs];
 
     int i;

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: except.cpp,v 1.1 2001/04/11 16:10:08 bolo Exp $
+ $Id: except.cpp,v 1.3 2003/12/29 20:41:31 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -59,17 +59,20 @@ ostream &operator<<(ostream &o, const MyException &e)
 
 class except_thread_t : public sthread_t {
 public:
-	except_thread_t(int fid);
+	except_thread_t(int fid, bool do_catch);
 protected:
 	void	run();
 private:
 	int	id;
+	bool	do_catch;		// let exception slide past run
 	void	NestExcept(int count);
+	void	_run();
 };
 
 
-except_thread_t::except_thread_t(int fid)
-: id(fid)
+except_thread_t::except_thread_t(int fid, bool _do_catch)
+: id(fid),
+  do_catch(_do_catch)
 {
 	char buf[40];
 
@@ -84,6 +87,8 @@ except_thread_t::except_thread_t(int fid)
 int	NumThreads = 4;
 int	NumExceptions = 4;
 bool	verbose = false;
+enum except_action { x_none, x_all, x_alternate };
+except_action	xaction = x_none;
 
 int	parse_args(int, char **);
 
@@ -123,8 +128,12 @@ int main(int argc, char **argv)
 		W_FATAL(fcOUTOFMEMORY);
 
 	for (i=0; i < NumThreads; ++i) {
+		bool do_catch = (xaction != x_none);
+		if (xaction == x_alternate && (i % 2) == 0)
+			do_catch = false;
+			
 		ack[i] = 0;
-		worker[i] = new except_thread_t(i);
+		worker[i] = new except_thread_t(i, do_catch);
 		if (!worker[i])
 			W_FATAL(fcOUTOFMEMORY);
 		W_COERCE(worker[i]->fork());
@@ -144,13 +153,19 @@ int	parse_args(int argc, char **argv)
 	int	c;
 	int	errors = 0;
 
-	while ((c = getopt(argc, argv, "t:v")) != EOF) {
+	while ((c = getopt(argc, argv, "t:vxX")) != EOF) {
 		switch (c) {
 		case 't':
 			NumThreads = atoi(optarg);
 			break;
 		case 'v':
 			verbose = true;
+			break;
+		case 'X':
+			xaction = x_alternate;
+			break;
+		case 'x':
+			xaction = x_all;
 			break;
 		default:
 			errors++;
@@ -160,8 +175,9 @@ int	parse_args(int argc, char **argv)
 	if (errors) {
 		cerr << "usage: " << argv[0]
 			<< " [-t threads]"
-			<< " [-x exceptions]"
 			<< " [-v]"
+			<< " [-x]"
+			<< " [-X]"
 			<< endl;
 	}
 	return errors ? -1 : optind;
@@ -190,6 +206,21 @@ void except_thread_t::NestExcept(int count)
 }
 
 void except_thread_t::run()
+{
+	if (do_catch) {
+		try {
+			_run();
+		}
+		catch (...) {
+			cerr << name() << ": thread run() catches exception"
+			     << endl;
+		}
+	}
+	else
+		_run();
+}
+
+void except_thread_t::_run()
 {
     int result;
     register int r1, r2, r3, r4, r5, r6, r7, r8, r9, r10, r11, r12, r13,

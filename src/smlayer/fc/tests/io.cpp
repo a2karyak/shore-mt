@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: io.cpp,v 1.10 2000/02/01 23:38:08 bolo Exp $
+ $Id: io.cpp,v 1.11 2003/06/24 19:30:05 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -185,7 +185,7 @@ void test(const char *s, int base, int times, bool /* error_ok */ )
 		typedef ios::fmtflags  fmtflags;
 		fmtflags f = tmp.flags();
 		f = f & ~(ios::basefield);
-		f |= ios::skipws + ios::dec;
+		f |= ios::skipws | ios::dec;
 		tmp.flags(f);
 
 		w_base_t::uint8_t	u8;

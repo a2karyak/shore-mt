@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: smstats.cpp,v 1.14 1999/06/07 19:04:40 kupsch Exp $
+ $Id: smstats.cpp,v 1.15 2003/08/24 23:51:32 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -34,6 +34,7 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #include <w_statistics.h>
 #include "smstats.h"
 #include "sm_stats_t_inc_gen.cpp"
+#include "sm_stats_t_dec_gen.cpp"
 #include "sm_stats_t_out_gen.cpp"
 
 // the strings:
@@ -60,3 +61,21 @@ sm_stats_t::compute()
 
 }
 
+sm_stats_info_t &operator+=(sm_stats_info_t &s, const sm_stats_info_t &t)
+{
+	s.sm += t.sm;
+	s.summary_thread += t.summary_thread;
+	s.summary_2pc += t.summary_2pc;
+	return s;
+}
+
+sm_stats_info_t &operator-=(sm_stats_info_t &s, const sm_stats_info_t &t)
+{
+	s.sm -= t.sm;
+	s.summary_thread -= t.summary_thread;
+	s.summary_2pc -= t.summary_2pc;
+	return s;
+}
+
+
+sm_stats_info_t &operator-=(sm_stats_info_t &s, const sm_stats_info_t &t);

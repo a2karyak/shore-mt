@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: w_factory.cpp,v 1.16 1999/10/25 19:32:01 bolo Exp $
+ $Id: w_factory.cpp,v 1.17 2003/06/19 22:59:56 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -93,14 +93,15 @@ w_factory_t::w_factory_t(
       _alloced_list(0)
 {
     if(_factory_list == 0) {
-	_factory_list = new w_factory_list_t(offsetof(w_factory_t, _link));
-	if (_factory_list == 0) W_FATAL(fcOUTOFMEMORY);
+	_factory_list = new w_factory_list_t(W_LIST_ARG(w_factory_t, _link));
+	if (_factory_list == 0)
+		W_FATAL(fcOUTOFMEMORY);
     }
     _factory_list->append(this);
     _factory_list_count++;
 
 	_alloced_list = new w_factory_preamble_list_t(
-		offsetof(w_factory_t::preamble, _link));
+		W_LIST_ARG(w_factory_t::preamble, _link));
 	if (_alloced_list == 0)
 		W_FATAL(fcOUTOFMEMORY);
 }

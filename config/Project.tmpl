@@ -1,6 +1,6 @@
 /*<std-header style='imake' orig-src='shore'>
 
- $Id: Project.tmpl,v 1.269 2002/02/13 22:53:16 bolo Exp $
+ $Id: Project.tmpl,v 1.272 2003/12/20 01:16:07 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -239,6 +239,11 @@ RM = rm
 RM_F = RMM_F
 #else
 RM_F = $(RM) -f
+#endif
+
+#ifdef RM_F_BROKEN
+/* hack for rm where rm -f with no args is an error; supply a bogus file */
+RM_F += _BaD_Rm_F_
 #endif
 
 MKDIR = mkdir
@@ -771,7 +776,7 @@ GCCDEBUGSYMBOLS = -g3
 #endif
 
 /* XXXX this should probably be the fallback if nothing else is defined */
-#if IS_SPARC_SUNOS41 || IS_SPARC_SOLARIS2 || IS_LINUX || IS_R6000_AIX32 || IS_RS6000_AIX41 || IS_NETBSD || IS_OSF1 || IS_CYGWIN
+#if IS_SPARC_SUNOS41 || IS_SPARC_SOLARIS2 || IS_LINUX || IS_R6000_AIX32 || IS_RS6000_AIX41 || IS_NETBSD || IS_OSF1 || IS_CYGWIN || IS_MACOSX
     /*  SUN ATT CC does not seem to know about //, ansi cpp #, ## 
      *  so we use gcc.  SUN cc also doesn't seem to handle any of 
      *  the above, so we use gcc for everything
@@ -891,18 +896,25 @@ LD = CC CFRONTFLAGS $(DEBUGSYMBOLS)
 CPLUSPLUS = $(GCC) -x c++
 CPLUSDEBUGSYMBOLS = $(GCCDEBUGSYMBOLS)
 CPLUSLIB=
-#if !defined(IS_NETBSD)
+#ifdef LINK_LIBERTY
 CPLUSLIB +=  -liberty
 #endif
-#if 0	/* XXX add an option to enable use of -lg++ if it is needed. */
+#ifdef LINK_LGXX
 CPLUSLIB +=  -lg++
 #endif
 CPLUSOPTIMIZE = $(GCCOPTIMIZE)
 
 CCFLAGS = GCCFLAGS
 CC = $(GCC) -x c 
+GCC_ERROR_FLAG=
 #ifdef GCC_BROKEN_WARNINGS
 WARN_FLAGS += -Wall -W -Wpointer-arith -Wwrite-strings -Wmissing-prototypes 
+#elif defined(GCC_VER_3_WARNINGS)
+/* GCC 3.2 doesn't like -Wmissing-declarations and -Wnested-externs */
+WARN_FLAGS += -Wall -W -Wpointer-arith -Wwrite-strings -Wstrict-prototypes 
+WARN_FLAGS += -Wmissing-prototypes
+/* Need this to stop warnings of normal (old) standard c++ facilities use. */
+WARN_FLAGS += -Wno-deprecated
 #else
 WARN_FLAGS += -Wall -W -Wpointer-arith -Wwrite-strings -Wstrict-prototypes 
 WARN_FLAGS += -Wmissing-prototypes -Wmissing-declarations -Wnested-externs
@@ -913,8 +925,10 @@ WARN_FLAGS += -Woverloaded-virtual
 #ifdef GCC_WARN_OBJECTS_LARGER_THAN
 WARN_FLAGS += -Wlarger-than-GCC_WARN_OBJECTS_LARGER_THAN
 #elif !defined(GCC_NO_ERROR)
-WARN_FLAGS += -Werror
+GCC_ERROR_FLAG = -Werror
 #endif
+WARN_FLAGS += $(GCC_ERROR_FLAG)
+
 CMNT	gcc w/o -x option knows that .o is object file
 
 CMNT "-static" MUST APPEAR EARLY on the LD command if it is to work.

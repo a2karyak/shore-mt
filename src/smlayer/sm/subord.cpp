@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: subord.cpp,v 1.45 1999/08/06 15:35:43 bolo Exp $
+ $Id: subord.cpp,v 1.46 2003/08/27 23:59:19 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -540,7 +540,11 @@ subordinate::_init(bool fork_listener, const char *cname, bool wait4recov)
     _recovery_handler = new subord_thread_t(this,  // deleted in ~subordinate
 			subord_recovery_handler);
     W_COERCE(_recovery_handler->fork());
+#ifdef STHREAD_YIELD_STATIC
+    sthread_t::yield();
+#else
     me()->yield();
+#endif
 
     if(wait4recov) {
 	// in the presumed abort case, 

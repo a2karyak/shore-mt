@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: regcomp.cpp,v 1.13 1999/06/07 19:02:28 kupsch Exp $
+ $Id: regcomp.cpp,v 1.14 2003/06/19 19:19:48 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -433,7 +433,7 @@ p_ere_exp(struct parse *p)
 				count2 = p_count(p);
 				(void) REQUIRE(count <= count2, REG_BADBR);
 			} else		/* single number with comma */
-				count2 = INFINITY;
+				count2 = REGEX_INFINITY;
 		} else		/* just a single number */
 			count2 = count;
 		repeat(p, pos, count, count2);
@@ -605,7 +605,7 @@ p_simp_re(struct parse *p, int starordinary)
 				count2 = p_count(p);
 				(void) REQUIRE(count <= count2, REG_BADBR);
 			} else		/* single number with comma */
-				count2 = INFINITY;
+				count2 = REGEX_INFINITY;
 		} else		/* just a single number */
 			count2 = count;
 		repeat(p, pos, count, count2);
@@ -971,7 +971,7 @@ repeat(struct parse *p, sopno start, int from, int to)
 #	define	N	2
 #	define	INF	3
 #	define	REP(f, t)	((f)*8 + (t))
-#	define	MAP(n)	(((n) <= 1) ? (n) : ((n) == INFINITY) ? INF : N)
+#	define	MAP(n)	(((n) <= 1) ? (n) : ((n) == REGEX_INFINITY) ? INF : N)
 	register sopno copy;
 
 	if (p->error != 0)	/* head off possible runaway recursion */

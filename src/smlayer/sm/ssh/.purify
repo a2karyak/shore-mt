@@ -1,6 +1,6 @@
 # <std-header style='pure' orig-src='shore'>
 #
-#  $Id: .purify,v 1.42 1999/06/15 15:12:01 nhall Exp $
+#  $Id: .purify,v 1.44 2003/02/06 22:15:14 bolo Exp $
 #
 # SHORE -- Scalable Heterogeneous Object REpository
 #
@@ -157,3 +157,20 @@ suppress miu malloc; Tcl_CreateExitHandler
 suppress miu malloc; InitTypeTable
 suppress umr TclGetExceptionRangeForPc
 suppress umc TclCompileExprCmd
+
+##
+## First noticedin tcl-8.3.3 is a a hand-enabled -DPURIFY define
+## to the tcl generated Makefile.  You will need to enable that 
+## to purify shore.   Otherwise you get many purify hits from tcl.
+##
+
+## Courtesy of tcl-8.3.3 ... which also leaks like a sieve
+## the commented-out entries were a start at exceptions until
+## the above -DPURIFY in the tcl sources was noticed.
+suppress umc memcpy; Tcl_DStringSetLength; Tcl_ExternalToUtfDString
+# suppress umc memcpy; Tcl_SetObjLength
+# suppress umc memcpy; TclExpandTokenArray
+# suppress umc MakeUpvar
+## Courtesy of tcl-8.4.1  ... which doesn't have memory leaks
+suppress umc memcpy; TclExpandTokenArray
+suppress umc TclProcCompileProc

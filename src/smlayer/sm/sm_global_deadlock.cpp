@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: sm_global_deadlock.cpp,v 1.53 2001/04/17 18:51:37 bolo Exp $
+ $Id: sm_global_deadlock.cpp,v 1.54 2003/06/19 22:39:35 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -1421,7 +1421,7 @@ CentralizedGlobalDeadlockServer::CentralizedGlobalDeadlockServer(DeadlockServerC
     state(IdleState),
     checkRequested(false),
     numGtids(0),
-    gtidTable(127, offsetof(GtidTableElem, gtid), offsetof(GtidTableElem, _link)),
+    gtidTable(127, W_HASH_ARG(GtidTableElem, gtid, _link)),
     idToGtid(0),
     idToGtidSize(0)
 {

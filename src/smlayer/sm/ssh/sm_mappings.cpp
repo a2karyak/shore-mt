@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: sm_mappings.cpp,v 1.34 2001/04/18 17:22:59 bolo Exp $
+ $Id: sm_mappings.cpp,v 1.35 2003/06/19 22:39:36 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -400,8 +400,7 @@ template class w_hash_t<tid_map::_map, const gtid_t>;
 template class w_hash_i<tid_map::_map, const gtid_t>;
 #endif
 w_hash_t<tid_map::_map, const gtid_t> tid_map::__table(
-   16, offsetof(tid_map::_map, _gtid), 
-	    offsetof(tid_map::_map, _link));
+	16, W_HASH_ARG(tid_map::_map, _gtid, _link));
 
 w_base_t::uint4_t 
 w_hash (const gtid_t &g) 
@@ -432,14 +431,13 @@ NORET
 tid_map::tid_map() 
 {
    _table = &__table;
-   /*
+#if 0
    _table = new w_hash_t<tid_map::_map, const gtid_t>(16,
-	    offsetof(tid_map::_map, _gtid), 
-	    offsetof(tid_map::_map, _link));
+   	    W_HASH_ARG(tid_map::_map, _gtid, _link));
     if(!_table) {
 	W_FATAL(fcOUTOFMEMORY);
     }
-    */
+#endif
 }
 
 NORET 

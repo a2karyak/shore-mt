@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: sort_funcs3.cpp,v 1.12 1999/10/25 18:17:30 bolo Exp $
+ $Id: sort_funcs3.cpp,v 1.13 2003/01/30 21:39:29 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -825,6 +825,12 @@ getcmpfunc(typed_btree_test t,
     return 0;
 }
 
+/* XXX the convert functions are sorta hokey, for the string buffer
+   is assumed to go with the typed value, and is const in the
+   typed_value, but can be modified as the stringbuffer.   See notes
+   in shell.h that perhaps the typed_value should be expanded to
+   own the stringbuffer associated with it. */
+
 void 
 convert(int kk, typed_value &k, typed_btree_test t, char *stringbuffer ) 
 {
@@ -897,7 +903,7 @@ convert(typed_value &k, int& kk, typed_btree_test t, char *stringbuffer )
     case test_b23:
     case test_blarge:
     case test_bv: {
-	    char *p = k._u.bv;
+	    const char *p = k._u.bv;
 	    w_assert1(k._u.bv == stringbuffer);
 	    int n=0;
 	    while(*p == 'o') { p++; }

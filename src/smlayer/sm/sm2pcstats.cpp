@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: sm2pcstats.cpp,v 1.5 1999/06/07 19:04:35 kupsch Exp $
+ $Id: sm2pcstats.cpp,v 1.6 2003/08/24 23:51:32 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -34,6 +34,7 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #include <w_statistics.h>
 #include "smstats.h"
 #include "sm2pc_stats_t_inc_gen.cpp"
+#include "sm2pc_stats_t_dec_gen.cpp"
 #include "sm2pc_stats_t_out_gen.cpp"
 
 // the strings:

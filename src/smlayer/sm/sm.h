@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='SM_H'>
 
- $Id: sm.h,v 1.300 2000/11/28 21:00:20 bolo Exp $
+ $Id: sm.h,v 1.301 2003/01/30 18:13:56 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -1727,6 +1727,7 @@ public:
 ostream& operator<<(ostream& o, const vid_t& v);
 istream& operator>>(istream& i, vid_t& v);
 ostream& operator<<(ostream& o, const extid_t& x);
+istream& operator>>(istream& o, extid_t &x);
 ostream& operator<<(ostream& o, const stid_t& stid);
 istream& operator>>(istream& i, stid_t& stid);
 ostream& operator<<(ostream& o, const lpid_t& pid);

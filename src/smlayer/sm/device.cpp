@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: device.cpp,v 1.22 1999/06/07 19:04:00 kupsch Exp $
+ $Id: device.cpp,v 1.23 2003/06/19 22:39:34 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -47,7 +47,8 @@ template class w_list_i<device_s>;
 template class w_list_const_i<device_s>;
 #endif
 
-device_m::device_m() : _tab(offsetof(device_s, link))
+device_m::device_m()
+: _tab(W_LIST_ARG(device_s, link))
 {
 }
 

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: stime.cpp,v 1.30 2002/01/04 23:43:35 bolo Exp $
+ $Id: stime.cpp,v 1.33 2003/12/02 00:22:39 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -47,6 +47,7 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #include <w_base.h>
 #include <stime.h>
 #include <w_stream.h>
+#include <limits.h>
 
 /*
    All this magic is to allow either timevals or timespecs
@@ -56,6 +57,7 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
    st_tod	== time of day part of the time
    st_hires	== "higher resolution" part of the time
    HR_SECOND	== high-resolution units in a second
+   TOD_MAX	== low-resolution (seconds) maximum value
  */  
 
 #define	NS_SECOND	1000000000	/* nanoseconds in a second */
@@ -74,6 +76,14 @@ typedef struct timeval	_stime_t;
 #define	HR_SECOND	US_SECOND
 #endif
 
+#ifdef Alpha
+#define	TOD_MAX		INT_MAX
+#else
+#define	TOD_MAX		LONG_MAX
+#endif
+#define	HR_MAX		(HR_SECOND-1)
+
+
 #ifdef _WIN32
 #if 0
 /* XXX this works, but is only good for US timezones */
@@ -83,6 +93,7 @@ typedef struct timeval	_stime_t;
 #include <windows.h>	// XXX use the windows-specific functions? 
 #endif
 #elif defined(SOLARIS2)
+extern long altzone;	/* XXX gcc-3.2, prior it works OK */
 #define	os_timezone	timezone
 #define	os_altzone	altzone
 #elif defined(HPUX8)
@@ -189,7 +200,7 @@ static inline int sign(const int i)
 }
 
 
-#if !defined(HPUX8) && !defined(__xlC__) && !defined(_WIN32) && !defined(Linux)
+#if !defined(HPUX8) && !defined(__xlC__) && !defined(_WIN32) && !defined(Linux) && !defined(SOLARIS2) && !defined(OSF1)
 static inline int abs(const int i)
 {
 	return i >= 0 ? i : -i;
@@ -665,6 +676,11 @@ stime_t stime_t::gmtOffset()
 #endif
 }
 
+
+stime_t	stime_t::infinity()
+{
+	return stime_t(TOD_MAX, HR_MAX);
+}
 
 
 /* More conversion operators */

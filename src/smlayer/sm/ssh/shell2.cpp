@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: shell2.cpp,v 1.49 2002/02/18 22:56:15 bolo Exp $
+ $Id: shell2.cpp,v 1.53 2003/09/10 22:23:02 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -48,7 +48,7 @@ void
 cvt2typed_value(
     // IN:
     typed_btree_test t,
-    char *string,
+    const char *string,
     // OUT:
     typed_value &_v
 )
@@ -125,20 +125,44 @@ cvt2typed_value(
     }
 }
 
-typed_btree_test cvt2type(const char* s); // forward
+typed_btree_test cvt2type(const char *s); // forward
+
+/* The signed and unsigned values share the same memory range.
+   The code used to cast everything ... which meant most of the
+   casts were wrong once code started being copied.  This fixes
+   the casting problem ... and even sets it up so that different
+   memory could be used for each type in the future. */
+
+/* XXX BTW, the prior structure is why macros or templates aren't
+   used to generate the comparison functions and the replicated code
+   in switch statemnts, etc -- each was hacked differently with the
+   typecasts previously.   And some of the hacks were incorrect types! */
+
+/* XXX Note that the values used for the index arrays are
+   integer offsets -- which will be a problem if you ever test
+   code with >MAXINT integers.  Not something to worry about
+   right away.  Just another pecularity. */
 
 int1_t *values_i1  = 0;
+uint1_t *values_u1;
+
 int2_t *values_i2  = 0;
+uint2_t *values_u2;
+
 int4_t *values_i4  = 0;
+uint4_t *values_u4;
+
 w_base_t::int8_t *values_i8  = 0;
+w_base_t::uint8_t *values_u8;
+
 f4_t *values_f4  = 0;
 f8_t *values_f8  = 0;
 char **values_b  = 0;
 
 int u1_cmp(const void *_p, const void *_q) 
 {
-    uint1_t *p = (uint1_t *)&values_i1[*(int *)_p];
-    uint1_t *q = (uint1_t *)&values_i1[*(int *)_q];
+    uint1_t *p = &values_u1[*(int *)_p];
+    uint1_t *q = &values_u1[*(int *)_q];
 
     if (*p < *q) return -1;
     if (*p > *q) return 1;
@@ -146,8 +170,8 @@ int u1_cmp(const void *_p, const void *_q)
 }
 int u2_cmp(const void *_p, const void *_q) 
 {
-    uint2_t *p = (uint2_t *)&values_i2[*(int *)_p];
-    uint2_t *q = (uint2_t *)&values_i2[*(int *)_q];
+    uint2_t *p = &values_u2[*(int *)_p];
+    uint2_t *q = &values_u2[*(int *)_q];
 
     if (*p < *q) return -1;
     if (*p > *q) return 1;
@@ -156,8 +180,8 @@ int u2_cmp(const void *_p, const void *_q)
 
 int u4_cmp(const void *_p, const void *_q) 
 {
-    uint4_t *p = (uint4_t *)&values_i4[*(int *)_p];
-    uint4_t *q = (uint4_t *)&values_i4[*(int *)_q];
+    uint4_t *p = &values_u4[*(int *)_p];
+    uint4_t *q = &values_u4[*(int *)_q];
 
     DBG(<<"p=" << *(uint4_t *)p
         <<"q=" << *(uint4_t *)q
@@ -169,8 +193,8 @@ int u4_cmp(const void *_p, const void *_q)
 
 int u8_cmp(const void *_p, const void *_q) 
 {
-    w_base_t::uint8_t *p = (w_base_t::uint8_t *)&values_i8[*(int *)_p];
-    w_base_t::uint8_t *q = (w_base_t::uint8_t *)&values_i8[*(int *)_q];
+    w_base_t::uint8_t *p = &values_u8[*(int *)_p];
+    w_base_t::uint8_t *q = &values_u8[*(int *)_q];
 
     DBG(<<"p=" << *(w_base_t::uint8_t *)p
         <<"q=" << *(w_base_t::uint8_t *)q
@@ -189,6 +213,7 @@ int i1_cmp(const void *_p, const void *_q)
     if (*p > *q) return 1;
     return 0;
 }
+
 int i2_cmp(const void *_p, const void *_q) 
 {
     int2_t *p = &values_i2[*(int *)_p];
@@ -374,7 +399,7 @@ _t_test_typed_btree(
     // args: $volid $nrec $ktype $cc
     ss_m::concurrency_t build_cc = ss_m::t_cc_kvl;
     if(ccstring) {
-	build_cc = cvt2concurrency_t((char *)ccstring);
+	build_cc = cvt2concurrency_t(ccstring);
     }
     ss_m::concurrency_t cc = build_cc;
 
@@ -454,19 +479,22 @@ _t_test_typed_btree(
 	    case test_i1:
 	    case test_u1:
 		values_i1 = new int1_t[n];
+		values_u1 = (uint1_t *) values_i1;
 		break;
-
 	    case test_i2:
 	    case test_u2:
 		values_i2 = new int2_t[n];
+		values_u2 = (uint2_t *) values_i2;
 		break;
 	    case test_u4:
 	    case test_i4:
 		values_i4 = new int4_t[n];
+		values_u4 = (uint4_t *) values_i4;
 		break;
 	    case test_u8:
 	    case test_i8:
 		values_i8 = new w_base_t::int8_t[n];
+		values_u8 = (w_base_t::uint8_t *) values_i8;
 		break;
 	    case test_f4:
 		values_f4 = new f4_t[n];
@@ -532,7 +560,7 @@ _t_test_typed_btree(
 			if(t == test_i1) {
 			    cerr << values_i1[NORMALIZE(j)] << endl;
 			} else {
-			    cerr << (unsigned) values_i1[NORMALIZE(j)] << endl;
+			    cerr << values_u1[NORMALIZE(j)] << endl;
 			}
 		    }
 		    break;
@@ -544,7 +572,7 @@ _t_test_typed_btree(
 			if(t == test_i2) {
 			    cerr << values_i2[NORMALIZE(j)] << endl;
 			} else {
-			    cerr << (unsigned) values_i2[NORMALIZE(j)] << endl;
+			    cerr << values_u2[NORMALIZE(j)] << endl;
 			}
 		    }
 		    break;
@@ -556,7 +584,7 @@ _t_test_typed_btree(
 			if(t == test_i4) {
 			    cerr << values_i4[NORMALIZE(j)] << endl;
 			} else {
-			    cerr << (unsigned) values_i4[NORMALIZE(j)] << endl;
+			    cerr << values_u4[NORMALIZE(j)] << endl;
 			}
 		    }
 		    break;
@@ -568,7 +596,7 @@ _t_test_typed_btree(
 			if(t == test_i8) {
 			    cerr << values_i8[NORMALIZE(j)] << endl;
 			} else {
-			    cerr << (unsigned) values_i8[NORMALIZE(j)] << endl;
+			    cerr << values_u8[NORMALIZE(j)] << endl;
 			}
 		    }
 		    break;
@@ -588,8 +616,10 @@ _t_test_typed_btree(
 		    break;
 		case test_b1:
 		    b = MAKE_STRING(1, 1);
+		    /*FALLTHROUGH*/
 		case test_b23:
 		    if(!b) b = MAKE_STRING(23, 23);
+		    /*FALLTHROUGH*/
 		case test_blarge:
 		case test_bv: {
 		    if(!b) b = MAKE_STRING(i, LARGEKEYSTRING-1);
@@ -699,12 +729,11 @@ _t_test_typed_btree(
 		switch(t) {
 		case test_u1:
 		    DBG(<<"j=" << j
-			<< " values_i1[sorted[j]] = " << (u_char) values_i1[sorted[j]]
-			<< " values_i1[sorted[j-1]] = " << (u_char) values_i1[sorted[j-1]]
+			<< " values_u1[sorted[j]] = " << (u_char) values_u1[sorted[j]]
+			<< " values_u1[sorted[j-1]] = " << (u_char) values_u1[sorted[j-1]]
 			);
-		    w_assert1((unsigned) values_i1[sorted[j]] >= 
-			    (unsigned) values_i1[sorted[j-1]]);
-		    if(values_i1[sorted[j]] == values_i1[sorted[j-1]]) {
+		    w_assert1(values_u1[sorted[j]] >= values_u1[sorted[j-1]]);
+		    if(values_u1[sorted[j]] == values_u1[sorted[j-1]]) {
 			duplicated[j-1] = true;
 			duplicates++;
 		    }
@@ -724,14 +753,23 @@ _t_test_typed_btree(
 
 		case test_u2:
 		    DBG(<<"j=" << j
-			<< " values_i2[sorted[j]] = " << (unsigned)
-			    values_i2[sorted[j]]
-			<< " values_i2[sorted[j-1]] = " << (unsigned)
-			    values_i2[sorted[j-1]]
+			<< " values_u2[sorted[j]] = " << values_u2[sorted[j]]
+			<< " values_u2[sorted[j-1]] = " << values_u2[sorted[j-1]]
 			);
-		    w_assert1((unsigned) values_i2[sorted[j]] >= (unsigned)
-				    values_i2[sorted[j-1]]);
-		    if(values_i2[sorted[j]] == values_i2[sorted[j-1]]) {
+		    if (!(values_u2[sorted[j]] >= values_i2[sorted[j-1]])) {
+			unsigned short &u1 = values_u2[sorted[j]];
+			unsigned short &u2 = values_u2[sorted[j-1]];
+			cout << "u1 " << u1 << " u2 " << u2 << endl;
+			cout << "ORDER err j " << j << " sorted[j] " << sorted[j]
+				<< " sorted[j-1] " << sorted[j-1]
+				<< endl << '\t'
+				<< " values_u2[s[j]] " << values_u2[sorted[j]] 
+				<< " SB >= "
+				<< " values_u2[s[j-1]] " << values_u2[sorted[j-1]] 
+				<< endl;
+			}
+		    w_assert1(values_u2[sorted[j]] >= values_u2[sorted[j-1]]);
+		    if (values_u2[sorted[j]] == values_u2[sorted[j-1]]) {
 			duplicated[j-1] = true;
 			duplicates++;
 		    }
@@ -751,14 +789,11 @@ _t_test_typed_btree(
 
 		case test_u4:
 		    DBG(<<"j=" << j
-			<< " values_i4[sorted[j]] = " << (unsigned)
-			    values_i4[sorted[j]]
-			<< " values_i4[sorted[j-1]] = " << (unsigned)
-			    values_i4[sorted[j-1]]
+			<< " values_u4[sorted[j]] = " << values_u4[sorted[j]]
+			<< " values_u4[sorted[j-1]] = " << values_u4[sorted[j-1]]
 			);
-		    w_assert1((unsigned) values_i4[sorted[j]] >= (unsigned)
-				    values_i4[sorted[j-1]]);
-		    if(values_i4[sorted[j]] == values_i4[sorted[j-1]]) {
+		    w_assert1(values_u4[sorted[j]] >= values_u4[sorted[j-1]]);
+		    if(values_u4[sorted[j]] == values_u4[sorted[j-1]]) {
 			duplicates++;
 			duplicated[j-1] = true;
 		    }
@@ -778,14 +813,11 @@ _t_test_typed_btree(
 
 		case test_u8:
 		    DBG(<<"j=" << j
-			<< " values_i8[sorted[j]] = " << (w_base_t::uint8_t)
-			    values_i8[sorted[j]]
-			<< " values_i8[sorted[j-1]] = " << (w_base_t::uint8_t)
-			    values_i8[sorted[j-1]]
+			<< " values_u8[sorted[j]] = " << values_u8[sorted[j]]
+			<< " values_u8[sorted[j-1]] = " << values_u8[sorted[j-1]]
 			);
-		    w_assert1((w_base_t::uint8_t) values_i8[sorted[j]] >= (w_base_t::uint8_t)
-				    values_i8[sorted[j-1]]);
-		    if(values_i8[sorted[j]] == values_i8[sorted[j-1]]) {
+		    w_assert1(values_u8[sorted[j]] >= values_u8[sorted[j-1]]);
+		    if(values_u8[sorted[j]] == values_u8[sorted[j-1]]) {
 			duplicates++;
 			duplicated[j-1] = true;
 		    }
@@ -907,9 +939,9 @@ _t_test_typed_btree(
 		    break;
 
 		case test_u2:
-		    DBG( << j << " : " <<  (unsigned) values_i2[j] 
+		    DBG( << j << " : " <<  values_u2[j] 
 			    << " /\t"  << sorted[j]
-			    << " :\t" << (unsigned) values_i2[sorted[j]]
+			    << " :\t" << values_u2[sorted[j]]
 			    << (char * )(duplicated[j]?"*":"")
 			    );
 		    break;
@@ -922,9 +954,9 @@ _t_test_typed_btree(
 		    break;
 
 		case test_u4:
-		    DBG( << j << " : " <<  (unsigned) values_i4[j] 
+		    DBG( << j << " : " <<  values_u4[j] 
 			    << " /\t"  << sorted[j]
-			    << " :\t" << (unsigned) values_i4[sorted[j]]
+			    << " :\t" << values_u4[sorted[j]]
 			    << (char * )(duplicated[j]?"*":"")
 			    );
 		    break;
@@ -938,9 +970,9 @@ _t_test_typed_btree(
 		    break;
 
 		case test_u8:
-		    DBG( << j << " : " <<  (w_base_t::uint8_t) values_i8[j] 
+		    DBG( << j << " : " <<  values_u8[j] 
 			    << " /\t"  << sorted[j]
-			    << " :\t" << (w_base_t::uint8_t)values_i8[sorted[j]]
+			    << " :\t" << values_u8[sorted[j]]
 			    << (char * )(duplicated[j]?"*":"")
 			    );
 		    break;
@@ -1835,7 +1867,7 @@ _t_test_typed_btree(
 			el.reset().put(&elemvalue, sizeof(elemvalue));  
 
 			/* clobber key holders */
-			i1 = 0; i2 = 0; i4 = 0; f4 = -0.0; f8 = -0.0; 
+			i1 = 0; i2 = 0; i4 = 0; i8 = 0; f4 = -0.0; f8 = -0.0; 
 			if(key_buffer) memset(key_buffer, '\0', LARGEKEYSTRING);
 
 			smsize_t _klen, _elen;
@@ -2021,7 +2053,7 @@ _t_test_typed_btree(
 			    case test_u4:
 			    DBG(<<"i4=" <<(unsigned) i4
 				<< " expect " 
-				<< (unsigned) values_i4[sorted[elemvalue]]);
+				<< values_u4[sorted[elemvalue]]);
 			    w_assert1(i4 == values_i4[sorted[elemvalue]]);
 			    break;
 
@@ -2033,9 +2065,9 @@ _t_test_typed_btree(
 			    break;
 
 			    case test_u8:
-			    DBG(<<"i8=" <<(w_base_t::uint8_t) i8
+			    DBG(<<"i8=" << (w_base_t::uint8_t) i8
 				<< " expect " 
-				<< (w_base_t::uint8_t) values_i8[sorted[elemvalue]]);
+				<< values_u8[sorted[elemvalue]]);
 			    w_assert1(i8 == values_i8[sorted[elemvalue]]);
 			    break;
 
@@ -2189,10 +2221,10 @@ _t_test_typed_btree(
 		DO_GOTO( sm->destroy_index(stid) );
 	    }
 	}
-	if(values_i1) { delete[] values_i1; values_i1=0; }
-	if(values_i2) { delete[] values_i2; values_i2=0; }
-	if(values_i4) { delete [] values_i4; values_i4=0; }
-	if(values_i8) { delete [] values_i8; values_i8=0; }
+	if(values_i1) { delete[] values_i1; values_i1=0; values_u1=0; }
+	if(values_i2) { delete[] values_i2; values_i2=0; values_u2=0; }
+	if(values_i4) { delete [] values_i4; values_i4=0; values_u4=0; }
+	if(values_i8) { delete [] values_i8; values_i8=0; values_u8=0; }
 	if(values_f4) { delete[] values_f4; values_f4=0; }
 	if(values_f8) { delete[] values_f8; values_f8=0; }
 	if(values_b) { 
@@ -2207,10 +2239,10 @@ _t_test_typed_btree(
     }
 failure:
     DBG(<<"rc=" <<rc);
-    if(values_i1) { delete[] values_i1; values_i1=0; }
-    if(values_i2) { delete[] values_i2; values_i2=0; }
-    if(values_i4) { delete [] values_i4; values_i4=0; }
-    if(values_i8) { delete [] values_i8; values_i8=0; }
+    if(values_i1) { delete[] values_i1; values_i1=0; values_u1=0; }
+    if(values_i2) { delete[] values_i2; values_i2=0; values_u2=0; }
+    if(values_i4) { delete [] values_i4; values_i4=0; values_u4=0; }
+    if(values_i8) { delete [] values_i8; values_i8=0; values_u8=0; }
     if(values_f4) { delete[] values_f4; values_f4=0; }
     if(values_f8) { delete[] values_f8; values_f8=0; }
     if(values_b) { 
@@ -2225,7 +2257,7 @@ failure:
 }
 
 int
-t_test_int_btree(Tcl_Interp* ip, int ac, char* av[])
+t_test_int_btree(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "vid nkeys", ac, 3))
 	return TCL_ERROR;
@@ -2251,7 +2283,7 @@ t_test_int_btree(Tcl_Interp* ip, int ac, char* av[])
 }
 
 int
-t_test_typed_btree(Tcl_Interp* ip, int ac, char* av[])
+t_test_typed_btree(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "vid nkeys type cc", ac, 4, 5))
 	return TCL_ERROR;
@@ -2267,7 +2299,7 @@ t_test_typed_btree(Tcl_Interp* ip, int ac, char* av[])
 }
 
 int
-t_create_typed_hdr_body_rec(Tcl_Interp* ip, int ac, char* av[])
+t_create_typed_hdr_body_rec(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     // Same as create_typed_hdr_rec except that we interpret both
     // the header and the data as typed values 
@@ -2389,7 +2421,7 @@ t_create_typed_hdr_body_rec(Tcl_Interp* ip, int ac, char* av[])
 }
 
 int
-t_create_typed_hdr_rec(Tcl_Interp* ip, int ac, char* av[])
+t_create_typed_hdr_rec(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     // NB: type refers to what goes into the header, NOT the data
     // The data are just taken as a string
@@ -2478,7 +2510,7 @@ t_create_typed_hdr_rec(Tcl_Interp* ip, int ac, char* av[])
 }
 
 int
-t_get_store_info(Tcl_Interp* ip, int ac, char* av[])
+t_get_store_info(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "fid ", ac, 2))
 	return TCL_ERROR;
@@ -2554,7 +2586,7 @@ check_key_type(
 }
 
 int
-t_scan_sorted_recs(Tcl_Interp* ip, int ac, char* av[])
+t_scan_sorted_recs(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     //              1    2     3        4     
     if (check(ip, "fid hdrtype datatype [universe]", ac, 4, 5))
@@ -2762,7 +2794,7 @@ t_scan_sorted_recs(Tcl_Interp* ip, int ac, char* av[])
 
 
 int
-t_sort_file(Tcl_Interp* ip, int ac, char* av[])
+t_sort_file(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     const int fid_arg =1;
     const int vid_arg =2;
@@ -2962,7 +2994,7 @@ t_sort_file(Tcl_Interp* ip, int ac, char* av[])
 }
 
 int
-t_compare_typed(Tcl_Interp* ip, int ac, char* av[])
+t_compare_typed(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     // NB: type refers to what goes into the header, NOT the data
     //	             1   2     3        4    
@@ -3006,7 +3038,7 @@ t_compare_typed(Tcl_Interp* ip, int ac, char* av[])
 }
 
 int
-t_find_assoc_typed(Tcl_Interp* ip, int ac, char* av[])
+t_find_assoc_typed(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (check(ip, "stid key type", ac, 4))
 	return TCL_ERROR;
@@ -3113,10 +3145,10 @@ static struct name2type_t {
 };
 
 typed_btree_test
-cvt2type(const char* s)
+cvt2type(const char *s)
 {
-    for (name2type_t* p = name2type; p->name; p++)  {
-	if (streq((char *)s, p->name))  return p->type;
+    for (const name2type_t* p = name2type; p->name; p++)  {
+	if (streq(s, p->name))  return p->type;
     }
     return test_nosuch;
 }

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: option.cpp,v 1.51 1999/06/07 19:02:27 kupsch Exp $
+ $Id: option.cpp,v 1.52 2003/06/19 22:39:27 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -325,12 +325,12 @@ bool option_group_t::_error_codes_added = false;
 
 #include "opt_einfo_gen.h"
 
-option_group_t::option_group_t(int maxNameLevels) :
-    _options(offsetof(option_t, _link)),
-    _class_name(NULL),
-    _levelLocation(NULL),
-    _maxLevels(maxNameLevels),
-    _numLevels(0)
+option_group_t::option_group_t(int maxNameLevels)
+: _options(W_LIST_ARG(option_t, _link)),
+  _class_name(NULL),
+  _levelLocation(NULL),
+  _maxLevels(maxNameLevels),
+  _numLevels(0)
 {
     if (!_error_codes_added) {
 	if (!(w_error_t::insert(

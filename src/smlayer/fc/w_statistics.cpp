@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: w_statistics.cpp,v 1.27 2002/01/24 21:59:35 bolo Exp $
+ $Id: w_statistics.cpp,v 1.28 2003/06/19 18:43:47 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -45,8 +45,10 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 W_FASTNEW_STATIC_DECL(w_stat_module_t, 100);
 
 w_stat_t		w_statistics_t::error_stat(-1);
-int				w_statistics_t::error_int=-1;
-unsigned int	w_statistics_t::error_uint=~0;
+int			w_statistics_t::error_int=-1;
+unsigned int		w_statistics_t::error_uint=~0;
+long			w_statistics_t::error_long=-1L;
+unsigned long		w_statistics_t::error_ulong=~0L;
 float 			w_statistics_t::error_float=-1.0;
 
 bool
@@ -432,6 +434,30 @@ w_statistics_t::uint_val(int base, int i)
 			return (unsigned int)v;
 	}
 	return error_uint;
+}
+
+long
+w_statistics_t::long_val(int base, int i)
+{
+	const w_stat_module_t *m = find(base);
+	if(m)  {
+		const w_stat_t &v = find_val(m,i);
+		if(v != error_stat) 
+			return long(v);
+	}
+	return error_long;
+}
+
+unsigned long
+w_statistics_t::ulong_val(int base, int i)
+{
+	const w_stat_module_t *m = find(base);
+	if(m)  {
+		const w_stat_t &v = find_val(m,i);
+		if(v != error_stat) 
+			return (unsigned long)v;
+	}
+	return error_ulong;
 }
 
 float

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='STHREAD_H'>
 
- $Id: sthread.h,v 1.187 2002/02/13 22:06:11 bolo Exp $
+ $Id: sthread.h,v 1.188 2003/12/23 01:41:22 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -215,6 +215,16 @@ public:
     };
 };
 
+#ifdef GCC_BROKEN_LINUX_2_96_110
+/*
+ *  The standard g++ with Redhat Linux 7.3,
+ *	gcc version 2.96 20000731 (Red Hat Linux 7.3 2.96-110)
+ *  has a problem.  It can't compile a use of the sthread_name_t
+ *  constructor for some reason.  However, diabling fastnew allows
+ *  it to work ... at a slight speed penalty.
+ */
+#define	STHREAD_NO_FASTNEW_NAME_T
+#endif
 
 class sthread_name_t {
 public:
@@ -227,7 +237,9 @@ public:
 
 	void rename(const char *n1, const char *n2=0, const char *n3=0);
 
+#ifndef STHREAD_NO_FASTNEW_NAME_T
 	W_FASTNEW_CLASS_PTR_DECL(sthread_name_t);
+#endif
 };
 
 

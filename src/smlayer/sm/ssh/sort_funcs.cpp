@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: sort_funcs.cpp,v 1.17 1999/06/07 19:05:00 kupsch Exp $
+ $Id: sort_funcs.cpp,v 1.18 2003/01/31 22:47:40 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -504,7 +504,7 @@ delete_index_entries(
  * 6) scans index and new file, comparing keys and trailing OIDs
  */
 int
-t_test_bulkload_int_btree(Tcl_Interp* ip, int ac, char* av[])
+t_test_bulkload_int_btree(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     bool    unique_case=false; // NB: if you turn this to true,
 	// the test will fail because the TEST can't handle the

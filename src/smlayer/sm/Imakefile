@@ -1,6 +1,6 @@
 /*<std-header style='imakefile' orig-src='shore'>
 
- $Id: Imakefile,v 1.124 2002/02/26 00:35:00 bolo Exp $
+ $Id: Imakefile,v 1.125 2003/08/24 23:51:31 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -116,14 +116,17 @@ stat.gen.h +=  \
 
 stat.gen.cpp +=  \
 	sm_stats_t_inc_gen.cpp \
+	sm_stats_t_dec_gen.cpp \
 	sm_stats_t_out_gen.cpp \
 	sm_stats_t_stat_gen.cpp \
 	sm_stats_t_collect_gen.cpp \
 	smthread_stats_t_inc_gen.cpp \
+	smthread_stats_t_dec_gen.cpp \
 	smthread_stats_t_out_gen.cpp \
 	smthread_stats_t_stat_gen.cpp \
 	smthread_stats_t_collect_gen.cpp \
 	sm2pc_stats_t_inc_gen.cpp \
+	sm2pc_stats_t_dec_gen.cpp \
 	sm2pc_stats_t_out_gen.cpp \
 	sm2pc_stats_t_stat_gen.cpp  \
 	sm2pc_stats_t_collect_gen.cpp 

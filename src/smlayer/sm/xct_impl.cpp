@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: xct_impl.cpp,v 1.52 1999/12/07 21:14:05 bolo Exp $
+ $Id: xct_impl.cpp,v 1.53 2003/06/19 22:39:35 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -173,7 +173,7 @@ xct_impl::xct_impl(xct_t* that)
 	_coord_handle(0),
 	_read_only(false),
 	// _first_lsn, _last_lsn, _undo_nxt, 
-	_dependent_list(offsetof(xct_dependent_t, _link)),
+	_dependent_list(W_LIST_ARG(xct_dependent_t, _link)),
 	_last_log(0),
 	_log_buf(0),
 	_log_bytes_fwd(0),
@@ -229,7 +229,7 @@ xct_impl::xct_impl(xct_t* that,
 	// _first_lsn, 
 	_last_lsn(last_lsn),
 	_undo_nxt(undo_nxt),
-	_dependent_list(offsetof(xct_dependent_t, _link)),
+	_dependent_list(W_LIST_ARG(xct_dependent_t, _link)),
 	_last_log(0),
 	_log_buf(0),
 	_log_bytes_fwd(0),

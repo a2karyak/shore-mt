@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='SHELL_H'>
 
- $Id: shell.h,v 1.41 2001/02/02 23:33:35 bolo Exp $
+ $Id: shell.h,v 1.44 2003/01/31 22:47:40 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -46,6 +46,7 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #include "ssh_error.h"
 #undef EXTERN
 #include <tcl.h>
+#include "tcl_workaround.h"
 #include "tcl_thread.h"
 
 #ifdef USE_COORD
@@ -78,7 +79,7 @@ extern ss_m* sm;
 
 extern bool start_client_support; // from ssh.cpp
 
-typedef int smproc_t(Tcl_Interp* ip, int ac, char* av[]);
+typedef int smproc_t(Tcl_Interp* ip, int ac, TCL_AV char* av[]);
 const int MAXRECLEN = 1000;
 
 
@@ -95,10 +96,14 @@ typedef w_base_t::int4_t  int4_t;
 typedef w_base_t::f4_t  f4_t;
 typedef w_base_t::f8_t  f8_t;
 
+/* XXX  The typed value doesn't know its own type, and it can
+   point to memory that it doesn't control.  Perhaps it should
+   be more self-contained.   However it works as is. */
+
 struct typed_value {
     int _length;
     union {
-	char *  bv;
+	const char	*bv;
 	char    b1;
 	w_base_t::uint8_t u8_num;
 	w_base_t::int8_t  i8_num;
@@ -184,11 +189,11 @@ extern void   dump_pin_hdr(ostream &out, pin_i &handle);
 extern void   dump_pin_body(ostrstream &out, pin_i &handle,
 	smsize_t start, smsize_t length, Tcl_Interp *ip); 
 extern w_rc_t dump_scan(scan_file_i &scan, ostream &out, bool hex=false); 
-extern bool tcl_scan_boolean(char *rep, bool &result);
+extern bool tcl_scan_boolean(const char *rep, bool &result);
 extern vec_t & parse_vec(const char *c, int len) ;
 extern vid_t make_vid_from_lvid(const char* lv);
-extern ss_m::ndx_t cvt2ndx_t(const char* s);
-extern lockid_t cvt2lockid_t(const char* str);
+extern ss_m::ndx_t cvt2ndx_t(const char *s);
+extern lockid_t cvt2lockid_t(const char *str);
 extern bool use_logical_id(Tcl_Interp* ip);
 extern const char * check_compress_flag(const char *);
 
@@ -204,7 +209,7 @@ streq(const char* s1, const char* s2)
     return !strcmp(s1, s2);
 }
 
-//ss_m::ndx_t cvt2ndx_t(char* s)
+//ss_m::ndx_t cvt2ndx_t(const char* s)
 
 #ifdef SSH_VERBOSE
 inline const char *
@@ -222,7 +227,7 @@ cvt2string(scan_index_i::cmp_t i)
 }
 #endif
 inline scan_index_i::cmp_t 
-cvt2cmp_t(char* s)
+cvt2cmp_t(const char *s)
 {
     if (streq(s, ">"))  return scan_index_i::gt;
     if (streq(s, ">=")) return scan_index_i::ge;
@@ -234,7 +239,7 @@ cvt2cmp_t(char* s)
 
 
 inline lock_mode_t
-cvt2lock_mode(char* s)
+cvt2lock_mode(const char *s)
 {
     for (int i = lock_base_t::MIN_MODE; i <= lock_base_t::MAX_MODE; i++)  {
 	if (strcmp(s, lock_base_t::mode_str[i]) == 0)
@@ -246,7 +251,7 @@ cvt2lock_mode(char* s)
 }
 
 inline lock_duration_t 
-cvt2lock_duration(char* s)
+cvt2lock_duration(const char *s)
 {
     for (int i = 0; i < t_num_durations; i++) {
 	if (strcmp(s, lock_base_t::duration_str[i]) == 0)
@@ -259,7 +264,7 @@ cvt2lock_duration(char* s)
 }
 
 inline ss_m::sm_store_property_t
-cvt2store_property(char* s)
+cvt2store_property(const char *s)
 {
     ss_m::sm_store_property_t prop = ss_m::t_regular;
     if (strcmp(s, "tmp") == 0)  {
@@ -278,7 +283,7 @@ cvt2store_property(char* s)
 }
 
 inline nbox_t::sob_cmp_t 
-cvt2sob_cmp_t(char* s)
+cvt2sob_cmp_t(const char *s)
 {
     if (streq(s, "||"))  return nbox_t::t_overlap;
     if (streq(s, "/")) return nbox_t::t_cover;
@@ -288,7 +293,7 @@ cvt2sob_cmp_t(char* s)
 }
 
 inline ss_m::concurrency_t 
-cvt2concurrency_t(char* s)
+cvt2concurrency_t(const char *s)
 {
     if (streq(s, "t_cc_none"))  return ss_m::t_cc_none;
     if (streq(s, "t_cc_record"))  return ss_m::t_cc_record;
@@ -329,21 +334,21 @@ enum typed_btree_test {
 };
 
 extern "C" {
-    int t_multikey_sort_file(Tcl_Interp* ip, int ac, char* av[]);
-    int t_test_bulkload_int_btree(Tcl_Interp* ip, int ac, char* av[]);
-    int t_test_bulkload_rtree(Tcl_Interp* ip, int ac, char* av[]);
-    int t_test_int_btree(Tcl_Interp* ip, int ac, char* av[]);
-    int t_test_typed_btree(Tcl_Interp* ip, int ac, char* av[]);
-    int t_sort_file(Tcl_Interp* ip, int ac, char* av[]);
-    int t_create_typed_hdr_body_rec(Tcl_Interp* ip, int ac, char* av[]);
-    int t_create_typed_hdr_rec(Tcl_Interp* ip, int ac, char* av[]);
-    int t_scan_sorted_recs(Tcl_Interp* ip, int ac, char* av[]);
-    int t_compare_typed(Tcl_Interp* ip, int ac, char* av[]);
-    int t_find_assoc_typed(Tcl_Interp* ip, int ac, char* av[]);
-    int t_get_store_info(Tcl_Interp* ip, int ac, char* av[]);
-    typed_btree_test cvt2type(const char* s);
+    int t_multikey_sort_file(Tcl_Interp* ip, int ac, TCL_AV char* av[]);
+    int t_test_bulkload_int_btree(Tcl_Interp* ip, int ac, TCL_AV char* av[]);
+    int t_test_bulkload_rtree(Tcl_Interp* ip, int ac, TCL_AV char* av[]);
+    int t_test_int_btree(Tcl_Interp* ip, int ac, TCL_AV char* av[]);
+    int t_test_typed_btree(Tcl_Interp* ip, int ac, TCL_AV char* av[]);
+    int t_sort_file(Tcl_Interp* ip, int ac, TCL_AV char* av[]);
+    int t_create_typed_hdr_body_rec(Tcl_Interp* ip, int ac, TCL_AV char* av[]);
+    int t_create_typed_hdr_rec(Tcl_Interp* ip, int ac, TCL_AV char* av[]);
+    int t_scan_sorted_recs(Tcl_Interp* ip, int ac, TCL_AV char* av[]);
+    int t_compare_typed(Tcl_Interp* ip, int ac, TCL_AV char* av[]);
+    int t_find_assoc_typed(Tcl_Interp* ip, int ac, TCL_AV char* av[]);
+    int t_get_store_info(Tcl_Interp* ip, int ac, TCL_AV char* av[]);
+    typed_btree_test cvt2type(const char *s);
     void cvt2typed_value( typed_btree_test t, 
-				char *string, typed_value &);
+				const char *string, typed_value &);
     int check_key_type(Tcl_Interp *ip, typed_btree_test t, 
 	const char *given, const char *stidstring);
     typed_btree_test get_key_type(Tcl_Interp *ip,  const char *stidstring );

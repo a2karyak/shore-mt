@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: bf_core.cpp,v 1.58 2001/11/30 01:41:14 bolo Exp $
+ $Id: bf_core.cpp,v 1.59 2003/06/19 22:39:34 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -159,14 +159,13 @@ bf_core_m::bf_core_m(uint4_t n, char *bp, int stratgy, const char* desc)
     w_assert1(_bufpool);
     w_assert1(is_aligned(_bufpool));
 
-    _htab = new w_hash_t<bfcb_t, bfpid_t>(2 * n, offsetof(bfcb_t, pid),
-						 offsetof(bfcb_t, link));
+    _htab = new w_hash_t<bfcb_t, bfpid_t>(2 * n, W_HASH_ARG(bfcb_t, pid,link));
     if (!_htab) { W_FATAL(eOUTOFMEMORY); }
 
-    _unused = new w_list_t<bfcb_t>(offsetof(bfcb_t, link));
+    _unused = new w_list_t<bfcb_t>(W_LIST_ARG(bfcb_t, link));
     if (!_unused) { W_FATAL(eOUTOFMEMORY); }
 
-    _transit = new w_list_t<bfcb_t>(offsetof(bfcb_t, link));
+    _transit = new w_list_t<bfcb_t>(W_LIST_ARG(bfcb_t, link));
     if (!_transit) { W_FATAL(eOUTOFMEMORY); }
 
     /*

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: ssh.cpp,v 1.133 2001/04/17 18:51:38 bolo Exp $
+ $Id: ssh.cpp,v 1.135 2003/12/01 20:54:40 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -72,18 +72,11 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #undef EXTERN
 #endif
 #include <tcl.h>
+#include "tcl_workaround.h"
 #include "tcl_thread.h"
 #include "ssh.h"
 #include <sthread_stats.h>
 
-#if defined(__GNUG__) && __GNUC_MINOR__ < 6 && defined(Sparc)
-    extern "C" int getopt(int argc, char** argv, char* optstring);
-#endif
-
-#if defined(__GNUG__) && defined(Sparc)
-    extern char *optarg;
-    extern int optind, opterr;
-#endif
 
 #ifdef NOTDEF
 const char* tcl_init_cmd = "if [info library] then { if [file exists [info library]/init.tcl] then { source [info library]/init.tcl }}";
@@ -509,18 +502,18 @@ int main(int argc, const char** argv)
     dispatch_init();
 
     Tcl_SetVar(global_ip, TCL_CVBUG "log_warn_callback_flag",
-		TCL_CVBUG (log_warn_callback ? "1" : "0"), TCL_GLOBAL_ONLY);
+		TCL_SETV2 (log_warn_callback ? "1" : "0"), TCL_GLOBAL_ONLY);
 
     Tcl_SetVar(global_ip, TCL_CVBUG "compress_flag",
-		TCL_CVBUG (force_compress ? "1" : "0"), TCL_GLOBAL_ONLY);
+		TCL_SETV2 (force_compress ? "1" : "0"), TCL_GLOBAL_ONLY);
 
     Tcl_SetVar(global_ip, TCL_CVBUG "instrument_flag",
-	       TCL_CVBUG (instrument ? "1" : "0"), TCL_GLOBAL_ONLY);
+	       TCL_SETV2 (instrument ? "1" : "0"), TCL_GLOBAL_ONLY);
 
     Tcl_SetVar(global_ip, TCL_CVBUG "verbose_flag",
-	       TCL_CVBUG (verbose ? "1" : "0"), TCL_GLOBAL_ONLY);
+	       TCL_SETV2 (verbose ? "1" : "0"), TCL_GLOBAL_ONLY);
     Tcl_SetVar(global_ip, TCL_CVBUG "verbose2_flag",
-	       TCL_CVBUG (verbose2 ? "1" : "0"), TCL_GLOBAL_ONLY);
+	       TCL_SETV2 (verbose2 ? "1" : "0"), TCL_GLOBAL_ONLY);
 
     char* args = Tcl_Merge(argc, (char **) argv);
     if(args) {
@@ -631,8 +624,8 @@ void ssh_smthread_t::run()
     tcl_thread_t* tcl_thread;
 
     if (f_arg) {
-	char* av[2];
-	av[0] = (char *) "source";
+	TCL_AV char* av[2];
+	av[0] = TCL_AV1 "source";
 	av[1] = f_arg;
 	tcl_thread = new tcl_thread_t(2, av, global_ip);
     } else {

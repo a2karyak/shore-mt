@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='OS_INTERFACE_H'>
 
- $Id: os_interface.h,v 1.12 2001/09/18 22:09:56 bolo Exp $
+ $Id: os_interface.h,v 1.13 2003/12/09 15:50:55 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -154,7 +154,8 @@ typedef	struct dirent	os_dirent_t;
 #else
 #undef	HAVE_OS_DIRENT_T
 #endif
-#if defined(__NetBSD__) || defined(Linux) || defined(hpux)
+#if defined(__NetBSD__) || defined(Linux) || defined(hpux) || (defined(SOLARIS2)&& defined(GCC_VER_3_WARNINGS)) || defined(OSF1)
+	/* XXX something wacked with gcc 3.2 and solaris headers */
 #include <dirent.h>		/* XXX unconventional dirent */
 #else
 struct DIR;

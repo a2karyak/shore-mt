@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='W_LIST_H'>
 
- $Id: w_list.h,v 1.45 1999/06/07 19:02:54 kupsch Exp $
+ $Id: w_list.h,v 1.48 2003/12/01 20:41:03 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -103,9 +103,9 @@ template <class T> class w_list_t;
 
 inline NORET
 w_link_t::w_link_t()
-    : _list(0) 
+: _list(0) 
 {
-    _next = this;
+	_next = this;
 	_prev = this;
 	/* empty body */
 }
@@ -118,6 +118,7 @@ w_link_t::~w_link_t()
 
 inline NORET
 w_link_t::w_link_t(const w_link_t&)
+: _list(0)
 {
     _next = _prev = this;
 }
@@ -298,6 +299,9 @@ private:
     friend class w_list_i<T>;
 };
 
+#define	W_LIST_ARG(class,member)	w_offsetof(class,member)
+
+
 /*--------------------------------------------------------------*
  *  w_list_i							*
  *--------------------------------------------------------------*/
@@ -415,6 +419,9 @@ private:
     T*                  	top();
     T*                  	bottom();
 };
+
+#define	W_KEYED_ARG(class,key,link)	\
+	W_LIST_ARG(class,key), W_LIST_ARG(class,link) 
 
 template <class T, class K>
 class w_ascend_list_t : public w_keyed_list_t<T, K>  {

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: sort_funcs2.cpp,v 1.15 2000/02/02 03:28:53 bolo Exp $
+ $Id: sort_funcs2.cpp,v 1.17 2003/06/23 12:28:56 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -44,7 +44,7 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 
 /* RTREE MULTI-KEY/NULL-KEY SORT TESTS */
 int	duplicate_values[4] = { -10, 17, 10, 20 };
-static nbox_t duplicate_box(2, duplicate_values);
+static const nbox_t duplicate_box(2, duplicate_values);
 int 	num_duplicate_box=0;
 
 void stop() {
@@ -325,7 +325,7 @@ w_rc_t
 test_scanrt(
     int 	n, // expected # items
     nbox_t::sob_cmp_t op,
-    nbox_t&	thekey,
+    const nbox_t&	thekey,
     bool 	nullsok,
     bool 	use_logical,
     stid_t&	stid,	
@@ -608,7 +608,7 @@ test_scanrt(
  * 6) scans index and new file, comparing keys and trailing OIDs
  */
 int
-t_test_bulkload_rtree(Tcl_Interp* ip, int ac, char* av[])
+t_test_bulkload_rtree(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     bool	    use_logical = false;
     if (use_logical_id(ip))  {
@@ -620,6 +620,10 @@ t_test_bulkload_rtree(Tcl_Interp* ip, int ac, char* av[])
     int nkeys_arg = 2;
     int vid_arg = 1;
     int null_arg = 3;
+
+    /* XXX should this be reset by another function that is callable from
+       the script level? */
+    num_duplicate_box = 0;
 
     bool 	nullsok=false;
     if(strcmp(av[null_arg], "nullok")==0) {

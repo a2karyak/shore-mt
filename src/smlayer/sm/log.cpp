@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: log.cpp,v 1.125 1999/12/10 04:10:39 bolo Exp $
+ $Id: log.cpp,v 1.126 2003/08/27 23:59:19 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -234,7 +234,11 @@ log_m::insert(logrec_t& r, lsn_t* ret)
 	    _countdown_expired = 0;
 	    _countdown = 0;
 	    release_var_mutex();
+#ifdef STHREAD_YIELD_STATIC
+	    sthread_t::yield();
+#else
 	    me()->yield();
+#endif
 	    acquire_var_mutex();
 	}
     }

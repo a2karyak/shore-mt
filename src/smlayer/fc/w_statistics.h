@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='W_STATISTICS_H'>
 
- $Id: w_statistics.h,v 1.24 1999/06/07 19:02:57 kupsch Exp $
+ $Id: w_statistics.h,v 1.25 2003/06/19 18:43:47 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -200,10 +200,10 @@ public: // sorry-- must be public for RPC reasons
 	const char 		*types;	/* types[] */
 	const int		base;	/* identifier of first */ 
 	const int		count;	/* # values in this module */
-	const w_stat_t 	*values;	/* values[] */
+	const w_stat_t	 	*values;	/* values[] */
 	w_stat_t 		*w_values;	/* writable values[] */
 
-	int				longest;	/* longest string */
+	int			longest;	/* longest string */
 
 // for purify reasons, we've gotta make this a union.
 // (initialize the whole mess o' bit fields 
@@ -456,18 +456,22 @@ public:
 	*/
 	static	w_stat_t		error_stat;
 	static	int			error_int;
-	static	unsigned int	error_uint;
-	static	float 		error_float;
+	static	unsigned int		error_uint;
+	static	long			error_long;
+	static	unsigned long		error_ulong;
+	static	float 			error_float;
 
 	/*
 	// for formatting your own output:
 	// When you call these, use the #defined constants, which
 	// are actually pairs of ints
 	*/
-    int								int_val(int base, int i) ; 
+	int						int_val(int base, int i) ; 
 	unsigned int					uint_val(int base, int i) ;
-	float 							float_val(int base, int i);
-	char	 						typechar(int base, int i); 
+	long						long_val(int base, int i);
+	unsigned long					ulong_val(int base, int i);
+	float 						float_val(int base, int i);
+	char						typechar(int base, int i); 
 	const	char	 				*typestring(int base);
 
 	const	char	 				*string(int base, int i); 

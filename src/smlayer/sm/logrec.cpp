@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: logrec.cpp,v 1.142 2000/11/28 21:00:17 bolo Exp $
+ $Id: logrec.cpp,v 1.144 2003/08/24 14:10:09 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -45,6 +45,14 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 
 #include "btree_p.h"
 #include "rtree_p.h"
+
+#ifdef _WIN32
+/* XXX hack for missing class type */
+typedef	long	ios_fmtflags;
+#else
+#include <streambuf.h>	// ios stuff for flags
+typedef	ios::fmtflags	ios_fmtflags;
+#endif
 
 #include <new.h>
 
@@ -2190,7 +2198,7 @@ void store_operation_log::undo(page_p* /*page*/)
 ostream& 
 operator<<(ostream& o, const logrec_t& l)
 {
-    long f = o.flags();
+    ios_fmtflags	f = o.flags();
     o.setf(ios::left, ios::left);
 
     o << l._tid << ' ';

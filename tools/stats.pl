@@ -2,7 +2,7 @@
 
 # <std-header style='perl' orig-src='shore'>
 #
-#  $Id: stats.pl,v 1.28 1999/06/07 19:09:15 kupsch Exp $
+#  $Id: stats.pl,v 1.29 2003/08/24 23:51:29 bolo Exp $
 #
 # SHORE -- Scalable Heterogeneous Object REpository
 #
@@ -79,7 +79,8 @@
 #	MSG:  <class>_msg_gen.h	-- the strings
 #	DEFF: <class>_def_gen.h -- #defined manifest constants
 #	STRUCT: <class>_struct_gen.h -- the statistics variables
-#	CODEINCR: <class>_inc_gen.cpp -- the operator+= 
+#	CODEINCR: <class>_inc_gen.cpp -- the operator+=
+#	CODEDECR: <class>_dec_gen.cpp -- the operator-=
 #	CODESTAT: <class>_stat_gen.cpp -- the operator<< to w_statistics_t
 #	CODEOUTP: <class>_out_gen.cpp -- the normal operator<< 
 #	COLLECT: <class>_collect_gen.cpp -- code for some::vtable_collect()
@@ -265,6 +266,10 @@ sub translate {
 		    # finish off operator+=  # { to match on next line
 		    printf(CODEINCR "\treturn s;\n}\n");
 
+		    &pifdef(*CODEDECR);
+		    # finish off operator-=  # { to match on next line
+		    printf(CODEDECR "\treturn s;\n}\n");
+
 		    # define operator<<  to w_statistics_t
 		    printf(CODESTAT "w_statistics_t &\n");
 		    printf(CODESTAT 
@@ -299,6 +304,8 @@ sub translate {
 
 		    printf(STRUCT "public: \nfriend $class &\n");
 		    printf(STRUCT "    operator+=($class &s,const $class &t);\n");
+		    printf(STRUCT "public: \nfriend $class &\n");
+		    printf(STRUCT "    operator-=($class &s,const $class &t);\n");
 		    #  Safe to increment by ints because the only
 		    # type we know about are at least int-sized  and are
 		    # multiples thereof, and this struct is aligned
@@ -325,6 +332,7 @@ sub translate {
 		    &foot(*MSG,$MSG_fname);
 		    &foot(*CODESTAT,$CODESTAT_fname);
 		    &foot(*CODEINCR,$CODEINCR_fname);
+		    &foot(*CODEDECR,$CODEDECR_fname);
 		    &foot(*CODEOUTP,$CODEOUTP_fname);
 		    &foot(*COLLECT,$COLLECT_fname);
 		    &foot(*STRUCT,$STRUCT_fname);
@@ -355,6 +363,7 @@ sub translate {
 	    $STRUCT_fname = $class."_struct_gen.h";
 	    $CODESTAT_fname = $class."_stat_gen.cpp";
 	    $CODEINCR_fname = $class."_inc_gen.cpp";
+	    $CODEDECR_fname = $class."_dec_gen.cpp";
 	    $CODEOUTP_fname = $class."_out_gen.cpp";
 	    $COLLECT_fname = $class."_collect_gen.cpp";
 	    $ENUM_fname = $class."_collect_enum_gen.h";
@@ -386,6 +395,7 @@ sub translate {
 		    if (!$enumOnly)  {
 			&head(*DEFF,$DEFF_fname);
 			&head(*CODEINCR,$CODEINCR_fname);
+			&head(*CODEDECR,$CODEDECR_fname);
 			&head(*CODESTAT,$CODESTAT_fname);
 			&head(*CODEOUTP,$CODEOUTP_fname);
 			&head(*COLLECT,$COLLECT_fname);
@@ -403,6 +413,12 @@ sub translate {
 		    printf(CODEINCR 
 			    "operator+=($class &s,const $class &t)\n{\n");#}
 		    &pendif(*CODEINCR);
+
+		    &pifdef(*CODEDECR);
+		    printf(CODEDECR "$class &\n");
+		    printf(CODEDECR 
+			    "operator-=($class &s,const $class &t)\n{\n");#}
+		    &pendif(*CODEDECR);
 
 		    # define operator<<  to ostream
 		    &pifdef(*CODEOUTP);
@@ -496,6 +512,9 @@ sub translate {
 
 		# code for operator +=
 		printf(CODEINCR "\ts.$def += t.$def;\n");
+
+		# code for operator -=
+		printf(CODEDECR "\ts.$def -= t.$def;\n");
 
 		# code for operator << to ostream
 		printf(CODEOUTP 

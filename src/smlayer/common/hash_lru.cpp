@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: hash_lru.cpp,v 1.26 2001/09/17 17:23:46 bolo Exp $
+ $Id: hash_lru.cpp,v 1.28 2003/12/01 20:41:00 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -54,23 +54,27 @@ hash_lru_t<TYPE, KEY>::_in_htab(hash_lru_entry_t<TYPE, KEY>* e)
  */
 #define hash_lru_offsetof(name,member)	((size_t)(&(name->member)))
 
+// XXX mirror the "normal" list/keyed/hash things here so it looks normal
+#define	W_LIST_LRU_ARG(class,key)	hash_lru_offsetof(class,key)
+#define	W_HASH_LRU_ARG(class,key,link)	\
+	hash_lru_offsetof(class,key), hash_lru_offsetof(class,link)
+
 template <class TYPE, class KEY>
 hash_lru_t<TYPE, KEY>::hash_lru_t(int n, const char *desc) 
-    : ref_cnt(0), 
-      hit_cnt(0),
-      _mutex(desc),
-      _entry(0), 
-      _htab(n * 2, hash_lru_offsetof(_entry, key), hash_lru_offsetof(_entry, link)),
-      _unused(hash_lru_offsetof(_entry, link)),
-      _clock(-1), 
-      _total(n)
+: ref_cnt(0), 
+  hit_cnt(0),
+  _mutex(desc),
+  _entry(0), 
+  _htab(n * 2, W_HASH_LRU_ARG(_entry, key, link)),
+  _unused(W_LIST_LRU_ARG(_entry, link)),
+  _clock(-1), 
+  _total(n)
 {
-    _entry = new hash_lru_entry_t<TYPE, KEY> [_total];
-    w_assert3(_entry);
+	_entry = new hash_lru_entry_t<TYPE, KEY> [_total];
+	w_assert1(_entry);
     
-    for (int i = 0; i < _total; i++)  {
-	_unused.append(&_entry[i]);
-    }
+	for (int i = 0; i < _total; i++)
+		_unused.append(&_entry[i]);
 }
 
 #ifdef hash_lru_offsetof
@@ -169,7 +173,7 @@ void hash_lru_t<TYPE, KEY>::remove(const TYPE*& t)
     int off = ((char*)&tmp.entry) - ((char*)&tmp);
 #else
     typedef hash_lru_entry_t<TYPE, KEY> HashType;
-    int off = offsetof(HashType, entry);
+    int off = w_offsetof(HashType, entry);
 #endif
     hash_lru_entry_t<TYPE, KEY>* p = (hash_lru_entry_t<TYPE, KEY>*) (((char*)t)-off);
     w_assert3(t == &p->entry);

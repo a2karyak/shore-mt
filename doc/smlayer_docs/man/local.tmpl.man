@@ -72,7 +72,7 @@ convert2tex:
 	@echo "$(TR2TEX) -m $* | sed -f ../sed.script > $(MANTEX)/$(@F)"
 	$(TR2TEX) -m - | sed -f ../sed.script > $(MANTEX)/$(@F)
 	@echo Done converting man page $* to TeX...
-#endif notdef
+#endif /* notdef */
 
 
 SYMLINKS = ../tmac.man.local ../DARPA \
