@@ -13,8 +13,6 @@
 #include <assert.h>
 #include <oql_context.h>
 #include <string.h>
-// other string fct...
-extern "C" char *rindex(const char *s, char c);
 
 typedef unsigned long uint4;
 
@@ -231,7 +229,7 @@ oql_rc_t oqlDatabase::LoadOtherTypes()
 			// the full path or the oid is stored for the
 			// object, for things that are not modules.
 			oql_type = new RefType(oql_type);
-			char * npt = rindex(_name,'/');
+			char * npt = strrchr(_name,'/');
 			if (npt)
 				extents.add(npt+1,oql_type);
 			else

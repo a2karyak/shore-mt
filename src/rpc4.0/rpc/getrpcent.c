@@ -63,6 +63,7 @@ struct rpcdata {
 static	struct rpcent *interpret();
 struct	hostent *gethostent();
 char	*inet_ntoa();
+void setrpcent(), endrpcent();
 
 char *index();
 
@@ -102,12 +103,8 @@ getrpcbynumber(number)
 }
 
 struct rpcent *
-#ifdef Linux
-getrpcbyname(const char *name)
-#else
 getrpcbyname(name)
 	char *name;
-#endif
 {
 	struct rpcent *rpc;
 	char **rp;
@@ -125,9 +122,7 @@ getrpcbyname(name)
 	return (NULL);
 }
 
-#ifdef Linux
 void
-#endif
 setrpcent(f)
 	int f;
 {
@@ -145,9 +140,7 @@ setrpcent(f)
 	d->stayopen |= f;
 }
 
-#ifdef Linux
 void
-#endif
 endrpcent()
 {
 	register struct rpcdata *d = _rpcdata();

@@ -1,7 +1,7 @@
 #
 # $RCSfile: Imakefile,v $
-# $Revision: 1.18 $
-# $Date: 1997/06/13 22:32:51 $
+# $Revision: 1.19 $
+# $Date: 1997/09/06 22:35:56 $
 # $Author: solomon $
 #
 #
@@ -33,7 +33,7 @@ SRC = auth_none.c auth_unix.c  authunix_prot.c bindresvport.c \
 
 all_local:: librpclib.a
 
-%GEN stats(svc_stats.dat, udpstats, tcpstats, svcstats)
+%GEN cstats(svc_stats.dat, udpstats tcpstats svcstats)
 %GEN library(librpclib.a, $(OBJ))
 
 %GEN install(include, udpstats_def.i tcpstats_def.i svcstats_def.i)

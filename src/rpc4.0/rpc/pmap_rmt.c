@@ -54,6 +54,9 @@ static char sccsid[] = "@(#)pmap_rmt.c 1.21 87/08/27 Copyr 1984 Sun Micro";
 #ifdef PURIFY
 #include <purify.h>
 #endif
+#ifdef SOLARIS2
+#include <sys/sockio.h>
+#endif
 
 extern int errno;
 static struct timeval timeout = { 3, 0 };
@@ -323,8 +326,8 @@ clnt_broadcast(prog, vers, proc, xargs, argsp, xresults, resultsp, eachresult)
 		msg.acpted_rply.ar_results.where = (caddr_t)&r;
                 msg.acpted_rply.ar_results.proc = xdr_rmtcallres;
 		readfds = mask;
-		switch (select(_rpc_dtablesize(), &readfds, (int *)NULL, 
-			       (int *)NULL, &t)) {
+		switch (select(_rpc_dtablesize(), &readfds, 0, 
+			       0, &t)) {
 
 		case 0:  /* timed out */
 			stat = RPC_TIMEDOUT;

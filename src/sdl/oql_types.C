@@ -42,10 +42,6 @@ void* TableEntry::operator new(long sz)
 }
 #endif USE_ALLOCATORS
 
-extern "C" {
-   extern void bcopy(void *, void *, int);
-}
-
 InterfaceType::InterfaceType(const char* name, odlFlags forward)
 : ObjectType(name), forwardInstantiated(0),
   currentAccessSpec(ODL_public), fwd(forward), ScopeType(0)

@@ -1,9 +1,5 @@
-#!/bin/sh -- # do not change this line, it mentions perl and prevents looping
-eval 'exec perl -s $0 ${1+"$@"}'
-	if 0;
-#
-#  $Header: /p/shore/shore_cvs/tools/shell.pl,v 1.6 1995/10/12 16:50:38 nhall Exp $
-#
+#!/bin/perl
+#  $Header: /p/shore/shore_cvs/tools/shell.pl,v 1.7 1997/09/19 11:44:26 solomon Exp $
 
 $cpysrc = <<EOF;
 /* --------------------------------------------------------------- */

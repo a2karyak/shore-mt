@@ -32,7 +32,7 @@ extern "C"	int getrlimit(int, struct rlimit *);
 extern "C" int getdtablesize();
 #endif
 
-#if !defined(AIX41) && !defined(SOLARIS2)
+#if !defined(AIX41) && !defined(SOLARIS2) && !defined(Linux)
 extern "C" {
 	extern int writev(int, const struct iovec *, int);
 	extern int readv(int, const struct iovec *, int);
@@ -917,7 +917,7 @@ main(int argc, char* argv[])
 	    if (wbuf && iovcnt > 1)  {
 		off_t off = m.off;
 		for (i = 0; i < iovcnt; i++) {
-		     wbufdatum_t d(off, iov[i].iov_base, iov[i].iov_len);
+		     wbufdatum_t d(off, (char *)iov[i].iov_base, iov[i].iov_len);
 		
 		     if (wbuf->deposit(d))  {
 		        flush_wbuf(fd);

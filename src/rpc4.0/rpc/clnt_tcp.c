@@ -445,8 +445,7 @@ readtcp(ct, buf, len)
 	}
 	while (TRUE) {
 		readfds = mask;
-		switch (select(_rpc_dtablesize(), &readfds, (int*)NULL, (int*)NULL,
-			       timeout)) {
+		switch (select(_rpc_dtablesize(), &readfds, 0, 0, timeout)) {
 		case 0:
 			ct->ct_error.re_status = RPC_TIMEDOUT;
 			return (-1);
@@ -505,7 +504,7 @@ exception_tcp(h)
 	timeout.tv_usec = 0;
 	timeout.tv_sec = 0;
 
-	if(select(_rpc_dtablesize(), &rfds, (int*)NULL, &xfds, &timeout)) {
+	if(select(_rpc_dtablesize(), &rfds, 0, &xfds, &timeout)) {
 		if(FD_ISSET(ct->ct_sock, &xfds) 
 		 || FD_ISSET(ct->ct_sock, &rfds)) {
 			return 1;

@@ -7,11 +7,12 @@
 
 /*
  *      $RCSfile: Imakefile,v $
- *      $Revision: 1.63 $
- *      $Date: 1997/06/16 21:36:09 $
+ *      $Revision: 1.64 $
+ *      $Date: 1997/09/19 11:55:36 $
  *      $Author: solomon $
  */
-CPPFLAGS = -I../include -I../../common -I../../fc -I../../sm Include(TclInclude)
+CPPFLAGS = RpcInclude -I../include -I../../common -I../../fc %
+	-I../../sm Include(TclInclude)
 RPCFLAGS = -D__STDC__ -E -DRPCGEN $(CFLAGS) -Dvolatile="" -Dsigned=""
 PREPROC = $(CXX) -x c-header -U__cplusplus $(CPPFLAGS)
 

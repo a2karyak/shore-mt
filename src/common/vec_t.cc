@@ -6,7 +6,7 @@
 /* --------------------------------------------------------------- */
 
 /*
- *  $Header: /p/shore/shore_cvs/src/common/vec_t.cc,v 1.54 1997/06/15 02:36:11 solomon Exp $
+ *  $Header: /p/shore/shore_cvs/src/common/vec_t.cc,v 1.55 1997/09/19 11:50:06 solomon Exp $
  */
 
 #ifdef __GNUC__
@@ -476,7 +476,7 @@ void cvec_t::_grow(int total_cnt)
 	// overflow will occur
 
 	int grow_to = MAX(prev_max*2, total_cnt);
-	vec_pair_t* tmp = NULL;
+	vec_pair_t* tmp = 0;
 
 	if (_is_large()) {
 	    tmp = (vec_pair_t*) realloc((char*)_base, grow_to * sizeof(*_base));
@@ -510,7 +510,7 @@ ostream& operator<<(ostream& o, const cvec_t& v)
 	l = (i < v._cnt) ? v._base[i].len : 0;
 
 	// p = (char *)v.ptr(i);
-	p = (i < v._cnt) ? (char *)v._base[i].ptr : NULL; 
+	p = (i < v._cnt) ? (char *)v._base[i].ptr : 0; 
 
 	o << "{" << l << " " << "\"" ;
 

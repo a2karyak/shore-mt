@@ -6,11 +6,12 @@
 /* --------------------------------------------------------------- */
 
 /*
- * $Header: /p/shore/shore_cvs/src/util/mount/generic/Imakefile,v 1.5 1997/06/13 22:33:53 solomon Exp $
+ * $Header: /p/shore/shore_cvs/src/util/mount/generic/Imakefile,v 1.6 1997/10/13 11:44:46 solomon Exp $
  */
 
 CPPFLAGS = -Wall -Wtraditional -Wshadow -Wpointer-arith -Wstrict-prototypes
 
+#if !defined(IS_LINUX)
 all_local:: smount sumount
 
 SRC = smount.c sumount.c mount_tab.c
@@ -22,3 +23,4 @@ HDR = platform.h globals.h
 
 %GEN tags($(SRC) $(HDR))
 %GEN depend_target($(SRC))
+#endif

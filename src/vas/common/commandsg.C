@@ -6,7 +6,7 @@
 /* --------------------------------------------------------------- */
 
 /*
- *  $Header: /p/shore/shore_cvs/src/vas/common/commandsg.C,v 1.12 1995/10/31 19:58:04 nhall Exp $
+ *  $Header: /p/shore/shore_cvs/src/vas/common/commandsg.C,v 1.14 1997/09/19 11:55:37 solomon Exp $
  */
 #include <copyright.h>
 #include <iomanip.h>
@@ -470,12 +470,14 @@ cmd_sleep(ClientData clientdata, Tcl_Interp* ip, int ac, char* av[])
 	Tcl_AppendResult(ip, ::form("%d",secs), 0);
 	return TCL_OK;
 }
+#if !defined(Linux)
 extern "C" {
 	long random();
-	int	 srandom(long unsigned);
-	char *initstate(long unsigned, char *, int);
+	int	 srandom(unsigned long);
+	char *initstate(unsigned long, char *, int);
 	char *setstate(char *);
 }
+#endif
 int rseed=1;
 char rstate[32]= {
     0x03, 0xab, 0x38, 0xd0,

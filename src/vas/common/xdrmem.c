@@ -6,7 +6,7 @@
 /* --------------------------------------------------------------- */
 
 /*
- *  $Header: /p/shore/shore_cvs/src/vas/common/xdrmem.c,v 1.19 1995/04/24 19:45:18 zwilling Exp $
+ *  $Header: /p/shore/shore_cvs/src/vas/common/xdrmem.c,v 1.20 1997/10/13 11:46:51 solomon Exp $
  */
 #include <copyright.h>
 
@@ -29,7 +29,7 @@
 #	include <assert.h>
 #endif
 
-#include <memory.h>
+void *memcpy();
 
 typedef int	(xdrfunc)(XDR *, void *);
 

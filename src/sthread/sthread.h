@@ -25,7 +25,7 @@ class smthread_t;
    If sigsetjmp() / siglongjmp() is available, use them, as they
    guarantee control of the save/restore of the signal mask */
 
-#if defined(SUNOS41) || defined(SOLARIS2) || defined(Ultrix42) || defined(HPUX8) || defined(AIX32) || defined(AIX41)
+#if defined(SUNOS41) || defined(SOLARIS2) || defined(Ultrix42) || defined(HPUX8) || defined(AIX32) || defined(AIX41) || defined(Linux)
 #define POSIX_SETJMP
 #endif
 

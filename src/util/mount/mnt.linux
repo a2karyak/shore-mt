@@ -3,7 +3,7 @@ if ($#argv < 2 || $#argv > 3) then
 	echo "Usage: $0 <host> <mountpoint> [installed-bin-directory]"
 	exit 1;
 endif
-if ($#argv == 3) then
+if ($#argv == 3 && -x $3/mount) then
 	set b = $3/mount
 else
 	set b = mount

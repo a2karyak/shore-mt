@@ -6,7 +6,7 @@
 /* --------------------------------------------------------------- */
 
 /*
- * $Id: Imakefile,v 1.113 1997/06/16 21:35:45 solomon Exp $
+ * $Id: Imakefile,v 1.114 1997/09/30 21:17:44 solomon Exp $
  */
 #define Tests tests
 
@@ -19,7 +19,7 @@ regex.o: regex.c
 	$(COMPILE.c) -DSTDC_HEADERS -UDEBUG regex.c
 
 SRC = basics.cc bitmap.cc devid_t.cc lid_t.cc latch.cc %
-	regex.c serial_t.cc tid_t.cc kvl_t.cc vec_t.cc vid_t.cc vec_mkchunk.cc %
+	RegEx serial_t.cc tid_t.cc kvl_t.cc vec_t.cc vid_t.cc vec_mkchunk.cc %
 	stid_t.cc %
 	debug.cc errlog.cc option.cc fast_new.cc regex.posix.cc
 %GEN c_to_o(OBJ,$(SRC))

@@ -12,7 +12,7 @@ OBJ = $(SRC:.cc=.o)
 
 CPPFLAGS = -I.. -I../../sthread -I../../common -I../../fc Include(TclInclude)
 
-LIB = ../libsm.a ../../common/libcommon.a ../../sthread/libst.a %
+LIB = ../libsm.a ../../sthread/libst.a ../../common/libcommon.a %
 	../../fc/libfc.a TclLib
 
 all_local:: ssh random_kick

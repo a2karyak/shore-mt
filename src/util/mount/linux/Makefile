@@ -3,6 +3,7 @@ default: all
 
 install symlinks depend clean_symlinks:
 	@echo nothing to do for $@
+distclean: clean
 ####### End: changes made for Shore ########
 
 # To make "ext" the default file system type for mount

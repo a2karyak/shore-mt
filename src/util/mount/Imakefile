@@ -6,26 +6,23 @@
 /* --------------------------------------------------------------- */
 
 /*
- * $Header: /p/shore/shore_cvs/src/util/mount/Imakefile,v 1.16 1997/06/13 22:33:40 solomon Exp $
+ * $Header: /p/shore/shore_cvs/src/util/mount/Imakefile,v 1.19 1997/10/13 11:43:57 solomon Exp $
  */
 
-#if IS_I386_LINUX
-#    undef linux
-#    define Subdirs linux  
+#if defined(IS_LINUX)
+/* Don't try to build the generic smount and sumount.  The standard Linux
+ * mount works fine, and the standard Linux umount is close enough (it can't
+ * contact the server correctly, but it does the local umount anyhow).
+ */
+#	define Tests generic
 #else
-#    define Subdirs generic
+#	define Subdirs generic
 #endif
 
 linux: all
 generic: all
 
-#if IS_I386_LINUX
-%# Because the linux/ subdir is generic linux
-%# distribution code with a bug fix, and it does not
-%# use our Imake scheme, we special-case the
-%# installation rules here.
-%GEN install(bin, mnt.linux)
-%GEN install(bin, linux/mount linux/umount)
-#else
-/* nothing needed here; it automatically descends and does $(MAKE) install */
+#if defined(IS_LINUX)
+#undef linux
+%GEN install_as(bin,mnt,mnt.linux)
 #endif

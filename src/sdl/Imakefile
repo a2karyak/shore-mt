@@ -8,17 +8,18 @@
 /*
  * Imakefile for sdl tools
  *
- * $Header: /p/shore/shore_cvs/src/sdl/Imakefile,v 1.44 1997/06/17 16:10:46 solomon Exp $
+ * $Header: /p/shore/shore_cvs/src/sdl/Imakefile,v 1.47 1997/10/13 11:39:05 solomon Exp $
  */
 
 #define Subdirs include
+#define Tests tests
 
 .PRECIOUS: metatypes.sdl
 
-CPPFLAGS = -Iinclude -I../lil/oc -I../vas/include -I../vas/client -I../common %
-	-I../fc -I../sm -I../sthread
+CPPFLAGS = Include(FlexInclude) -Iinclude -I../lil/oc -I../vas/include %
+	-I../vas/client -I../common -I../fc -I../sm -I../sthread
 
-all_local::  libsdl.a sdl oql
+all_local::  libsdl.a sdl
 
 GENERATED_C =	sdl-gram.tab.C sdl_lex.C
 OQL_GENERATED_C =oql_gram.tab.C oql_lex.C

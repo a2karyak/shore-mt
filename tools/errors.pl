@@ -1,4 +1,4 @@
-#!/s/std/bin/perl -w
+#!/bin/perl -w
 use strict 'subs';
 use Getopt::Std;
 
@@ -9,7 +9,7 @@ $opt_v = 0;
 die "usage: $0 [-vde]\n"
 	unless getopts("vcde");
 #
-#  $Header: /p/shore/shore_cvs/tools/errors.pl,v 1.16 1997/06/16 21:34:36 solomon Exp $
+#  $Header: /p/shore/shore_cvs/tools/errors.pl,v 1.17 1997/09/19 11:44:25 solomon Exp $
 #
 # *************************************************************
 #

@@ -6,7 +6,7 @@
 /* --------------------------------------------------------------- */
 
 /*
- *  $Id: unix_log.cc,v 1.26 1997/06/15 03:14:12 solomon Exp $
+ *  $Id: unix_log.cc,v 1.28 1997/09/19 11:52:32 solomon Exp $
  */
 #define SM_SOURCE
 #define LOG_C
@@ -23,13 +23,15 @@
 #include "srv_log.h"
 #include "unix_log.h"
 
-/* XXX completee sthread I/O facilities not in place yet */
 #include <sys/stat.h>
+#ifndef Linux
+/* XXX complete sthread I/O facilities not in place yet */
 extern "C" {
 	int	fstat(int, struct stat *);
 	int	truncate(const char *, off_t);
 	int	fsync(int);
 }
+#endif
 
 const char unix_log::master_prefix[] = "chk."; // same size as log_prefix
 const char unix_log::log_prefix[] = "log.";

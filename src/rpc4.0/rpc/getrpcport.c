@@ -37,9 +37,10 @@ static  char sccsid[] = "@(#)getrpcport.c 1.3 87/08/11 SMI";
 
 #include <stdio.h>
 #include <rpc/rpc.h>
-#include <netdb.h>
-#ifdef SOLARIS2
+#if defined(SOLARIS2) || defined(Linux)
 #include "/usr/include/netdb.h"
+#else
+#include <netdb.h>
 #endif /*SOLARIS2*/
 #include <sys/socket.h>
 

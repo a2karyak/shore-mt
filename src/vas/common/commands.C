@@ -6,7 +6,7 @@
 /* --------------------------------------------------------------- */
 
 /*
- *  $Header: /p/shore/shore_cvs/src/vas/common/commands.C,v 1.60 1996/05/03 04:14:54 kupsch Exp $
+ *  $Header: /p/shore/shore_cvs/src/vas/common/commands.C,v 1.61 1997/09/06 22:40:17 solomon Exp $
  */
 #include <copyright.h>
 #include "shell.misc.h"
@@ -137,7 +137,7 @@ Now()
 	if(gettimeofday( &_Now, &_Zone)<0) {
 		catastrophic("gettimeofday");
 	}
-	strcpy(timestr,ctime(&_Now.tv_sec));
+	strcpy(timestr,ctime((const long *)&_Now.tv_sec));
 	// replace the newline with a blank
 	assert(timestr[24]=='\n');
 	timestr[24] = ' ';

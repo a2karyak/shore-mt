@@ -41,9 +41,10 @@ static char sccsid[] = "@(#)clnt_simple.c 1.35 87/08/11 Copyr 1984 Sun Micro";
 #include <stdio.h>
 #include <rpc/rpc.h>
 #include <sys/socket.h>
-#include <netdb.h>
-#ifdef SOLARIS2
+#if defined(SOLARIS2) || defined(Linux)
 #include "/usr/include/netdb.h"
+#else
+#include <netdb.h>
 #endif /*SOLARIS2*/
 #include <string.h> 
 

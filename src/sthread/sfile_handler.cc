@@ -22,10 +22,12 @@
 #pragma implementation "sfile_handler.h"
 #endif
 
+#define DBGTHRD(arg)
+#define DBG(arg)
+#define FUNC(arg)
+
 #define W_INCL_LIST
 #include <w.h>
-#include <debug.h>
-#define DBGTHRD(arg) DBG(<<" th."<<sthread_t::me()->id << " " arg)
 #include <sthread.h>
 #include <sfile_handler.h>
 
@@ -36,6 +38,7 @@
 #include <unix_stats.h>
 #endif
 #include "sthread_stats.h"
+#include <unix_error.h>
 extern class sthread_stats SthreadStats;
 
 #ifdef __GNUC__

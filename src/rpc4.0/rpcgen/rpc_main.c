@@ -44,8 +44,10 @@ static char sccsid[] = "@(#)rpc_main.c 1.7 87/06/24 (C) 1987 SMI";
 #include <strings.h>  
 #else
 #include <string.h>  
+#ifndef Linux
 char *rindex(char *, char);	/* provide prototype since string.h doesn't */
-#endif /* SUNOS41 */
+#endif /* Linux */
+#endif /* !SUNOS41 */
 #include <sys/file.h>
 #include "rpc_util.h"
 #include "rpc_parse.h"
@@ -88,6 +90,8 @@ static char *allv[] = {
 	"rpcgen", "-s", "udp", "-s", "tcp",
 };
 static int allc = sizeof(allv)/sizeof(allv[0]);
+static c_output(), h_output(), s_output(), l_output(),
+	do_registers(), parseargs();
 
 main(argc, argv)
 	int argc;

@@ -100,9 +100,9 @@ static enum xprt_stat	rendezvous_stat();
 static struct xp_ops svctcp_rendezvous_op = {
 	rendezvous_request,
 	rendezvous_stat,
-	abort,
-	abort,
-	abort,
+	(void *)abort,
+	(void *)abort,
+	(void *)abort,
 	svctcp_destroy
 };
 
@@ -354,7 +354,7 @@ readtcp(xprt, buf, len)
 #endif /* def FD_SETSIZE */
 	do {
 		readfds = mask;
-		if (select(_rpc_dtablesize(), &readfds, (int*)NULL, (int*)NULL, 
+		if (select(_rpc_dtablesize(), &readfds, 0, 0,
 			   &wait_per_try) <= 0) {
 			if (errno == EINTR) {
 				continue;

@@ -36,9 +36,10 @@ static char sccsid[] = "@(#)clnt_generic.c 1.4 87/08/11 (C) 1987 SMI";
 #include <rpc/rpc.h>
 #include <sys/socket.h>
 #include <sys/errno.h>
-#include <netdb.h>
-#ifdef SOLARIS2
+#if defined(SOLARIS2) || defined(Linux)
 #include "/usr/include/netdb.h"
+#else
+#include <netdb.h>
 #endif /*SOLARIS2*/
 #ifdef I860
 #include <nx.h>
@@ -78,7 +79,7 @@ clnt_create_port(hostname, prog, vers, proto, port)
 	struct timeval tv;
 	CLIENT *client;
 
-	h = gethostbyname(hostname);
+	h = (struct hostent *)gethostbyname(hostname);
 	if (h == NULL) {
 		rpc_createerr.cf_stat = RPC_UNKNOWNHOST;
 		return (NULL);

@@ -6,7 +6,7 @@
 /* --------------------------------------------------------------- */
 
 /*
- *  $Id: sthread.cc,v 1.235 1997/06/15 02:26:27 solomon Exp $
+ *  $Id: sthread.cc,v 1.238 1997/09/30 22:17:57 solomon Exp $
  */
 #define STHREAD_C
 
@@ -53,13 +53,14 @@ static	void	hack_signals();
 #pragma implementation "sthread.h"
 #endif
 
+#define DBGTHRD(arg)
+#define DBG(arg)
+#define FUNC(arg)
 
 #define W_INCL_LIST
 #define W_INCL_SHMEM
 #define W_INCL_TIMER
 #include <w.h>
-#include <debug.h>
-#define DBGTHRD(arg) DBG(<<" th."<<sthread_t::me()->id << " " arg)
 
 #include <w_statistics.h>
 
@@ -81,7 +82,7 @@ template class w_descend_list_t<sthread_t, sthread_t::priority_t>;
 template class w_keyed_list_t<sthread_t, sthread_t::priority_t>;
 #endif
 
-#if !defined(AIX41) && !defined(SOLARIS2)
+#if !defined(AIX41) && !defined(SOLARIS2) && !defined(Linux)
 extern "C" {
 	extern int writev(int, const struct iovec *, int);
 	extern int readv(int, const struct iovec *, int);
@@ -1246,7 +1247,7 @@ sthread_t::sthread_t(priority_t		pr,
 : sthread_named_base_t(nm),
   user(0),
   id(_next_id++),
-  trace_level(_debug.trace_level()),
+  trace_level(0),
   _blocked(0),
   _terminate(new sevsem_t(0, "terminate")),
   _status(t_virgin),

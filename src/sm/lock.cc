@@ -8,7 +8,7 @@
 #undef TURN_OFF_LOCKING
 
 /*
- *  $Id: lock.cc,v 1.124 1997/06/15 03:13:08 solomon Exp $
+ *  $Id: lock.cc,v 1.125 1997/09/30 21:38:02 solomon Exp $
  */
 #define SM_SOURCE
 #define LOCK_C
@@ -425,17 +425,23 @@ lock_m::_lock(
 		        if (! force)  {
 			    mode_t held = *hmode[i];
 			    if (held == SH || held == EX || held == UD || (held == SIX && m == SH))  {
-			        i = 0;
 			        if (held == SIX && n.lspace() > h[i].lspace()) {
-				    _query_implicit(n, prev_mode, xd->tid());
-				    if (n.lspace() == lockid_t::t_record && h[i].lspace() < lockid_t::t_page)
-				        _query_implicit(*(lpid_t*)n.name(), prev_pgmode, xd->tid());
-				    else
+				    // need to release the mutex, since _query_implicit acquires it
+				    // and it also makes it safe to use W_DO macros
+				    W_VOID(theLockInfo->mutex.release());
+				    acquired = false;
+
+				    W_DO( _query_implicit(n, prev_mode, xd->tid()) );
+				    if (n.lspace() == lockid_t::t_record && h[i].lspace() < lockid_t::t_page)  {
+				        W_DO( _query_implicit(*(lpid_t*)n.name(), prev_pgmode, xd->tid()) );
+				    }  else  {
 				        prev_pgmode = prev_mode;
+				    }
 			        } else {
 			            prev_mode = held;
 			            prev_pgmode = held;
 			        }
+				goto done;
 			    }
 		        }
 		        break;

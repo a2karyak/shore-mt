@@ -41,7 +41,7 @@ swap (const char *special)
     printf("%s on device %s\n", program_name, special);
 
   if (streq (program_name, "swapon"))
-    status = swapon (special);
+    status = swapon (special,0);
   else
     status = swapoff (special);
 

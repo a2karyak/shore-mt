@@ -6,7 +6,7 @@
 /* --------------------------------------------------------------- */
 
 /*
- * $Header: /p/shore/shore_cvs/src/vas/client/vas.C,v 1.111 1997/01/24 16:49:21 nhall Exp $
+ * $Header: /p/shore/shore_cvs/src/vas/client/vas.C,v 1.113 1997/10/18 15:23:23 solomon Exp $
  */
 #define RPC_CLNT
 #define __malloc_h
@@ -45,6 +45,9 @@
 #define IS_NULL_TID(t) ((t.lo==0) && (t.hi==0))
 tid_t	__null_tid = { 0, 0};
 #define NULL_TID   ((tid_t)__null_tid)
+// The following is not actually used, but without it, some linkers give the
+// warning "size of symbol `__5tid_tRC5tid_t' changed from 25 to 29 in vas.o"
+extern tid_t::tid_t(tid_t const &);
 
 #ifdef USE_KRB
 #include <krb.h>
@@ -320,7 +323,7 @@ start:
 		goto bad;
     } 
 
-#ifdef SOLARIS2
+#if defined(SOLARIS2) || defined(Linux)
 	set_timeout((CLIENT *)cl, CLSET_TIMEOUT, 120, 0); //long
 #else
 	set_timeout((CLIENT *)cl, CLRMV_TIMEOUT, 0, 0);

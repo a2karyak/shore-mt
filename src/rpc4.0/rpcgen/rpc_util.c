@@ -55,6 +55,12 @@ FILE *fin;	/* file pointer of current input */
 
 list *defined;	/* list of defined things */
 
+static
+	findit(),
+	typedefed(),
+	printbuf(),
+	printwhere();
+
 /*
  * Reinitialize the world 
  */

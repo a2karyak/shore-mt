@@ -23,7 +23,7 @@
 /* The following line will appear in each generated Makefile.  If you do
  * not use RCS or CVS, you may want to edit it to document the configuration
  * version.
-%#>>>>>>>>>>>> $Header: /p/shore/shore_cvs/config/config.h,v 1.4 1997/08/08 22:03:05 solomon Exp $
+%#>>>>>>>>>>>> $Header: /p/shore/shore_cvs/config/config.h,v 1.6 1997/09/14 11:46:20 solomon Exp $
  */
 
 /* Define IncludeDebugCode to force DEBUG to be defined at compile-time so that
@@ -96,17 +96,13 @@
 #define Gcc				gcc
 #define GPlusPlus		g++
 
-/* The 'ar' program used to create libraries.
- * On a Solaris platform, it seems you have to use /usr/ccs/bin/ar.
- */
-#define Ar				/usr/ccs/bin/ar
-
 /* Bison -- a parser generator similar to YACC.  Used only in src/sdl */
 #define Bison			bison
 
 /* Flex -- a scanner generator similar to LEX.  Used only in src/sdl */
 #define Flex			flex
 #define FlexLib			/s/flex/lib/libfl.a
+#define FlexInclude		/s/flex/include
 
 /* Gdbm -- the GNU version of the the dbm hash-file package.
  * Only needed if USE_VERIFY is defined (it shouldn't be!)

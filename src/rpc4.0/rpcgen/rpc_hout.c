@@ -40,6 +40,19 @@ static char sccsid[] = "@(#)rpc_hout.c 1.6 87/07/28 (C) 1987 SMI";
 #include "rpc_util.h"
 #include "rpc_parse.h"
 
+static
+	pconstdef(),
+	pstructdef(),
+	puniondef(),
+	pdefine(),
+	puldefine(),
+	define_printed(),
+	pprogramdef(),
+	penumdef(),
+	ptypedef(),
+	pdeclaration(),
+	undefined2();
+
 
 /*
  * Print the C-version of an xdr definition 

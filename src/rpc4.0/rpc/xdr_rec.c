@@ -71,6 +71,11 @@ static u_int	xdrrec_getpos();
 static bool_t	xdrrec_setpos();
 static long *	xdrrec_inline();
 static void	xdrrec_destroy();
+static bool_t
+	flush_out(),
+	get_input_bytes(),
+	set_input_fragment(),
+	skip_input_bytes();
 
 static struct  xdr_ops xdrrec_ops = {
 	xdrrec_getlong,
@@ -532,8 +537,8 @@ xdrrec_endofrecord(xdrs, sendnow)
  */
 static bool_t
 flush_out(rstrm, eor)
-	register RECSTREAM *rstrm;
-	bool_t eor;
+   register RECSTREAM *rstrm;
+   bool_t eor;
 {
 	register u_long eormask = (eor == TRUE) ? LAST_FRAG : 0;
 	register u_long len = (u_long)(rstrm->out_finger) - 

@@ -1,6 +1,13 @@
+#!/bin/perl
 #
-#  $Header: /p/shore/shore_cvs/tools/stats.pl,v 1.12 1997/06/13 22:22:17 solomon Exp $
+#  $Header: /p/shore/shore_cvs/tools/stats.pl,v 1.14 1997/09/19 11:44:27 solomon Exp $
 #
+use Getopt::Std;
+
+$opt_C = 0;
+$opt_v = 0;
+die "usage: $0 [-vC] file ...\n"
+	unless getopts("vC");
 # *************************************************************
 #
 # usage: <this-script> [-v] [-C] filename [filename]*
@@ -75,24 +82,24 @@ $basename = "unknown";
 
 foreach $FILE (@ARGV) {
 	&translate($FILE);
-	if($v) { printf(STDERR "done\n");}
+	if($opt_v) { printf(STDERR "done\n");}
 }
 
 sub pifdef {
 	local($F)=@_[0];
-	if($C) {
+	if($opt_C) {
 		printf($F "#ifdef __cplusplus\n");
 	}
 }
 sub pelse {
 	local($F)=@_[0];
-	if($C) {
+	if($opt_C) {
 		printf($F "#else /*__cplusplus*/\n");
 	}
 }
 sub pendif {
 	local($F)=@_[0];
-	if($C) {
+	if($opt_C) {
 		printf($F "#endif /*__cplusplus*/\n");
 	}
 }
@@ -105,7 +112,7 @@ sub head {
 	$x =~ s/\.i/_i__/;
 	$x =~ s/\.h/_h__/;
 
-	if($v) {
+	if($opt_v) {
 		printf(STDERR 
 		"head: trying to open "."$fname\n");
 	}
@@ -125,7 +132,7 @@ sub foot {
 	$x =~ s/\.h/_h__/;
 
 	printf($F "#endif /*__$x*/\n");
-	if($v) {
+	if($opt_v) {
 		printf(STDERR 
 		"head: trying to close "."$fname\n");
 	}
@@ -139,7 +146,7 @@ sub translate {
 	local($typelist)='"';
 
 	open(FILE,$file) || die "Cannot open $file\n";
-	if($v) { printf (STDERR "translating $file ...\n"); }
+	if($opt_v) { printf (STDERR "translating $file ...\n"); }
 	$warning = 
 			"\n/* DO NOT EDIT --- GENERATED from $file by stats.pl */\n\n";
 
@@ -153,7 +160,7 @@ sub translate {
 
 		# { to match the one in the next line (pattern)
 		s/\s*[}]// && do {
-			if($v) { 
+			if($opt_v) { 
 				printf(STDERR 
 				"END OF PACKAGE: ".$basename.",".$BaseName." = 0x%x\n", $base);
 			}
@@ -230,7 +237,7 @@ sub translate {
 			$BaseName =~ y/a-z/A-Z/;
 			$base = oct($base) if $base =~ /^0/;
 			if($class){
-				if($v) {
+				if($opt_v) {
 					printf(STDERR "CLASS=$class\n");
 				}
 			} else {
@@ -241,7 +248,7 @@ sub translate {
 			$cnt = -1;
 			$highest = 0;
 
-			if($v) {
+			if($opt_v) {
 				printf(STDERR "PACKAGE: $basename,$BaseName = 0x%x\n", $base);
 			}
 
@@ -274,7 +281,7 @@ sub translate {
 					&pifdef(STRUCT);
 					printf(STRUCT " w_stat_t $first;\n");
 					&pelse(STRUCT);
-					if($C) {
+					if($opt_C) {
 						printf(STRUCT " int $first;\n");
 					}
 					&pendif(STRUCT);
@@ -324,7 +331,7 @@ sub translate {
 				$typechar = $1;
 			}
 			$typelist .= $typechar;
-			if($v) {
+			if($opt_v) {
 				printf(STDERR "typelist is $typelist\n");
 			}
 		}
@@ -342,7 +349,7 @@ sub translate {
 
 	} # LINE: while
 
-	if($v) { printf(STDERR "translated $file\n");}
+	if($opt_v) { printf(STDERR "translated $file\n");}
 
 	close FILE;
 }

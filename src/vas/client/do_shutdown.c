@@ -6,7 +6,7 @@
 /* --------------------------------------------------------------- */
 
 /*
- * $Header: /p/shore/shore_cvs/src/vas/client/do_shutdown.c,v 1.10 1995/09/05 20:24:03 nhall Exp $
+ * $Header: /p/shore/shore_cvs/src/vas/client/do_shutdown.c,v 1.12 1997/09/19 11:54:23 solomon Exp $
  */
 
 #include <copyright.h>
@@ -29,9 +29,10 @@ BEGIN_EXTERNCLIST
 END_EXTERNCLIST
 #endif
 
-#ifdef SOLARIS2
+#if defined(SOLARIS2)
 typedef char bool;
 #endif
+/* otherwise bool is defined in <rpc/types.h> */
 
 static int
 CLIENT2socket(

@@ -5,6 +5,11 @@
 /* -- Reserved.                                                 -- */
 /* --------------------------------------------------------------- */
 
+#ifdef Linux
+/* use the default (/usr/include) version of regex */
+#include_next <regex.h>
+#else
+
 /* Definitions for data structures and routines for the regular
    expression library, version 0.12.
 
@@ -491,6 +496,7 @@ extern void regfree _RE_ARGS ((regex_t *preg));
 #endif
 
 #endif /* not __REGEXP_LIBRARY_H__ */
+#endif /* not Linux */
 
 /*
 Local variables:

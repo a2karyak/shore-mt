@@ -43,6 +43,18 @@ static char sccsid[] = "@(#)rpc_parse.c 1.4 87/04/28 (C) 1987 SMI";
 static int debug_parse = 0;
 #define dprint if(debug_parse)fprintf
 
+static
+	isdefined(),
+	def_struct(),
+	def_program(),
+	def_enum(),
+	def_const(),
+	def_union(),
+	def_typedef(),
+	get_declaration(),
+	get_type(),
+	unsigned_dec(),
+	packed_dec();
 
 /*
  * return the next definition you see

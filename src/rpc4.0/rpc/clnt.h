@@ -135,7 +135,7 @@ typedef struct {
 
 		bool_t		(*cl_control)(
 #			ifdef  __cplusplus
-			void *, int, timeval *  /* "CLIENT" *, int, timeval * */
+			void *, int, void *  /* "CLIENT" *, int, timeval * */
 #			endif
 			); /* the ioctl() of rpc */
 	}*cl_ops;

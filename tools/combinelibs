@@ -74,10 +74,12 @@ fi
 echo creating $dest
 $AR q $dest $t/*.o
 
+echo cleaning up .o files
+rm -rf $t
+
 echo ranlib $dest
 ranlib $dest
 
-rm -rf $t
 echo $pn "is done."
 exit 0
 

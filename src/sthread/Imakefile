@@ -6,7 +6,7 @@
 /* --------------------------------------------------------------- */
 
 /*
- *  $Id: Imakefile,v 1.55 1997/07/01 20:49:00 solomon Exp $
+ *  $Id: Imakefile,v 1.56 1997/09/14 11:53:24 solomon Exp $
  */
 
 #define Tests tests
@@ -64,7 +64,7 @@ tsl.o: tsl.h ultrix_tsl.cc
 tsl.o: tsl.h tsl.S
 	$(CPP) -D$(ARCH) -D$(OPSYS) tsl.S | grep -v '^#' > tsl.s
 	$(AS) -mips2 -o $@ tsl.s
-#elif defined(IS_I386_SOLARIS2)
+#elif defined(IS_I386)
 tsl.o: tsl.h tsl.S
 	$(CPP) -DSYSV -D$(ARCH) -D$(OPSYS) tsl.S | grep -v '^#' > tsl.s
 	$(AS) -o $@ tsl.s
@@ -77,8 +77,9 @@ tsl.o: tsl.h aix_tsl.cc
 	$(GCC) $(CFLAGS) $(DEBUGFLAGS) $(DEBUGSYMBOLS) -c aix_tsl.cc -o $@
 #else
 tsl.o: tsl.h tsl.S
-	$(CPP) tsl.S | grep -v '^#' > tsl.s
+	$(CPP) -D$(ARCH) -D$(OPSYS) tsl.S | grep -v '^#' > tsl.s
 	$(AS) -o $@ tsl.s
+	-$(RM) -f tsl.s
 #endif
 %GEN clean_files(tsl.s)
 

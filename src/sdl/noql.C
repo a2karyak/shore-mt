@@ -19,12 +19,6 @@
 
 #include <oql_context.h>
 
-extern "C" {
-int getopt();
-char *optarg;
-}
-
-
 void check_defines(oqlContext &context)
 {
 	SymbolTable_i it(context.defines);

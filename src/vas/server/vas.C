@@ -6,7 +6,7 @@
 /* --------------------------------------------------------------- */
 
 /*
- *  $Header: /p/shore/shore_cvs/src/vas/server/vas.C,v 1.76 1997/01/24 16:48:22 nhall Exp $
+ *  $Header: /p/shore/shore_cvs/src/vas/server/vas.C,v 1.78 1997/10/13 11:49:49 solomon Exp $
  */
 #include <copyright.h>
 
@@ -19,7 +19,7 @@
 #include "sysp.h"
 #include <vas_internal.h>
 #include "vaserr.h"
-#ifndef SOLARIS2
+#if !defined(SOLARIS2)
 #include <rpc/svc_stats.h>
 #endif
 

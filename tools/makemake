@@ -1,4 +1,4 @@
-#!/s/std/bin/perl -w
+#!/bin/perl -w
 use strict 'subs';
 use Getopt::Std;
 
@@ -7,7 +7,7 @@ use Getopt::Std;
 # and conditions given in the file COPYRIGHT.  All Rights
 # Reserved.
 
-# $Header: /p/shore/shore_cvs/tools/makemake,v 1.39 1997/07/31 18:41:53 solomon Exp $
+# $Header: /p/shore/shore_cvs/tools/makemake,v 1.42 1997/09/30 21:14:39 solomon Exp $
 
 # makemake [-r]
 
@@ -316,7 +316,7 @@ END
 		unless open(PIPE,$command);
 	die "$new_makefile: $!\n" unless open(MAKEFILE,">$new_makefile");
 	$blank_lines = 0;
-	print STDERR "   generating $new_makefile ...\n";
+	print STDERR "   generating $new_makefile ...\n" if $opt_v;
 	print STDERR "using command '$command'\n" if $opt_v;
 	process_macros();
 	do_system("mv -f $makefile $makefile.bak") if -e $makefile;
@@ -331,7 +331,7 @@ exit(0);
 # Do the perl system() command, with a little extra feedback and checking.
 sub do_system {
 	local ($cmd) = @_;
-	print STDERR "   $cmd\n";
+	print STDERR "   $cmd\n" if $opt_v;
 	system $cmd unless $opt_d;
 	fatal("$cmd: $!") unless $? == 0;
 }
@@ -610,7 +610,7 @@ sub get_call {
 		$arg = get_arg(",)");
 		return ()
 			unless defined($arg);
-		$arg =~ s/.$//;	# strip trailing ',' or ')'
+		$arg =~ s/[,)]\Z//;	# strip trailing ',' or ')'
 		push(@args, $arg);
 		return ($call,$before,$_,@args)
 			if $& eq ')';
@@ -632,8 +632,8 @@ sub get_call {
 sub get_arg {
 	local ($class) = @_;
 	local $res = "";
-	local $pat1 = "^[^($class]*[(]";
-	local $pat2 = "^[^($class]*[$class]";
+	local $pat1 = "\\A[^($class]*[(]";
+	local $pat2 = "\\A[^($class]*[$class]";
 	local $bal;
 	while (s/$pat1//) {
 		$res .= $&;

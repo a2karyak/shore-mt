@@ -44,6 +44,9 @@ static char sccsid[] = "@(#)clnt_udp.c 1.39 87/08/11 Copyr 1984 Sun Micro";
 #include <netdb.h>
 #include <errno.h>
 #include <rpc/pmap_clnt.h>
+#ifdef SOLARIS2
+#include <sys/filio.h>
+#endif
 
 extern int errno;
 
@@ -286,8 +289,8 @@ send_again:
 #endif /* def FD_SETSIZE */
 	for (;;) {
 		readfds = mask;
-		switch (select(_rpc_dtablesize(), &readfds, (int *)NULL, 
-			       (int *)NULL, &(cu->cu_wait))) {
+		switch (select(_rpc_dtablesize(), &readfds, 0, 
+			       0, &(cu->cu_wait))) {
 
 		case 0:
 			time_waited.tv_sec += cu->cu_wait.tv_sec;

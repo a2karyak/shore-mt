@@ -5,7 +5,7 @@
 /* -- Reserved.                                                 -- */
 /* --------------------------------------------------------------- */
 
-%#>>>>>>>>>>>> $Header: /p/shore/shore_cvs/config/Imake.rules,v 1.89 1997/08/07 12:17:15 solomon Exp $
+%#>>>>>>>>>>>> $Header: /p/shore/shore_cvs/config/Imake.rules,v 1.91 1997/09/30 21:14:11 solomon Exp $
 
 /****************************************************************
  * Imake.rules:  "Library procedures" for building up a Makefile.
@@ -206,6 +206,10 @@ targets: script dependencies inputs
 %GEN generate_source(%CROSS(names,_msg.i _def.i _struct.i _op.i),
 	$(TOP)/tools/stats.pl,,,datfile)
 %ENDDEF
+%DEF cstats(datfile,names)
+%GEN generate_source(%CROSS(names,_msg.i _def.i _struct.i _op.i),
+	$(TOP)/tools/stats.pl,,-C,datfile)
+%ENDDEF
 
 /****************************************************************
  * Rules for invoking errors.pl.
@@ -321,7 +325,7 @@ commands::
 			echo '===START' making $@ in `pwd`/$$i; %
 			$(MAKE) -C $$i --no-print-directory $@; %
 			echo '===END' making $@ in `pwd`/$$i; %
-		fi %
+		fi; %
 	done
 %ENDDEF
 

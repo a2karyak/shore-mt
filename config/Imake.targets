@@ -5,7 +5,7 @@
 /* -- Reserved.                                                 -- */
 /* --------------------------------------------------------------- */
 
-%#>>>>>>>>>>>> $Header: /p/shore/shore_cvs/config/Imake.targets,v 1.4 1997/08/04 20:35:13 solomon Exp $
+%#>>>>>>>>>>>> $Header: /p/shore/shore_cvs/config/Imake.targets,v 1.5 1997/09/19 11:38:25 solomon Exp $
 
 #ifndef Subdirs
 #define Subdirs /* empty */
@@ -16,10 +16,10 @@
 #endif
 
 make:
-	$(TOP)/tools/makemake -r
+	Perl $(TOP)/tools/makemake -r
 
 make_local:
-	$(TOP)/tools/makemake
+	Perl $(TOP)/tools/makemake
 
 %# Null rules in case no rules for these targets have been generated earlier
 all_local::

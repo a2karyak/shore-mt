@@ -20,7 +20,6 @@
 #include "Type.h"
 #include "Shore.h"
 #include "ShoreConfig.h"
-#include "shore_version.h"
 #include "sdl_string.h"
 #include "sdl_set.h"
 #include "OCRef.h"

@@ -6,7 +6,7 @@
 /* --------------------------------------------------------------- */
 
 /*
- * $Id: diskrw.h,v 1.38 1996/08/30 21:16:13 bolo Exp $
+ * $Id: diskrw.h,v 1.39 1997/09/06 22:39:18 solomon Exp $
  */
 #ifndef DISKRW_H
 
@@ -421,7 +421,7 @@ void diskport_t::recv(diskmsg_t& m)
 const char *shmc_stats::stat_names[1]; // not used by diskrw
 #endif
 
-#if !(defined(HPUX8) && defined(_INCLUDE_XOPEN_SOURCE))
+#if !(defined(HPUX8) && defined(_INCLUDE_XOPEN_SOURCE)) && !defined(Linux)
 extern "C" {
 	int fsync(int);
 	int ftruncate(int, off_t);

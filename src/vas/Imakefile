@@ -6,7 +6,7 @@
 /* --------------------------------------------------------------- */
 
 /*
- * $Header: /p/shore/shore_cvs/src/vas/Imakefile,v 1.17 1997/06/13 22:34:03 solomon Exp $
+ * $Header: /p/shore/shore_cvs/src/vas/Imakefile,v 1.18 1997/10/13 11:45:31 solomon Exp $
  */
 #define Subdirs include common client server
-#define Tests tests
+#define Tests tests scripts

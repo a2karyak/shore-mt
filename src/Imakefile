@@ -6,10 +6,9 @@
 /* --------------------------------------------------------------- */
 
 /*
- * $Header: /p/shore/shore_cvs/src/Imakefile,v 1.40 1997/08/01 19:06:25 solomon Exp $
+ * $Header: /p/shore/shore_cvs/src/Imakefile,v 1.41 1997/09/06 22:33:46 solomon Exp $
  */
 #define Subdirs fc sthread common sm rpc4.0 vas lil sdl util
 #define Tests examples oo7
 
 %GEN install(,COPYRIGHT)
-%GEN install_as(,README,../releasedoc/readme/README.bin)

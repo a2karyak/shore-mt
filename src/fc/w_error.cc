@@ -6,7 +6,7 @@
 /* --------------------------------------------------------------- */
 
 /*
- *  $Id: w_error.cc,v 1.41 1997/06/15 02:03:18 solomon Exp $
+ *  $Id: w_error.cc,v 1.42 1997/09/06 22:34:44 solomon Exp $
  */
 #ifdef __GNUC__
 #pragma implementation "w_error.h"
@@ -245,9 +245,9 @@ w_error_t::module_name(uint4_t err_num)
     return _range_name[i];
 }
 
-extern "C" void stop();
+extern "C" void w_stop();
 void
-stop()
+w_stop()
 {
 	w_assert1(0);
 }
@@ -266,14 +266,14 @@ ostream& w_error_t::print_error(ostream &o) const
 	o << cnt << ". error in " << f << ':' << p->line << " ";
 	if(cnt > 1) {
 	    if(p == this) {
-		stop();
+		w_stop();
 	    }
 	    if(p->_next == p) {
-		stop();
+		w_stop();
 	    }
 	}
 	if(cnt > 20) {
-	    stop();
+	    w_stop();
 	}
 	o << p->error_string(p->err_num);
 

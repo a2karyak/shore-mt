@@ -46,6 +46,9 @@ static char sccsid[] = "@(#)get_myaddress.c 1.4 87/08/11 Copyr 1984 Sun Micro";
 #include <sys/ioctl.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
+#ifdef SOLARIS2
+#include <sys/sockio.h>
+#endif
 
 /* 
  * don't use gethostbyname, which would invoke yellow pages

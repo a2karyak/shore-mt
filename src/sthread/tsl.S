@@ -6,7 +6,7 @@
 /* --------------------------------------------------------------- */
 
 /*
- *  $Header: /p/shore/shore_cvs/src/sthread/tsl.S,v 1.12 1995/11/27 18:47:06 bolo Exp $	
+ *  $Header: /p/shore/shore_cvs/src/sthread/tsl.S,v 1.14 1997/09/14 11:53:25 solomon Exp $	
  */
 /*
  * unsigned
@@ -86,7 +86,7 @@ PROC(tsl_init)
 PROC(tsl_examine)
 	retl
 	ldub	[%o0],%o0
-#endif
+#endif /* sparc */
 
 #if defined(mc68000) || defined(mc68010) || defined(mc68020) || defined(mc68030) || defined(mc68040)
 
@@ -123,7 +123,7 @@ PROC(_tsl_examine)
 	clrl	d0
 	movb	a0@,d0
 	rts
-#endif
+#endif /* mc 68000 */
 
 #if defined(vax)
 
@@ -156,7 +156,7 @@ PROC(_tsl_examine)
 	movb	*4(ap),r0	/* get the lock */
 	bicl2	$0xfe,r0	/* and clear all unused bits */
 	ret
-#endif
+#endif /* vax */
 
 #if defined(i386)
 /*
@@ -219,7 +219,7 @@ PROC(_tsl_examine)
 	movb	(%ecx),%al
 	leave
 	ret
-#endif
+#endif /* i386 */
 
 #if defined(mips) && !defined(Irix) 
 /*
@@ -234,7 +234,7 @@ PROC(_tsl_examine)
  * They are the same machines that require a dedicated 
  * tsl_release() to release the lock.
  */
-#endif
+#endif /* mips && !Irix */
 
 #if defined(Mips) && defined(Irix)
 
@@ -349,7 +349,7 @@ $L4:
 	j	$31
 	.end	tsl_release
 
-#endif
+#endif /* mips && Irix */
 
 #if defined(hppa) || defined(hp800)
 	 /* 	

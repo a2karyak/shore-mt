@@ -8,7 +8,7 @@
 #ifndef NOSHELL
 
 /*
- *  $Header: /p/shore/shore_cvs/src/vas/server/stdin.C,v 1.36 1997/01/24 16:48:16 nhall Exp $
+ *  $Header: /p/shore/shore_cvs/src/vas/server/stdin.C,v 1.37 1997/09/30 22:35:41 solomon Exp $
  */
 #include <copyright.h>
 
@@ -108,14 +108,10 @@ shell_client_t::~shell_client_t()
 	_serves->disconnect(this);
 }
 
-char	*version = "($Revision: 1.36 $ $Date: 1997/01/24 16:48:16 $)";
-
 void
 shell_client_t::welcome()
 {
-	cout << "Shore Server \nVersion " 
-		<< version 
-		<< endl;
+	cout << "Shore Server \nRelease 1.1.1" << endl;
 	// ShoreVasLayer.pconfig(cout);
 }
 

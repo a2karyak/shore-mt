@@ -49,6 +49,15 @@ static int debug_scan = 0;
 
 static int pushed = 0;	/* is a token pushed */
 static token lasttok;	/* last token, if pushed */
+static
+	unget_token(),
+	findstrconst(),
+	findconst(),
+	findkind(),
+	cppline(),
+	directive(),
+	printdirective(),
+	docppline();
 
 /*
  * scan expecting 1 given token 

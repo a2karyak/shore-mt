@@ -6,7 +6,7 @@
 /* --------------------------------------------------------------- */
 
 /*
- * $Header: /p/shore/shore_cvs/src/rpc4.0/rpc/svc_stats.C,v 1.3 1995/07/20 17:57:14 nhall Exp $
+ * $Header: /p/shore/shore_cvs/src/rpc4.0/rpc/svc_stats.C,v 1.4 1997/09/06 22:35:58 solomon Exp $
  */
 
 
@@ -23,10 +23,6 @@
 #include "svc_stats.h"
 #include <memory.h>
 #include <assert.h>
-
-#ifdef SOLARIS2
-EXTERNC int fprintf(FILE *, char * ...);
-#endif
 
 struct svc_stats _stats;
 

@@ -8,14 +8,16 @@
 #ifndef __RPC_SERVICE_H__
 #define __RPC_SERVICE_H__
 /* 
- * $Header: /p/shore/shore_cvs/src/vas/server/rpc_service.h,v 1.7 1995/07/20 16:28:54 nhall Exp $
+ * $Header: /p/shore/shore_cvs/src/vas/server/rpc_service.h,v 1.8 1997/09/06 22:40:29 solomon Exp $
  */
 
-#if !defined(SOLARIS2)
+#if !defined(SOLARIS2) && !defined(Linux)
 struct SVCXPRT; // forward  
 #else
-#include<rpc/rpc.h>
+#include <rpc/rpc.h>
+#if defined(SOLARIS2)
 #include <rpc/svc_soc.h>
+#endif
 #endif
 
 typedef void XPFUNC_WITHARGS(SVCXPRT *);

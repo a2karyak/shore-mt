@@ -262,7 +262,7 @@ fstype(const char *device)
 
     lseek(fd, BLOCK_SIZE, SEEK_SET);
     read(fd, (char *) &e2s, sizeof(e2s));
-    if (e2s.s_magic == EXT2_SUPER_MAGIC || e2s.s_magic == EXT2_PRE_02B_MAGIC) {
+    if (e2s.s_magic == EXT2_SUPER_MAGIC) {
         close(fd);
 	return("ext2");
     }

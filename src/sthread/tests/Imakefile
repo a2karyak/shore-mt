@@ -6,11 +6,11 @@
 /* --------------------------------------------------------------- */
 
 /*
- *  $Id: Imakefile,v 1.26 1997/07/31 19:01:28 solomon Exp $
+ *  $Id: Imakefile,v 1.27 1997/09/30 21:19:23 solomon Exp $
  */
-SRC = diskinfo.c ioperf.c thread1.c thread2.c thread3.c thread4.c
-CPPFLAGS = -I.. -I../../fc -I../../common
-LIB = ../libst.a ../../fc/libfc.a ../../common/libcommon.a
+SRC = diskinfo.cc ioperf.cc thread1.cc thread2.cc thread3.cc thread4.cc
+CPPFLAGS = -I.. -I../../fc
+LIB = ../libst.a ../../fc/libfc.a
 
 all_local:: thread1 thread2 thread3 thread4 ioperf diskinfo
 
