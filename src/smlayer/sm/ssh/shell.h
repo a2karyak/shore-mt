@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='SHELL_H'>
 
- $Id: shell.h,v 1.39 1999/06/07 19:04:59 kupsch Exp $
+ $Id: shell.h,v 1.40 2000/03/02 22:21:02 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -121,9 +121,9 @@ static char   outbuf[(ss_m::page_sz * 2) > (1024 * 16) ?
 // a mutex for preemptive threads
 static ostrstream tclout(outbuf, sizeof(outbuf));
 
-#ifdef W_DEBUG
+#if defined(W_DEBUG) || defined(SSH_DUMPRC)
 extern bool dumprc; // in shell.cpp
-#define DUMPRC(a) if(dumprc) { cerr << a << endl; }
+#define DUMPRC(a) if(dumprc) { cerr << a << endl; } else 
 #else
 #define DUMPRC(a)
 #endif

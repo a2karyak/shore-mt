@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: w_input.cpp,v 1.7 1999/06/21 22:26:38 nhall Exp $
+ $Id: w_input.cpp,v 1.8 1999/12/11 03:05:52 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -510,7 +510,7 @@ w_base_t::_scan_uint8(
 		       break;
 		    } 
 		    value *= base;
-		    if((value - thresh2) + uint(e) > thresh3) {
+		    if((value - thresh2) + unsigned(e) > thresh3) {
 			/* overflow adding in e */
 		       range_err = true;
 		       // keep parsing
@@ -521,7 +521,7 @@ w_base_t::_scan_uint8(
 		    /* multiply */
 		    value *= base;
 		}
-		value += uint(e);
+		value += unsigned(e);
 		break;
 
 	    case error:

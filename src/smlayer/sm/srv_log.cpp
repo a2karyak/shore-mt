@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: srv_log.cpp,v 1.55 1999/06/22 20:02:37 nhall Exp $
+ $Id: srv_log.cpp,v 1.56 1999/12/10 05:29:46 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -661,7 +661,7 @@ srv_log::fetch(lsn_t& ll, logrec_t*& rp, lsn_t* nxt)
     }
     // w_assert3(ll.lo() < limit());
 
-    W_COERCE(p->read(rp, ll, 0));
+    W_COERCE(p->read(rp, ll));
     {
 	logrec_t	&r = *rp;
 
@@ -674,7 +674,7 @@ srv_log::fetch(lsn_t& ll, logrec_t*& rp, lsn_t* nxt)
 
 	    // re-read
 
-	    W_COERCE(p->read(rp, ll, 0));
+	    W_COERCE(p->read(rp, ll));
 	} 
     }
     logrec_t	&r = *rp;
@@ -1378,7 +1378,7 @@ partition_t::read(logrec_t *&rp, lsn_t &ll, int fd)
 
     INC_STAT(log_fetches);
 
-    if(fd == 0) fd = fhdl_rd();
+    if(fd == invalid_fhdl) fd = fhdl_rd();
 
 #ifdef W_DEBUG
     w_assert3(fd);

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: btree_impl.cpp,v 1.35 1999/06/22 20:02:37 nhall Exp $
+ $Id: btree_impl.cpp,v 1.36 1999/08/26 12:42:36 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -2546,7 +2546,7 @@ btree_impl::_propagate_split(
          *   If keys are different, compress away all element parts.
          *   Otherwise, extract common key,element parts.
          */
-        size_t common_size;
+        size_t common_size = 0;
         int diff = cvec_t::cmp(r1.key(), r2.key(), &common_size);
         DBGTHRD(<<"diff = " << diff << " common_size = " << common_size);
         if (diff)  {

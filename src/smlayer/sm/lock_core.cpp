@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: lock_core.cpp,v 1.94 1999/06/07 19:04:10 kupsch Exp $
+ $Id: lock_core.cpp,v 1.98 2000/02/02 03:57:29 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -46,6 +46,8 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #include "lock_s.h"
 #include "lock_x.h"
 #include "lock_core.h"
+
+#include <w_strstream.h>
 
 #ifdef EXPLICIT_TEMPLATE
 template class w_list_const_i<lock_request_t>;
@@ -367,7 +369,7 @@ operator<<(ostream &o, const xct_lock_info_t &x)
 void
 lockid_t::truncate(name_space_t space)
 {
-    DBG(<< "truncating " << unsigned(this) 
+    DBG(<< "truncating " << this 
     << "=" <<*this 
     << " to " << int(space));
     w_assert3(lspace() >= space && lspace() != t_extent && lspace() != t_kvl);
@@ -932,10 +934,13 @@ lock_core_m::acquire(
     req->thread = 0;
 
     // make sure that we have cleaned up properly after deadlock detection
-    if (timeout && rc.err_num() != stTIMEOUT && rc.err_num() != eDEADLOCK) {
-	w_assert3(xd->lock_info()->wait == 0);
-    } else {
-	xd->lock_info()->wait = 0;
+    // only if we actually set the wait field.
+    if (timeout)  {
+	if (rc.err_num() != stTIMEOUT && rc.err_num() != eDEADLOCK) {
+	    w_assert3(xd->lock_info()->wait == 0);
+	} else {
+	    xd->lock_info()->wait = 0;
+	}
     }
     w_assert3(xd->lock_info()->cycle == 0);
     DBGTHRD(<<" request->status()=" << int(req->status()));
@@ -1325,9 +1330,9 @@ lock_core_m::release_duration(
      *          else release only those of "duration"
      */
     for (int i = (all_less_than ? t_instant : duration); i <= duration; i++) {
-
+	w_list_t<lock_request_t>	&requests = xd->lock_info()->list[i];
 	if (i < t_long || !ext_to_free)  {
-	    while ((request = xd->lock_info()->list[i].pop()))  {
+	    while ((request = requests.pop()))  {
 		DBG(<<"popped request "  << request << "==" << *request);
 		if (request->is_quark_marker()) {
 		    delete request;
@@ -1340,9 +1345,9 @@ lock_core_m::release_duration(
 		W_COERCE(release(xd, lock->name, lock, request, true) );
 	    }
 	}  else  {
-	    while ((request = xd->lock_info()->list[i].top()))  {
+	    while ((request = requests.top()))  {
 		if (request->is_quark_marker()) {
-		    request = xd->lock_info()->list[i].pop();
+		    request = requests.pop();
 		    DBG(<<"popped quark_marker request "<< request<<"==" << *request);
 		    delete request;
 		    _requests_allocated--;
@@ -1357,7 +1362,7 @@ lock_core_m::release_duration(
 		DBG(<<"lock->name = " << lock->name);
 		if (!(lock->name.lspace() == lockid_t::t_extent && 
 			upgrade_ext_req_to_EX_if_should_free(request)))  {
-		    request = xd->lock_info()->list[i].pop();
+		    request = requests.pop();
     DBGTHRD(<<"popped lock request " << request<< "on list["<<i<<"] : " << *request);
 		    W_COERCE(release(xd, lock->name, lock, request, true) );
 		}  else  {
@@ -1751,7 +1756,10 @@ lock_core_m::_update_cache(xct_t *xd, const lockid_t& name, mode_t m)
 void
 lock_core_m::dump(ostream &o)
 {
-    for (uint h = 0; h < _htabsz; h++)  {
+    o << "lock_core_m:"
+      << " _htabsz=" << _htabsz
+      << endl;
+    for (unsigned h = 0; h < _htabsz; h++)  {
 	ACQUIRE(h);
         w_list_i<lock_head_t> i(_htab[h].chain);
         lock_head_t* lock;

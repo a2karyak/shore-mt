@@ -1,0 +1,171 @@
+.TH LATCH_T COMMON "Jan 1999" Release \*(SV" "Shore Storage Manager" "Release 2.0" "Shore Storage Manager Reference Manual"
+.so tmac.man.local
+.SH NAME
+latch_t \- Data Vector Classes
+.SH SYNOPSIS
+.EX
+.IN latch.h
+
+
+// these are defined outside of class latch_t due to bugs in
+// some C++ compilers
+enum latch_mode_t { LATCH_NL = 0, LATCH_SH = 1, LATCH_EX = 2 };
+
+class latch_t : public sthread_named_base_t {
+
+public:
+    NORET			latch_t(const char* const desc = 0);
+    NORET			~latch_t()	{};
+#ifdef DEBUG
+    friend ostream& operator<<(ostream&, const latch_t& l);
+#endif
+
+    inline void 		setname(const char *const desc);
+    w_rc_t			acquire(
+	latch_mode_t 		    m, 
+	int 			    timeout = sthread_base_t::WAIT_FOREVER);
+    w_rc_t			upgrade_if_not_block(
+	bool& 			    would_block);
+    void   			release();
+    bool 			is_locked() const;
+    bool 			is_hot() const;
+    int    			lock_cnt() const;
+    int				num_holders() const;
+    int				held_by(const sthread_t* t) const;
+    bool 			is_mine() const;
+
+private:  // disabled methods
+    NORET			latch_t(const latch_t&);
+    latch_t&   			operator=(const latch_t&);
+};
+
+.EE
+.SH DESCRIPTION
+.LP
+
+Latches are a read/write synchronization mechanism for threads,
+as opposed to locks which are used for synchronizing transactions.
+Latches are much lighter weight than locks, have no symbolic names,
+and have no deadlock detection.
+
+.LP
+.B "latch_t(desc)"
+.IP
+The constructor for a latch takes an string descriptor (name) for
+the latch.  This name is useful for debugging and for the
+output operator.
+
+.LP 
+.B "setname(desc)"
+.IP
+This method is used to change the descriptor associated with a latch.
+
+.LP
+.B "acquire(mode, timeout)"
+.IP
+The
+.FN acquire
+method attempts to acquire the latch (for the thread that is running)
+in the desired
+.VA mode.
+Valid values for
+.VA mode
+are:
+.FN LATCH_SH
+indicating shared mode and
+.FN LATCH_EX
+indicating exclusive mode.
+If the latch cannot be acquired within the 
+.VA timeout,
+the method will return with a
+.C stTIMEOUT
+error.
+The number of times a latch is acquired by a thread is
+counted, so a corresponding call to
+.FN release
+must be made for every successful call to
+.FN acquire.
+
+.LP
+.B "upgrade_if_not_block(would_block)"
+.IP
+The
+.FN upgrade_if_not_block
+method attempts to upgrade the latch from shared to exclusive mode.
+If the upgrade would cause the thread to block, then the
+upgrade is not performed and
+.VA would_block
+is set to
+.FN true.
+
+.LP
+.B "release()"
+.IP
+The
+.FN release
+method releases the latch for the thread that calls it.
+
+.LP
+.B "is_locked()"
+.IP
+The
+.FN is_locked
+method returns
+.FN true
+if any thread holds the latch.
+
+.LP
+.B "is_hot()"
+.IP
+The
+.FN is_hot
+method returns
+.FN true
+if any thread is waiting for the latch.
+
+.LP
+.B "lock_cnt()"
+.IP
+The
+.FN lock_cnt
+method returns the total number of outstanding acquires.
+
+.LP
+.B "num_holders()"
+.IP
+The
+.FN num_holders
+method returns the total number of threads holding the latch.
+
+.LP
+.B "held_by(thread)"
+.IP
+The
+.FN held_by
+method returns the number of times the latch is held by the thread
+.VA thread.
+
+.LP
+.B "is_mine()"
+.IP
+The
+.FN is_mine
+method returns
+.FN true
+if the calling thread hold the latch in exclusive mode.
+
+
+.DA
+
+.SH SEE ALSO
+
+.SA rsrc(common),
+.SA lock(ssm),
+.SA intro(common).
+
+.SH BUGS
+
+There is a limitation of four share-mode (LATCH_SH) holders for
+a latch.  Any additional threads attempting to acquire the latch
+will block.
+

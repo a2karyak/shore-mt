@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='W_SPTR_H'>
 
- $Id: w_sptr.h,v 1.7 1999/06/07 19:02:57 kupsch Exp $
+ $Id: w_sptr.h,v 1.8 2000/02/22 03:57:38 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -46,7 +46,7 @@ class w_sptr_t {
 public:
     NORET			w_sptr_t() : _value(0)  {};
     NORET			w_sptr_t(T* t) 
-	: _value((w_base_t::u_long)t) {};
+	: _value((ptrdiff_t)t) {};
     NORET			w_sptr_t(const w_sptr_t& p)
 	: _value(p._value & ~1)  {};
     NORET			~w_sptr_t()  {};
@@ -66,7 +66,7 @@ public:
     }
 
     void			set_val(T* t)  {
-	_value = (w_base_t::u_long)t;
+	_value = (ptrdiff_t)t;
     }
     void			set_val(const w_sptr_t& p) {
 	_value = p._value & ~1;
@@ -83,7 +83,7 @@ public:
 	return _value & 1;
     }
 private:
-    w_base_t::u_long		_value;
+    ptrdiff_t			_value;
 };
 
 /*<std-footer incl-file-exclusion='W_SPTR_H'>  -- do not edit anything below this line -- */

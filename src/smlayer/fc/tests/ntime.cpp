@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: ntime.cpp,v 1.15 1999/06/07 19:03:05 kupsch Exp $
+ $Id: ntime.cpp,v 1.18 2000/01/07 07:17:05 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -313,8 +313,19 @@ void output()
 	cout << "delta          == " << delta << endl;
 }
 
+void misc()
+{
+	cout << "========== MISCELLANY  ========" << endl;
+	sinterval_t	deltat = stime_t::gmtOffset();
+	stime_t		now = stime_t::now();
 
-main(int argc, char **argv)
+	cout << "gmtOffset = " << deltat << endl;
+	cout << "now       = " << now << endl;
+	cout << "now @ GMT = " << (now - deltat) << endl;
+}
+
+
+int main(int argc, char **argv)
 {
 	tod = argc > 1 ? atoi(argv[1]) : 1;
 	hires = (argc > 2 ? atoi(argv[2]) : 1) * HR_SECOND;
@@ -326,6 +337,8 @@ main(int argc, char **argv)
 	conversion();
 
 	output();
+
+	misc();
 
 	return 0;
 }

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='SM_H'>
 
- $Id: sm.h,v 1.297 1999/07/19 21:55:43 nhall Exp $
+ $Id: sm.h,v 1.300 2000/11/28 21:00:20 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -284,8 +284,6 @@ public:
     // occur when ~ss_m() is called
     static void 		set_shutdown_flag(bool clean);
 
-    static const char* 		getenv(char* name);
-
 private:
     static smutex_t		_begin_xct_mutex;  // used to prevent xct creation during dismount
 
@@ -381,6 +379,7 @@ public:
     static rc_t			dump_locks(ostream &o);
     static rc_t			dump_exts(ostream &o, vid_t v, extnum_t start, extnum_t end);
     static rc_t			dump_stores(ostream &o, vid_t v, int start, int end);
+    static rc_t			dump_histo(ostream &o, bool locked);
 
     static rc_t			snapshot_buffers(
 	u_int& 			    ndirty, 
@@ -1309,6 +1308,11 @@ public:
 
     // return whether lock cache is enabled
     static rc_t			lock_cache_enabled(bool& enabled);
+
+    /* XXX this is just a bad idea, but I packaged it better */
+    /* NOT static since recovery could be a property of an SM instance,
+       and you need an SM instance to know if recovery happened. */
+    bool	did_recovery() const { return _did_recovery; }
 
 private:
 

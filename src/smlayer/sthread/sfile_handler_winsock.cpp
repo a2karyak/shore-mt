@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: sfile_handler_winsock.cpp,v 1.21 1999/06/07 19:06:07 kupsch Exp $
+ $Id: sfile_handler_winsock.cpp,v 1.22 2000/02/01 23:57:54 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -34,6 +34,7 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #include <w.h>
 #include <w_workaround.h>
 #include <w_stream.h>
+#include <w_strstream.h>
 #include <w_signal.h>
 #include <stdlib.h>
 #ifndef _WINDOWS

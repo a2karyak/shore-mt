@@ -5,6 +5,6 @@ BISON_DIR = $(UTIL_DIR)/bison/bin
 FLEX_DIR = $(UTIL_DIR)/flex/bin
 PERL_DIR = $(UTIL_DIR)/perl
 
-PURIFY_DIR = $(UTIL_DIR)/Purify-4.1
-QUANT_DIR = $(UTIL_DIR)/quantify-3.1
-PURECOV_DIR = $(UTIL_DIR)/purecov-4.1
+PURIFY_DIR = $(UTIL_DIR)/Purify-4.5.1
+QUANT_DIR = $(UTIL_DIR)/Quantify-3.1
+PURECOV_DIR = $(UTIL_DIR)/Purecov-4.1

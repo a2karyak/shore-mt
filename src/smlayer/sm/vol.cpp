@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: vol.cpp,v 1.232 1999/06/15 15:11:57 nhall Exp $
+ $Id: vol.cpp,v 1.238 1999/11/19 22:42:39 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -153,7 +153,7 @@ extlink_p::format(
 
     /* Do the formatting and insert w/o logging them */
     W_DO( page_p::format(pid, tag, flags, store_flags, false) );
-    W_COERCE(page_p::insert_expand(0, 1, &vec, false) );
+    W_DO(page_p::insert_expand(0, 1, &vec, false) );
 
     /* Now, log as one (combined) record: */
     rc_t rc = log_page_format(*this, 0, 1, &vec);
@@ -202,7 +202,7 @@ stnode_p::format(const lpid_t& pid, tag_t tag, uint4_t flags, store_flag_t store
 
     /* Do the formatting and insert w/o logging them */
     W_DO( page_p::format(pid, tag, flags, store_flags, false) );
-    W_COERCE( page_p::insert_expand(0, 1, &vec, false) );
+    W_DO( page_p::insert_expand(0, 1, &vec, false) );
 
     /* Now, log as one (combined) record: */
     rc_t rc = log_page_format(*this, 0, 1, &vec);
@@ -353,6 +353,23 @@ extlink_i::on_same_page(extnum_t ext1, extnum_t ext2)  const
  *  Return the extent link at index "idx".
  *
  *********************************************************************/
+
+/* XXX This is a hack for ANSI C++, which doesn't allow pointers
+   to become "const" because of evil things that can happen.
+   Unfortunately, that completely ruins passing mandatory "return via"
+   arguments as a reference!  That is a serious loss of functionality.
+   This function is a hack to make get() work for the places that
+   modify extents that they get. */
+
+rc_t	extlink_i::get(extnum_t idx, extlink_t* &res)
+{
+	const extlink_t *hack = res;
+	w_rc_t	e;
+	e = get(idx, hack);
+	res = (extlink_t *) hack;
+	return e;
+}
+
 rc_t
 extlink_i::get(extnum_t idx, const extlink_t* &res)
 {
@@ -600,15 +617,28 @@ extlink_i::set_next(extnum_t ext, extnum_t new_next, bool log_it)
  *  Return the stnode at index "idx".
  *
  *********************************************************************/
-const stnode_t&
-stnode_i::get(snum_t idx)
+
+// examine in-place interface
+w_rc_t stnode_i::get(snum_t idx, const stnode_t *&stnodep)
 {
     w_assert3(idx);
     lpid_t pid = _root;
     pid.page += idx / (stnode_p::max);
-    W_COERCE( _page.fix(pid, LATCH_SH) );
+    W_DO( _page.fix(pid, LATCH_SH) );
     slotid_t slot = (slotid_t)(idx % (stnode_p::max));
-    return _page.get(slot);
+    stnodep = &_page.get(slot);
+    return RCOK;
+}
+
+// Copy-out interface
+w_rc_t stnode_i::get(snum_t idx, stnode_t &stnode)
+{
+	const	stnode_t	*st;
+
+	W_DO(get(idx, st));
+
+	stnode = *st;
+	return RCOK;
 }
 
 /*********************************************************************
@@ -619,11 +649,11 @@ stnode_i::get(snum_t idx)
  *
  *********************************************************************/
 w_rc_t
-stnode_i::put(snum_t idx, stnode_t& stnode)
+stnode_i::put(snum_t idx, const stnode_t& stnode)
 {
     lpid_t pid = _root;
     pid.page += idx / (stnode_p::max);
-    W_COERCE(_page.fix(pid, LATCH_EX));
+    W_DO(_page.fix(pid, LATCH_EX));
     slotid_t slot = (slotid_t) (idx % (stnode_p::max));
     return _page.put(slot, stnode);
 }
@@ -773,7 +803,7 @@ rc_t
 vol_t::sync()
 {
     smthread_t* t = me();
-    W_COERCE(t->fsync(_unix_fd));
+    W_COERCE_MSG(t->fsync(_unix_fd), << "volume id=" << vid());
     return RCOK;
 }
 
@@ -804,10 +834,21 @@ vol_t::mount(const char* devname, vid_t vid)
 
     w_rc_t e;
     int	open_flags = smthread_t::OPEN_RDWR;
+#ifdef _WIN32
+    /* Windows NT has a bug.  If volumes are greater than 4GB in size,
+       the buffer cache screws up and maps stuff at 4GB+X to 0+X.  This
+       only happens when files are buffered.  Uncached files are
+       not affected.  The default on NT will be to run with a
+       "raw volume" instead of an ordinary volume until this NT bug
+       is fixed. */
+    open_flags |= smthread_t::OPEN_RAW;
+#endif
     {
     	char *s = getenv("SM_VOL_RAW");
-	if (s && atoi(s) > 0)
+	if (s && s[0] && atoi(s) > 0)
 		open_flags |= smthread_t::OPEN_RAW;
+	else if (s && s[0] && atoi(s) == 0)
+		open_flags &= ~smthread_t::OPEN_RAW;
     }
     e = me()->open(devname, open_flags, 0666, _unix_fd);
     if (e != RCOK) {
@@ -822,7 +863,7 @@ vol_t::mount(const char* devname, vid_t vid)
     {
 	rc_t rc = read_vhdr(_devname, vhdr);
 	if (rc)  {
-	    W_COERCE(me()->close(_unix_fd));
+	    W_COERCE_MSG(me()->close(_unix_fd), << "volume id=" << vid);
 	    _unix_fd = -1;
 	    return RC_AUGMENT(rc);
 	}
@@ -875,10 +916,10 @@ vol_t::dismount(bool flush)
      *  Flush or force all pages of the volume cached in bf.
      */
     w_assert1(_unix_fd >= 0);
-    W_COERCE( flush ? 
+    W_COERCE_MSG( flush ? 
 	      bf->force_volume(_vid, true) : 
-	      bf->discard_volume(_vid) );
-    W_COERCE( bf->disable_background_flushing(_vid));
+	      bf->discard_volume(_vid), << "volume id=" << vid() );
+    W_COERCE_MSG( bf->disable_background_flushing(_vid), << "volume id=" << vid());
 
     /*
      *  Close the device
@@ -919,10 +960,11 @@ vol_t::check_disk()
     stnode_i st(_spid);
     extlink_i ei(_epid);
     for (extnum_t i = 1; i < _num_exts; i++)  {
-	stnode_t stnode = st.get(i);
+	stnode_t stnode;
+	W_DO(st.get(i, stnode));
 	if (stnode.head)  {
 	    smlevel_0::errlog->clog << info_prio << "\tstore " << i << " is active: ";
-	    extlink_t *link_p;
+	    const extlink_t *link_p;
 	    for (snum_t j = stnode.head; j; ){
 		smlevel_0::errlog->clog << info_prio << '[' << j << "] ";
 		W_DO(ei.get(j, link_p));
@@ -951,7 +993,7 @@ vol_t::first_ext(snum_t snum, extnum_t &result)
     stnode_t stnode;
     {
 	stnode_i st(_spid);
-	stnode = st.get(snum);
+	W_DO(st.get(snum, stnode));
     }
     result = stnode.head;
 
@@ -984,8 +1026,9 @@ int
 vol_t::fill_factor(snum_t snum)
 {
     stnode_i st(_spid);
-    const stnode_t& stnode = st.get(snum);
-    return stnode.eff;
+    const stnode_t *stnode;
+    W_COERCE(st.get(snum, stnode));
+    return stnode->eff;
 }
 
 
@@ -1274,7 +1317,7 @@ vol_t::free_stores_during_recovery(store_deleting_t typeToRecover)
     stid.vol = _vid;
 
     while (is_valid_store(++i))  {
-	stnode = si.get(i);
+	W_DO(si.get(i, stnode));
 	if (stnode.deleting == typeToRecover)  {
 	    lock_mode_t		m = NL;
 
@@ -1625,7 +1668,7 @@ vol_t::find_free_exts(
 
 	if (passed_zero && ext >= first_ext)  {
 	    found = i;
-	    return RC(eOUTOFSPACE);
+	    W_RETURN_RC_MSG(eOUTOFSPACE, << "volume id = " << _vid);
 	}
 
 	/* force not required here, since extents do not
@@ -1872,8 +1915,10 @@ rc_t vol_t::dump_stores(ostream &o, int start, int end)
     
     stnode_i si(_spid);
     for (int i = start; i <= end; i++)  {
-	const stnode_t& stnode = si.get(i);
-	W_FORM2(o, ("stnode_t(%5d) = {head=%-5d eff=%3d%%", i, stnode.head, stnode.eff));
+	const stnode_t	*_stnode;
+	W_DO(si.get(i, _stnode));
+	const stnode_t &stnode = *_stnode;
+	W_FORM(o)("stnode_t(%5d) = {head=%-5d eff=%3d%%", i, stnode.head, stnode.eff);
 	o << " deleting=" << (store_deleting_t)stnode.deleting << '=' << stnode.deleting
 	     << " flags=" << (store_flag_t)stnode.flags << '=' << stnode.flags << "}\n";
     }
@@ -1907,7 +1952,9 @@ vol_t::find_free_store(snum_t& snum)
     W_DO( io_lock_force(_vid, IX, t_long, WAIT_SPECIFIED_BY_XCT) );
 
     for (uint i = 1; i < _num_exts; i++)  {
-	const stnode_t& stnode = st.get(i);
+	const stnode_t *_stnode;
+	W_DO(st.get(i, _stnode));
+	const stnode_t	&stnode = *_stnode;
 	if (stnode.head == 0) {
 	    stid.store = i;
 	    /* 
@@ -1925,9 +1972,8 @@ vol_t::find_free_store(snum_t& snum)
 	    return RCOK;
 	}
     }
-cerr << __LINE__ << __FILE__ 
-	<< endl;
-    return RC(eOUTOFSPACE);
+
+    W_RETURN_RC_MSG(eOUTOFSPACE, << "volume id = " << _vid);
 }
 
 
@@ -1997,7 +2043,8 @@ vol_t::get_store_flags(snum_t snum, store_flag_t& flags)
     }
 
     stnode_i st(_spid);
-    stnode_t stnode = st.get(snum);
+    stnode_t stnode;
+    W_DO(st.get(snum, stnode));
 
     /*
      *  Make sure the store for this page is marked as allocated.
@@ -2084,7 +2131,8 @@ rc_t
 vol_t::free_store(snum_t snum, bool acquire_lock)
 {
     stnode_i st(_spid);
-    stnode_t stnode = st.get(snum);
+    stnode_t stnode;
+    W_DO(st.get(snum, stnode));
 
     if (stnode.head) {
 	w_assert3(!stnode.deleting);
@@ -2138,7 +2186,8 @@ vol_t::free_store_after_xct(snum_t snum)
 
     {
 	stnode_i	st(_spid);
-	stnode_t	stnode = st.get(snum);
+	stnode_t	stnode;
+	W_DO(st.get(snum, stnode));
 
 	/*
 	 * check to seeing deleting is actually set, if not then a partial rollback
@@ -2241,7 +2290,8 @@ vol_t::free_ext_after_xct(extnum_t ext, snum_t& old_owner)
 	}
 	if (link.prev == 0)  {
 	    stnode_i	st(_spid);
-	    stnode_t	stnode = st.get(link.owner);
+	    stnode_t	stnode;
+	    W_DO(st.get(link.owner, stnode));
 
 	    if (stnode.head == ext) {
 		DBG(<<"ext " << ext << " first in store -- not freed");
@@ -2681,7 +2731,9 @@ vol_t::max_store_id_in_use() const
 
     stnode_i st(_spid);
     while (--snum > 0)  {
-	const stnode_t& stnode = st.get(snum);
+	const stnode_t *_stnode;
+	W_COERCE(st.get(snum, _stnode));
+	const stnode_t &stnode = *_stnode;
 	if (stnode.head != 0)  {
 	    break;
 	}
@@ -2708,7 +2760,9 @@ vol_t::get_volume_meta_stats(SmVolumeMetaStats& volume_stats)
     {
 	stnode_i st(_spid);
 	for (snum_t snum = 1; snum < _num_exts; ++snum)  {
-	    const stnode_t& stnode = st.get(snum);
+	    const stnode_t *_stnode;
+	    W_DO(st.get(snum, _stnode));
+	    const stnode_t &stnode = *_stnode;
 	    if (stnode.head != 0)  {
 		++volume_stats.numAllocStores;
 	    }
@@ -2720,7 +2774,7 @@ vol_t::get_volume_meta_stats(SmVolumeMetaStats& volume_stats)
 
     {
 	extlink_i ei(_epid);
-	extlink_t* link;
+	const extlink_t* link;
 	for (extnum_t extnum = 1; extnum < _num_exts; ++extnum)  {
 	    W_DO( ei.get(extnum, link) );
 	    if (link->owner != 0)  {
@@ -2773,7 +2827,7 @@ rc_t
 vol_t::get_file_meta_stats_batch(uint4_t max_store, SmStoreMetaStats** mapping)
 {
     extlink_i ei(_epid);
-    extlink_t* link;
+    const extlink_t* link;
 
     for (extnum_t extnum = 1; extnum < _num_exts; ++extnum)  {
 	W_DO( ei.get(extnum, link) );
@@ -2804,7 +2858,9 @@ vol_t::get_store_meta_stats(snum_t snum, SmStoreMetaStats& store_stats)
     // find the first extent in the store
     {
 	stnode_i st(_spid);
-	const stnode_t& stnode = st.get(snum);
+	const stnode_t *_stnode;
+	W_DO(st.get(snum, _stnode));
+	const stnode_t &stnode = *_stnode;
 	if (stnode.head == 0)  {
 	    DBG(<<"get_store_meta_stats: BADSTID");
 	    return RC(eBADSTID);
@@ -2815,7 +2871,7 @@ vol_t::get_store_meta_stats(snum_t snum, SmStoreMetaStats& store_stats)
     // now check all the extents of the store
     {
 	extlink_i ei(_epid);
-	extlink_t* link;
+	const extlink_t* link;
 	while (extnum != 0)  {
 	    W_DO( ei.get(extnum, link) );
 	    if (link->owner != snum )  {
@@ -2848,7 +2904,7 @@ vol_t::first_page(snum_t snum, lpid_t& pid, bool* allocated)
     stnode_t stnode;
     {
 	stnode_i st(_spid);
-	stnode = st.get(snum);
+	W_DO(st.get(snum, stnode));
     }
 
     if (!stnode.head) {
@@ -2906,7 +2962,7 @@ vol_t::last_page(snum_t snum, lpid_t& pid, bool* allocated)
     stnode_t stnode;
     {
 	stnode_i st(_spid);
-	stnode = st.get(snum);
+	W_DO(st.get(snum, stnode));
     }
 
     if ( ! stnode.head) {
@@ -2964,7 +3020,7 @@ vol_t::num_pages(snum_t snum, uint4_t& cnt)
     stnode_t stnode;
     {
 	stnode_i st(_spid);
-	stnode = st.get(snum);
+	W_DO(st.get(snum, stnode));
     }
 
     if ( ! stnode.head) {
@@ -3001,7 +3057,7 @@ vol_t::num_exts(snum_t snum, extnum_t& cnt)
     stnode_t stnode;
     {
 	stnode_i st(_spid);
-	stnode = st.get(snum);
+	W_DO(st.get(snum, stnode));
     }
 
     if ( ! stnode.head) {
@@ -3071,8 +3127,9 @@ bool vol_t::is_alloc_ext(extnum_t e) const
 bool vol_t::is_alloc_store(snum_t f) const
 {
     stnode_i st(_spid);
-    const stnode_t& stnode = st.get(f);
-    return (stnode.head != 0);
+    const stnode_t *stnode;
+    W_COERCE(st.get(f, stnode));
+    return (stnode->head != 0);
 }
 
 
@@ -3137,8 +3194,24 @@ vol_t::read_page(shpid_t pnum, page_s& page)
 
     smthread_t* t = me();
 
+#ifdef PURIFY_ZERO
+    /*
+     * Fix a purify bug caused by purify itself!  The thread-half
+     * diskrw code zeros out the I/O buffer when it is created, making
+     * the I/O buffer initialized.  However, when a write into the buffer
+     * pool of potentially uninitialized memory occurs (such as padding)
+     * there is a purify supressed to keep the SM from being gigged
+     * for the SM-using application's legitimate behavior.  However, this
+     * uninitialized memory writes to a page in the buffer pool
+     * colors the corresponding bytes in the buffer pool with the 
+     * "uninitialized" memory color.  When a new page is read in from 
+     * disk, nothing changes the color of the page back to "initialized",
+     * and you suddenly see UMR or UMC errors from valid buffer pool pages.
+     */
+    memset(&page, '\0', sizeof(page));
+#endif
 	/* XXX return errors to caller */
-    W_COERCE(t->pread(_unix_fd, (char *) &page, sizeof(page), offset));
+    W_COERCE_MSG(t->pread(_unix_fd, (char *) &page, sizeof(page), offset), << "volume id=" << vid());
 
     /*
      *  place the vid on the page since since vid can change
@@ -3177,7 +3250,7 @@ vol_t::write_page(shpid_t pnum, page_s& page)
     smthread_t* t = me();
 
 	/* XXX return errors to caller */
-    W_COERCE(t->pwrite(_unix_fd, (char *) &page, sizeof(page), offset));
+    W_COERCE_MSG(t->pwrite(_unix_fd, (char *) &page, sizeof(page), offset), << "volume id=" << vid());
 
     _stats.vol_writes++;
     _stats.vol_blks_written++;
@@ -3215,13 +3288,13 @@ vol_t::write_many_pages(shpid_t pnum, page_s** pages, int cnt)
 
 	/* XXX return errors to caller */
     if (cnt == 1)
-	W_COERCE(t->pwrite(_unix_fd, iov[0].iov_base, iov[0].iov_len, offset));
+	W_COERCE_MSG(t->pwrite(_unix_fd, iov[0].iov_base, iov[0].iov_len, offset), << "volume id=" << vid());
     else {
 	/* XXX if multiple write_many_pages can occur at once, there
 	   needs to be a per-volumn mutex that makes the seek/writev
 	   combination thread-safe. */
-	W_COERCE(t->lseek(_unix_fd, offset, sthread_t::SEEK_AT_SET));
-	W_COERCE(t->writev(_unix_fd, iov, cnt));
+	W_COERCE_MSG(t->lseek(_unix_fd, offset, sthread_t::SEEK_AT_SET), << "volume id=" << vid());
+	W_COERCE_MSG(t->writev(_unix_fd, iov, cnt), << "volume id=" << vid());
     }
 
     _stats.vol_writes++;
@@ -3287,7 +3360,7 @@ vol_t::format_dev(
 	return RC_AUGMENT(rc);
     }
 
-    W_COERCE(me()->close(fd));
+    W_COERCE_MSG(me()->close(fd), << "device name=" << devname);
 
     return RCOK;
 }
@@ -3713,11 +3786,11 @@ vol_t::read_vhdr(int fd, volhdr_t& vhdr)
     W_DO(me()->lseek(fd, 0, sthread_t::SEEK_AT_CUR, file_pos));
     e = me()->lseek(fd, sector_size, sthread_t::SEEK_AT_SET);
     if (e) {
-        W_COERCE(me()->lseek(fd, file_pos, sthread_t::SEEK_AT_SET));
+        W_DO_PUSH(me()->lseek(fd, file_pos, sthread_t::SEEK_AT_SET), e);
 	return e;
     }
     e = me()->read(fd, tmp, tmpsz);
-    W_COERCE(me()->lseek(fd, file_pos, sthread_t::SEEK_AT_SET));
+    W_DO_PUSH(me()->lseek(fd, file_pos, sthread_t::SEEK_AT_SET), e);
     if (e)
 	return e;
 
@@ -3793,7 +3866,11 @@ vol_t::read_vhdr(const char* devname, volhdr_t& vhdr)
 
     W_IGNORE(me()->close(fd));
 
-    return e ? RC_AUGMENT(e) : RCOK; 
+    if (e)  {
+        W_DO_MSG(e, << "device name=" << devname);
+    }
+
+    return RCOK;
 }
 
 
@@ -3857,7 +3934,8 @@ vol_t::init_histo(store_histo_t* h,  snum_t snum,
     extnum_t ext=0;
     {
 	stnode_i st(_spid);
-	stnode_t stnode = st.get(snum);
+	stnode_t stnode;
+	W_DO(st.get(snum, stnode));
 
 	ext = stnode.head;
     }

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: thread2.cpp,v 1.48 1999/06/11 19:11:09 bolo Exp $
+ $Id: thread2.cpp,v 1.50 2000/02/02 00:08:49 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -41,6 +41,7 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #include <unistd.h>
 #endif
 #include <memory.h>
+#include <getopt.h>
 
 #include <w.h>
 #include <w_statistics.h>
@@ -256,7 +257,7 @@ void print_histograms(ostream &o)
 }
 
 
-main(int argc, char **argv)
+int main(int argc, char **argv)
 {
     int c;
     int errors = 0;
@@ -348,8 +349,11 @@ main(int argc, char **argv)
 	ioThread[i] = new io_thread_t(i, buf + i*BufSize);
 	if (!ioThread[i])
 		W_FATAL(fcOUTOFMEMORY);
-	W_COERCE(ioThread[i]->fork());
     }
+
+    /* Start them after they are allocated, so we get some parallelism */
+    for (i = 0; i < NumThreads; i++)
+	W_COERCE(ioThread[i]->fork());
 
     for (i = 0; i < NumThreads; i++)
 	W_COERCE( ioThread[i]->wait() );

@@ -1,6 +1,6 @@
 /*<std-header style='imake' orig-src='shore'>
 
- $Id: Project.tmpl,v 1.245 1999/06/23 18:15:42 nhall Exp $
+ $Id: Project.tmpl,v 1.258 2000/11/29 22:05:55 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -54,9 +54,9 @@ need to be set by installers of the software.
 #define USE_DIR_SCHEME_FILE "nt_standard.def"
 #endif
 #elif IS_LINUX
-#define USE_DIR_SCHEME_FILE "linux_standard.def"
+#define USE_DIR_SCHEME_FILE "linux_uwcs.def"
 #else
-#define USE_DIR_SCHEME_FILE "unix_standard.def"
+#define USE_DIR_SCHEME_FILE "unix_uwcs.def"
 #endif /* IS_UNIX */
 #endif /* USE_DIR_SCHEME_FILE */
 
@@ -64,11 +64,13 @@ DIR_SCHEME_FILE = USE_DIR_SCHEME_FILE
 
 /* Directory to install bin, lib, include, and documents */
 /* Comes from shore.def */
+ifndef INSTALL_DIR
 #ifdef INSTALL_PATH
 INSTALL_DIR = INSTALL_PATH
 #else /* !INSTALL_PATH */
 INSTALL_DIR = $(BUILD_TOP)/installed
 #endif /* !INSTALL_PATH */
+endif
 
 BISON = $(BISON_DIR)/bison
 
@@ -117,6 +119,12 @@ PURE_GOPT = \
         -inuse-at-exit -ignore-signals=0x00010000 -first-only -leaks-at-exit \
         -pointer-mask=0xfffffffe -copy-fd-output-to-logfile=1,2
 #endif /* SNAKE */
+/* Options common to all pure software tools 
+   Note that thread-stack-change is 12K and stack size is 64K.
+   This is necessary since purify will not always notice stack
+   changes if the change-size is near the stack size.
+*/
+PURE_COPT = -threads -thread-stack-change=0x3000 -max_threads=64
 #endif /* USE_PURE */
 
 /* An attempt to gracefully take care of pathname changes with
@@ -158,11 +166,7 @@ PURIFY_DIR = /s/purify-4.1
 endif
 PURIFY = $(PURIFY_DIR)/bin/purify
 PURIFY_COLLECTOR = $(PURE_COLLECTOR)
-PURE_OPT = $(PURE_GOPT) -threads -thread-stack-change=0x3000 -max_threads=64
-/* Note that thread-stack-change is 12K and stack size is 64K.
-   This is necessary since purify will not always notice stack
-   changes if the change-size is near the stack size.
-*/
+PURE_OPT = $(PURE_GOPT) $(PURE_COPT)
 #endif /*USE_PURIFY*/
 
 #ifdef USE_QUANTIFY
@@ -178,7 +182,7 @@ QUANT_DIR = $(UTIL_DIR)/quantify
 endif
 QUANTIFY = $(QUANT_DIR)/bin/quantify
 QUANTIFY_COLLECTOR = $(PURE_COLLECTOR)
-QUANT_OPT = 
+QUANT_OPT = $(PURE_COPT)
 #endif /*USE_QUANTIFY*/
 
 #ifdef USE_PURECOV
@@ -206,6 +210,13 @@ endif
 ifndef THIS_PATH
 THIS_PATH = ThisPath
 endif
+
+#ifdef ExtTop
+EXT_TOP = ExtTop
+#endif
+#ifdef ExtBuildTop
+EXT_BUILD_TOP = ExtBuildTop
+#endif
 
 ifneq ($(TOP),$(BUILD_TOP))
 VPATH = $(TOP)/$(THIS_PATH)
@@ -295,6 +306,24 @@ FLEX_W_OPT = $(FLEX) $(FLEX_OPT)
 BISON_OPT = -l -n -d -t
 BISON_W_OPT = $(BISON) $(BISON_OPT)
 
+TAR = tar
+
+ifeq ($(TOP),$(BUILD_TOP))
+CVS = cvs -q
+else
+CVS = cd $(TOP)/$(THIS_PATH) && cvs -q
+endif
+CVS_N = $(CVS) -n
+CVS_UPDATE = $(CVS) update
+CVS_UPDATE_A = $(CVS) update -A
+CVS_N_UPDATE = $(CVS_N) update
+CVS_N_UPDATE_A = $(CVS_N) update -A
+CVS_COMMIT = $(CVS) commit
+CVS_STATUS = $(CVS) status
+CVS_STATUS_V = $(CVS) status -v
+CVS_DIFF = -$(CVS) diff
+CVS_DIFF_C = $(CVS_DIFF) -c
+
 PWD = $(shell pwd)
 
 PLATFORM = Platform
@@ -317,7 +346,7 @@ TCL_VER=
 
 #ifdef TCL_LIB_EXTENSION
 TCL_LIBEXT=TCL_LIB_EXTENSION
-#elif defined(IS_NT)
+#elif defined(IS_DOSDEV)
 TCL_LIBEXT=.lib
 #else
 TCL_LIBEXT=.a
@@ -513,7 +542,8 @@ DEBUGFLAGS += -DW_TRACE
 
 #if DEBUGGERSYMBOLS == OFF
 /* the ON cases are handled differently for each architeture, below */
-#  if IS_NT
+#  if IS_DOSDEV
+   /* needs to seperate cl support from dos support */
     CMNT Options for DEBUGGERSYMBOLS == OFF
     CMNT Must specify the library on the COMPILATION to get the
     CMNT correct library reference in the object file !!! grot
@@ -539,7 +569,8 @@ DEBUGFLAGS += -DW_TRACE
 #endif /* DEBUGGERSYMBOLS == OFF */
 
 #if OPTIMIZE == OFF
-#  if IS_NT
+#  if IS_DOSDEV
+    /* needs to seperate cl support from dos support */
     CMNT Options for OPTIMIZE == OFF
     CMNT -Od : disable optimizations
     CMNT -Ob0 : disable inline expansion (used with -DDEBUG)
@@ -562,7 +593,8 @@ DEBUGFLAGS += -DW_TRACE
     GCCOPTIMIZE = -fno-inline
 #  endif /* IS_UNIX */
 #else
-#  if IS_NT
+#  if IS_DOSDEV
+    /* needs to seperate cl support from dos support */
     CMNT Options for OPTIMIZE == ON
     CMNT -Og : enable global optimization
     CMNT -Oi : enable intrinsic functions
@@ -587,12 +619,7 @@ DEBUGFLAGS += -DW_TRACE
     CFRONTOPTIMIZE =  -O 
 #ifdef BUILD_SMLAYER_ONLY
     CMNT Shore compiles and tests with optimization on g++
-#ifdef FORCE_EGCS
-    CMNT Egcs croaks with O2 but not with O1/O
-    GCCOPTIMIZE =  -O1 -finline-functions -fexpensive-optimizations
-#else
     GCCOPTIMIZE =  -O2 -finline-functions -fexpensive-optimizations
-#endif
 #else
     CMNT Paradise fails with full-blown optimization enabled.
     CMNT A middle ground of inlining is known to work.
@@ -606,7 +633,7 @@ DEBUGFLAGS += -DW_TRACE
  * BEGIN per-platform stuff, including setting compiler 
  * options for DEBUGGERSYMBOLS == ON
  */
-#if IS_IX86_NT
+#if IS_IX86_NT && IS_DOSDEV
 
 #   undef USE_GCC
 #   undef USE_CC
@@ -640,7 +667,7 @@ CMNT is ix86 nt
 #endif
 #ifdef USE_CL_STACK_CHECK
     CMNT extreme cost increase to any function invocation
-    CCDEBUGSYMBOLS += Ge
+    CCDEBUGSYMBOLS += -Ge
 #endif
 
 #ifdef USE_CL_RUNTIME_DEBUG
@@ -659,6 +686,12 @@ CMNT is ix86 nt
     CFRONTDEBUGSYMBOLS = $(CCDEBUGSYMBOLS)
     GCCDEBUGSYMBOLS = $(CCDEBUGSYMBOLS)
 #endif
+
+    /* define things for using the resource compiler on nt */
+    RC = rc
+    RC_FLAGS = -D NDEBUG -l 0x409 -Fo "$@"
+    COMMON_NCR_RC_FILE = $(UTILS_DIR)/torver.rc
+    compile.RC = $(RC) $(RC_FLAGS)
 
 #endif /* IS_IX86_NT */ 
 
@@ -729,7 +762,7 @@ GCCDEBUGSYMBOLS = -g3
 
 #endif
 
-#if IS_SPARC_SUNOS41 || IS_SPARC_SOLARIS2 || IS_I386_LINUX || IS_R6000_AIX32 || IS_RS6000_AIX41 || IS_NETBSD
+#if IS_SPARC_SUNOS41 || IS_SPARC_SOLARIS2 || IS_I386_LINUX || IS_R6000_AIX32 || IS_RS6000_AIX41 || IS_NETBSD || IS_CYGWIN
     /*  SUN ATT CC does not seem to know about //, ansi cpp #, ## 
      *  so we use gcc.  SUN cc also doesn't seem to handle any of 
      *  the above, so we use gcc for everything
@@ -763,11 +796,8 @@ GCCDEBUGSYMBOLS = -g3
 #if DEBUGGERSYMBOLS == ON
 CCDEBUGSYMBOLS =  -g
 CFRONTDEBUGSYMBOLS = -g
-#ifdef FORCE_EGCS
-GCCDEBUGSYMBOLS = -ggdb
-#else
+/* -gstabs because some gcc versions need it */
 GCCDEBUGSYMBOLS = -gstabs
-#endif
 #endif
 
 #endif
@@ -787,9 +817,9 @@ CMNT	Force use of CC
 
 #ifdef USE_CL
 #ifdef VCPP_DIR_PATH
-    CPLUSPLUS = '$(VCPP_DIR)/bin/cl.exe' CFRONTFLAGS
+    CPLUSPLUS = '$(VCPP_DIR)/bin/cl' CFRONTFLAGS
 #else
-    CPLUSPLUS = cl.exe CFRONTFLAGS
+    CPLUSPLUS = cl CFRONTFLAGS
 #endif
     CPLUSDEBUGSYMBOLS = $(CFRONTDEBUGSYMBOLS)
     CPLUSOPTIMIZE = $(CFRONTOPTIMIZE)
@@ -826,11 +856,11 @@ CMNT	Force use of CC
 #endif
     WARN_FLAGS = -W3
 #ifdef VCPP_DIR_PATH
-    CC = '$(VCPP_DIR)/bin/cl.exe'
-    LD = '$(VCPP_DIR)/bin/link.exe'
+    CC = '$(VCPP_DIR)/bin/cl
+    LD = '$(VCPP_DIR)/bin/link
 #else
-    CC = cl.exe
-    LD = link.exe
+    CC = cl
+    LD = link
 #endif
 #endif /* USE_CL */
 
@@ -852,13 +882,10 @@ LD = CC CFRONTFLAGS $(DEBUGSYMBOLS)
 CPLUSPLUS = $(GCC) -x c++
 CPLUSDEBUGSYMBOLS = $(GCCDEBUGSYMBOLS)
 CPLUSLIB=
-#ifdef FORCE_EGCS
-EGCSDIR = EGCS_DIR
-CPLUSLIB +=  -liberty 
-#else
 #if !defined(IS_NETBSD)
 CPLUSLIB +=  -liberty
 #endif
+#if 0	/* XXX add an option to enable use of -lg++ if it is needed. */
 CPLUSLIB +=  -lg++
 #endif
 CPLUSOPTIMIZE = $(GCCOPTIMIZE)
@@ -866,10 +893,13 @@ CPLUSOPTIMIZE = $(GCCOPTIMIZE)
 CCFLAGS = GCCFLAGS
 CC = $(GCC) -x c 
 WARN_FLAGS += -Wall -W -Wpointer-arith -Wwrite-strings -Wstrict-prototypes 
-WARN_FLAGS += -Wmissing-prototypes -Wmissing-declarations -Wnested-externs -Woverloaded-virtual 
-#ifdef WARN_OBJECTS_LARGER_THAN
-WARN_FLAGS += -Wlarger-than-WARN_OBJECTS_LARGER_THAN
-#else
+WARN_FLAGS += -Wmissing-prototypes -Wmissing-declarations -Wnested-externs
+#ifndef GCC_NO_WARN_VIRTUAL
+WARN_FLAGS += -Woverloaded-virtual 
+#endif
+#ifdef GCC_WARN_OBJECTS_LARGER_THAN
+WARN_FLAGS += -Wlarger-than-GCC_WARN_OBJECTS_LARGER_THAN
+#elif !defined(GCC_NO_ERROR)
 WARN_FLAGS += -Werror
 #endif
 CMNT	gcc w/o -x option knows that .o is object file
@@ -907,11 +937,11 @@ GLOBAL_LDFLAGS += -lpthread
 #elif IS_LINUX
 CMNT -ldl is really only needed if you use tcl, need dependencies
 GLOBAL_LDFLAGS += -lm -ldl
-#elif IS_NT
+#elif IS_NT && IS_DOSDEV
 #ifdef OLD_WINSOCK
-WINSOCK = wsock32.lib
+WINSOCK = wsock32.LIBEXT
 #else
-WINSOCK = ws2_32.lib
+WINSOCK = ws2_32.LIBEXT
 #endif
 GLOBAL_LDFLAGS = $(WINSOCK) -nologo -subsystem:console -incremental:no -debug -machine:I386
 #if 1 || defined(USE_QUANTIFY)
@@ -921,8 +951,7 @@ GLOBAL_LDFLAGS += -fixed:no
 GLOBAL_LDFLAGS = -lm 
 #endif
 
-#if IS_NT
-#else
+#ifndef IS_DOSDEV
 GLOBAL_LDFLAGS += -lstdc++ 
 #endif
 
@@ -980,7 +1009,7 @@ CMNT
 * The Imake.rules explicitly use rv or qv depending on the context.
 */
 
-#if IS_NT
+#if IS_DOSDEV
 AR = lib
 #elif defined(IS_SOLARIS2)
 AR = /usr/ccs/bin/ar
@@ -1004,10 +1033,10 @@ COMBINELIBS = $(PERL) $(TOOLS_DIR)/combinelibs.pl
 SHARELIB = $(PERL) $(TOOLS_DIR)/sharelib.pl
 
 RANLIB = ranlib
-CO = cvs update
 ERRORPL = $(TOOLS_DIR)/errors.pl
 STATPL = $(TOOLS_DIR)/stats.pl
 MKERRORPL = $(TOOLS_DIR)/Error.pl
+GENADTFUNCREGPL = $(TOOLS_DIR)/GenAdtFuncReg.pl
 GENGROUPFILEPL = $(TOOLS_DIR)/GenGroupFile.pl
 GENTIMESTAMPPL = $(TOOLS_DIR)/GenTimeStamp.pl
 GENDEFINESPL = $(TOOLS_DIR)/GenDefines.pl
@@ -1026,7 +1055,7 @@ ETAG_FLAGS =
 CTAGS = $(CTAGS_DIR)/ctags $(CTAG_FLAGS)
 ETAGS = $(CTAGS_DIR)/etags $(ETAG_FLAGS)
 
-#if IS_SNAKE_HPUX8 || IS_I860_OSF1AD || IS_NT
+#if IS_SNAKE_HPUX8 || IS_I860_OSF1AD || IS_DOSDEV
 RANLIB_IFNEEDED = $(ECHO) skipping ranlib 
 /* Posix grep */
 GREP = grep -E
@@ -1049,11 +1078,12 @@ INCLUDE_DIRS += -I. $(CONFIG_INCL)
 INCLUDE_DIRS += $(TRACE_EVENTS_INCL) $(UTILS_INCL)
 #endif
 
-#ifdef IS_NT
+#if IS_NT && IS_DOSDEV
 CMNT  If you have spaces in your path names, do this:
 CMNT  Be sure to use single quotes, e.g.,
 CMNT  INCLUDE_DIRS += -I$(VCPP_DIR)/include -I$(VCPP_DIR)/mfc/include
 
+#ifdef VCPP_DIR_PATH
 #ifdef UNIX_PATHS
 INCLUDE_DIRS += -I'/apps/DevStudio/VC/include'
 #ifdef USE_CL_MFC
@@ -1063,6 +1093,7 @@ INCLUDE_DIRS += -I'/apps/DevStudio/VC/mfc/include'
 INCLUDE_DIRS += -I'$(VCPP_DIR)/include'
 #ifdef USE_CL_MFC
 INCLUDE_DIRS += -I'$(VCPP_DIR)/mfc/include'
+#endif
 #endif
 #endif
 #endif
@@ -1088,9 +1119,6 @@ TIME =
 CPPFLAGS =
 
 PLATFORM_FLAGS = -D$(ARCH) -D$(OPSYS) 
-#if defined(USE_EXTERNAL_TRACE_EVENTS)
-PLATFORM_FLAGS += $(strip $(shell $(PERL) -x $(TOP)/tools/platform.pl -DTOR))
-#endif
 
 LOCAL_CFLAGS =
 PURIFY_FLAGS =
@@ -1103,6 +1131,9 @@ CFLAGS += -D_REENTRANT
 CFLAGS_NODEFINES = $(filter-out -D% -U%, $(CFLAGS)) $(LOCAL_CFLAGS)
 CCDEFINES = $(filter -D% -U%, $(CFLAGS))
 CPLUSFLAGS = $(CFLAGS_NODEFINES) $(CPLUSOPTIMIZE)
+#if defined(USE_EXTERNAL_TRACE_EVENTS)
+CCDEFINES += $(strip $(shell $(PERL) -x xlate_names($(TOP)/tools/platform.pl) -DTOR))
+#endif
 
 /*jk CCOPTIMIZE is broke */
 COMPILE_NOSYMBOL.c = $(TIME) $(CC) $(CFLAGS_NODEFINES) $(CPPFLAGS) $(CCOPTIMIZE) -c 
@@ -1120,6 +1151,9 @@ GENDEPENDPL = $(PERL) $(TOOLS_DIR)/GenDepend.pl
 GENDEPENDFLAGS = --objExtension=.OBJEXT --cppCmd='$(strip $(subst ','"'"', $(CPP)))'
 #ifdef USE_AUTOUPDATING_DEPENDS
 GENDEPENDFLAGS += --autoUpdating
+#endif
+#ifdef IS_DOSDEV
+GENDEPENDFLAGS += --dosPaths
 #endif
 GENDEPEND = $(GENDEPENDPL) $(GENDEPENDFLAGS)
 
@@ -1139,9 +1173,9 @@ SUBDIR_COMMANDS = \
 NONDEFAULT_SUBDIR_COMMANDS = \
 	build_report build_short_report build_audit
 PARALLEL_INTRASUBDIR_COMMANDS = \
-	all_no_automatic tests add
+	all_no_automatic tests
 NONDEFAULT_PARALLEL_SUBDIR_COMMANDS = \
-	clean squeaky pristine clean_install clean_depends
+	clean squeaky pristine clean_install clean_depends src_links clean_src_links
 DEFAULT_PARALLEL_SUBDIR_COMMANDS = \
 	depend_no_automatic install install_links
 PARALLEL_SUBDIR_COMMANDS = $(NONDEFAULT_PARALLEL_SUBDIR_COMMANDS) $(DEFAULT_PARALLEL_SUBDIR_COMMANDS)
@@ -1309,6 +1343,8 @@ LOCAL_ETAG_FILE = $(ETAG_FILE).local
 GLOBAL_ETAG_FILE = $(BUILD_TOP)/$(ETAG_FILE)
 
 DEPEND_SOURCE_FILES = $(sort $(SRC.perm_gen.c_cpp))
+
+DONT_SRC_LINK_FILES =
 
 CMNT Project.tmpl ends here
 

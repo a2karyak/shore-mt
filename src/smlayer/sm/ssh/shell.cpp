@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: shell.cpp,v 1.306 1999/08/16 19:44:51 nhall Exp $
+ $Id: shell.cpp,v 1.310 2000/03/02 22:21:08 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -48,11 +48,18 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #endif
 
 
-#ifdef W_DEBUG
+#if defined(W_DEBUG) || defined(SSH_DUMPRC)
 // Set to true if you want every occurence of rc_t error
 // to get output to stderr
-bool dumprc = false; // see shell.h
-#endif /* W_DEBUG */
+/* XXX it would be nice if this was controllable from ssh for non-debug
+   sessions. */
+#ifdef SSH_DUMPRC
+#define DEFAULT_DUMPRC	true
+#else
+#define	DEFAULT_DUMPRC	false
+#endif
+bool dumprc =  DEFAULT_DUMPRC;
+#endif
 
 #ifdef USE_COORD
 CentralizedGlobalDeadlockServer *globalDeadlockServer = 0;
@@ -494,7 +501,7 @@ t_prepare_xct(Tcl_Interp* ip, int ac, char* /*av*/[])
     delete s;
 
     tclout.seekp(ios::beg);
-    tclout << int(v) << ends;
+    tclout << W_ENUM(v) << ends;
     Tcl_AppendResult(ip, tclout.str(), 0);
     return TCL_OK;
 }
@@ -569,7 +576,7 @@ t_xct(Tcl_Interp* ip, int ac, char* /*av*/[])
     if (check(ip, "", ac, 1))  return TCL_ERROR;
 
     tclout.seekp(ios::beg);
-    tclout << unsigned(xct()) <<  ends;
+    tclout << ptrdiff_t(xct()) <<  ends;
     Tcl_AppendResult(ip, tclout.str(), 0);
     return TCL_OK;
 }
@@ -2169,9 +2176,9 @@ t_create_scan(Tcl_Interp* ip, int ac, char* av[])
     if (ac == 7) {
 	cc = cvt2concurrency_t(av[6]);
     }
-    DBG(<<"c1 = " << int(c1));
-    DBG(<<"c2 = " << int(c2));
-    DBG(<<"cc = " << int(cc));
+    DBG(<<"c1 = " << W_ENUM(c1));
+    DBG(<<"c2 = " << W_ENUM(c2));
+    DBG(<<"cc = " << W_ENUM(cc));
 
     scan_index_i* s;
     if (use_logical_id(ip)) {
@@ -3504,7 +3511,7 @@ t_scan_file_create(Tcl_Interp* ip, int ac, char* av[])
     }
     
     tclout.seekp(ios::beg);
-    tclout << (unsigned)s << ends;
+    tclout << (ptrdiff_t)s << ends;
     Tcl_AppendResult(ip, tclout.str(), 0);
     return TCL_OK;
 }
@@ -4430,12 +4437,10 @@ t_sort_stream_get(Tcl_Interp* ip, int ac, char* av[])
 	    break;
 
 	case  test_i8:
-// TODO: fix on NT
-	    // tclout << v._u.i8_num ;
+	    tclout << v._u.i8_num ;
 	    break;
 	case  test_u8:
-// TODO: fix on NT
-	    // tclout << v._u.u8_num ;
+	    tclout << v._u.u8_num ;
 	    break;
 	case  test_f8:
 	    tclout << v._u.f8_num ;
@@ -4833,6 +4838,7 @@ t_set_escalation_thresholds(Tcl_Interp* ip, int ac, char* av[])
     
     if (listArgc != 3)  {
 	ip->result = (char *) errString;
+	Tcl_Free( (char *) listArgv);
 	return TCL_ERROR;
     }
 
@@ -4977,12 +4983,23 @@ t_dump_threads(Tcl_Interp* ip, int ac, char*[])
     if (check(ip, "", ac, 1))
 	return TCL_ERROR;
 
-
-
     dumpthreads();
 
     return TCL_OK;
 }
+
+static int
+t_dump_histo(Tcl_Interp *ip, int ac, char *[])
+{
+	if (check(ip, "", ac, 1))
+		return TCL_ERROR;
+
+	DO(sm->dump_histo(cout, false));
+
+	return TCL_OK;
+}
+
+
 static int
 t_dump_locks(Tcl_Interp* ip, int ac, char*[])
 {
@@ -6055,7 +6072,6 @@ static cmd_t cmd[] = {
     { "lock_many", t_lock_many },
     { "unlock", t_unlock },
     { "dump_locks", t_dump_locks },
-    { "dump_threads", t_dump_threads },
     { "query_lock", t_query_lock },
     { "set_lock_cache_enable", t_set_lock_cache_enable },
     { "lock_cache_enabled", t_lock_cache_enabled },
@@ -6075,6 +6091,9 @@ static cmd_t cmd[] = {
     { "crash", t_crash },
 
     { "multikey_sort_file", t_multikey_sort_file },
+
+    { "dump_threads", t_dump_threads },
+    { "dump_histo", t_dump_histo },
 
     //
     // Performance tests

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='SDISK_H'>
 
- $Id: sdisk.h,v 1.21 1999/06/07 19:06:03 kupsch Exp $
+ $Id: sdisk.h,v 1.22 2000/04/12 17:05:52 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -75,7 +75,7 @@ public:
 	};
 
 	/* Don't use off_t, cause we may want the system off_t */
-#if defined(_WIN32) && !defined(LARGEFILE_AWARE)
+#if /*defined(_WIN32) &&*/ !defined(LARGEFILE_AWARE)
 	/* XXX if !LARGEFILE, should choose on per operating system
 	   to pick the native size. */
 	typedef w_base_t::int4_t fileoff_t;
@@ -150,6 +150,8 @@ public:
 
 	/* utility functions */
 	static	int	vsize(const iovec_t *iov, int iovcnt);
+	static	int	vcoalesce(const iovec_t *iov, int iovcnt,
+				  iovec_t *nv, int &newcnt);
 };
 
 

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: vector.cpp,v 1.9 1999/06/07 19:03:06 kupsch Exp $
+ $Id: vector.cpp,v 1.10 2000/01/07 07:17:05 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -56,7 +56,7 @@ operator<<(ostream &o, const floatvec &v)
     return o;
 }
 
-main()
+int main()
 {
     floatvec v(3);
 

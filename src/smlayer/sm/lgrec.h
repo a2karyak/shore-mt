@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='LGREC_H'>
 
- $Id: lgrec.h,v 1.38 1999/06/07 19:04:07 kupsch Exp $
+ $Id: lgrec.h,v 1.39 1999/10/24 16:29:43 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -73,10 +73,10 @@ struct lg_tag_chunks_s {
 struct lg_tag_indirect_s {
     lg_tag_indirect_s(snum_t s) : indirect_root(0), store(s) {}
 
-    operator==(const lg_tag_indirect_s& l) const
+    bool operator==(const lg_tag_indirect_s& l) const
 		{return  indirect_root == l.indirect_root &&
 		 store == l.store; }
-    operator!=(const lg_tag_indirect_s& l) const { return !(*this == l);}
+    bool operator!=(const lg_tag_indirect_s& l) const { return !(*this == l);}
 
     shpid_t   	indirect_root;
     /*

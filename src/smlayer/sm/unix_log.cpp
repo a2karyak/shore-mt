@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: unix_log.cpp,v 1.71 1999/06/22 20:02:38 nhall Exp $
+ $Id: unix_log.cpp,v 1.73 2000/02/02 03:57:32 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -43,6 +43,7 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #include "srv_log.h"
 #include "unix_log.h"
 
+#include <w_strstream.h>
 
 /* XXX complete sthread I/O facilities not in place yet */
 #include <sys/types.h>
@@ -180,15 +181,15 @@ unix_log::_read_master(
 	char *buf = new char[len];
 	memcpy(buf, fname+prefix_len, len);
 	istrstream s(buf);
-	if ((rc = parse_master_chkpt_string(s, tmp, tmp1, 
-	    listlength, lsnlist,
-	    old_style)) != RCOK)  {
+
+	rc = parse_master_chkpt_string(s, tmp, tmp1, 
+				       listlength, lsnlist, old_style);
+	delete [] buf;
+	if (rc != RCOK) {
 	    smlevel_0::errlog->clog << error_prio 
 	    << "bad master log file \"" << fname << "\"" << flushl;
-	    delete[] buf;
 	    W_COERCE(rc);
 	}
-        delete[] buf;
 	DBG(<<"parse_master_chkpt returns tmp= " << tmp
 	    << " tmp1=" << tmp1
 	    << " old_style=" << old_style);
@@ -213,9 +214,20 @@ unix_log::_read_master(
 	if(f) {
 	    int n = fread(_chkpt_meta_buf, 1, CHKPT_META_BUF, f);
 	    if(n  > 0) {
+	        /* Be paranoid about checking for the null, since a lack
+		   of it could send the istrstream driving through memory
+		   trying to parse the information. */
+		void *null = memchr(_chkpt_meta_buf, '\0', CHKPT_META_BUF);
+		if (!null) {
+		    smlevel_0::errlog->clog << error_prio 
+			<< "invalid master log file format \"" 
+			<< buf << "\"" << flushl;
+		    W_FATAL(eINTERNAL);
+		}
+		    
 		istrstream s(_chkpt_meta_buf);
-		if ((rc = parse_master_chkpt_contents(s, listlength, lsnlist))
-			!= RCOK)  {
+		rc = parse_master_chkpt_contents(s, listlength, lsnlist);
+		if (rc != RCOK)  {
 		    smlevel_0::errlog->clog << error_prio 
 			<< "bad master log file contents \"" 
 			<< buf << "\"" << flushl;
@@ -937,11 +949,11 @@ unix_log::unix_log(const char* logdir,
 unix_log::~unix_log()
 {
     partition_t	*p;
-    FHDL f;
+    int f;
     for (uint i = 0; i < max_openlog; i++) {
 	p = i_partition(i);
 	f = ((unix_partition *)p)->fhdl_rd();
-	if (f)  {
+	if (f != invalid_fhdl)  {
 	    w_rc_t e;
 	    DBGTHRD(<< " CLOSE " << f);
 	    e = me()->close(f);
@@ -951,7 +963,7 @@ unix_log::~unix_log()
 	    }
 	}
 	f = ((unix_partition *)p)->fhdl_app();
-	if (f)  {
+	if (f != invalid_fhdl)  {
 	    w_rc_t e;
 	    DBGTHRD(<< " CLOSE " << f);
 	    e = me()->close(f);
@@ -1038,10 +1050,16 @@ unix_log::_write_master(
  * unix_partition class
  *********************************************************************/
 
+unix_partition::unix_partition()
+: _fhdl_rd(invalid_fhdl),
+  _fhdl_app(invalid_fhdl)
+{
+}
+
 void			
 unix_partition::set_fhdl_app(int fd)
 {
-   w_assert3(fhdl_app() == 0);
+   w_assert3(fhdl_app() == invalid_fhdl);
    DBGTHRD(<<"SET APP " << fd);
    _fhdl_app = fd;
 }
@@ -1198,7 +1216,7 @@ unix_partition::open_for_read(
     // do the equiv of opening existing file
     // if not already in the list and opened
     //
-    if(! fhdl_rd()) {
+    if(fhdl_rd() == invalid_fhdl) {
 	char *fname = new char[smlevel_0::max_devname];
 	if (!fname)
 		W_FATAL(fcOUTOFMEMORY);
@@ -1227,15 +1245,15 @@ unix_partition::open_for_read(
 		W_COERCE(e);
 	    } else {
 		w_assert3(! exists());
-		w_assert3(_fhdl_rd == 0);
-		// _fhdl_rd = 0;
+		w_assert3(_fhdl_rd == invalid_fhdl);
+		// _fhdl_rd = invalid_fhdl;
 		clr_state(m_open_for_read);
 		DBGTHRD(<<"fhdl_app() is " << _fhdl_app);
 		return;
 	    }
 	}
 
-	w_assert3(_fhdl_rd == 0);
+	w_assert3(_fhdl_rd == invalid_fhdl);
         _fhdl_rd = fd;
 
 	DBGTHRD(<<"size is " << size());
@@ -1253,7 +1271,7 @@ unix_partition::open_for_read(
     // the offset we're reading
     //w_assert3(flushed());
 
-    w_assert3(_fhdl_rd != 0);
+    w_assert3(_fhdl_rd != invalid_fhdl);
     DBGTHRD(<<"_fhdl_rd = " <<_fhdl_rd );
 }
 
@@ -1273,7 +1291,7 @@ unix_partition::close(bool both)
 	_owner->unset_current();
     }
     if (both) {
-	if (fhdl_rd()) {
+	if (fhdl_rd() != invalid_fhdl) {
 	    DBGTHRD(<< " CLOSE " << fhdl_rd());
 	    e = me()->close(fhdl_rd());
 	    if (e) {
@@ -1283,7 +1301,7 @@ unix_partition::close(bool both)
 		err_encountered = true;
 	    }
 	}
-	_fhdl_rd = 0;
+	_fhdl_rd = invalid_fhdl;
 	clr_state(m_open_for_read);
     }
 
@@ -1296,7 +1314,7 @@ unix_partition::close(bool both)
 	    << endl << e << endl << flushl;
 	    err_encountered = true;
 	}
-	_fhdl_app = 0;
+	_fhdl_app = invalid_fhdl;
 	clr_state(m_open_for_append);
 	DBGTHRD(<<"fhdl_app() is " << _fhdl_app);
     }
@@ -1382,8 +1400,8 @@ unix_partition::_clear()
 {
     clr_state(m_open_for_read);
     clr_state(m_open_for_append);
-    _fhdl_rd = 0;
-    _fhdl_app = 0;
+    _fhdl_rd = invalid_fhdl;
+    _fhdl_app = invalid_fhdl;
 }
 
 void
@@ -1395,28 +1413,30 @@ unix_partition::_init(srv_log *owner)
     clear();
 }
 
-FHDL
+int
 unix_partition::fhdl_rd() const
 {
 #ifdef W_DEBUG
     bool isopen = is_open_for_read();
-    if(_fhdl_rd == (FHDL)0) {
+    if(_fhdl_rd == invalid_fhdl) {
 	w_assert3( !isopen );
     } else {
 	w_assert3(isopen);
     }
-#endif /* W_DEBUG */
+#endif
     return _fhdl_rd;
 }
 
-FHDL
+int
 unix_partition::fhdl_app() const
 {
-    if(_fhdl_app) {
+#ifdef W_DEBUG
+    if(_fhdl_app != invalid_fhdl) {
 	w_assert3(is_open_for_append());
     } else {
 	w_assert3(! is_open_for_append());
     }
+#endif
     return _fhdl_app;
 }
 

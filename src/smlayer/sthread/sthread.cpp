@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: sthread.cpp,v 1.302 1999/08/03 15:55:47 bolo Exp $
+ $Id: sthread.cpp,v 1.303 2000/01/25 21:56:20 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -1440,6 +1440,15 @@ smutex_t::acquire(int4_t timeout)
 w_rc_t smutex_t::acquire()
 {
     if (holder) {
+	if (sthread_t::me() == holder)  {
+	    cerr << "fatal error -- deadlock while acquiring mutex";
+	    if (name()) {
+		cerr << " (" << name() << ")";
+	    }
+	    cerr << endl;
+	    W_FATAL(stINTERNAL);
+	}
+
 	SthreadStats.mutex_wait++;
 	w_rc_t e = sthread_t::block(WAIT_FOREVER, &waiters, name(), this);
 #if defined(SHORE_TRACE)

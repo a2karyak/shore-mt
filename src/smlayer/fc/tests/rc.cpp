@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: rc.cpp,v 1.22 1999/06/07 19:03:05 kupsch Exp $
+ $Id: rc.cpp,v 1.23 2000/01/07 07:17:05 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -57,7 +57,7 @@ w_rc_t testing_ok()
     return RCOK;
 }
 
-main()
+int main()
 {
     cout << "Expect two 'error not checked' message" << endl;
     {

@@ -1,0 +1,68 @@
+.TH LID_T COMMON "Jan 1999" Release \*(SV" "Shore Storage Manager" "Release 2.0" "Shore Storage Manager Reference Manual"
+.so tmac.man.local
+.SH NAME
+lid_t, lvid_t \- Logical ID Classes
+.SH SYNOPSIS
+.EX
+.IN lid_t.h
+
+// Logical Volume ID
+struct lvid_t {
+    // usually generated from net addr of creating server
+    uint4 high;
+    // usually generated from time of day when created
+    uint4 low;
+
+    lvid_t();
+    lvid_t(uint4 hi, uint4 lo);
+	
+    operator==(const lvid_t& s) const;
+    operator!=(const lvid_t& s) const;
+
+    friend ostream& operator<<(ostream&, const lvid_t&);
+    friend istream& operator>>(istream&, lvid_t&);
+
+    static const lvid_t null;
+};
+
+// Logical ID
+struct lid_t {
+    lvid_t	lvid;
+    serial_t    serial;
+
+    lid_t();
+    lid_t(const lvid_t& lvid_, const serial_t& serial_);
+    lid_t(uint4 hi, uint4 lo, uint4 ser, bool remote);
+
+    operator==(const lid_t& s) const;
+    operator!=(const lid_t& s) const;
+    friend ostream& operator<<(ostream&, const lid_t& s);
+    friend istream& operator>>(istream&, lid_t& s);
+
+    static const lid_t null;
+};
+
+typedef	lid_t lrid_t;
+
+.EE
+.SH DESCRIPTION
+.LP
+Class 
+.FN lvid_t
+represents a globally unique, 8-byte long volume ID.
+Serial numbers,
+.FN serial_t
+are IDs unique to the volume containing them.
+Class
+.FN lid_t
+represents a complete ID for a file, index or record.  It
+is a combination
+of the volume ID and serial number.
+
+
+.DA
+
+.SH SEE ALSO
+
+.SA serial_t(common)
+.SA lid(ssm)

@@ -1,0 +1,105 @@
+.TH SMUTEX_T STHREAD "Jan 1999" Release \*(SV" "Shore Storage Manager" "Release 2.0" "Shore Storage Manager Reference Manual"
+.so tmac.man.local
+.SH NAME
+smutex_t \- Shore Mutex Class
+.SH SYNOPSIS
+.EX
+#include <sthread.h>
+
+/*
+ *  Mutual Exclusion
+ */
+class smutex_t : public sthread_named_base_t {
+public:
+    NORET			smutex_t(const char* name = 0);
+    NORET			~smutex_t();
+    w_rc_t			acquire(int4_t timeout = WAIT_FOREVER);
+    void			release();
+    bool			is_mine() const;
+    bool			is_locked() const;
+};
+
+.EE
+
+.SH DESCRIPTION
+
+An application can use a mutex to protect a shared resource from
+simultaneous access by multiple threads.  Mutexes are blocking
+locks. Only one thread at a time is allowed to hold a mutex;
+additional threads trying to acquire the mutex will block until the
+mutex is free.
+
+.LP
+In order to access a shared resource, a thread must own the mutex that
+is protecting the resource. Ownership is obtained by 
+.I acquiring
+the mutex. If another thread already owns the mutex, the requesting
+thread is blocked. If the mutex is not owned, ownership is granted to
+the requesting thread so it can access the shared resource. When a
+thread is finished using the shared resource, it relinquish its
+ownership of the mutex, thereby enabling another thread to gain
+ownership.
+
+.LP
+.B "smutex_t(name)"
+.IP
+The constructor creates a mutex.  The
+.VA name
+parameter is stored in the mutex for debugging purposes.
+
+.LP
+.B "~smutex_t()"
+.IP
+The destructor checks to make sure no thread holds the mutex.
+If one does, it is a fatal error.
+
+.LP
+.B "acquire(timeout)"
+.IP
+The
+.FN acquire
+method gives the current thread ownership of the mutex.
+If the mutex is not owned, 
+.FN acquire
+sets its ownership and returns immediately with success. If the mutex
+is already owned, the calling thread is blocked until either the
+owning thread releases the mutex, or the specified 
+.VA timeout
+limit is reached.
+.IP
+If more than one thread is blocked on the mutex, the thread with the
+highest priority level is the first to be unblocked and given
+ownership of the mutex. If more than 1 of the waiting threads have the
+same priority, then FIFO ordering is used to determine which thread is
+unblocked and given ownership.
+.IP
+.I Warning:
+a thread calling 
+.FN acquire
+twice in a row (i.e.\,without releasing
+the mutex before the second acquire) will be blocked forever.
+
+.LP
+.B "release()"
+.IP
+The
+.FN release
+method releases ownership of the mutex.
+
+.SH ERRORS
+
+TODO.
+
+.SH EXAMPLES
+
+TODO.
+
+.DA
+.SH "SEE ALSO"
+.SA errors(sthread),
+.SA sthread_t(sthread),
+.SA scond_t(sthread),
+.SA sevsem_t(sthread),
+.SA file_handlers(sthread),
+.SA intro(sthread).
+

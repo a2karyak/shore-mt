@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: log_base.cpp,v 1.27 1999/06/15 15:11:53 nhall Exp $
+ $Id: log_base.cpp,v 1.31 2000/03/09 20:52:58 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -39,6 +39,8 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 
 #include <sm_int_0.h>
 #include "log_buf.h"
+
+#include <w_strstream.h>
 
 /* Until/unless we put this into shared memory: */
 static struct log_base::_shared_log_info  __shared;
@@ -145,10 +147,11 @@ log_base::check_raw_device(const char* devname, bool& raw)
 		&& e.sys_err_num() == ERROR_ACCESS_DENIED)
 		return RCOK;
 #endif
-	W_DO(e);
-	
-	e = me()->fisraw(fd, raw);
-	W_IGNORE(me()->close(fd));
+
+	if (e == RCOK) {
+		e = me()->fisraw(fd, raw);
+		W_IGNORE(me()->close(fd));
+	}
 
 	return e;
 }
@@ -195,13 +198,22 @@ uint4_t log_base::version_minor = 1;
 rc_t
 log_base::check_version(uint4_t major, uint4_t minor)
 {
-    if (major == version_major && minor <= version_minor)  {
-	return RCOK;
-    }  else if (major < version_major)  {
-	return RC(eLOGVERSIONTOOOLD);
-    }  else  {
-	return RC(eLOGVERSIONTOONEW);
-    }
+	if (major == version_major && minor <= version_minor)
+		return RCOK;
+
+	int err = (major < version_major)
+			? eLOGVERSIONTOOOLD : eLOGVERSIONTOONEW;
+
+	smlevel_0::errlog->clog << error_prio 
+	    << "ERROR: log version too "
+	    << ((err == eLOGVERSIONTOOOLD) ? "old" : "new")
+	    << " sm ("
+	    << version_major << " . " << version_minor
+	    << ") log ("
+	    << major << " . " << minor
+	    << flushl;
+
+	return RC(err);
 }
 
 
@@ -349,6 +361,10 @@ bool log_i::next(lsn_t& lsn, logrec_t*& r)
 	// used in recovery.
 	log.release();
 	if (rc)  {
+	    last_rc = rc;
+	    RC_AUGMENT(last_rc);
+	    RC_APPEND_MSG(last_rc, << "trying to fetch lsn " << cursor);
+	    
 	    if (rc.err_num() == smlevel_0::eEOF)  
 		eof = true;
 	    else  {

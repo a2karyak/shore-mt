@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: coord_thread.cpp,v 1.54 1999/08/06 15:35:41 bolo Exp $
+ $Id: coord_thread.cpp,v 1.55 2000/02/02 03:57:27 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -38,6 +38,7 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #ifdef USE_COORD
 #include <coord.h>
 
+#include <w_strstream.h>
 
 /* Seconds -> milliseconds converter for timeouts. */
 #define	SECONDS(n)	((n) * 1000)

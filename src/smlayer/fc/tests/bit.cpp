@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: bit.cpp,v 1.17 1999/06/07 19:03:02 kupsch Exp $
+ $Id: bit.cpp,v 1.19 2000/01/07 07:16:56 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -43,13 +43,13 @@ const unsigned nbytes = (nbits - 1) / 8 + 1;
 template class w_bitmap_space_t<nbits>;
 #endif
 
-main()
+int main()
 {
     w_bitmap_space_t<nbits> bm;
 
     // test zero()
     bm.zero();
-    uint i;
+    unsigned i;
     for (i = 0; i < nbits; i++)  {
 	w_assert1(bm.is_clr(i));
     }
@@ -131,6 +131,7 @@ main()
     w_assert1(bm.first_clr(0) == nbits - 1);
     w_assert1(bm.first_clr(nbits - 1) == nbits - 1);
 
+    cout << "bitmap tests OK." << endl;
     return 0;
 }
 

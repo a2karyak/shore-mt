@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: sm_io.cpp,v 1.30 1999/06/07 19:04:37 kupsch Exp $
+ $Id: sm_io.cpp,v 1.31 1999/10/25 18:32:04 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -50,6 +50,8 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #include "logdef_gen.cpp"
 #include "crash.h"
 #include "vol.h"
+
+#include <new.h>
 
 #include "vtable_info.h"
 
@@ -2056,7 +2058,7 @@ void io_m::_remove_extent_info_cache(const stid_t& stid)
 {
     FUNC(io_m::_remove_extent_info_cache);
     w_assert3(!_extent_info_cache->is_mine());
-    extnum_struct_t* hit = _extent_info_cache->find(stid);
+    const extnum_struct_t* hit = _extent_info_cache->find(stid);
     if (hit) {
 	_extent_info_cache->remove(hit);
 	w_assert3(hit == NULL);
@@ -2070,7 +2072,7 @@ void io_m::_remove_extent_info_cache(const stid_t& stid, extnum_t ext)
 {
     FUNC(io_m::_remove_extent_info_cache);
     w_assert3(!_extent_info_cache->is_mine());
-    extnum_struct_t* hit = _extent_info_cache->find(stid);
+    const extnum_struct_t* hit = _extent_info_cache->find(stid);
     if (hit) {
 	if(hit->ext == ext) {
 	    _extent_info_cache->remove(hit);

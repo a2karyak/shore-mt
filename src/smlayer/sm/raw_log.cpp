@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: raw_log.cpp,v 1.48 1999/08/06 19:53:47 bolo Exp $
+ $Id: raw_log.cpp,v 1.51 2000/12/04 22:21:34 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -37,7 +37,6 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #   pragma implementation
 #endif
 
-#include <w_stream.h>
 #include <stdlib.h>
 #include "sm_int_1.h"
 #include "logdef_gen.cpp"
@@ -46,9 +45,10 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #include "raw_log.h"
 #include "log_buf.h"
 
+#include <w_strstream.h>
 
-int		raw_log::_fhdl_rd=0;
-int		raw_log::_fhdl_app=0;
+int		raw_log::_fhdl_rd = invalid_fhdl;
+int		raw_log::_fhdl_app = invalid_fhdl;
 
 
 /*********************************************************************
@@ -187,7 +187,6 @@ raw_log::raw_log(
 		e = smthread_t::fstat(_fhdl_app, st);
 		if (e == RCOK && st.is_file) {
 			e = smthread_t::ftruncate(_fhdl_app, raw_size);
-			W_IGNORE(e);
 			W_IGNORE(e);
 			_dev_bsize = DEV_BSIZE;	/* XXX st.st_whatever */
 		}
@@ -543,19 +542,19 @@ raw_log::~raw_log()
     FUNC(raw_log::~raw_log);
 
     w_rc_t e;
-    if (_fhdl_rd)  {
+    if (_fhdl_rd != invalid_fhdl)  {
 	e = me()->close(_fhdl_rd);
 	if (e) {
 		cerr << "warning: raw_log on close(rd):" << endl << e << endl;
 	}
-	_fhdl_rd = 0;
+	_fhdl_rd = invalid_fhdl;
     }
-    if (_fhdl_app )  {
+    if (_fhdl_app != invalid_fhdl)  {
 	e = me()->close(_fhdl_app);
 	if (e) {
 		cerr << "warning: raw log on close(app):" << endl << e << endl;
 	}
-	_fhdl_app = 0;
+	_fhdl_app = invalid_fhdl;
     }
 }
 
@@ -628,12 +627,17 @@ raw_log::_read_master(
 	bool  old_style;
 	listlength=0;
 	rc_t rc;
-	if ((rc = parse_master_chkpt_string(s, tmp, tmp1, 
-	    listlength, lsnlist,
-	    old_style)) != RCOK)  {
+	rc = parse_master_chkpt_string(s, tmp, tmp1, 
+				       listlength, lsnlist,
+				       old_style);
+	if (rc != RCOK)  {
 	    smlevel_0::errlog->clog << error_prio 
 		<< "Bad checkpoint master record name -- " 
 		<< " you must reformat the log."
+#if 0	/* XXX optional, since garbage could be output */
+		<< endl
+		<< "\tcheckpoint master = '" << (char *)readbuf() << '\''
+#endif
 		<< flushl;
 	    W_COERCE(rc);
 	}
@@ -644,12 +648,16 @@ raw_log::_read_master(
     if( *REST != '\0' ) {
 	rc_t rc;
 	istrstream s(REST, int(readbufsize()) - (REST - readbuf()));
-	if ((rc = parse_master_chkpt_contents(s, listlength, lsnlist))
-		!= RCOK) {
-		smlevel_0::errlog->clog << error_prio 
+	rc = parse_master_chkpt_contents(s, listlength, lsnlist);
+	if (rc != RCOK) {
+	    smlevel_0::errlog->clog << error_prio 
 		    << "Bad checkpoint master contents -- " 
 		    << " you must reformat the log."
-		<< flushl;
+#if 0	/* XXX optional, since garbage could be output */
+		    << endl
+		    << "\tcheckpoint content = '" << REST << '\''
+#endif
+		    << flushl;
 	    W_COERCE(rc);
 	}
     }
@@ -729,7 +737,7 @@ raw_partition::set_fhdl_app(int /*fd*/)
    // This is a null operation in the raw case because
    // the file descriptors are opened ONCE at startup.
 
-   w_assert3(fhdl_app() != 0);
+   w_assert3(fhdl_app() != invalid_fhdl);
 }
 
 void
@@ -740,7 +748,7 @@ raw_partition::open_for_read(
 ) 
 {
     FUNC(raw_partition::open_for_read);
-    w_assert3(fhdl_rd() != 0);
+    w_assert3(fhdl_rd() != invalid_fhdl);
     if( err && !exists()) {
 	smlevel_0::errlog->clog << error_prio 
 	    << "raw_log: partition " << __num 
@@ -821,7 +829,7 @@ raw_partition::fhdl_rd() const
 {
 #ifdef W_DEBUG
     bool isopen = is_open_for_read();
-    if(raw_log::_fhdl_rd == 0) {
+    if(raw_log::_fhdl_rd == invalid_fhdl) {
 	w_assert3( !isopen );
     }
 #endif /* W_DEBUG */

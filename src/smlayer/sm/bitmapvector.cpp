@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: bitmapvector.cpp,v 1.4 1999/06/07 19:03:50 kupsch Exp $
+ $Id: bitmapvector.cpp,v 1.5 1999/12/24 01:52:10 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -60,30 +60,31 @@ BitMapVector::BitMapVector(uint4_t numberOfBits)
 
 
 BitMapVector::BitMapVector(const BitMapVector& v)
+: size(0),
+  vector(0)
 {
-    size = v.size;
-    vector = new uint4_t[size];
-    for (uint4_t i = 0; i < size; i++)
-	vector[i] = v.vector[i];
+	*this = v;
 }
 
 
-void BitMapVector::Resize(uint4_t numberOfWords)
+void BitMapVector::Resize(uint4_t newSize)
 {
-    w_assert3(numberOfWords > size);
+    w_assert3(newSize > size);
 
-    uint4_t*	newVector = new uint4_t[numberOfWords];
+    uint4_t*	newVector = new uint4_t[newSize];
+    if (!newVector)
+    	W_FATAL(fcOUTOFMEMORY);
 
     uint4_t i=0;
     for (i = 0; i < size; i++)
 	newVector[i] = vector[i];
     
-    for (i = size; i < numberOfWords; i++)
+    for (i = size; i < newSize; i++)
 	newVector[i] = 0;
     
     delete [] vector;
     vector = newVector;
-    size = numberOfWords;
+    size = newSize;
 }
 
 
@@ -117,6 +118,8 @@ bool BitMapVector::operator==(const BitMapVector& v)
 BitMapVector::~BitMapVector()
 {
     delete [] vector;
+    vector = 0;
+    size = 0;
 }
 
 

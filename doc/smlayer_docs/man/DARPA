@@ -1,0 +1,17 @@
+.SH VERSION
+This manual page applies to Version 2.0 of the
+Shore Storage Manager.
+
+.SH SPONSORSHIP
+The Shore project
+is sponsored by the Advanced Research Project Agency, 
+ARPA order number 018 (formerly 8230), monitored by the 
+U.S. Army Research Laboratory under contract
+DAAB07-91-C-Q518.
+Further funding for this work was provided by DARPA through Rome
+Research Laboratory Contract No. F30602-97-2-0247.
+
+
+.SH COPYRIGHT
+Copyright (c) 1994-1999, Computer Sciences Department, University of
+Wisconsin -- Madison. All Rights Reserved.

@@ -1,0 +1,45 @@
+% for SHORE docs:
+\oddsidemargin 30pt
+\evensidemargin 30pt
+\marginparwidth 60pt
+\textwidth 410pt
+
+\newcommand{\seealsohead}{\subsubsection*{\S See the following manual pages:}}
+
+\newcommand{\sa}[2]{\ #1(#2)}
+\newcommand{\seealso}[2]{\ #1\linebreak[0](#2)\linebreak[1]}
+
+\newcommand{\qv}[2]{#1 (q.v.)}
+
+\newenvironment{note}
+{\begin{center}\rule{\textwidth}{.1ex}\end{center}
+NOTE: }
+{\begin{center}\rule{\textwidth}{.1ex}\end{center} }
+
+\newcommand{\shoreversion}{Version 2.0 }
+\newcommand{\shorerelease}{2.0}
+\newcommand{\shorecopyright}{{\em Copyright \copyright 1994--9} \\
+{\em Computer Sciences Department, University of Wisconsin---Madison.} \\
+{\em All Rights Reserved.}}
+\newcommand{\emdash}{---}
+\newcommand{\ndash}{--}
+\newcommand{\unsupported}[1]{{\sc #1}}
+\newcommand{\ignore}[1]{}
+\newcommand{\dblquote}[1]{``#1''}
+\newcommand{\rootdir}{\dblquote{/}}
+\newcommand{\vasserver}{{\tt src/vas/server}}
+
+\newcommand{\SHsection}[2]{\section{#2}\label{#1}}
+\newcommand{\SHsubsection}[2]{\subsection{#2}\label{#1}}
+\newcommand{\SHsubsubsection}[2]{\subsubsection{#2}\label{#1}}
+
+\newcommand{\htmlextref}[2]{#1}
+\newcommand{\htmldoclink}[2]{{\em #1}}
+\newcommand{\htmlmanlink}[2]{{\em #1}}
+
+\newcommand{\gloref}[1]{\htmlextref{#1}{glo:#1}}
+%% couldn't get gloent to work with a label,
+%% so it's done in the perl script converter
+
+%% Must take two arguments, 2nd one is always empty
+\newcommand{\gloent}[2]{\item [{\em #1}]}

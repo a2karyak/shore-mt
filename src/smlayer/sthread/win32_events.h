@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='WIN32_EVENTS_H'>
 
- $Id: win32_events.h,v 1.10 1999/06/14 17:22:29 bolo Exp $
+ $Id: win32_events.h,v 1.12 2000/02/17 23:14:38 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -52,6 +52,7 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #endif
 
 class win32_event_t;
+class win32_event_handler_t;
 
 class win32_event_handler_t {
 public:
@@ -78,9 +79,13 @@ public:
 
 private:
 	enum {	/* granularity of memory allocations, # events */
-		alloc_chunk = 20
+		alloc_chunk = 40
 	};
-	enum { max_fired = 4 };
+	enum { max_mux = 8 };
+	enum { max_fired_per_mux = 4 };
+	enum { max_fired = max_fired_per_mux * max_mux };
+
+private:
 
 	w_list_t<win32_event_t> _list;
 
@@ -103,9 +108,111 @@ private:
 	DWORD		_timeout;	// milli-seconds
 	bool		_timeout_forever;
 
+	static w_rc_t	harvest(HANDLE *, win32_event_t **,
+				unsigned count, unsigned threshold,
+				win32_event_t ** fired, unsigned max_fired,
+				unsigned &ret_num_fired);
+
 	/* XXX temporary controls for multiple event harvesting */
 	unsigned	use_rewait;
 	unsigned	event_debug;
+
+	unsigned	use_mux;
+	bool		force_mux;
+	bool		using_mux;	/* for this prepare/wait/dispatch */
+
+	struct eventMux;
+	friend eventMux;	/* for max_fired */
+
+	/* Combination running info and startup info for mux threads */
+	struct eventMux {
+		/* Startup info */
+		win32_event_handler_t	&handler;
+		const unsigned		which_mux;
+
+		/* Runtime info */
+		HANDLE	thread;
+#ifdef _MT
+		unsigned	thread_id;
+#else
+		DWORD		thread_id;
+#endif
+		HANDLE	wakeup;		// start mux waiting
+		HANDLE	gen;		// mux generates event
+		HANDLE	stopwait;	// stop waiting
+
+		enum muxOp { MUXnone, MUXdone, MUXwait };
+
+		muxOp		op;
+		HANDLE		*start;		// starting event to wait on
+		unsigned	start_index;
+		unsigned	count;		// #entries to wait on
+		win32_event_t	**map;
+
+		enum { muxEvents = 63, muxEventsSize = 64 };
+
+		HANDLE		ready[muxEventsSize];
+
+		enum { max_fired = max_fired_per_mux };
+
+		unsigned	num_fired;	// # entries which fired
+		win32_event_t	*which_fired[max_fired];
+
+		eventMux(win32_event_handler_t &h, unsigned wm=0)
+			: handler(h), which_mux(wm),
+			thread(INVALID_HANDLE_VALUE), thread_id(0),
+			wakeup(INVALID_HANDLE_VALUE),
+			gen(INVALID_HANDLE_VALUE),
+			stopwait(INVALID_HANDLE_VALUE),
+			op(MUXnone),
+			start(0), start_index(0), count(0), map(0),
+			num_fired(0)
+			{ }
+		~eventMux();
+
+		static	w_rc_t	newEventMux(eventMux *&mux,
+					    win32_event_handler_t &h,
+					    unsigned which = 0);
+		
+		w_rc_t	_startup();
+
+		unsigned	unmap_events(win32_event_t **which);
+
+		/* called by owner to control the mux */
+		w_rc_t	fork();
+		w_rc_t	stop();
+		w_rc_t	request(muxOp op);
+
+		/* internal stuff to handle wait requests */
+		void	prepare();
+		bool	wait();
+
+		/* internal startup gizmos */
+		/* Putting the thread start function in here is a pain,
+		   but if not done it needs to be made a friend, and it is
+		   still difficult to hide it. */
+#ifdef _MT
+		static unsigned	__stdcall	__start(void *);
+#else
+		static DWORD	__stdcall	__start(void *);
+#endif
+		void		run();
+
+		ostream		&print(ostream &) const;
+	};
+
+	eventMux	*muxes[max_mux];
+	unsigned	num_muxes;	// number activated
+	unsigned	num_ready_muxes;	// number used for this wait
+	HANDLE		ready_mux[max_mux];
+
+	w_rc_t		muxwait();
+	w_rc_t		resize_mux(unsigned howmany);
+
+	w_rc_t		start_mux_thread(const unsigned whichMux);
+	w_rc_t		stop_mux_thread(const unsigned whichMux);
+
+	w_rc_t		distribute_events();
 };
 
 

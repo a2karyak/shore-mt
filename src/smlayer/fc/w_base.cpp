@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: w_base.cpp,v 1.43 1999/06/22 20:09:22 bolo Exp $
+ $Id: w_base.cpp,v 1.45 2000/02/01 23:20:49 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -304,6 +304,8 @@ __strtou8(
 
 #elif defined(__NetBSD__)
     return is_signed? ::strtoq(str, endptr, base): ::strtouq(str, endptr, base);
+#elif defined(Alpha)
+    return is_signed? strtol(str, endptr, base): strtoul(str, endptr, base);
 #else
     return is_signed? strtoll(str, endptr, base): strtoull(str, endptr, base);
 #endif
@@ -396,6 +398,8 @@ w_base_t::is_infinite_or_nan(const f8_t x)
 
 void	w_base_t::abort()
 {
+	cout.flush();
+	cerr.flush();
 #ifdef _WIN32
 	/* It would be great if there was a USER ERROR exception,
 	   or something like that.  Lacking that, I'll steal 

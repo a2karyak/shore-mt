@@ -1,0 +1,382 @@
+\documentstyle[html,titlepage,shore]{article}
+\pagestyle{plain}
+\makeindex
+\sloppy
+
+\title{The Shore Release 1.0\thanks{
+This research is sponsored
+by the Advanced Research Project Agency, ARPA order number 018 (formerly
+8230), monitored by the U.S. Army Research Laboratory under contract
+DAAB07-92-C-Q508.
+}}
+\author{The Shore Project Group \\
+Computer Sciences Department\\
+UW-Madison\\
+Madison, WI \\
+\shoreversion \\
+\shorecopyright
+}
+\date{\today}
+
+\begin{document}
+\label{release:TOP}
+\maketitle
+\tableofcontents
+
+\externallabels{}{../../labels.pl}
+\externallabels{}{../release/labels.pl}
+
+\SHsection{release:what}{What is the Shore Release?}
+
+The 
+\shoreversion
+release of the Shore software is a release of
+work-in-progress.  
+The release is targeted
+for sites that will use Shore as a system for writing applications
+using the Shore Data-definition Language and for those who
+want to write their own servers using the Shore Storage Manager.
+This document describes the release and provides pointers
+to other documents explaining how to install and use the
+software.
+
+If you have questions, comments or bug reports, please mail
+them to 
+\begin{verbatim}
+    shore_support@cs.wisc.edu
+\end{verbatim}
+
+For information on other mailing lists, see the Shore WWW home
+page: 
+\htmladdnormallink{http://www.cs.wisc.edu/shore/}{http://www.cs.wisc.edu/shore/}.
+
+\SHsubsection{release:requirements}{Requirements}
+
+The 
+\shoreversion
+release of Shore is supported for 
+Sparcstations running SunOS 4.1.3, 
+Solaris 2.4 (SunOS 5.4)
+and
+Solaris 2.5.
+
+You will need the GNU C/C++ compiler, gcc, version 2.7.2
+and the 2.7.1 version of libg++ (and include files).
+We have built and tested the system with gcc 2.6.3, but we
+will drop support for Shore built with that version of the compiler.
+
+Complete details about required software and hardware are available in
+the \htmlextref{Requirements section}{installation:requirements} of the
+Installation manual.
+
+\SHsubsection{release:copyright}{Copyright and Disclaimer}
+
+The Shore software is distributed with the following copyright
+notice and disclaimer, and is subject to its terms:
+
+Copyright (c) 1994, 1995 Computer Sciences Department, 
+University of Wisconsin - Madison. All Rights Reserved.
+
+Permission to use, copy, modify and distribute this software and its
+documentation is hereby granted, provided that both the copyright
+notice and this permission notice appear in all copies of the
+software, derivative works or modified versions, and any portions
+thereof, and that both notices appear in supporting documentation.
+
+THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY OF WISCONSIN --
+MADISON ALLOWS FREE USE OF THIS SOFTWARE IN ITS \dblquote{AS IS}
+CONDITION\@.  THE DEPARTMENT DISCLAIMS ANY LIABILITY OF ANY KIND FOR ANY
+DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE\@.
+
+The Shore Project Group requests users of this software to return any
+improvements or extensions that they make to the Shore Project Group,
+Computer Sciences Department, University of Wisconsin, 1210 West Dayton
+Street, Madison, WI 53706-1685.
+
+In addition, the Shore Project Group requests that users grant the
+Computer Sciences Department rights to redistribute these changes.
+
+\SHsubsection{release:new}{What is New in the Release}
+
+\SHsubsubsection{release:newall}{General}
+\begin{itemize}
+\item
+Ported to Solaris 2.5.
+
+\item 
+The software builds under gcc 2.7.2 with the
+libg++ 2.7.1 library and include files.
+
+\item 
+Numerous bugs were fixed.
+
+\end{itemize}
+
+\SHsubsubsection{release:newapplic}{Applications}
+
+\begin{itemize}
+
+\item 
+Applications linked with the no-debug
+libraries must be recompiled with the no-debug include files,
+because the two implementations of the return-code class
+are incompatible.
+
+\item 
+Ref<Pool> can be used in applications.
+
+\item 
+Enumerations can be used for index key types.
+
+\item 
+Reference-counting on modules is enabled and under the control
+of the option {\tt oc\_refcount}.
+If you use this, use it with caution.
+
+\end{itemize}
+
+\SHsubsubsection{release:newoc}{Object cache}
+
+No changes.
+
+
+\SHsubsubsection{release:newserver}{Shore server}
+
+See {\em Storage manager}.
+
+\SHsubsubsection{release:newssm}{Storage manager}
+
+\begin{itemize}
+
+\item 
+The format of logs and volumes has changed; data created
+under previous releases cannot be read by a 
+\shoreversion
+server.
+
+\item
+The SM programming interface is slightly changed to support
+multi-threaded transactions 
+(in limited circumstances: see \htmlmanlink{smthread\_t(SSM)}{smthread\_t.ssm.html} ),
+
+external two-phase commit (see
+\htmlmanlink{transaction(SSM)}{transaction.ssm.html}),
+and
+faster record creation in a file in append-only context (see
+\htmlmanlink{scan\_file\_i(SSM)}{scan\_file\_i.ssm.html}
+).
+
+\item 
+The log can be a raw device.
+The SM can be configured to use a separate (diskrw) process
+for the log or to perform the log I/O locally (and synchronously).
+The SM layer has a new option {\tt sm\_reformat\_log} to control reformatting the log,
+in the event that a raw device is used.  The
+meaning of the option {\tt sm\_logsize} has changed.
+(See
+\htmlmanlink{options(SVAS)}{options.svas.html}
+for details.)
+
+\item 
+More statistics are reported.
+
+\item 
+Miscellaneous performance improvements were made (logging
+uninitialized data, append-only file population, store-descriptor
+cache expands as needed, lock manager simplified).
+
+\item
+The programming interface for threads has changed.
+The changes are incorporated into the example value-added
+server, and described in the companion document.
+
+\end{itemize}
+
+
+\SHsection{release:contents}{Release Contents}
+
+The Shore Software distribution consists of documentation,
+binary, and source releases.  These are briefly described 
+below.  Additional information is available in the
+\htmldoclink{installation manual}{installation.html}.
+
+\SHsubsection{release:docrelease}{Documentation Release}
+
+The documentation release consists of HTML and Postscript
+versions (in {\tt docs.html/} and {\tt docs.ps/}, respectively) 
+of the following documents:
+
+\begin{itemize}
+\item
+\htmldoclink{The Shore Release}{release.html} (this document)
+\item
+\htmldoclink{Shore Software Installation Manual}{installation.html}
+\item
+\htmldoclink{An Overview of SHORE}{overview.html}
+\item
+\htmldoclink{Glossary of Shore Terms}{glossary.html}
+\item
+\htmldoclink{How to Submit a Problem Report}{bugreport.html}
+\item Documents for Users of SDL and the Shore Server
+\begin{itemize}
+\item
+\htmlmanlink{A list of all the manual pages}{contents.html}
+\\
+\item
+\htmldoclink{Configuring and Running the Shore Server}{running.html}
+\\
+and related manual pages:
+\begin{itemize}
+\item
+\htmlmanlink{options(SVAS)}{options.svas.html}
+\item
+\htmlmanlink{environment(SVAS)}{environment.svas.html}
+\item
+\htmlmanlink{sshutdown(SVAS)}{sshutdown.svas.html}
+\item
+\htmlmanlink{mount(SVAS)}{mount.svas.html}
+\item
+\htmlmanlink{smount(SHORE)}{smount.shore.html}
+\end{itemize}
+\item
+\htmldoclink{Shore Data Language Reference Manual}{sdlman.html}
+\\
+and related manual pages:
+\begin{itemize}
+\item
+\htmlmanlink{Manual pages}{intro.sdl.html}
+for using the SDL compiler and the SDL C++ language binding,
+\item
+\htmlmanlink{Manual pages}{intro.oc.html}
+for the Shore Object Cache and Unix-compatibility classes
+\end{itemize}
+\item
+\htmldoclink{Getting Started with Shore}{stree.html}
+\\
+and miscellaneous helpful documents: 
+\begin{itemize}
+\item
+\htmldoclink{Handling Errors}{shrc.html}
+\item
+\htmldoclink{Scanning Directories}{dirscan.html}
+\item
+\htmldoclink{Scanning Pools}{poolscan.html}
+\end{itemize}
+\end{itemize}
+\item Documents for Value-Added Server Writers (using the Storage Manager)
+\begin{itemize}
+\item
+\htmldoclink{The Shore Storage Manager Programming Interface}{ssmapi.html}
+\item
+Manual Pages for the Storage Manager
+\begin{itemize}
+\item
+\htmlmanlink{Storage Manager proper}{intro.ssm.html}
+\item
+\htmlmanlink{Foundation classes}{intro.fc.html}
+\item
+\htmlmanlink{Thread package}{intro.sthread.html}
+\item
+\htmlmanlink{Common utility classes}{intro.common.html}
+\end{itemize}
+\item
+\htmldoclink{Writing Value-Added Servers with the Shore Storage Manager}{ssmvas.html}
+\\ a tutorial on using the Storage Manager
+\end{itemize}
+\item
+\htmldoclink{Project Plans}{plans.html}
+\item
+\htmldoclink{Guide to the Shore Source Code}{sourceguide.html}
+\end{itemize}
+
+In addition, source code for example programs, including an
+implementation of the
+\htmladdnormallink{OO7 Benchmark}{ftp://ftp.cs.wisc.edu/oo7},
+is included in the {\tt examples} directory.
+
+\SHsubsection{release:binary}{Binary Release}
+
+Shore binary releases are made for SunOS and Solaris only.
+
+A binary release consists of the SDL compiler, run-time library
+to be linked with applications, the Shore Server executable, and
+utilities for mounting the Shore File System as an NFS file system.
+In addition, the libraries and header files for the Shore Storage Manager
+are included.
+The binary release is available with and without internal debugging
+support.  The differences between the two are as follows:
+\begin{itemize}
+\item Debugging release:
+\begin{itemize}
+\item Compiled with debugging symbols ({\tt -g}) 
+\item Compiled with extra auditing/debugging ({\tt -DDEBUG})
+\item Compiled with simple optimization ({\tt -O})
+\item Executables are considerably larger and slower than their no-debugging counterparts.
+\end{itemize}
+\item No-Debugging release:
+\begin{itemize}
+\item Compiled without debugging symbols
+\item Compiled without extra auditing/debugging ({\tt -UDEBUG})
+\item Compiled with more optimization ({\tt -O2})
+\end{itemize}
+\end{itemize}
+
+\SHsubsection{release:source}{Source Release}
+
+The source release contains the source tree and tools for 
+building everything in the binary release.
+
+\SHsection{release:getting}{Getting Started}
+
+The following sections explain how to get started using
+Shore to write applications.
+
+\SHsubsection{release:installing}{Installing the Shore Software}
+
+The first step in using Shore is to install the documentation and 
+software.
+The
+\htmldoclink{Shore Software Installation Manual}{installation.html}
+explains how to install the documentation and binary releases and
+how to use the source release to compile new binaries.
+
+The installation manual contains a section on
+\htmlextref{testing the installation}{installation:testing}.
+This is a step-by-step guide to starting a Shore Server, compiling and
+running an application and mounting the Shore file system.
+
+\SHsubsection{release:learning}{Learning More about the Shore Server}
+
+After you have installed the Shore software and tested your
+installation,  you can find more information about using the
+Shore Server and file system in the document titled:
+\htmldoclink{Configuring and Running a Shore Server}{running.html}.
+
+\SHsubsection{release:writing}{Writing, Compiling, and Running SDL Applications}
+
+A number of example applications are included in documentation
+release. The document,
+\htmldoclink{Getting Started with Shore}{stree.html}
+uses these examples to explain how to write, compile and run
+applications.
+
+To write your own Shore application, you will need to be familiar with
+the Shore Data-definition language, SDL\@.  See the document,
+\htmldoclink{An SDL Reference Manual}{sdlman.html}, and the man
+pages,
+\htmladdnormallink{sdl(SDL)}{../man/sdl.sdl.html}
+and
+\htmladdnormallink{sdlcxx(SDL)}{../man/sdlcxx.sdl.html}
+for more information.
+
+\SHsubsection{release:writingvas}{Building Value-Added Servers using the Storage Manager}
+
+This release includes support for using the Shore Storage Manager
+to build your own servers.  The Shore Server is an example of such
+a server.  The tutorial, \htmldoclink{Writing Value-Added Servers
+with the Shore Storage Manager} {ssmvas.html} uses a simple example to
+explain how to write a server.  For details on the Storage Manager
+programming interface, see \htmldoclink{The Shore Storage Manager
+Programming Interface}{ssmapi.html}.
+
+\end{document}

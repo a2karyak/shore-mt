@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='SDISK_WIN32_ASYNC_H'>
 
- $Id: sdisk_win32_async.h,v 1.8 1999/06/07 19:06:04 kupsch Exp $
+ $Id: sdisk_win32_async.h,v 1.11 2000/06/01 21:32:39 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -35,7 +35,7 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 /*  -- do not edit anything above this line --   </std-header>*/
 
 /*
- *   NewThreads I/O is Copyright 1995, 1996, 1997, 1998 by:
+ *   NewThreads I/O is Copyright 1995, 1996, 1997, 1998, 1999, 2000 by:
  *
  *	Josef Burger	<bolo@cs.wisc.edu>
  *
@@ -45,16 +45,72 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
  *   to the above author(s) and the above copyright is maintained.
  */
 
-/* See the comment in the implemenation to understand what is broken. */
-#define	BROKEN_IO_HACK
 
 
 class sdisk_win32_async_t : public sdisk_win32_t {
-	enum { maxAsync = 1 };
 
-	OVERLAPPED		_async[maxAsync];
-	win32_safe_event_t	_event[maxAsync];
+	/* XXX eliminating the compiled-in limits is on the to-do list */
+#ifdef SDISK_WIN32_ASYNC_MAX
+	enum { MAXasync = SDISK_WIN32_ASYNC_MAX };
+#else
+	enum { MAXasync = 8 };
+#endif
+	unsigned		_num_inuse;
+	unsigned		_num_concurrent[MAXasync+1];
+	unsigned		_max_concurrent;
+	unsigned		_num_waited;
+	unsigned		_num_waiting;
+
+	const	unsigned	maxAsync;
+
+	scond_t			available;
+
+	/* XXX could chain entries so they don't need to be searched */
+	bool			_inuse[MAXasync];
+
+	/* XXX these may be able to be moved to a struct.  However, there
+	   was some reason they were NOT placed into one.  Until I can
+	   remember why, this will stay as parallel arrays. */
+	OVERLAPPED		_async[MAXasync];
+	win32_safe_event_t	_event[MAXasync];
 	smutex_t		lock;
+
+#ifdef SDISK_WIN32_ASYNC_ASYNC
+	struct SyncThread {
+		HANDLE		handle;		/* to sync */
+		HANDLE		thread;
+#ifdef _MT
+		unsigned	threadId;
+		static unsigned	__stdcall	_start(void *);
+#else
+		DWORD		threadId;
+		static DWORD	__stdcall	_start(void *);
+#endif
+		HANDLE		request;	/* a sync */
+		HANDLE		_done;		/* sync complete */
+		win32_safe_event_t	done;
+		bool		abort;		/* done */
+		DWORD		_err;		/* error from "last" op XXX */
+
+		DWORD		run();
+		w_rc_t		start(HANDLE h);
+		w_rc_t		stop();
+		w_rc_t		sync();
+
+		SyncThread();
+	};
+	SyncThread	syncThread;
+	/* XXX this protection is needed in case two threads try
+	   sync()ing the sdisk at the same time.  It is extra overhead,
+	   but better safe than sorry.  If it is guaranteed that this
+	   won't happen (at the application level) the additional sync.
+	   stuff could be made conditional at compile and/or runtime. */
+	scond_t		syncAvailable;
+	bool		_use_async;
+	bool		sync_in_progress;
+	unsigned	sync_waiters;
+	unsigned	_sync_waited;	/* stat */
+#endif
 
 	/* XXX may be able to use offset in overlapped to store seek pos */
 	fileoff_t	_pos;	// current seek position 
@@ -89,10 +145,8 @@ public:
 	w_rc_t	read(void *buf, int count, int &done);
 	w_rc_t	write(const void *buf, int count, int &done);
 
-#ifdef BROKEN_IO_HACK
 	w_rc_t	readv(const iovec_t *iov, int iovcnt, int &done);
 	w_rc_t	writev(const iovec_t *iov, int iovcnt, int &done);
-#endif
 
 	w_rc_t	pread(void *buf, int count, fileoff_t pos, int &done);
 	w_rc_t	pwrite(const void *buf, int count, fileoff_t pos, int &done);

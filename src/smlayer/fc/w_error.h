@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='W_ERROR_H'>
 
- $Id: w_error.h,v 1.55 1999/06/07 19:02:52 kupsch Exp $
+ $Id: w_error.h,v 1.56 1999/08/25 01:25:06 kupsch Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -62,19 +62,25 @@ public:
 	const char* const 	    filename,
 	uint4_t			    line_num);
 
+    w_error_t&			set_more_info_msg(const char* more_info);
+    w_error_t&			append_more_info_msg(const char* more_info);
+    const char*			get_more_info_msg();
+
     ostream			&print_error(ostream &o) const;
 
     static w_error_t*		make(
 	const char* const 	    filename,
 	uint4_t			    line_num,
 	uint4_t			    err_num,
-	w_error_t*		    list = 0);
+	w_error_t*		    list = 0,
+	const char*		    more_info = 0);
     static w_error_t*		make(
 	const char* const 	    filename,
 	uint4_t			    line_num,
 	uint4_t			    err_num,
 	uint4_t			    sys_err,
-	w_error_t*		    list = 0);
+	w_error_t*		    list = 0,
+	const char*		    more_info = 0);
     static bool			insert(
 	const char		    *modulename,
 	const info_t		    info[],
@@ -97,6 +103,8 @@ private:
     
 
 private:
+    const char*			more_info_msg;
+
     friend class w_rc_t;
     void			_incr_ref();
     void			_decr_ref();
@@ -112,13 +120,15 @@ private:
 	const char* const 	    filename,
 	uint4_t			    line_num,
 	uint4_t			    err_num,
-	w_error_t*		    list);
+	w_error_t*		    list,
+	const char*		    more_info);
     NORET			w_error_t(
 	const char* const 	    filename,
 	uint4_t			    line_num,
 	uint4_t			    err_num,
 	uint4_t			    sys_err,
-	w_error_t*		    list);
+	w_error_t*		    list,
+	const char*		    more_info);
     NORET			w_error_t(const w_error_t&);
     w_error_t&			operator=(const w_error_t&);
 
@@ -154,6 +164,7 @@ w_error_t::_decr_ref()
 inline NORET
 w_error_t::~w_error_t()
 {
+    delete[] VCPP_BUG_DELETE_CONST more_info_msg;
 }
 
 /* XXX automagic generation of this would be nice */

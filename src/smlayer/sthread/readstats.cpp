@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: readstats.cpp,v 1.17 1999/06/07 19:06:01 kupsch Exp $
+ $Id: readstats.cpp,v 1.18 1999/10/25 18:57:41 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -59,7 +59,7 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 
 #include "diskstats.h"
 
-main(int argc, char *argv[])
+int main(int argc, char *argv[])
 {
 
     int statfd = -1;

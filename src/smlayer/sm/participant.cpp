@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: participant.cpp,v 1.55 1999/08/06 15:35:42 bolo Exp $
+ $Id: participant.cpp,v 1.57 2000/01/19 18:25:26 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -328,8 +328,11 @@ participant::~participant()
         delete _message_handler;
 	_message_handler=0;
 	if(_me.is_valid()) {
+	    /* XXXX this is wrong.  The code should only release
+	       the REFS that it OWNS, not all the refs! Also,
+	       if end endpoint is owned it should be destroyed. */
 	    while(_me.refs() > 0) {
-		W_COERCE(_me.release()); // ep.release()
+		W_COERCE(_me.release());
 	    }
 	}
     }
@@ -517,14 +520,11 @@ participant::receive(
 	    // what if scDEAD? nsNOTFOUND?
 	    W_FATAL(rc.err_num()); // for now
 	}
-	w_assert3(sender.refs() >= 1);
 
     }
-    DBGTHRD(<<"sender.REF " << sender.refs());
 
     m.audit();
 
-    DBGTHRD(<<"ep.REF " << sender.refs());
 #ifdef VERSION_2
     srvaddr = m.sender();
 #else
@@ -551,7 +551,7 @@ participant::receive(
     rc =  __receive(__purpose, buf, m, sender, srvaddr, mebox);
 
     if(sender.is_valid()) {
-	W_COERCE(sender.release()); // ep.release()
+	W_COERCE(sender.release());
     }
     return rc;
 }
@@ -927,12 +927,13 @@ participant::send_message(
 
 	case scUNUSABLE:
 	default:
-	   W_FATAL(rc.err_num());
+	   W_COERCE(rc);
+	   /*NOTREACHED*/
 	}
     }
 
     DBGTHRD(<<"participant::sendmessage() "
-	    << " destination.refs=" << destination.refs()
+	    << " destination=" << destination
 	    );
     return RCOK;
 }

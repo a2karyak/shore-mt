@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: tcl_thread.cpp,v 1.120 1999/08/16 19:44:52 nhall Exp $
+ $Id: tcl_thread.cpp,v 1.125 2000/03/14 18:28:48 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -333,7 +333,7 @@ t_sync(ClientData, Tcl_Interp* ip, int ac, char* av[])
 	return TCL_ERROR;
     }
 
-    tcl_thread_t::sync();
+    ((tcl_thread_t *)sthread_t::me())->sync();
 
     return TCL_OK;
 }
@@ -1023,13 +1023,25 @@ void tcl_thread_t::run()
 	}
     }
     thread_mutex.release();
+    
+    // post this in case someone is waiting for us when we die.  That will
+    // unblock them, and we will be dead if they wait for us again.
+
+    // cout << "exiting tcl_thread " << id << " nudging waiters" << endl;
+
+#ifdef SSH_SYNC_OLD
+    W_IGNORE(sync_point.post());
+#else
+    W_COERCE(lock.acquire());
+    hasExited = true;
+    quiesced.signal();
+    lock.release();
+#endif
 }
 
 void tcl_thread_t::join(unsigned long id)
 {
-    w_list_i<tcl_thread_t> i(list);
-    tcl_thread_t* r;
-    while ((r = i.next()) && (r->id != id));
+    tcl_thread_t *r = find(id);
     if (r)  {
 	W_COERCE( r->wait() );
 	delete r;
@@ -1038,46 +1050,58 @@ void tcl_thread_t::join(unsigned long id)
 
 void tcl_thread_t::sync_other(unsigned long id)
 {
-    w_list_i<tcl_thread_t> i(list);
-    tcl_thread_t* r;
-    while ((r = i.next()) && (r->id != id));
-    if (r)  {
-	if (r->status() != r->t_defunct)  {
+    tcl_thread_t *r = find(id);
+    if (r && r->status() != r->t_defunct)  {
 	    
-	    // cout << "thread " << me()->id << " waiting for " << id
-	    //	 << endl;
+	    // cout << "thread " << me()->id << " waiting for " << id << endl;
 	    
+#ifdef SSH_SYNC_OLD
 	    W_COERCE( r->sync_point.wait() );
 	    W_IGNORE( r->sync_point.reset(0) );
-	    
-	    // cout << "thread " << me()->id << " awake " << id <<
-	    // endl;
+#else
+	    W_COERCE(r->lock.acquire());
+	    while (!(r->isWaiting || r->hasExited))
+	    	W_COERCE(r->quiesced.wait(r->lock));
+	    r->isWaiting = false;
+#endif
+		
+	    // cout << "thread " << me()->id << " awake " << id << endl;
 	    
 	    assert(r->proceed.is_hot());
 
+#ifdef SSH_SYNC_OLD
 	    W_COERCE( r->lock.acquire() );
+#else
+	    r->canProceed = true;
+#endif
 	    r->proceed.signal();
 	    r->lock.release();
 
 	    assert(!r->proceed.is_hot());
 	    smthread_t::yield();
-	}
     }
 }
 
 void tcl_thread_t::sync()
 {
-    tcl_thread_t* r = ((tcl_thread_t*)me());
-    assert(r);
-    W_IGNORE( r->sync_point.post() );
-    
-    // cout << "thread " << me()->id << " wait" << endl;
+	// cout << "thread " << me()->id << " wait" << endl;
 
-    W_COERCE( r->lock.acquire() );
-    W_COERCE( r->proceed.wait(r->lock) );
-    r->lock.release();
+#ifdef SSH_SYNC_OLD
+	W_IGNORE(sync_point.post());
+	W_COERCE( lock.acquire() );
+	W_COERCE( proceed.wait(lock) );
+	lock.release();
+#else
+	W_COERCE(lock.acquire());
+	isWaiting = true;
+	quiesced.signal();
+	while (!canProceed)
+		W_COERCE(proceed.wait(lock));
+	canProceed = false;
+	lock.release();
+#endif
     
-    // cout << "thread " << me()->id << " woke" << endl;
+	// cout << "thread " << me()->id << " woke" << endl;
 }
 
 void
@@ -1116,11 +1140,19 @@ copy_interp(Tcl_Interp *ip, Tcl_Interp *pip)
     Tcl_ResetResult(pip);
 }
 
+/* The increased stack size is because TCL is stack hungry */
 tcl_thread_t::tcl_thread_t(int ac, char* av[],
 			   Tcl_Interp* pip,
 			   bool block_immediate, bool auto_delete)
-: smthread_t(t_regular, block_immediate, auto_delete, "tcl_thread"),  
+: smthread_t(t_regular, block_immediate, auto_delete, "tcl_thread", WAIT_FOREVER, sthread_t::default_stack * 2),
+#ifdef SSH_SYNC_OLD
   sync_point(0,"tcl_th.sync"),
+#else
+  isWaiting(false),
+  canProceed(false),
+  hasExited(false),
+  quiesced("tcl_th.sync"),
+#endif
   proceed("tcl_th.go"),
   args(0),
   ip(Tcl_CreateInterp()),
@@ -1231,3 +1263,11 @@ void tcl_thread_t::initialize(Tcl_Interp* ip, const char* lib_dir)
     create_stdcmd(ip);
 }
 
+tcl_thread_t	*tcl_thread_t::find(unsigned long id)
+{
+	w_list_i<tcl_thread_t>	i(list);
+	tcl_thread_t		*r;
+	while ((r = i.next()) && (r->id != id))
+		;
+	return r;
+}

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='SM_BASE_H'>
 
- $Id: sm_base.h,v 1.140 1999/08/06 19:53:53 bolo Exp $
+ $Id: sm_base.h,v 1.142 2000/11/28 21:00:21 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -259,6 +259,7 @@ public:
     static bool	shutting_down;
     static bool logging_enabled;
     static bool	do_prefetch;
+    static bool _did_recovery;
 
     static operating_mode_t operating_mode;
     static bool in_recovery() { 

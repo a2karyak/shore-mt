@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: sm.cpp,v 1.458 1999/08/18 16:50:16 bolo Exp $
+ $Id: sm.cpp,v 1.464 2000/11/28 21:00:18 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -54,6 +54,7 @@ class prologue_rc_t;
 #include "crash.h"
 #include "auto_release.h"
 #include "restart.h"
+#include "histo.h"	/* just for dump */
 
 #include "app_support.h"
 
@@ -64,6 +65,7 @@ template class w_auto_delete_t<SmStoreMetaStats*>;
 bool	smlevel_0::shutdown_clean = true;
 bool	smlevel_0::shutting_down = false;
 
+bool	smlevel_0::_did_recovery = false;
 smlevel_0::operating_mode_t smlevel_0::operating_mode = smlevel_0::t_not_started;
 
 bool	smlevel_0::logging_enabled = true;
@@ -71,8 +73,11 @@ bool	smlevel_0::do_prefetch = false;
 
 int	smlevel_0::dcommit_timeout = 0;
 
+#ifndef SM_LOG_WARN_EXCEED_PERCENT
+#define SM_LOG_WARN_EXCEED_PERCENT 0
+#endif
 smlevel_0::fileoff_t	smlevel_0::log_warn_exceed = 0;
-int			smlevel_0::log_warn_exceed_percent = 0;
+int			smlevel_0::log_warn_exceed_percent = SM_LOG_WARN_EXCEED_PERCENT;
 ss_m::LOG_WARN_CALLBACK_FUNC smlevel_0::log_warn_callback = 0;
 
 // these are set when the logsize option is set
@@ -363,7 +368,7 @@ rc_t ss_m::setup_options(option_group_t* options)
 	    "after this many store level locks on a page, the volume level lock is obtained",
 	    false, option_t::set_value_long, _numLidCacheEntries));
 
-    W_DO(options->add_option("sm_dcommit_timeout", "#>=30", "120",
+    W_DO(options->add_option("sm_dcommit_timeout", "#>=30", "1800",
 	    "seconds after which distrib commit will give up if it cannot finish",
 	    false, option_t::set_value_long, _dcommit_timeout));
 
@@ -550,6 +555,11 @@ ss_m::ss_m(
 {
     FUNC(ss_m::ss_m);
 
+#ifdef notyet
+    /* notyet because this whole thing is a bad idea, plus the statics
+       that the SM keeps track of are a big hazard.   Groan. */
+    smlevel_0::_did_recovery = false;
+#endif
     smlevel_0::log_warn_callback  = callback;
 
     static bool initialized = false;
@@ -1040,16 +1050,6 @@ void ss_m::set_shutdown_flag(bool clean)
     shutdown_clean = clean;
 }
 
-const char* ss_m::getenv(char* name)
-{
-    char* p = ::getenv(name);
-    if (!p)  {
-	errlog->clog << error_prio << "ss_m: " << name << " environment not set" << flushl;
-	W_FATAL(fcNOTFOUND);
-    }
-    return p;
-}
-
 /*--------------------------------------------------------------*
  *  ss_m::begin_xct()						*
  *--------------------------------------------------------------*/
@@ -1475,6 +1475,16 @@ ss_m::dump_stores(ostream &o, vid_t vid, int start, int end)
 {
     W_DO( io->dump_stores(o, vid, start, end) );
     return RCOK;
+}
+
+/*--------------------------------------------------------------*
+ *  ss_m::dump_histo()						*
+ *--------------------------------------------------------------*/
+rc_t ss_m::dump_histo(ostream &o, bool locked)
+{
+	histoid_t::print_cache(o, locked);
+	o << endl;
+	return RCOK;
 }
 
 /*--------------------------------------------------------------*
@@ -3106,11 +3116,7 @@ ss_m::_get_du_statistics( const stpgid_t& stpgid, sm_du_stats_t& du, bool audit)
      *  from ongoing changes in the midst of the stats-gathering
      */
 
-    if (audit) {
-	W_DO(dir->access(stpgid, sd, SH));
-    } else {
-	W_DO(dir->access(stpgid, sd, IS));
-    }
+    W_DO(dir->access(stpgid, sd, audit ? SH : IS));
 
     switch(sd->sinfo().stype) {
     case t_file:  
@@ -3186,11 +3192,7 @@ ss_m::_get_du_statistics(vid_t vid, sm_du_stats_t& du, bool audit)
     if(smlevel_0::in_recovery()) {
 	return RCOK;
     }
-    if (audit) {
-        W_DO(lm->lock(vid, SH, t_long, WAIT_SPECIFIED_BY_XCT));
-    } else {
-        W_DO(lm->lock(vid, IS, t_long, WAIT_SPECIFIED_BY_XCT));
-    }
+    W_DO(lm->lock(vid, audit ? SH : IS, t_long, WAIT_SPECIFIED_BY_XCT));
     sm_du_stats_t new_stats;
 
     /*********************************************************
@@ -3819,6 +3821,12 @@ void 	sm_dumpexts(int vol, extnum_t start, extnum_t end)
 void 	sm_dumpstores(int vol, int start, int end)
 {
 	W_IGNORE( ss_m::dump_stores(cout, vol, start, end) );
+	cout << flush;
+}
+
+void	sm_dumphisto(bool locked)
+{
+	ss_m::dump_histo(cout, locked);
 	cout << flush;
 }
 

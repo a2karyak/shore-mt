@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: sm_coord.cpp,v 1.60 1999/06/07 19:04:59 kupsch Exp $
+ $Id: sm_coord.cpp,v 1.61 2000/02/02 03:28:52 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -1187,7 +1187,7 @@ sm_coordinator::dump(ostream &o)
 		     W_COERCE(_coord->status(g[i], numthreads));
 		     cerr << i << ": \n\t" 
 			  << g[i]
-			  << " state=" << int(states[i])
+			  << " state=" << W_ENUM(states[i])
 			  << " #threads=" << numthreads
 			  << endl;
 
@@ -1199,7 +1199,7 @@ sm_coordinator::dump(ostream &o)
 			     cerr << "\n\t\t" << i <<"."<< j 
 				  << list[j].name
 				  << " state " 
-				  <<  " state=" << int(list[j].status)
+				  <<  " state=" << W_ENUM(list[j].status)
 				  <<endl;
 			 }
 			 delete[] list;
@@ -1594,7 +1594,7 @@ sm_tcl_handler_thread::run()
 		    dont_release_sender=true;
 		    break;
 		default:
-		    cerr << "unexpected message type " << int(m.tcltype())
+		    cerr << "unexpected message type " << W_ENUM(m.tcltype())
 			<<endl;
 		    w_assert1(0);
 		}
@@ -1627,7 +1627,7 @@ sm_tcl_handler_thread::run()
 
 	    if(rc && rc.err_num() == scDEAD){
 		 ss_m::errlog->clog <<info_prio 
-		     << "Cannot transmit reply to : "  << int(m.tcltype())
+		     << "Cannot transmit reply to : "  << W_ENUM(m.tcltype())
 		     << " Reply is : " << _reply << flushl;
 		rc = RCOK;
 	    } else {
@@ -1704,7 +1704,7 @@ sm_coordinator::get_tcl_reply(
 	// ignore it - I really don't care about death notices
     } else {
 	cerr << "UNEXPECED MSG TYPE received on tcl channel: " 
-		<< int(m.tcltype()) <<endl;
+		<< W_ENUM(m.tcltype()) <<endl;
 	w_assert1(0);
     }
     if(sender.is_valid()) {
@@ -1850,7 +1850,7 @@ sm_coordinator::get_tcl(
 	    ss_m::errlog->clog <<info_prio 
 		<< stamp
 		<< " " << me()->id << ":"
-		<< " *RECV: t:" << int(m.tcltype())
+		<< " *RECV: t:" << W_ENUM(m.tcltype())
 		<< " m:" << m.msgid() 
 		<< " s:" << m.sequence 
 		<< " e:" << m.error_num 
@@ -1963,7 +1963,7 @@ sm_coordinator::send_tcl(
 	ss_m::errlog->clog <<info_prio 
 	    << stamp
 	    << " " << me()->id << ":"
-	    << " *SEND: t:" << int(m.tcltype())
+	    << " *SEND: t:" << W_ENUM(m.tcltype())
 	    << " m:" << m.msgid() 
 	    << " s:" << m.sequence 
 	    << " e:" << m.error_num 
@@ -2016,7 +2016,7 @@ sm_coordinator::send_tcl(
 	if( rc2 ) {
 	    DBGTHRD( << " error in send_tcl= " <<" rc=" << rc);
 
-	    cerr << "Cannot send tcl message:" << int(m.tcltype()) << endl
+	    cerr << "Cannot send tcl message:" << W_ENUM(m.tcltype()) << endl
 		<< " data="<< m.data() << endl
 		<< rc2 <<endl;
 

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: log_buf.cpp,v 1.25 1999/06/22 20:02:37 nhall Exp $
+ $Id: log_buf.cpp,v 1.28 2000/02/03 04:11:32 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -43,6 +43,8 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #include "logdef_gen.cpp"
 #include "crash.h"
 
+#include <new.h>
+
 log_stats_t log_m::stats;
 
 
@@ -53,6 +55,14 @@ log_stats_t log_m::stats;
 bool
 log_buf::compensate(const lsn_t &rec, const lsn_t &undo_lsn) 
 {
+    if (rec == undo_lsn)  {
+	// somewhere in the calling code, we didn't actually
+	// log anything.  so this would be a compensate to
+	// myself.  i.e. a no-op
+
+	return true;
+    }
+
     //
     // We check lastrec() (last logrecord written into this buffer)
     // instead of nextrec() because
@@ -329,7 +339,8 @@ log_buf::log_buf(char *b, fileoff_t sz)
 	if (!___skip_log)
 		W_FATAL(fcOUTOFMEMORY);
 
-	__skip_log = (char *)(((unsigned)___skip_log + (skip_align-1))
+	/* XXX secret alignment user */
+	__skip_log = (char *)(((ptrdiff_t)___skip_log + (skip_align-1))
 			      & ~(skip_align-1));
 	w_assert3(is_aligned(__skip_log));
 

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='LOCK_X_H'>
 
- $Id: lock_x.h,v 1.57 1999/06/07 19:04:14 kupsch Exp $
+ $Id: lock_x.h,v 1.58 1999/10/29 23:11:59 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -127,6 +127,10 @@ public:
 
     W_FASTNEW_CLASS_DECL(lock_request_t);    
 
+private:
+	/* disabled */
+    lock_request_t(const lock_request_t &);
+    lock_request_t &operator=(const lock_request_t &);
 };
 
 struct lock_cache_elem_t {
@@ -220,7 +224,9 @@ private:
 
     
 private:
-     xct_lock_info_t(xct_lock_info_t&); // disabled
+     /* disabled */
+     xct_lock_info_t(xct_lock_info_t&);
+     xct_lock_info_t &operator=(const xct_lock_info_t &);
 };
 
 

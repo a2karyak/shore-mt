@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: errlog.cpp,v 1.18 1999/06/07 19:02:42 kupsch Exp $
+ $Id: errlog.cpp,v 1.19 2000/02/02 15:31:09 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -34,7 +34,6 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #define __ERRLOG_C__
 /* errlog.cpp -- error logging functions */
 
-#include <w_stream.h>
 #include <stdarg.h>
 #include <stdlib.h>
 #include <stddef.h>
@@ -50,6 +49,9 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #include "errlog.h"
 
 #include <errlog_s.h>
+
+#include <w_stream.h>
+#include <stdio.h>
 
 #ifdef EXPLICIT_TEMPLATE
 template class w_list_t<ErrLogInfo>;
@@ -472,11 +474,11 @@ is_logstream(ostream &o)
 		// cerr << "_prio" << l->_prio << endl;
 	}
 	if(l && 
-		(l->__magic1 == LOGSTREAM__MAGIC) &&
-		(l->__magic2 == LOGSTREAM__MAGIC) &&
+		(l->__magic1 == logstream::LOGSTREAM__MAGIC) &&
+		(l->__magic2 == logstream::LOGSTREAM__MAGIC) &&
 		(l->_prio >= log_none) &&
 		(l->_prio <= log_all) &&
-		(l->_log->_magic == ERRORLOG__MAGIC)
+		(l->_log->_magic == ErrLog::ERRORLOG__MAGIC)
 	   ) {
 		// cerr << " IS log stream" << endl;
 		return l;

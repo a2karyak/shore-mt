@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='SDESC_H'>
 
- $Id: sdesc.h,v 1.43 1999/06/07 19:04:28 kupsch Exp $
+ $Id: sdesc.h,v 1.44 1999/12/07 22:55:47 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -130,6 +130,7 @@ public:
 class histoid_t; // forward ref; defined in histo.h
 class append_file_; // forward ref; defined in scan.h
 class sdesc_cache_t; // forward
+
 class sdesc_t {
     friend class append_file_i;
     friend class sdesc_cache_t;

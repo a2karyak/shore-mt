@@ -1,0 +1,74 @@
+# -- Copyright (c) 1999       Computer Sciences Department,    -- #
+# -- University of Wisconsin-Madison, subject to the terms     -- #
+# -- and conditions given in the file COPYRIGHT.  All Rights   -- #
+# -- Reserved.                                                 -- #
+# --------------------------------------------------------------- #
+
+The SHORE Storage Manager Release 2.0 comprises the lower levels of 
+the SHORE (Scalable Heterogeneous Object REpository), a persistent
+object system developed at the University of Wisconsin - Madison.
+This release contains only the Storage Manager and is not a complete 
+release of the SHORE software.
+
+This software is released without support of any kind.
+
+The Storage Manager Version 2.0 distribution consists of 
+documentation and source files. 
+
+You can build this software in the following environments 
+(and possibly others, but we have tested only these):
+
+UNIX:   You can build on Linux or Solaris using the GNU utilities 
+	(with the egcs or gcc compiler).
+
+NT-VS:  You can build on Windows NT using the Visual Studio development 
+	environment, with the Visual C++ compiler and linker. 
+
+NT-CYG: You can build on Windows NT using the GNU utilities provided with 
+	the Cygwin installation. This uses GNU Make, but compiles and 
+	links with the native C++ compiler and linker (distributed with 
+	Visual C++).
+
+
+Requirements 
+To install the documentation and source files and build the software, you need:
+
+-- a Sparcstation or Intel X86 processor 
+-- UNIX : Solaris (we use SunOS 5.6) or Linux (we use RedHat Linux 2.0.36); 
+   with at least 8 MB bytes of shared memory 
+   OR 
+
+   Windows NT 4.0 with Cygwin installed (we use Cygwin nt-3.0 20.1) and 
+   with Visual C++ 6.0 (and all its service packs) installed.
+
+-- Perl 5 (we use 5.004 04) 
+-- You will also need the following, which come with Cygwin on NT and with 
+   RedHat Linux:
+	- gzip file (de)compression facility to unpack the release. 
+	- GNU make. 
+	- The Tcl library (version 8.0). 
+	- The normal Unix utilities like csh, sh, mv, ar, ld, tar, sed, etc.
+
+
+-- The following C++ compiler:
+	- on Unix, gcc 2.7.2.3 or egcs (we use version 1.0.3) 
+	- on NT (regardless of the build environment you use), you must 
+	have Visual C++ 6.0 installed to compile and link the storage manager.
+
+-- A PDF reader or printer for reading the documentation. 
+
+-- Lots of free disk space. The disk space requirements are roughly:
+
+	- documents (PDF files): .8 MB 
+	- sources alone: 9 MB. 
+	- sources, docs, and space to build from scratch:
+
+		= Release version (without debugging symbols and 
+		without trace code): (75 MB on NT, 135 MB on X86, 
+		165 MB on Sparcstation)
+
+		= Debug version (with debugging symbols and with 
+		trace code): (110 MB on NT, 100 MB on X86, 100 MB 
+		on Sparcstation)
+
+

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='IMAKEMDEP_H' no-defines='true'>
 
- $Id: imakemdep.h,v 1.10 1999/06/07 20:32:57 kupsch Exp $
+ $Id: imakemdep.h,v 1.11 1999/12/30 04:57:31 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -165,7 +165,7 @@ in this Software without prior written authorization from the X Consortium.
 #define imake_ccflags "-DX_NOT_POSIX"
 #endif
 
-#ifdef _WIN32
+#if defined(_WIN32) && defined(_MSC_VER)
 #if _MSC_VER < 1000
 #define imake_ccflags "-nologo -batch -D__STDC__"
 #else
@@ -233,11 +233,10 @@ in this Software without prior written authorization from the X Consortium.
  *     all colons).  One way to tell if you need this is to see whether or not
  *     your Makefiles have no tabs in them and lots of @@ strings.
  */
-#if defined(sun) || defined(SYSV) || defined(SVR4) || defined(hcx) || defined(_WIN32) || defined(sco) || (defined(AMOEBA) && defined(CROSS_COMPILE)) || defined(linux)
+#if defined(sun) || defined(SYSV) || defined(SVR4) || defined(hcx) || defined(_WIN32) || defined(sco) || (defined(AMOEBA) && defined(CROSS_COMPILE)) || defined(linux) || defined(__CYGWIN32__)
 #define FIXUP_CPP_WHITESPACE
 #define REMOVE_CPP_LEADSPACE
-#endif
-#ifdef _WIN32
+#elif defined(_WIN32)
 #define REMOVE_CPP_LEADSPACE
 #define INLINE_SYNTAX
 #define MAGIC_MAKE_VARS
@@ -252,9 +251,8 @@ in this Software without prior written authorization from the X Consortium.
 #ifdef hpux
 #define USE_CC_E
 #endif
-#ifdef _WIN32
+#if defined(_WIN32) && defined(_MSC_VER)
 #define USE_CC_E
-#define DEFAULT_CC "cl"
 #endif
 #ifdef apollo
 #define DEFAULT_CPP "/usr/lib/cpp"
@@ -293,6 +291,10 @@ in this Software without prior written authorization from the X Consortium.
 /* expects cpp in PATH */
 #define DEFAULT_CPP "cpp"
 #endif
+#if defined(__CYGWIN32__)
+#define	USE_CC_E
+#define	DEFAULT_CC	"gcc"
+#endif
 
 
 /* XXX  The following stuff are hacks to the normal imake config
@@ -304,7 +306,7 @@ in this Software without prior written authorization from the X Consortium.
    the hacky stuff below. */
 
 /* XXXX_XXXX*/
-#ifdef _WIN32
+#if defined(_WIN32) && defined(_MSC_VER)
 #	undef DEFAULT_CC
 #	define USE_CC_E
 #	define DEFAULT_CC "cl"
@@ -531,13 +533,19 @@ char *cpp_argv[ARGUMENTS] = {
 	"-DSVR4",
 #endif
 #endif
-#ifdef _WIN32
+#if defined(_WIN32) && defined(_MSC_VER)
 	"-DWIN32",
 	"-nologo",
 #if _MSC_VER < 1000
 	"-batch",
 #endif
 	"-D__STDC__",
+#endif
+#ifdef __CYGWIN32__
+	"-D_WIN32",
+#ifdef __GNUC__
+	"-traditional",
+#endif
 #endif
 #ifdef NCR
 	"-DNCR",	/* NCR */
@@ -868,6 +876,12 @@ struct symtab	predefs[] = {
 #endif
 #ifdef __EMX__
 	{"__EMX__", "1"},
+#endif
+#ifdef __CYGWIN32__
+	{"__CYGWIN32__", "1"},
+#endif
+#ifdef _WIN32
+	{"_WIN32", "1"},
 #endif
 #ifdef linux
 	{"linux", "1"},

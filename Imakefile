@@ -1,6 +1,6 @@
 /*<std-header style='imakefile' orig-src='shore'>
 
- $Id: Imakefile,v 1.16 1999/06/07 18:56:47 kupsch Exp $
+ $Id: Imakefile,v 1.17 2000/01/13 21:32:37 kupsch Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -54,6 +54,7 @@ MISC_PRISTINE_FILES = \
 pristine_files($(MISC_PRISTINE_FILES))
 
 MISC_SUBDIRS += \
+	CVSROOT							\
 	config							\
 	demos							\
 	doc							\
@@ -64,6 +65,8 @@ MISC_SUBDIRS += \
 	solaris-i386						\
 	solaris-sparc						\
 	tools
+
+dont_src_link_files(GNUmakefile)
 
 init_file_group(root_files)
 root_files.other += GNUmakefile

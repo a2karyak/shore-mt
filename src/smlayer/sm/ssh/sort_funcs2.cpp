@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: sort_funcs2.cpp,v 1.14 1999/06/07 19:05:01 kupsch Exp $
+ $Id: sort_funcs2.cpp,v 1.15 2000/02/02 03:28:53 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -355,7 +355,7 @@ test_scanrt(
     DBG(<<"d4.set scanp");
     d4.set(scanp);
 
-    DBG(<<"Starting rtree scan with operator " << int(op)
+    DBG(<<"Starting rtree scan with operator " << W_ENUM(op)
 	<< " nullsok=" << nullsok);
     w_rc_t 	rc;
     int 	i;
@@ -551,7 +551,7 @@ test_scanrt(
     }
     if(verbose) {
 	cout << "*******************************" <<endl;
-	cout << " SCANNED " << i << " OK for operator " << int(op)
+	cout << " SCANNED " << i << " OK for operator " << W_ENUM(op)
 		<< " nullsok = " << nullsok
 		<<endl;
 	switch (op) {

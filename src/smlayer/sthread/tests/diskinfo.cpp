@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: diskinfo.cpp,v 1.15 1999/06/07 19:06:19 kupsch Exp $
+ $Id: diskinfo.cpp,v 1.16 2000/01/07 07:17:29 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -156,7 +156,7 @@ w_rc_t test_diskinfo(const char *fname, bool stamp, disk_geometry_t *all)
 	return RCOK;
 }
 
-main(int argc, char **argv)
+int main(int argc, char **argv)
 {
 	int	i;
 	int	arg;

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: newsort.cpp,v 1.28 1999/08/20 18:29:01 nhall Exp $
+ $Id: newsort.cpp,v 1.30 2000/02/08 17:29:53 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -41,9 +41,42 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 
 #include <w_heap.h>
 #include <umemcmp.h>
+#include <new.h>
+
 #ifdef USE_PURIFY
 #include <purify.h>
 #endif
+
+/* XXX
+ * This is a stupid control of alignment constraints for various
+ * architectures.  This is actually a global problem in the storage
+ * manager, but it shows up here in the ssh tests.  I have 
+ * work going on to resolve these problems (controllable alignment
+ * in SM records), but that is not happening for a while.
+ * In the meantime, some poor schmuck having alignment problems might
+ * stumble across this and end his or her misery sooner.
+ *
+ * Note that these "strict" things are really misnamed because of the
+ * entire SM misalignment problem.  What this all means is that the
+ * SM only does 4 byte memory alignment of records.  Some machines 
+ * will fetch 8 byte objects (ints or floats) as 8 bytes.  Some require
+ * those 8 byte objects to be on 8 byte boundaries.  Other boxes
+ * may fetch the 8 byte as two 4 byte objects, only requiring 4 byte
+ * alignment, and thus the default provided by the SM works out by.
+ * accident.
+ *
+ * XXX if you use a gcc which issues real 8 byte integer load/stores
+ * for modern sparc boxes you'll need to turn on strict int8 alignment
+ */
+#if defined(Alpha)
+#define	STRICT_INT8_ALIGNMENT
+#define	STRICT_F8_ALIGNMENT
+#else
+/* This is sort of a generic catch-all, because the f8 comparisons existed
+   long before the i8 problems. */
+#define	STRICT_F8_ALIGNMENT
+#endif
+
 
 const int max_keys_handled = 5; // TODO: make more flexible
 
@@ -76,10 +109,9 @@ public:
 	if(l - size_in_dbl > 0) {
 	    size_in_dbl++;
 	}
-	char *p =  (char *)new double[size_in_dbl];
+	void *p =  new double[size_in_dbl];
 	if(!p) W_FATAL(fcOUTOFMEMORY);
-        DBG(<<"_cpp_vector.alloc(sz=" <<
-		l << ") new " << unsigned(p) );
+        DBG(<<"_cpp_vector.alloc(sz=" << l << ") new " << p );
 	_nallocs++;
 	return (void *)p;
    }
@@ -89,8 +121,7 @@ public:
 #endif
    ) { 
 	_nfrees++;
-        DBG(<<"_cpp_vector.freefunc(sz=" << t 
-		<< ") delete " << unsigned(p));
+        DBG(<<"_cpp_vector.freefunc(sz=" << t << ") delete " << p);
 	double *d = (double *)p;
 	delete[] d;
    }
@@ -120,7 +151,7 @@ int cpp_char_factory_t::_nfrees =0;
 inline void
 record_malloc(smsize_t amt)
 {
-    unsigned long a = (unsigned long)(amt);
+    unsigned a = (unsigned )(amt);
     INC_STAT_SORT(sort_mallocs); 
     ADD_TSTAT_SORT(sort_malloc_bytes, a); 
     ADD_TSTAT_SORT(sort_malloc_curr, a); 
@@ -128,7 +159,7 @@ record_malloc(smsize_t amt)
     if(m < a) { SET_TSTAT_SORT(sort_malloc_max, a);}
 
     // scratch_used is the highwater mark
-    unsigned long c = GET_TSTAT_SORT(sort_malloc_curr);
+    unsigned c = GET_TSTAT_SORT(sort_malloc_curr);
     m = GET_TSTAT_SORT(sort_malloc_hiwat);
     if(c > m) {
 	// m = c
@@ -140,8 +171,8 @@ inline void
 record_free(smsize_t amt) 
 {
     // scratch_used is the highwater mark
-    unsigned long	c = GET_TSTAT_SORT(sort_malloc_curr);
-    c -= (unsigned long)(amt);
+    unsigned c = GET_TSTAT_SORT(sort_malloc_curr);
+    c -= (unsigned )(amt);
     SET_TSTAT_SORT(sort_malloc_curr, c);
 }
 #else
@@ -261,8 +292,7 @@ limited_space::allocfunc(smsize_t l) {
     if(rc && (rc.err_num() == eINSUFFICIENTMEM))  {
 	p = 0;
     }
-    DBG(<<"limited_space::allocfunc(sz=" << l
-		<< ") gets " << unsigned(p));
+    DBG(<<"limited_space::allocfunc(sz=" << l << ") gets " << (void *)p);
     return (void *)p;
 }
 
@@ -274,23 +304,21 @@ limited_space::freefunc(const void*p, smsize_t l) {
 	// get alloc/dealloc in stack order then.
 	W_FATAL(rc);
     }
-    DBG(<<"limited_space::freefunc(sz=" << l 
-		<< ") gives " << unsigned(p));
+    DBG(<<"limited_space::freefunc(sz=" << l << ") gives " << p);
 }
 
 
 w_rc_t 
 limited_space::give_buf(smsize_t amt, char *where) 
 {
-    DBG(<<"give buf where=" << unsigned(where)
-	<< " amt=" << amt);
+    DBG(<<"give buf where=" << (void *)where << " amt=" << amt);
     amt = _align(amt);
     if(where + amt != _scratch) {
 	return RC(eBADSTART);
     }
     _scratch = where;
     _left += amt;
-    DBG(<<"give buf new scratch=" << unsigned(_scratch));
+    DBG(<<"give buf new scratch=" << (void*)_scratch);
     return RCOK;
 }
 
@@ -319,7 +347,7 @@ limited_space::keep_buf(smsize_t amt, const char *
 #endif /* W_DEBUG */
 ) 
 {
-    DBG(<<"enter keep_buf: amt=" << amt << " _scratch = " << unsigned(_scratch));
+    DBG(<<"enter keep_buf: amt=" << amt << " _scratch = " << (void*)_scratch);
     char *newscratch = _alignAddr(_scratch);
     w_assert3(newscratch == b);
 
@@ -339,7 +367,7 @@ limited_space::keep_buf(smsize_t amt, const char *
 	    _buf_hiwat = (_buffer_sz - _left);
     w_assert3(_alignAddr(_scratch) == _scratch);
 
-    DBG(<<" leave keep_buf: amt=" << amt << " new _scratch = " << unsigned(_scratch));
+    DBG(<<" leave keep_buf: amt=" << amt << " new _scratch = " << (void*)_scratch);
     return RCOK;
 }
 
@@ -2009,7 +2037,7 @@ run_mgr::put_rec(file_p &fp, slotid_t slot)
 
 #ifdef W_DEBUG
     {
-		// << " key(0)=" << unsigned(m->sort_key(0).ptr(0)) 
+		// << " key(0)=" << (void*)(m->sort_key(0).ptr(0)) 
 	meta_header_t* m= rec_curr - 1;
         DBG(<<"end put: orig rec=" << 
 		m->shrid(_ifid.store)
@@ -2946,7 +2974,7 @@ tape_t::prime_record(const sort_keys_t &info,
 		    w_assert3(rec->body_size() >= smsize_t(offset + klen));
 		    if(klen > 0) {
 			char *buf = (char *)sk.ptr(0); // already allocated
-			char *where = 0; // ptr into tmp rec
+			const char *where = 0; // ptr into tmp rec
 			smsize_t pl1;
 
 			blob.prime(fakekey);
@@ -3015,7 +3043,7 @@ tape_t::prime_record(const sort_keys_t &info,
 	    w_assert3(nk == 1);
 
 	    char *buf = (char *)ik.ptr(0); // in-mem ptr 
-	    char *where = 0; // ptr into tmp rec
+	    const char *where = 0; // ptr into tmp rec
 	    smsize_t pl1;
 	    // keep track of length, since it can be 0
 	    while( blob.more() && length > 0) {
@@ -3077,7 +3105,7 @@ tape_t::prime_record(const sort_keys_t &info,
 		/* Create a blob to read the faked key from the meta object */
 		blob	blob(_rid);
 
-		char *where = 0; // ptr into tmp rec
+		const char *where = 0; // ptr into tmp rec
 		const char *buf = buffer;
 		smsize_t pl1;
 		blob.prime(fakekey);
@@ -3125,7 +3153,7 @@ tape_t::prime_record(const sort_keys_t &info,
 	     */
 	    blob	blob(_rid);
 
-	    char *where = 0; // ptr into tmp rec
+	    const char *where = 0; // ptr into tmp rec
 	    const char *buf = (const char *)object.hdr(0);
 	    /*
 	     * Space was allocated above, so object.hdr(0)
@@ -5449,10 +5477,19 @@ int sort_keys_t::uint8_cmp(uint4_t W_IFDEBUG(klen1), const void* kval1,
     w_assert3(klen1 == klen2);
     w_assert3(klen1 == sizeof(w_base_t::uint8_t));
     // a - b can overflow: use comparison instead
-    // return (* (w_base_t::uint8_t*) kval1) - (* (w_base_t::uint8_t*) kval2);
-    bool ret =  (* (w_base_t::uint8_t*) kval1) < (* (w_base_t::uint8_t*) kval2);
-    return ret? -1 : 
-    ((* (w_base_t::uint8_t*) kval1) == (* (w_base_t::uint8_t*) kval2) )? 0 : 1;
+#ifdef STRICT_INT8_ALIGNMENT
+    w_base_t::uint8_t	u1;
+    w_base_t::uint8_t	u2;
+    memcpy(&u1, kval1, sizeof(u1));
+    memcpy(&u2, kval2, sizeof(u2));
+    ADD_TSTAT_SORT(sort_memcpy_cnt, 2);
+    ADD_TSTAT_SORT(sort_memcpy_bytes, 2*sizeof(w_base_t::uint8_t));
+#else
+    const w_base_t::uint8_t	&u1 = *(const w_base_t::uint8_t *) kval1;
+    const w_base_t::uint8_t	&u2 = *(const w_base_t::uint8_t *) kval2;
+#endif
+    bool ret =  u1 < u2;
+    return ret ? -1 : (u1 == u2) ? 0 : 1;
 }
 
 //
@@ -5464,10 +5501,19 @@ int sort_keys_t::int8_cmp(uint4_t W_IFDEBUG(klen1), const void* kval1,
     w_assert3(klen1 == klen2);
     w_assert3(klen1 == sizeof(w_base_t::int8_t));
     // a - b can overflow: use comparison instead
-    // return (* (w_base_t::int8_t*) kval1) - (* (w_base_t::int8_t*) kval2);
-    bool ret =  (* (w_base_t::int8_t*) kval1) < (* (w_base_t::int8_t*) kval2);
-    return ret? -1 : 
-    ((* (w_base_t::int8_t*) kval1) == (* (w_base_t::int8_t*) kval2) )? 0 : 1;
+#ifdef STRICT_INT8_ALIGNMENT
+    w_base_t::int8_t	i1;
+    w_base_t::int8_t	i2;
+    memcpy(&i1, kval1, sizeof(i1));
+    memcpy(&i2, kval2, sizeof(i2));
+    ADD_TSTAT_SORT(sort_memcpy_cnt, 2);
+    ADD_TSTAT_SORT(sort_memcpy_bytes, 2*sizeof(w_base_t::int8_t));
+#else
+    const w_base_t::int8_t	&i1 = *(const w_base_t::int8_t *) kval1;
+    const w_base_t::int8_t	&i2 = *(const w_base_t::int8_t *) kval2;
+#endif
+    bool ret =  i1 < i2;
+    return ret ? -1 : (i1 == i2) ? 0 : 1;
 }
 
 //
@@ -5563,15 +5609,19 @@ int sort_keys_t::f8_cmp(uint4_t W_IFDEBUG(klen1), const void* kval1,
 {
     w_assert3(klen1 == klen2);
     w_assert3(klen1 == sizeof(w_base_t::f8_t));
-    w_base_t::f8_t d1, d2;
-    w_assert3(klen1 == klen2);
-    w_assert3(klen1 == sizeof(w_base_t::f8_t));
+
+#ifdef STRICT_F8_ALIGNMENT
+    w_base_t::f8_t d1;
+    w_base_t::f8_t d2;
     memcpy(&d1, kval1, sizeof(w_base_t::f8_t));
     memcpy(&d2, kval2, sizeof(w_base_t::f8_t));
     ADD_TSTAT_SORT(sort_memcpy_cnt, 2);
     ADD_TSTAT_SORT(sort_memcpy_bytes, 2*sizeof(w_base_t::f8_t));
+#else
+    const w_base_t::f8_t &d1 = *(const w_base_t::f8_t *) kval1;
+    const w_base_t::f8_t &d2 = *(const w_base_t::f8_t *) kval2;
+#endif
 
-    // bool ret =  (* (w_base_t::f8_t*) kval1) < (* (w_base_t::f8_t*) kval2);
     bool ret =  d1 < d2;
     return ret ? -1 : (d1 == d2) ? 0 : 1;
 }

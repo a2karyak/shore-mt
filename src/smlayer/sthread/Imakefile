@@ -1,6 +1,6 @@
 /*<std-header style='imakefile' orig-src='shore'>
 
- $Id: Imakefile,v 1.108 1999/06/23 17:05:29 nhall Exp $
+ $Id: Imakefile,v 1.109 1999/11/23 18:25:44 kupsch Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -243,6 +243,7 @@ libsthread.h += \
 	$(sfile.h) $(sfile_handler.h) \
 	ready_q.h	\
 	$(sdisk.h)	\
+	scoped_rename.h	\
 	strace.h	\
 	sthread_stats.h \
 	os_interface.h os_fcntl.h

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: win32_events.cpp,v 1.14 1999/06/14 17:22:30 bolo Exp $
+ $Id: win32_events.cpp,v 1.17 2000/02/17 23:14:38 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -89,21 +89,60 @@ win32_event_handler_t::win32_event_handler_t()
   _timeout(0),
   _timeout_forever(false),
   use_rewait(0),
-  event_debug(0)
+  event_debug(0),
+  use_mux(0),
+  force_mux(false),
+  using_mux(false),
+  num_muxes(0),
+  num_ready_muxes(0)
 {
-	const char *s = getenv("WIN32_EVENT_REWAIT");
-	if (s && *s)
-		use_rewait = atoi(s);
+#if 1
+	/* Look again for any other events if there are any events remaining.
+	   If the multiplexor is in use, it isn't as aggresive as this at the 
+	   moment. */
+	use_rewait = 1;
+
+	/* The multiplexor will turn on if the #events requires it. */
+	use_mux = eventMux::muxEvents;
+#endif
+
+	const char	*s;
+	int		n;
+
+	s = getenv("WIN32_EVENT_REWAIT");
+	if (s && *s) {
+		n = atoi(s);
+		if (n < 0)
+			n = 0;
+		use_rewait = n;
+	}
 
 	s = getenv("WIN32_EVENT_DEBUG");
 	if (s && *s)
 		event_debug = atoi(s);
+
+	s = getenv("WIN32_EVENT_MUX");
+	if (s && *s) {
+		n = atoi(s);
+		if (n < 0) {
+			force_mux = true;
+			n = -n;
+		}
+		if (n > eventMux::muxEvents)
+			n = eventMux::muxEvents;
+		use_mux = n;
+	}
+
+	unsigned	i;
+	for (i = 0; i < max_mux; i++)
+		muxes[i] = 0;
 }
 
 
 win32_event_handler_t::~win32_event_handler_t()
 {
 	/* XXX what if anything is left started or running??? */
+	/* XXX what about muxes */
 
 	if (map) {
 		delete [] map;
@@ -336,15 +375,25 @@ w_rc_t win32_event_handler_t::prepare(const stime_t &timeout, bool forever)
 #endif
 
 	num_fired = 0;
+	using_mux = false;
 
-	/* This is only a problem until the scheduling stuff is done,
-	   at which point it is trivial to limit the number of wait
-	   objects waited for at a shot. */
-	if (num_waiting > MAXIMUM_WAIT_OBJECTS)
+	if (use_mux == 0 && num_waiting > MAXIMUM_WAIT_OBJECTS) {
 		cerr << "Warning: Maximum Wait Objects of "
 			<< MAXIMUM_WAIT_OBJECTS 
 			<< " exceeded, waiting for " << num_waiting
 			<< "." << endl;
+	}
+
+	/* Dynamically enable use of the MUX when number of events is high. */
+	if (force_mux || (use_mux && num_enabled > MAXIMUM_WAIT_OBJECTS))
+		using_mux = true;
+
+	/* seperate from above to seperate command from control */
+	if (using_mux) {
+		w_rc_t	e = distribute_events();
+		if (e != RCOK)
+			return e;
+	}
 		
 
 #ifdef EXPENSIVE_STATS
@@ -393,6 +442,9 @@ w_rc_t win32_event_handler_t::wait()
 		return RC(sthread_base_t::stTIMEOUT);
 	}
 
+	if (using_mux)
+		return muxwait();
+
 	w = WaitForMultipleObjects(num_enabled,
 				   ready,
 				   FALSE,
@@ -426,55 +478,117 @@ w_rc_t win32_event_handler_t::wait()
 
 	unsigned	threshold = use_rewait;
 	unsigned	remaining = num_enabled - 1;
-	bool		try_again = use_rewait > 0;
 
-	/* Retry if the number of remaining waiters is > the threshold */
-	while (num_fired < max_fired && try_again &&
-		remaining && remaining >= threshold) {
-
+	if (num_fired < max_fired && remaining && remaining > threshold) {
 		/* Compact the event list and map, if needed */
 		if (last_fired != remaining) {
 			ready[last_fired] = ready[remaining];
 			map[last_fired] = map[remaining];
 		}
 
-		/* XXX rewrite this disgusting code, perhaps encapsulate
-			WaitForMultipleEvents */
-		w = WaitForMultipleObjects(remaining, ready, FALSE, 0);
-		if (w == WAIT_FAILED) {
-			w_rc_t	e = RC(fcWIN32);
-			cerr << "Ignoring secondary wait failure:"
-				<< endl << e << endl;
-			try_again = false;
-		}
-		else if (w == WAIT_TIMEOUT)
-			try_again = false;
-		else if (w >= WAIT_OBJECT_0 && w < WAIT_OBJECT_0+remaining) {
-			last_fired = w - WAIT_OBJECT_0;
-			which_fired[num_fired++] = map[last_fired];
-		}
-		else if (w >= WAIT_ABANDONED_0 && w < WAIT_ABANDONED_0+remaining) {
-			last_fired = w - WAIT_ABANDONED_0;
-			which_fired[num_fired++] = map[last_fired];
-		}
-		else {
-			w_rc_t	e = RC(fcWIN32);
-			cerr << "** Unexpected WaitForMultipleObjects code " <<
-				w << ":" << endl << e << endl;
-			cout << "WAIT_OBJECT_0 " << WAIT_OBJECT_0
-				<< " WAIT_ABANDONED_0 " << WAIT_ABANDONED_0
-				<< " remaining " << remaining << endl;
-			try_again = false;
-		}
-			
-		/* Doesn't matter if goes west, try_again supersedes */
-		remaining--;
+		w_rc_t		e;
+		unsigned	additional = 0;
+		e = harvest(ready, map, remaining, threshold,
+			    which_fired+1, max_fired-1, additional);
+		W_IGNORE(e);
+		num_fired += additional;
 	}
 
 	SthreadStats.selfound++;
 
 	return RCOK;
 }
+
+w_rc_t	win32_event_handler_t::muxwait()
+{
+	bool		ok;
+	DWORD		w = 0;
+	int		bw = 0;
+	unsigned	i;
+
+	for (i = 0; i < num_ready_muxes; i++)
+		W_COERCE(muxes[i]->request(eventMux::MUXwait));
+
+	w = WaitForMultipleObjects(num_ready_muxes, ready_mux,
+				   FALSE, _timeout);
+
+	int	wakened = -1;
+
+	/* See if a valid wakeup occured */
+	if (w >= WAIT_ABANDONED_0 && w < WAIT_ABANDONED_0 + num_ready_muxes)
+		wakened = w - WAIT_ABANDONED_0;
+	else if (w >= WAIT_OBJECT_0 && w < WAIT_OBJECT_0 + num_ready_muxes)
+		wakened = w - WAIT_OBJECT_0;
+
+	/* XXX error handling needs to be fixed here */
+
+	/* XXX could do background waiting if we added all the SYNC.
+	   to add/drop a waiter. */
+
+	/* Tell each mux that didn't find anything to stop waiting. */
+	/* XXX but what if they did find something and we haven't seen
+		the event yet.  That screws up the protocol. */
+	for (i = 0; i < num_ready_muxes; i++) {
+		/* Don't bother it if it woke us up */
+		if (wakened != -1 && i == (unsigned) wakened)
+			continue;
+
+		ok = SetEvent(muxes[i]->stopwait);
+		if (!ok) {
+			w_rc_t	e = RC(fcWIN32);
+			cerr << "SetEvent():" << endl << e << endl;
+			W_COERCE(e);
+		}
+	}
+
+	/* And now wait for everyone else to be done */
+	unsigned	remaining = num_ready_muxes;
+	if (wakened != -1) {
+		if ((unsigned)wakened != remaining-1)
+			ready_mux[wakened] = ready_mux[remaining-1];
+		remaining--;
+	}
+
+	if (remaining) {
+//		cout << "waiting for " << remaining << " muxes." << endl;
+		DWORD	n;
+		/* wait for all mux objects not signalled to signal */
+		n = WaitForMultipleObjects(remaining, ready_mux,
+					   TRUE, INFINITE);
+		if (!((n >= WAIT_OBJECT_0 && n < WAIT_OBJECT_0 + remaining)
+			|| (n >= WAIT_ABANDONED_0 && n < WAIT_ABANDONED_0+remaining))) {
+			w_rc_t	e = RC(fcWIN32);
+			cerr << "WaitForSingleObject():" << endl << e << endl;
+			W_COERCE(e);
+		}
+		remaining--;
+	}
+
+	if (w == WAIT_FAILED)
+		return RC(fcWIN32);
+
+	if (w == WAIT_TIMEOUT)
+		return RC(sthread_base_t::stTIMEOUT);
+
+	for (i = 0; i < num_ready_muxes; i++) {
+		unsigned	fired;
+		if (num_fired + muxes[i]->num_fired > max_fired) {
+			cerr << "TOO MANY EVENTS FIRED" 
+				<< " max_fired " << max_fired
+				<< " num_fired " << num_fired
+				<< " mux[" << i << "].num_fired " << muxes[i]->num_fired
+				<< endl;
+			W_FATAL(fcINTERNAL);
+		}
+		fired = muxes[i]->unmap_events(which_fired + num_fired);
+		num_fired += fired;
+	}
+
+	SthreadStats.selfound++;
+
+	return RCOK;
+}
+
 
 /*
  *  Dispatch events to individual requesting handles.
@@ -566,6 +680,532 @@ bool	win32_event_handler_t::probe(win32_event_t &hdl)
 	return huh;
 }
 
+/*
+ * Look for any other events that may be ready in the
+ * specified ready list.  The ready list and the map is mulilated
+ * as events are found to make harvest()'s work easier.
+ */
+w_rc_t win32_event_handler_t::harvest(HANDLE *ready, win32_event_t **map,
+				      unsigned count, unsigned threshold,
+				      win32_event_t **which_fired,
+				      unsigned max_fired,
+				      unsigned	&ret_num_fired)
+{
+	unsigned	num_fired = 0;
+	unsigned	last_fired = 0;	/* XXX invalid until set */
+	bool		try_again = true;
+	unsigned	remaining = count;
+	DWORD		w;
+	w_rc_t		e;
+
+	ret_num_fired = 0;
+
+	while (num_fired < max_fired && try_again &&
+		remaining && remaining >= threshold) {
+
+		/* Compact the event list and map, if needed */
+		if (num_fired > 0 && last_fired != remaining) {
+			ready[last_fired] = ready[remaining];
+			map[last_fired] = map[remaining];
+		}
+
+		w = WaitForMultipleObjects(remaining, ready, FALSE, 0);
+		if (w == WAIT_FAILED) {
+			e = RC(fcWIN32);
+			cerr << "Ignoring secondary wait failure:"
+				<< endl << e << endl;
+			try_again = false;
+		}
+		else if (w == WAIT_TIMEOUT)
+			try_again = false;
+		else if (w >= WAIT_OBJECT_0 && w < WAIT_OBJECT_0+remaining) {
+			last_fired = w - WAIT_OBJECT_0;
+			which_fired[num_fired++] = map[last_fired];
+		}
+		else if (w >= WAIT_ABANDONED_0 && w < WAIT_ABANDONED_0+remaining) {
+			last_fired = w - WAIT_ABANDONED_0;
+			which_fired[num_fired++] = map[last_fired];
+		}
+		else {
+			e = RC(fcWIN32);
+			cerr << "** Unexpected WaitForMultipleObjects code " <<
+				w << ":" << endl << e << endl;
+			cout << "WAIT_OBJECT_0 " << WAIT_OBJECT_0
+				<< " WAIT_ABANDONED_0 " << WAIT_ABANDONED_0
+				<< " remaining " << remaining << endl;
+			try_again = false;
+		}
+			
+		/* Doesn't matter if goes west, try_again supersedes */
+		remaining--;
+	}
+	ret_num_fired = num_fired;
+	return	e;
+}
+
+w_rc_t	win32_event_handler_t::distribute_events()
+{
+	/* XXX figure out how many muxes are running, or control that */
+	if (num_enabled == 0 || use_mux == 0) {
+		/* XXX or don't need mux events */
+		num_ready_muxes = 0;
+		return RCOK;
+	}
+
+	/* XXX must do a better job of controlling muxes */
+	unsigned	howmany = (num_enabled + use_mux-1) / use_mux;
+	if (howmany > max_mux)
+		howmany = max_mux;
+		
+	/* XXX if can't resize, use what is available, if none, die */
+	if (howmany > num_muxes)
+		W_COERCE(resize_mux(howmany));
+
+	unsigned	needed = (num_enabled + use_mux -1) / use_mux;
+	unsigned	permux = use_mux;
+	if (needed > max_mux) {
+#if 0
+		cout << "rehash mux count=" << needed << ", " << permux
+			<< " /mux";
+#endif
+		permux = (num_enabled + max_mux -1) / max_mux;
+		needed = (num_enabled + permux -1) / permux;
+#if 0
+		cout << " TO " << needed << ", " << permux << "/mux" << endl;
+#endif
+	}
+	unsigned	i;
+	unsigned	remaining = num_enabled;
+	unsigned	next = 0;
+
+	w_assert1(needed <= max_mux);
+
+	/* XXX if the division is really bizzare, must carry-over
+	   entries so that everything fits.  Need to keep better track
+	   of everything here.   Think about it */
+
+	for (i = 0; i < needed; i++) {
+		if (!muxes[i])
+			W_FATAL(fcINTERNAL);
+		eventMux	&mux = *muxes[i];
+
+		unsigned	howmany = (remaining < permux) ?
+						remaining : permux;
+
+		if (remaining == 0)
+			cout << "Warning: mux " << i << " remaining " << remaining << endl;
+
+		mux.start = ready + next;
+		mux.count = howmany;
+		mux.start_index = next;
+		mux.map = map + next;
+
+		next += howmany;
+		remaining -= howmany;
+
+		ready_mux[i] = mux.gen;
+	}
+	if (remaining) {
+		cout << "Give " << remaining << " extra events to " 
+			<< needed-1 << endl;
+		eventMux	&mux = *muxes[needed-1];
+		mux.count += remaining;
+	}
+	num_ready_muxes = needed;
+
+	return RCOK;
+}
+
+
+w_rc_t	win32_event_handler_t::resize_mux(unsigned howmany)
+{
+	if (howmany > max_mux)
+		return RC(fcINTERNAL);
+
+	if (howmany <= num_muxes)
+		return RCOK;
+
+	unsigned	mux;
+	for (mux = num_muxes; mux < howmany; mux++)
+		if (!muxes[mux])
+			W_COERCE(start_mux_thread(mux));
+	
+	num_muxes = howmany;
+
+	return RCOK;
+}
+
+
+w_rc_t	win32_event_handler_t::start_mux_thread(const unsigned which_mux)
+{
+	if (which_mux >= max_mux)
+		return RC(fcINTERNAL);
+
+#if 0
+	cerr << "start_mux_thread(" << which_mux << ") ... ";
+#endif
+
+	eventMux	*muxp;
+	w_rc_t		e;
+
+	e = eventMux::newEventMux(muxp, *this, which_mux);
+	if (e != RCOK)
+		return e;
+
+	muxes[which_mux] = muxp;
+	eventMux	&mux = *muxp;
+
+	W_COERCE(mux.fork());
+
+#if 0
+	cerr << "MUX thread " << mux.which_mux << " started" << endl;
+#endif
+
+	return RCOK;
+}
+
+
+
+w_rc_t	win32_event_handler_t::stop_mux_thread(const unsigned which_mux)
+{
+	if (which_mux >= max_mux)
+		return RC(fcINTERNAL);
+
+	eventMux	&mux = *muxes[which_mux];
+
+	W_COERCE(mux.stop());
+
+	delete &mux;
+	muxes[which_mux] = 0;
+
+	return RCOK;
+}
+
+unsigned win32_event_handler_t::eventMux::unmap_events(win32_event_t **which)
+{
+	for (unsigned i = 0; i < num_fired; i++)
+		which[i] = which_fired[i];
+
+	return num_fired;
+}
+
+
+/* Prepare our set of events for querying */
+void	win32_event_handler_t::eventMux::prepare()
+{
+	/* Wait on all the events we are supposed to. */
+	if (count == 0)
+		cout << "mux count 0!" << endl;
+
+	memcpy(ready, start, count * sizeof(HANDLE));
+
+	/* Add our wakeup event to stop waiting */
+	ready[count] = stopwait;
+
+	num_fired = 0;
+}
+
+
+bool	win32_event_handler_t::eventMux::wait()
+{
+	DWORD	w;
+	bool	ok;
+	w_rc_t	e;
+
+	w = WaitForSingleObject(wakeup, INFINITE);
+	if (w != WAIT_OBJECT_0) {
+		e = RC(fcWIN32);
+		cerr << "Win32 event mux: WaitForSingleObject():"
+			<< endl << e << endl;
+		W_COERCE(e);
+	}
+
+	if (op != MUXwait)
+		cerr << "MUX thread " << which_mux << " wakeup, op="
+			<< (int) op << endl;
+
+#if 0
+	static unsigned calls[10];
+	if (calls[which_mux] && (calls[which_mux] % 10) == 0)
+		cerr << "MUX thread " << which_mux << " wakeup, op="
+			<< (int) op << " call=" << calls[which_mux] << endl;
+	calls[which_mux]++;
+#endif
+
+	/* XXX the op isn't reset until return, so that print methods
+	   can say what the mux is doing. */
+
+	if (op == MUXdone) {
+		/* master waiting for thread exit as ACK signal */
+		op = MUXnone;
+		return false;
+	}
+
+	prepare();
+
+
+	w = WaitForMultipleObjects(count+1, ready, FALSE, INFINITE);
+	switch (w) {
+	case WAIT_FAILED:
+		/* XXX could propogate failure to handler */
+		e = RC(fcWIN32);
+		cerr << "Win32 event mux: WaitForMultipleObjects():"
+			<< endl << e << endl;
+		W_COERCE(e);
+		break;
+
+	case WAIT_TIMEOUT:
+		/* reset the op */
+		op = MUXnone;
+
+		/* Tell the handler we are done. */
+		ok = ReleaseSemaphore(gen, 1, NULL);
+		if (!ok) {
+			e = RC(fcWIN32);
+			cerr << "Win32 event mux: release semaphore fails:"
+				<< endl << e << endl;
+			W_COERCE(e);
+		}
+
+		return true;
+		break;
+	}
+
+	unsigned	bw;
+
+	/* Treat abandonment as firing; maybe add an exception handler? */
+	if (w >= WAIT_ABANDONED_0 && w < WAIT_ABANDONED_0 + count+1)
+		bw = WAIT_ABANDONED_0;
+	else if (w >= WAIT_OBJECT_0 && w < WAIT_OBJECT_0 + count+1)
+		bw = WAIT_OBJECT_0;
+	else {
+		e = RC(fcWIN32);
+		cerr << "** Unexpected WaitForMultipleObjects code "
+			<< w << ":" << endl << e << endl;
+		W_COERCE(e);
+	}
+
+	unsigned	which = w - bw;
+
+	/* If ours, master is telling us to stop waiting, nothing happened */
+	if (which != count) {
+		unsigned	last_fired = w - bw;
+		unsigned	remaining = count-1;
+
+		which_fired[num_fired++] = map[last_fired];
+
+		if (remaining > 0 && num_fired < max_fired) {
+			/* Compact the event list and map, if needed */
+			if (last_fired != remaining) {
+				ready[last_fired] = ready[remaining];
+				map[last_fired] = map[remaining];
+			}
+
+			unsigned	additional = 0;
+
+			w_rc_t	e;
+			e = harvest(ready, map, remaining, 1/*threshold*/,
+				    which_fired+1, max_fired-1, additional);
+			W_COERCE(e);	/* error due to RC allocation */
+			num_fired += additional;
+		}
+	}
+
+	/* reset the op */
+	op = MUXnone;
+
+	/* Tell the master we are done. */
+	ok = ReleaseSemaphore(gen, 1, NULL);
+	if (!ok) {
+		e = RC(fcWIN32);
+		cerr << "Win32 event mux: release semaphore fails:"
+			<< endl << e << endl;
+		W_COERCE(e);
+	}
+
+	return true;
+}
+
+w_rc_t	win32_event_handler_t::eventMux::request(muxOp requestedOp)
+{
+	bool	ok;
+
+	ok = ResetEvent(stopwait);
+	if (!ok) {
+		w_rc_t e = RC(fcWIN32);
+		cerr << "Win32 event mux: ResetEvent():"
+			<< endl << e << endl;
+		return e;
+	}
+
+	op = requestedOp;
+
+	ok = ReleaseSemaphore(wakeup, 1, NULL);
+	if (!ok) {
+		w_rc_t	e = RC(fcWIN32);
+		cerr << "ReleaseSemaphore():" << endl << e << endl;
+		return e;
+	}
+
+	return RCOK;
+}
+
+w_rc_t	win32_event_handler_t::eventMux::_startup()
+{
+	/* XXX all this junk belongs to the mux */
+	/* XXX magic value 8, needs research, perhaps only 1 or 2? */
+
+	wakeup = CreateSemaphore(NULL, 0, 8, NULL);
+	if (wakeup == INVALID_HANDLE_VALUE) {
+		w_rc_t	e = RC(fcWIN32);
+		cerr << "CreateSemaphore():" << endl << e << endl;
+		W_COERCE(e);
+	}
+
+	gen = CreateSemaphore(NULL, 0, 8, NULL);
+	if (gen == INVALID_HANDLE_VALUE) {
+		w_rc_t	e = RC(fcWIN32);
+		cerr << "CreateSemaphore():" << endl << e << endl;
+		W_COERCE(e);
+	}
+
+	/* Can't use semaphore because is statistical, not guaranteed */
+	/* Auto reset, Initially not set */
+
+	stopwait = CreateEvent(0, true, false, 0);
+	if (stopwait == INVALID_HANDLE_VALUE) {
+		w_rc_t	e = RC(fcWIN32);
+		cerr << "CreateEvent():" << endl << e << endl;
+		W_COERCE(e);
+	}
+
+	return RCOK;
+}
+
+
+win32_event_handler_t::eventMux::~eventMux()
+{
+	/* XXX error returns */
+	if (stopwait != INVALID_HANDLE_VALUE) {
+		CloseHandle(stopwait);
+		stopwait = INVALID_HANDLE_VALUE;
+	}
+	if (gen != INVALID_HANDLE_VALUE) {
+		CloseHandle(gen);
+		gen = INVALID_HANDLE_VALUE;
+	}
+	if (wakeup != INVALID_HANDLE_VALUE) {
+		CloseHandle(wakeup);
+		wakeup = INVALID_HANDLE_VALUE;
+	}
+}
+
+
+
+w_rc_t	win32_event_handler_t::eventMux::newEventMux(
+					eventMux		*&_mux,
+					win32_event_handler_t	&h,
+					const unsigned		which)
+{
+	_mux = 0;
+
+	eventMux	*mux;
+
+	mux = new eventMux(h, which);
+	if (!mux)
+		return RC(fcOUTOFMEMORY);
+
+	w_rc_t	e;
+
+	e = mux->_startup();
+
+	if (e != RCOK)
+		delete mux;
+	else
+		_mux = mux;
+	
+	return e;
+}
+
+
+
+void	win32_event_handler_t::eventMux::run()
+{
+	while (wait())
+		;
+}
+
+
+/* Static to transition system to objects */
+#ifdef _MT
+unsigned
+#else
+DWORD
+#endif
+__stdcall	win32_event_handler_t::eventMux::__start(void *_arg)
+{
+	eventMux	&mux = *(eventMux *) _arg;
+	
+	mux.run();
+
+	return 0;
+}
+
+
+w_rc_t	win32_event_handler_t::eventMux::fork()
+{
+	if (thread != INVALID_HANDLE_VALUE) {
+		cerr << "eventMux already started" << endl;
+		return RC(fcINTERNAL);
+	}
+
+#if defined(_MT) && !defined(WIN32_THREADS_ONLY)
+	thread = (HANDLE) _beginthreadex(NULL, 0,
+		__start, this,
+		0, &thread_id);
+#else
+	thread = CreateThread(NULL, 0,
+		__start, this,
+		0, &thread_id);
+#endif
+	if (thread == INVALID_HANDLE_VALUE) {
+		w_rc_t	e = RC(fcWIN32);
+		cerr << "CreateThread():" << endl << e << endl;
+		/* XXX shouldn't be fatal if a fallback is available */
+		return e;
+	}
+
+	return RCOK;
+}
+
+w_rc_t	win32_event_handler_t::eventMux::stop()
+{
+	if (thread == INVALID_HANDLE_VALUE) {
+		cerr << "eventMux stopped" << endl;
+		return RC(fcINTERNAL);
+	}
+
+	DWORD		what;
+
+	W_COERCE(request(MUXdone));
+	
+	/* XXX could schedule this as a callback or something, but
+	   because we are the idle thread, idling ourself isn't an
+	   option. */
+	what = WaitForSingleObject(thread, INFINITE);
+	if (what != WAIT_OBJECT_0) {
+		w_rc_t	e = RC(fcWIN32);
+		cerr << "WaitForSingleObject():" << endl << e << endl;
+		return e;
+	}
+
+	CloseHandle(thread);
+	thread = INVALID_HANDLE_VALUE;
+
+
+	return RCOK;
+}
+
 
 #if 0
 /*
@@ -594,6 +1234,9 @@ ostream &win32_event_handler_t::print(ostream &o)
 	o << "WIN32 EVENTS:" << endl;
 	if (_hits)
 		o << _hits << " events";
+
+	if (num_muxes)
+		o << " " << num_muxes << " muxes";
 
 	if (num_started)
 		o << " " << num_started << " started";

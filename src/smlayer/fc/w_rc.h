@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='W_RC_H'>
 
- $Id: w_rc.h,v 1.63 1999/06/23 17:05:24 nhall Exp $
+ $Id: w_rc.h,v 1.64 1999/08/25 01:25:06 kupsch Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -406,12 +406,47 @@ w_rc_t::operator bool() const
 #define RC_PUSH(rc, e)					\
     rc.push(__FILE__, __LINE__, e)
 
+#define RC_SET_MSG(rc, m)				\
+do {							\
+    ostrstream os;					\
+    os m << ends;					\
+    rc->set_more_info_msg(os.str());			\
+} while (0)
+
+#define RC_APPEND_MSG(rc, m)				\
+do {							\
+    ostrstream os;					\
+    os m << ends;					\
+    rc->append_more_info_msg(os.str());			\
+} while (0)
+
+#define W_RETURN_RC(x)					\
+do {							\
+    return RC(x);					\
+}  while (0)
+
+#define W_RETURN_RC_MSG(x, m)				\
+do {							\
+    w_rc_t __e = RC(x);					\
+    RC_SET_MSG(__e, m);					\
+    return __e;						\
+} while (0)
 
 
 #define W_DO(x)  					\
 do {							\
     w_rc_t __e = (x);					\
     if (__e) return RC_AUGMENT(__e);			\
+} while (0)
+
+#define W_DO_MSG(x, m)					\
+do {							\
+    w_rc_t __e = (x);					\
+    if (__e) {						\
+        RC_AUGMENT(__e);				\
+	RC_APPEND_MSG(__e, m);				\
+	return __e;					\
+    }							\
 } while (0)
 
 // W_DO_GOTO must use an w_error_t* parameter (err) since
@@ -430,6 +465,16 @@ do {							\
     if (__e)  { return RC_PUSH(__e, e); }		\
 } while (0)
 
+#define W_DO_PUSH_MSG(x, e, m)				\
+do {							\
+    w_rc_t __e = (x);					\
+    if (__e)  {						\
+    	RC_PUSH(__e, e);				\
+	RC_SET_MSG(__e, m);				\
+	return __e;					\
+    }							\
+} while (0)
+
 #define W_COERCE(x)  					\
 do {							\
     w_rc_t __e = (x);					\
@@ -439,11 +484,23 @@ do {							\
     }							\
 } while (0)
 
-#define W_FATAL(e)	W_COERCE(RC(e))
+#define W_COERCE_MSG(x, m)				\
+do {							\
+    w_rc_t __e = (x);					\
+    if (__e)  {						\
+	RC_APPEND_MSG(__e, m);				\
+	W_COERCE(__e);					\
+    }							\
+} while (0)
+
+#define W_FATAL(e)		W_COERCE(RC(e))
+#define W_FATAL_MSG(e, m)	W_COERCE_MSG(RC(e), m)
 
 #define W_IGNORE(x)	((void) x.is_error())
 
-/* redefine W_COERCE if USE_EXTERNAL_TRACE_EVENTS */
+#define W_PRINT_ASSERT(m)  do {cerr m << flush;} while(0)
+
+/* redefine W_COERCE and W_PRINT_ASSERT if USE_EXTERNAL_TRACE_EVENTS */
 #ifdef USE_EXTERNAL_TRACE_EVENTS
 #ifdef EXTTRACEEVENTS_H
 #error extTraceEvents.h included before w_rc.h

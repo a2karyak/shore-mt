@@ -1,6 +1,6 @@
 # <std-header style='make' orig-src='shore' no-defines='true'>
 #
-#  $Id: makefile.boot,v 1.10 1999/06/07 20:32:57 kupsch Exp $
+#  $Id: makefile.boot,v 1.11 2000/01/03 15:25:15 kupsch Exp $
 #
 # SHORE -- Scalable Heterogeneous Object REpository
 #
@@ -51,64 +51,32 @@ ifndef WINDOWS
 WINDOWS = 0
 endif
 
-ifeq ($(WINDOWS),1)
-	BOOTSTRAPCFLAGS =  -nologo -D__STDC__  -D_WIN32 -DWIN32
-	CC = cl
-	INCLUDES = -I. 
-	OPTIMIZE  = -Ox
-	OBJEXT = obj
-	EXEC = .exe
-	RM = rm -f
-	MV = mv
-	MAKE = make
-	LIBS = libc.lib kernel32.lib
-	OBJ_OUTPUT=  -Fo
-	EXE_OUTPUT=  -Fe
-#	SHELL=tcsh
-else
-	BOOTSTRAPCFLAGS =  
-	CC = gcc
-	INCLUDES = -I. 
-	OPTIMIZE  = -O
-	OBJEXT = o
-	EXEC = 
-	RM = rm -f
-	MV = mv
-	MAKE = make
-	LIBS = 
-	OBJ_OUTPUT = -o 
-	EXE_OUTPUT = -o 
-# 	SHELL = /bin/sh
+ifndef IMAKE_DEFINES
+IMAKE_DEFINES =
 endif
 
-CDEBUGFLAGS = $(OPTIMIZE) 
+ifdef USE_THIS_FOR_CPP
+ifdef STRINGIZE_USE_THIS_FOR_CPP
+IMAKE_DEFINES += -DUSE_THIS_FOR_CPP='$(USE_THIS_FOR_CPP)' -DSTRINGIZE_USE_THIS_FOR_CPP
+else
+IMAKE_DEFINES += -DUSE_THIS_FOR_CPP='"$(USE_THIS_FOR_CPP)"'
+endif
+endif
 
-CFLAGS = $(BOOTSTRAPCFLAGS) $(CDEBUGFLAGS) $(INCLUDES)
+ifdef STRINGIZE_USE_THIS_FOR_CPP
+IMAKE_DEFINES += -DSTRINGIZE_USE_THIS_FOR_CPP
+endif
 
-IMAKE_EXEC = $(BUILD_DIR)/imake$(EXEC)
-IMAKE_OBJ = $(BUILD_DIR)/imake.$(OBJEXT)
-TARGET_IMAKE_EXEC = $(TARGET_BUILD_DIR)/imake$(EXEC)
-TARGET_IMAKE_OBJ = $(TARGET_BUILD_DIR)/imake.$(OBJEXT)
+ifndef COMPILE_C_TO_EXEC
+ifeq ($(WINDOWS),1)
+COMPILE_C_TO_EXEC = cl -nologo -D__STDC__ -D_WIN32 -DWIN32 -I. -Ox IMAKE_DEFINES -FeEXEC_FILE SOURCE_FILE
+else
+COMPILE_C_TO_EXEC = gcc -O IMAKE_DEFINES -o EXEC_FILE SOURCE_FILE
+endif
+endif
 
-print_vars::
-	@echo making $(IMAKE_EXEC) with BOOTSTRAPCFLAGS=$(BOOTSTRAPCFLAGS)
-	@echo and IMAKE_OBJ=$(IMAKE_OBJ)
-	@echo and CC=$(CC)
-	@echo and OUTPUT=$(OUTPUT)
-	@echo and INCLUDES=$(INCLUDESCC)
-	@echo and OPTIMIZE=$(OPTIMIZE)
-	@echo and EXEC=$(EXEC)
-	@echo and RM=$(RM)
-	@echo and MV=$(MV)
-	@echo and MAKE=$(MAKE)
-	@echo and LIBS=$(LIBS)
-	@echo and SHELL=$(SHELL)
+IMAKE_EXEC = $(BUILD_DIR)/$(IMAKE_EXEC_NAME)
+TARGET_IMAKE_EXEC = $(TARGET_BUILD_DIR)/$(IMAKE_EXEC_NAME)
 
-$(TARGET_IMAKE_EXEC): $(TARGET_IMAKE_OBJ)
-	$(CC) $(EXE_OUTPUT)$(IMAKE_EXEC) $(CFLAGS) $(IMAKE_OBJ) $(LIBS)
-
-$(TARGET_IMAKE_OBJ): imake.c
-	$(CC) -c $(CFLAGS) $(OBJ_OUTPUT)$(IMAKE_OBJ) imake.c
-
-clean:
-	$(RM) $(IMAKE_EXEC) $(IMAKE_OBJ)
+$(TARGET_IMAKE_EXEC): imake.c imakemdep.h Xosdefs.h Xw32defs.h
+	$(subst EXEC_FILE,$(IMAKE_EXEC),$(subst SOURCE_FILE,$<,$(subst IMAKE_DEFINES,$(IMAKE_DEFINES),$(COMPILE_C_TO_EXEC))))

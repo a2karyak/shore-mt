@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: dtid_t.cpp,v 1.12 1999/06/07 19:04:02 kupsch Exp $
+ $Id: dtid_t.cpp,v 1.13 2000/02/02 03:57:29 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -36,6 +36,9 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 
 #include "dtid_t.h"
 #include <stime.h>
+
+#include <w_strstream.h>
+
 #ifdef USE_COORD
 
 uint4_t DTID_T::unique() {

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='SORT_S_H'>
 
- $Id: sort_s.h,v 1.27 1999/06/15 15:11:56 nhall Exp $
+ $Id: sort_s.h,v 1.28 2000/02/02 03:57:33 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -126,7 +126,7 @@ public:
 
    void factory_t::freefunc(vec_t&v) {
 	for(int i=v.count()-1; i>=0; i--) {
-	    DBG(<<"freefuncVEC(ptr=" << unsigned(v.ptr(i)) << " len=" << v.len(i));
+	    DBG(<<"freefuncVEC(ptr=" << (void*)v.ptr(i) << " len=" << v.len(i));
 	    freefunc((void *)v.ptr(i), v.len(i));
 	}
    }

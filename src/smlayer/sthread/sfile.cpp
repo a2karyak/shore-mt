@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: sfile.cpp,v 1.20 1999/06/07 19:06:05 kupsch Exp $
+ $Id: sfile.cpp,v 1.21 2000/02/01 23:59:20 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -100,7 +100,7 @@ int write(int x, const void *y, int z)
 
 #ifndef _WINDOWS
 
-#if !defined(SOLARIS2) && !defined(HPUX8) && !defined(AIX41) && !defined(Linux) && !defined(__NetBSD__)
+#if !defined(SOLARIS2) && !defined(HPUX8) && !defined(AIX41) && !defined(Linux) && !defined(__NetBSD__) && !defined(OSF1)
 	extern int socket(int, int, int);
 	extern int bind(int, void *, int);
 	extern int getsockname(int, struct sockaddr *, int *);

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: smthread.cpp,v 1.70 1999/08/18 19:45:49 bolo Exp $
+ $Id: smthread.cpp,v 1.72 2000/02/02 03:57:32 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -39,6 +39,8 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 
 #include <sm_int_1.h>
 //#include <e_errmsg_gen.h>
+
+#include <w_strstream.h>
 
 /*
  * A few minor things for class tcb_t - for grabbing and freeing
@@ -143,7 +145,8 @@ smthread_t::smthread_t(
   _proc(f),
   _arg(arg),
   _block("m:smblock"),
-  _awaken("c:smawaken")
+  _awaken("c:smawaken"),
+  generateLogWarnings(true)
 {
 	lock_timeout(lockto);
 }
@@ -160,7 +163,8 @@ smthread_t::smthread_t(
   _proc(0),
   _arg(0),
   _block("m:smblock"),
-  _awaken("c:smawaken")
+  _awaken("c:smawaken"),
+  generateLogWarnings(true)
 {
 	lock_timeout(lockto);
 }

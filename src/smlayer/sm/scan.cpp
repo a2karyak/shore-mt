@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: scan.cpp,v 1.148 1999/06/15 15:11:55 nhall Exp $
+ $Id: scan.cpp,v 1.151 1999/12/07 23:01:52 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -43,6 +43,8 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #include <bf_prefetch.h>
 #include <btcursor.h>
 #include <rtree_p.h>
+
+#include <new.h>
 
 W_FASTNEW_STATIC_DECL(scan_index_i, 32); 
 W_FASTNEW_STATIC_DECL(scan_file_i, 32); 
@@ -104,9 +106,15 @@ scan_index_i::scan_index_i(
     bool		include_nulls,
     concurrency_t 	cc
     ) 
-    : xct_dependent_t(xct()), stpgid(stid_), ntype(ss_m::t_bad_ndx_t),
-      serial(serial_t::null), _eof(false),
-      _error_occurred(), _btcursor(0), _skip_nulls( ! include_nulls ), _cc(cc)
+: xct_dependent_t(xct()),
+  stpgid(stid_),
+  ntype(ss_m::t_bad_ndx_t),
+  serial(serial_t::null),
+  _eof(false),
+  _error_occurred(),
+  _btcursor(0),
+  _skip_nulls( ! include_nulls ),
+  _cc(cc)
 {
     INIT_SCAN_PROLOGUE_RC(scan_index_i::scan_index_i, 1);
     _init(c1, bound1_, c2, bound2_);
@@ -121,9 +129,14 @@ scan_index_i::scan_index_i(
     const cvec_t& 	bound2_, 
     bool		include_nulls,
     concurrency_t 	cc) 
-    : xct_dependent_t(xct()), ntype(ss_m::t_bad_ndx_t), 
-      serial(serial_t::null), _eof(false), _error_occurred(),
-      _btcursor(0), _skip_nulls( ! include_nulls ), _cc(cc)
+: xct_dependent_t(xct()),
+  ntype(ss_m::t_bad_ndx_t), 
+  serial(serial_t::null),
+  _eof(false),
+  _error_occurred(),
+  _btcursor(0),
+  _skip_nulls( ! include_nulls ),
+  _cc(cc)
 {
     INIT_SCAN_PROLOGUE_RC(scan_index_i::scan_index_i, 1);
 
@@ -452,9 +465,13 @@ scan_rt_i::scan_rt_i(const lvid_t& lvid, const serial_t& stid_,
 	 nbox_t::sob_cmp_t c, const nbox_t& qbox, 
 	 bool include_nulls,
 	 concurrency_t cc) 
-: xct_dependent_t(xct()), ntype(t_bad_ndx_t),
-  serial(serial_t::null), _eof(false), _error_occurred(),
-  _cursor(0), _skip_nulls( ! include_nulls ), 
+: xct_dependent_t(xct()),
+  ntype(t_bad_ndx_t),
+  serial(serial_t::null),
+  _eof(false),
+  _error_occurred(),
+  _cursor(0),
+  _skip_nulls( ! include_nulls ), 
   _cc(cc)
 {
     INIT_SCAN_PROLOGUE_RC(scan_rt_i::scan_rt_i, 1);
@@ -588,52 +605,79 @@ scan_rt_i::xct_state_changed(
 
 scan_file_i::scan_file_i(const stid_t& stid_, const rid_t& start,
 			concurrency_t cc, bool pre) 
-: xct_dependent_t(xct()), stid(stid_), curr_rid(start), _eof(false),
-  _error_occurred(), _lfid(serial_t::null), _cc(cc), 
-  _do_prefetch(pre), _prefetch(0)
+: xct_dependent_t(xct()),
+  stid(stid_),
+  curr_rid(start),
+  _eof(false),
+  _lfid(serial_t::null),
+  _cc(cc), 
+  _do_prefetch(pre),
+  _prefetch(0)
 {
-    INIT_SCAN_PROLOGUE_RC(scan_file_i::scan_file_i, 0);
-	w_rc_t rc = _init(cc == t_cc_append);
-    if (rc) return;
+	INIT_SCAN_PROLOGUE_RC(scan_file_i::scan_file_i, 0);
+
+	/* _init sets error state */
+	W_IGNORE(_init(cc == t_cc_append));
 }
 
 scan_file_i::scan_file_i(const stid_t& stid_, concurrency_t cc, bool pre) 
-: xct_dependent_t(xct()), stid(stid_), _eof(false), _error_occurred(),
-  _lfid(serial_t::null), _cc(cc), _do_prefetch(pre), _prefetch(0)
+: xct_dependent_t(xct()),
+  stid(stid_),
+  _eof(false),
+  _lfid(serial_t::null),
+  _cc(cc),
+  _do_prefetch(pre),
+  _prefetch(0)
 {
-    INIT_SCAN_PROLOGUE_RC(scan_file_i::scan_file_i, 0);
-	w_rc_t rc = _init(cc == t_cc_append);
-    if (rc) return;
+	INIT_SCAN_PROLOGUE_RC(scan_file_i::scan_file_i, 0);
+
+	/* _init sets error state */
+	W_IGNORE(_init(cc == t_cc_append));
 }
 
 scan_file_i::scan_file_i(const lvid_t& lvid, const serial_t& lfid,
 					concurrency_t cc, bool pre) 
-: xct_dependent_t(xct()), _eof(false), _error_occurred(),
-  _lfid(serial_t::null), _cc(cc), _do_prefetch(pre), _prefetch(0)
+: xct_dependent_t(xct()),
+  _eof(false),
+  _lfid(serial_t::null),
+  _cc(cc),
+  _do_prefetch(pre),
+  _prefetch(0)
 {
-    INIT_SCAN_PROLOGUE_RC(scan_file_i::scan_file_i, 0);
+	INIT_SCAN_PROLOGUE_RC(scan_file_i::scan_file_i, 0);
+
+	/* _init_logical sets error state */
 	w_rc_t rc = _init_logical(lvid, lfid);
-    if (rc) return;
-	rc = _init(cc == t_cc_append);
-    if (rc) return;
+	if (rc)
+		return;
+
+	/* _init sets error state */
+	W_IGNORE(_init(cc == t_cc_append));
 }
 
 scan_file_i::scan_file_i(const lvid_t& lvid, const serial_t& lfid,
 		const serial_t& start_rid, concurrency_t cc, bool pre) 
-: xct_dependent_t(xct()), _eof(false), _error_occurred(),
-  _lfid(serial_t::null), _cc(cc),
-  _do_prefetch(pre), _prefetch(0)
+: xct_dependent_t(xct()),
+  _eof(false),
+  _lfid(serial_t::null),
+  _cc(cc),
+  _do_prefetch(pre),
+  _prefetch(0)
 {
-    INIT_SCAN_PROLOGUE_RC(scan_file_i::scan_file_i, 0);
+	INIT_SCAN_PROLOGUE_RC(scan_file_i::scan_file_i, 0);
+
+	/* _init_logical sets error state */
 	w_rc_t rc = _init_logical(lvid, lfid);
-    if (rc) return;
+	if (rc)
+		return;
 
-    lid_t id(lvid, start_rid);
-    // determind the physical ID of the start record 
-    _error_occurred = lid->lookup(id, curr_rid);
-    if (_error_occurred) return;
+	lid_t id(lvid, start_rid);
+	// determind the physical ID of the start record 
+	_error_occurred = lid->lookup(id, curr_rid);
+	if (_error_occurred) return;
 
-    W_IGNORE(_init(cc == t_cc_append));
+	/* _init sets error state */
+	W_IGNORE(_init(cc == t_cc_append));
 }
 
 scan_file_i::~scan_file_i()
@@ -664,9 +708,7 @@ scan_file_i::_init_logical(const lvid_t& lvid, const serial_t& lfid)
 }
 
 
-rc_t
-scan_file_i::_init(
-    bool for_append) 
+rc_t scan_file_i::_init(bool for_append) 
 {
     SCAN_METHOD_PROLOGUE(scan_file_i::_init);
     this->_prefetch = 0;
@@ -709,6 +751,7 @@ scan_file_i::_init(
 	mode = IS;
 	_page_lock_mode = SH;
 	_rec_lock_mode = NL;
+	break;
 
     case t_cc_append:
 	mode = IX;
@@ -1005,7 +1048,7 @@ append_file_i::append_file_i(const stid_t& stid_)
 }
 
 append_file_i::append_file_i(const lvid_t& lvid, const serial_t& lfid)
- : scan_file_i(lvid, lfid, t_cc_append)
+: scan_file_i(lvid, lfid, t_cc_append)
 {
     _init_constructor();
     INIT_SCAN_PROLOGUE_RC(append_file_i::append_file_i, 0);

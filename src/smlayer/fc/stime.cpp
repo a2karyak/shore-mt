@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: stime.cpp,v 1.22 1999/06/07 19:02:46 kupsch Exp $
+ $Id: stime.cpp,v 1.27 1999/11/22 20:02:48 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -72,6 +72,19 @@ typedef struct timeval	_stime_t;
 #define	st_tod		tv_sec
 #define	st_hires	tv_usec
 #define	HR_SECOND	US_SECOND
+#endif
+
+#ifdef _WIN32
+#if 0
+/* XXX this works, but is only good for US timezones */
+#define	os_timezone	_timezone
+#define	os_altzone	(_timezone - (60*60))
+#else
+#include <windows.h>	// XXX use the windows-specific functions? 
+#endif
+#elif defined(SOLARIS2)
+#define	os_timezone	timezone
+#define	os_altzone	altzone
 #endif
 
 
@@ -410,8 +423,19 @@ ostream &stime_t::ctime(ostream &s) const
 	time_t	kludge = _time.st_tod;
 
 	/* XXX use a reentrant form if available */
+#ifdef _REENTRANT
+	struct	tm	tm;
+	char	buf[26];	/* XXX well known magic number */
+	local = localtime_r(&kludge, &tm);
+#ifdef SOLARIS2
+	when = asctime_r(local, buf, sizeof(buf));
+#else
+	when = asctime_r(local, buf);
+#endif
+#else
 	local = localtime(&kludge);
 	when = asctime(local);
+#endif
 
 	/* chop the newline */
 	nl = strchr(when, '\n');
@@ -434,18 +458,24 @@ static void factor_print(ostream &s, long what)
 	}, *f = factors;
 	long	mine;
 	bool	printed = false;
+	bool	negative = what < 0;
+
+	if (negative) {
+		s << '-';
+		what = -what;
+	}
 
 	for (f = factors; f->label; f++) {
 		mine = what / f->factor;
 		what = what % f->factor;
 		if (mine || printed) {
-			W_FORM2(s,(f->label, mine));
+			W_FORM(s)(f->label, mine);
 			printed = true;
 		}
 	}
 
 	/* always print a seconds field */
-	W_FORM2(s,(printed ? "%02d" : "%d", what));
+	W_FORM(s)(printed ? "%02d" : "%d", what);
 }
 
 
@@ -474,9 +504,9 @@ ostream	&sinterval_t::print(ostream &s) const
 #endif
 #else
 #ifdef USE_POSIX_TIME
-		W_FORM2(s, (".%09ld", _time.st_hires));
+		W_FORM(s)(".%09ld", _time.st_hires);
 #else
-		W_FORM2(s, (".%06ld", _time.st_hires));
+		W_FORM(s)(".%06ld", _time.st_hires);
 #endif
 #endif
 	}
@@ -576,6 +606,57 @@ stime_t	stime_t::now()
 	now.gettime();
 
 	return now;
+}
+
+
+stime_t stime_t::gmtOffset()
+{
+#if defined(_WIN32) && !defined(os_altzone)
+	DWORD			w;
+	TIME_ZONE_INFORMATION	tzi;
+	time_t			bias = 0;
+
+	w = GetTimeZoneInformation(&tzi);
+	switch (w) {
+	case TIME_ZONE_ID_STANDARD:
+		bias = tzi.Bias + tzi.StandardBias;
+		break;
+	case TIME_ZONE_ID_DAYLIGHT:
+		bias = tzi.Bias + tzi.DaylightBias;
+		break;
+	case TIME_ZONE_ID_UNKNOWN:
+		bias = tzi.Bias;
+		break;
+	default:
+		w_rc_t	e = RC(fcWIN32);
+		cerr << "GetTimeZoneInformation():" << endl << e << endl;
+		break;
+	}
+	/* win32 Bias is in minutes, not seconds */
+	return sec(-bias * 60);
+#else
+	/* XXX sort of hacky.  Get current time, find it DST is in
+	   effect for it.  This will keep gmtOffset() correct even
+	   if the zone changes while we are running. */
+
+	struct	tm	*tm;
+	time_t		t;
+
+	t = time((time_t*)0);
+	if (t == (time_t)-1)
+		W_FATAL(fcOS);
+#ifdef _REENTRANT
+	struct	tm	_tm;
+	tm = localtime_r(&t, &_tm);
+#else
+	tm = localtime(&t);
+#endif
+#ifdef os_timezone
+	return sec(-(tm->tm_isdst == 1 ? os_altzone : os_timezone));
+#else
+	return sec(tm->tm_gmtoff);
+#endif
+#endif
 }
 
 

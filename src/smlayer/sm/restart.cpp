@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: restart.cpp,v 1.129 1999/06/15 15:11:55 nhall Exp $
+ $Id: restart.cpp,v 1.131 2000/01/17 20:43:53 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -281,7 +281,7 @@ restart_m::analysis_pass(
      */
     {
 	if (! scan.next(lsn, log_rec_buf)) {
-	    W_FATAL(eINTERNAL);
+	    W_COERCE(scan.get_last_rc());
 	}
 	logrec_t&	r = *log_rec_buf;
 	w_assert1(r.type() == logrec_t::t_chkpt_begin);
@@ -312,7 +312,7 @@ restart_m::analysis_pass(
 	 *  If log is transaction related, insert the transaction
 	 *  into transaction table if it is not already there.
 	 */
-	if ((r.tid() != null_tid) && ! (xd = xct_t::look_up(r.tid()))) {
+	if ((r.tid() != tid_t::null) && ! (xd = xct_t::look_up(r.tid()))) {
 	    DBG(<<"analysis: inserting tx " << r.tid() << " active ");
 	    xd = new xct_t(r.tid(), xct_t::xct_active, lsn, r.prev());
 	    w_assert1(xd);
@@ -725,7 +725,7 @@ restart_m::redo_pass(
 		 * it isn't in the table, it was
 		 * already committed or aborted.
 		 */
-		if (r.tid() != null_tid)  {
+		if (r.tid() != tid_t::null)  {
 		    xct_t *xd = xct_t::look_up(r.tid());
 		    if (xd) {
 			if (xd->state() == xct_t::xct_active)  {
@@ -860,7 +860,7 @@ restart_m::redo_pass(
 			 * point, we should remove the xct from the table.
 			 */
 			xct_t* xd = 0; 
-			if (r.tid() != null_tid)  { 
+			if (r.tid() != tid_t::null)  { 
 			    if ((xd = xct_t::look_up(r.tid())))  {
 				/*
 				 * xd will be aborted following redo

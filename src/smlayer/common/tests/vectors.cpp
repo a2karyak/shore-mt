@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: vectors.cpp,v 1.22 1999/06/07 19:02:40 kupsch Exp $
+ $Id: vectors.cpp,v 1.23 2000/01/13 18:49:23 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -105,8 +105,7 @@ P(const char *s)
 	cout << endl;
 }
 
-int
-main()
+int main()
 {
 	vec_t test;
 	vec_t tout;

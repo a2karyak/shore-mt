@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: btree_bl.cpp,v 1.25 1999/06/07 19:03:53 kupsch Exp $
+ $Id: btree_bl.cpp,v 1.26 1999/11/02 02:47:37 kupsch Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -186,7 +186,7 @@ btree_impl::_handle_dup_keys(
         }
     }
 
-    int page_cnt = 0, max_page_cnt = 100;
+    int page_cnt = 0, max_page_cnt = 200;
     file_p* pages = new file_p[max_page_cnt];
     if (!pages)  { return RC(eOUTOFMEMORY); }
     w_auto_delete_array_t<file_p> auto_del_pages(pages);
@@ -226,8 +226,10 @@ btree_impl::_handle_dup_keys(
         if (!eod) {
             W_DO( fi->next_page(pid, eof) );
             if (page_cnt >= max_page_cnt) {
-		// BUGBUG: panic, too many duplicate key entries
-		W_FATAL(eINTERNAL);
+		cerr << "btree_impl::_handle_dup_keys: too many duplicate key entries" << endl;
+		cerr << "      returning OUT OF SPACE error" << endl;
+		return RC(eOUTOFSPACE);
+
 	    }
         }
     }

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='BF_CORE_H'>
 
- $Id: bf_core.h,v 1.24 1999/06/07 19:03:50 kupsch Exp $
+ $Id: bf_core.h,v 1.25 1999/11/23 15:36:32 kupsch Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -114,7 +114,7 @@ public:
     void			snapshot(u_int& npinned, u_int& nfree);
     void			snapshot_me(u_int& sh, u_int& ex, u_int& nd);
 
-    static unsigned long 	ref_cnt, hit_cnt;
+    static uint8_t	 	ref_cnt, hit_cnt;
 
     friend ostream& 		operator<<(ostream& out, const bf_core_m& mgr);
 

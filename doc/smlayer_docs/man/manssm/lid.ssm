@@ -1,0 +1,132 @@
+.TH ss_m::lid ssm "Jan 1999" "Release \*(SV" "Shore Storage Manager" "Release 2.0" "Shore Storage Manager Reference Manual"
+.so tmac.man.local
+.SH NAME
+link_to_remote_id, convert_to_local_id, lfid_of_lrid, set_lid_cache_enable, lid_cache_enabled \- Class ss_m Methods for Logical ID Operations
+
+.SH SYNOPSIS
+.EX
+#include <sm_vas.h>  // which includes sm.h
+
+static rc_t                 link_to_remote_id(
+    const lvid_t&               local_lvid,
+    serial_t&                   local_serial,
+    const lvid_t&               remote_lvid,
+    const serial_t&             remote_serial);
+
+static rc_t                 convert_to_local_id(
+    const lvid_t&               remote_v,
+    const serial_t&             remote_s,
+    lvid_t&                     local_v, 
+    serial_t&                   local_s);
+
+static rc_t                 set_lid_cache_enable(bool enable);
+static rc_t                 lid_cache_enabled(bool& enabled);
+
+
+.EE
+.SH DESCRIPTION
+
+The SSM provides methods for using logical IDs and controlling
+the caching of mappings between logical and physical IDs.
+
+.SS Creating and Using Remote IDs
+
+As noted in the discussion of identifiers in the
+.HR "SSM interface document," "../ssmapi/ssmapi.html" 
+there are two types of serial numbers,
+.I local
+(intra-volume references) and
+.I remote
+(inter-volume references).
+
+The SSM converts logical IDs to physical locations on a volume.
+On each volume is a 
+.I "logical ID index"
+mapping
+serial numbers to the location of the object
+identified by the serial number.
+When a volume ID and serial number pair is given in
+an SSM method, the SSM lookups the serial number in the logical ID
+index.  If the serial number is
+.I local
+it will refer to a location on the volume where the lookup
+is done.
+If the serial number is remote, the lookup will
+return another volume ID and serial number.  This new volume
+is the volume where the object actually resides and the serial
+number for the object on that volume.
+
+.LP
+.B "link_to_remote_id(local_lvid, local_serial, remote_lvid, remote_serial)"
+.IP
+The
+.FN link_to_remote_id
+method generates and returns a new remote serial number,
+.VA local_serial,
+on volume,
+.VA local_lvid,
+that is a link to a serial number,
+.VA remote_serial,
+on another volume,
+.VA remote_lvid.
+
+.LP
+.B "convert_to_local_id(remote_v, remote_s, local_v, local_s)"
+.IP
+The
+.FN convert_to_local_id
+method converts a remote serial number,
+.VA remote_s,
+on volume,
+.VA remote_v,
+to the local serial number of the referenced object,
+.VA local_s,
+on the volume where it resides,
+.VA local_v.
+
+.SS Logical ID Cache Control
+
+Results from lookup's performed on the logical ID mapping
+index are usually cached.  For debugging and performance
+evaluation, this cache can be enabled or disabled.
+
+.LP
+.B "set_lid_cache_enable(enable)"
+.IP
+The
+.FN set_lid_cache_enable
+method turns on the use of the cache when,
+.VA enable
+is
+.FN true
+and off when
+.VA enable
+is
+.FN false.
+
+.LP
+.B "lid_cache_enabled(enabled)"
+.IP
+The
+.FN lid_cache_enabled
+method returns, in
+.VA enabled,
+the current state of the cache.
+
+
+.SH ERRORS
+
+.LP
+See
+.SA errors(ssm)
+for more information on error handling.
+
+.SH EXAMPLES
+To Do.
+
+.DA
+.SH "SEE ALSO"
+.SA lid_t(common),
+.SA serial_t(common),
+.SA intro(ssm).
+

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: xct_impl.cpp,v 1.51 1999/06/07 19:04:51 kupsch Exp $
+ $Id: xct_impl.cpp,v 1.52 1999/12/07 21:14:05 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -727,17 +727,16 @@ xct_impl::_commit(uint4_t flags)
 	 *  Logging a commit must be serialized with logging
 	 *  prepares (done by chkpt).
 	 */
-	bool do_release = false;
 	if( _threads_attached > 1) {
+	    int threads;
 
 	    // wait for the checkpoint to finish
 	    chkpt_serial_m::chkpt_mutex_acquire();
-	    do_release = false;
+	    threads = _threads_attached;
+	    chkpt_serial_m::chkpt_mutex_release();
 
-	    if( _threads_attached > 1) {
-		chkpt_serial_m::chkpt_mutex_release();
+	    if( threads > 1)
 		return RC(eTWOTHREAD);
-	    }
 	}
 
 	// don't allow a chkpt to occur between changing the state and writing
@@ -750,9 +749,7 @@ xct_impl::_commit(uint4_t flags)
 	SSMTEST("commit.3");
 	chkpt_serial_m::chkpt_mutex_release();
 
-	if (rc)  {
-	    W_DO( rc );
-	}
+	W_DO(rc);
 
 	if (!(flags & xct_t::t_lazy) /* && !_read_only */)  {
 	    if (log) {
@@ -767,10 +764,18 @@ xct_impl::_commit(uint4_t flags)
 	 */
 	FreeAllStoresToFree();
 
+
 	/*
 	 *  Free all locks. Do not free locks if chaining.
 	 */
 	if (! (flags & xct_t::t_chain))  {
+	    // clear cached store references if the locks
+	    // are going away, because the removal of the locks
+	    // may allow the objects the cached entries point
+	    // at to become invalid
+	    if (_that->sdesc_cache())
+		_that->sdesc_cache()->remove_all();
+
 	    W_COERCE( lm->unlock_duration(t_long, true) );
 	}
 
@@ -780,8 +785,10 @@ xct_impl::_commit(uint4_t flags)
 
 	chkpt_serial_m::chkpt_mutex_acquire();
 	change_state(xct_ended);
-	W_DO( log_xct_end() );
+	rc = log_xct_end();
 	chkpt_serial_m::chkpt_mutex_release();
+
+	W_DO(rc);
 
 	if (log)  {			// not necessary, since
 	    _flush_logbuf();		// xct_free_space indicates a complete
@@ -794,6 +801,13 @@ xct_impl::_commit(uint4_t flags)
 	 *  Don't free exts as there shouldn't be any to free.
 	 */
 	if (! (flags & xct_t::t_chain))  {
+	    // clear cached store references if the locks
+	    // are going away, because the removal of the locks
+	    // may allow the objects the cached entries point
+	    // at to become invalid
+	    if (_that->sdesc_cache())
+		_that->sdesc_cache()->remove_all();
+
 	    W_COERCE( lm->unlock_duration(t_long, true, true) );
 	}
     }
@@ -871,10 +885,13 @@ xct_impl::abort()
 	// the log record, since otherwise it might try to change the state
 	// to the current state (which causes an assertion failure).
 
+	rc_t	rc;
 	chkpt_serial_m::chkpt_mutex_acquire();
 	change_state(xct_freeing_space);
-	W_DO( log_xct_freeing_space() );
+	rc = log_xct_freeing_space();
 	chkpt_serial_m::chkpt_mutex_release();
+
+	W_DO(rc);
 
 	_flush_logbuf(true);
 
@@ -895,8 +912,10 @@ xct_impl::abort()
 
 	chkpt_serial_m::chkpt_mutex_acquire();
 	change_state(xct_ended);
-	W_DO( log_xct_end() );
+	rc =  log_xct_end();
 	chkpt_serial_m::chkpt_mutex_release();
+
+	W_DO(rc);
 
 	_flush_logbuf();	// not necessary, see comment in _commit
     }  else  {

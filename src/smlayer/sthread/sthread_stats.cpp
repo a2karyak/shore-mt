@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: sthread_stats.cpp,v 1.7 1999/06/07 19:06:14 kupsch Exp $
+ $Id: sthread_stats.cpp,v 1.8 2000/04/12 17:08:27 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -103,6 +103,13 @@ ostream &operator <<(ostream &o, const sthread_stats &s)
 	    << "  write: " << s.write
 	    << "  sync: " << s.sync
 	    << "  trunc: " << s.truncate << endl;
+
+	if (s.writev) {
+		o << "\twritev: " << s.writev;
+		if (s.writev_coalesce)
+			o << " (coalesced " << s.writev_coalesce << ")";
+		o << endl;
+	}
 
 	o << "\tconcurrent: " << s.ccio;
 	if (s.ccio2) o << "  two: " << s.ccio2;

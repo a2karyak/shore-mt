@@ -1,0 +1,346 @@
+.TH scan_file_i ssm "Jan 1999" "Release \*(SV" "Shore Storage Manager" "Release 2.0" "Shore Storage Manager Reference Manual"
+.so tmac.man.local
+.SH NAME
+scan_file_i \- Classes for Scanning Files in the Shore Storage Manager
+.SH SYNOPSIS
+.EX
+#include <sm_vas.h>  // which includes scan.h
+
+class scan_file_i {
+public:
+    /* Logical-ID version */
+    NORET			scan_file_i(const lvid_t&	lvid, 
+	    const serial_t&			fid,
+	    concurrency_t			cc = t_cc_file,
+	    bool				prefetch = false);
+
+    /* Physical-ID version */
+    NORET			scan_file_i(const stid_t&	stid,
+	    concurrency_t			cc = t_cc_file,
+	    bool				prefetch = false);
+
+
+    /* Logical-ID version */
+    NORET			scan_file_i(const lvid_t&	lvid,
+	    const serial_t&			fid,
+	    const serial_t&			start_rid,
+	    concurrency_t			cc = t_cc_file,
+	    bool				prefetch = false);
+
+    /* Physical-ID version */
+    NORET			scan_file_i(const stid_t&	stid,
+	    const rid_t&			start_rid,
+	    concurrency_t			cc = t_cc_file,
+	    bool				prefetch = false);
+
+
+    NORET			~scan_file_i();
+    
+    rc_t			next(pin_i*&	pin_ptr,
+	    smsize_t			start_offset, 
+	    bool&				eof);
+
+    rc_t			next_page(pin_i*&	pin_ptr,
+	    smsize_t			start_offset, 
+	    bool&				eof);
+
+    // logical serial # and volume ID of the file if created that way
+    const serial_t&		lfid() const;
+    const lvid_t&		lvid() const;
+
+    bool			is_logical() const;
+    tid_t			xid() const;
+   
+    void			finish();
+    bool			eof();
+    rc_t			error_code();
+};
+
+class append_file_i : public scan_file_i {
+public:
+    /* Logical-ID version */
+    NORET			append_file_i(const lvid_t&	lvid, 
+	    const serial_t&			fid;
+
+    /* Physical-ID version */
+    NORET			append_file_i(const stid_t&	stid);
+
+	
+
+    NORET			~append_file_i();
+    
+    /* Logical-ID version */
+    rc_t				create_rec(const vec_t&	hdr,
+	    smsize_t			len_hint,
+	    const vec_t&			data,
+	    lrid_t&			lrid); // logical id
+
+    /* Physical-ID version */
+    rc_t				create_rec(const vec_t&	hdr,
+	    smsize_t			len_hint,
+	    const vec_t&			data,
+	    rid_t&			rid); // physical id
+
+};
+
+.EE
+.SH DESCRIPTION
+Class
+.VA scan_file_i
+supports iterating over the records in a file.
+The scan is controlled by a 
+.VA scan_file_i 
+object.
+Multiple scans can be open at the same time.
+.LP
+Class
+.VA append_file_i
+allows a VAS to appending of records to a file in 
+rapid succession.
+The location of the end of the file is maintained by the 
+.VA append_file_i object.
+The constructor of the
+.VA append_file_i 
+exclusively locks the file.
+The effect of using more than one
+.VA append_file_i 
+on a single file within a single transaction is undefined.
+
+.LP
+Each instance of 
+.VA scan_file_i
+and
+.VA append_file_i
+keeps a record pinned (and therefore, a page fixed)
+throughout its existence. You must carefully
+control the use of these classes to avoid
+fixing all the pages in the buffer pool. 
+
+.LP
+The order in which records are visited by a scan is called
+the
+.I "scan order".
+There are two guarantees about scan order.  
+.LP
+The first
+guarantee is that if two scans are performed on a file, the scan orders
+will be identical as long as none of the following operations
+occur between the two scans:
+.B creating a 
+record in the file
+.B destroying 
+a record in the file
+.B "changing the size "
+of a record in the file.
+.LP
+The second guarantee is that 
+if a file is created using the 
+.B append_file_i
+class, and no updates are performed on the file or any of its records, the
+scan order is identical to the order of record creation.
+
+.SS Constructors and Destructors
+
+.LP
+.FN "scan_file_i(lvid, fid, cc)"
+.LP
+.FN "scan_file_i(lvid, fid, start_rid, cc)"
+.IP
+The
+.B scan_file_i
+constructors have a number of parameters in common.
+The first two parameters, 
+.VA lvid
+and
+.VA fid
+specify the
+.HR "logical ID" "lid.ssm.html"
+of the file to be scanned.  The 
+.VA cc
+parameter specifies the granularity of locks
+acquired for
+concurrency control.  
+See
+.SA enum(ssm)
+for a description of the values.  
+Here are the effects of the values for file scan:
+.IP
+.B t_cc_none:
+The file is IS (intention shared) locked, but no locks are obtained on any
+pages or records in the file.
+.IP
+.B t_cc_page:
+.B t_cc_record:
+Pages are SH locked; records are not locked.
+Files are IS locked.
+.IP
+.B t_cc_file:
+The file is SH locked, so no finer granularity locks
+are obtained.
+.LP
+.IP
+The starting location (record) of the scan can
+be controlled using the optional
+.VA start_rid
+parameter.
+.LP
+.FN "append_file_i(lvid, fid)"
+.IP
+The arguments to 
+.FN append_file_i()
+are as described above, for the
+.B scan_file_i constructors.
+.LP
+.FN "~scan_file_i()"
+.FN "~append_file_i()"
+.IP
+These destructors unpin the current record, if any, and destroy the object.
+To unpin the record before destroying the object, you may
+explicitly call
+.FN "finish()."
+
+.SS Scanning
+.LP
+.FN "next(pin_ptr, start_offset, eof)"
+.IP
+The
+.FN next
+method
+is used to retrieve records from the scan and
+(including the first).
+A handle to the retrieved record 
+made available through the
+.VA pin_ptr
+parameter.  See
+.SA pin_i(ssm)
+for information on using this handle.  The
+.VA start_offset
+parameter controls what part of the record to retrieve.
+This parameter is passed directly to the
+.HR "pin_i" "pin_i.ssm.html"
+constructor.  The
+.VA eof
+parameter will be set to
+.VA true
+only when no value can be retrieved.  So, if a file contains two
+records and
+.VA next
+has been called twice,
+.VA eof
+will return
+.VA false
+on the second call, and
+.VA true
+on the third.
+
+
+.LP
+.FN "next_page(pin_ptr, start_offset, eof)"
+.IP
+The
+.FN next_page
+method
+advances the scan to the next disk page in the file and
+returns a handle to the first record in the page.
+Its parameters are identical to those of
+.FN next.
+
+.SS CAVEAT
+.LP
+Do not unpin the record explicitly during a scan.
+
+.SS Other Member Functions
+
+The
+.FN lfid
+and
+.FN lvid
+methods return the logical ID of the file being scanned.
+.LP
+The
+.FN finish
+method unpins the current record and closes the scan.
+.LP
+The
+.FN eof
+method returns
+.VA true
+if the end of the file has been reached.
+.LP
+The
+.FN error_code
+method returns any error code generated by the
+the scan member methods.  See the
+.B ERRORS section for more information.
+
+.SS Updates While Scanning
+.LP
+A common question is what is the effect of changes to a file (or
+its records) made by a transaction that is also scanning the file.
+In general, it is safest not to change anything in the file
+while scanning.  Instead, a list of changes should be made during
+the scan and only performed after the scan is complete.
+
+.LP
+However, there are a number of changes that can safely be made to
+a file while scanning.  It is safe to:
+.IP
+Update any record in the file using
+.FN update_rec
+or 
+.FN update_rec_hdr.
+.IP
+Destroy any record in the file using
+.FN destroy_rec,
+including the current one (although the 
+.FN pin_i
+for the current record will no longer be valid.
+
+.LP
+It is also safe to change the size of records using
+.FN truncate_rec
+or
+.FN append_rec
+and to create new records.  However, this may cause records
+to be moved and therefore revisited or never visited during the
+scan.
+
+.SS Appending to a file
+.LP
+.FN Create_rec
+in class
+.FN append_file_i
+appends a record to a file.  It is used much the same way
+that the static
+function
+.FN "ss_m::create_rec"
+is used, but appending to a file with
+.FN "append_file_i::create_rec" is the more
+efficient way to populate a file if many creations
+are to be performed without other intervening operations
+on the file, and it guarantees that new records are placed
+at the end of the file.
+
+.SH ERRORS
+A scan_file_i object remembers if an error has occured while
+constructing the scan or while scanning.  An error that
+occurs in constructing the scan (such as having a bad file ID),
+can be detected by calling
+.FN error_code.
+Alternatively, the error can be detected on the first call to
+.FN next
+which will return the remembered error code.  Therefore, if an error
+occurs while constructing or scanning, repeated calls
+to next will all return the first error code and no progress
+will be made on the scan.
+
+.SH EXAMPLES
+To Do.
+
+.DA
+.SH "SEE ALSO"
+.SA pin_i(ssm),
+.SA file(ssm),
+.SA scan_index_i(ssm),
+.SA intro(ssm),
+

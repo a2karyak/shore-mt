@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: sdisk.cpp,v 1.7 1999/06/07 19:06:02 kupsch Exp $
+ $Id: sdisk.cpp,v 1.8 2000/04/12 17:05:54 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -68,6 +68,44 @@ int	sdisk_base_t::vsize(const iovec_t *iov, int iovcnt)
 	return total;
 }
 
+// XXX Assumes newVec is iovcnt long, since it might not compress
+int	sdisk_base_t::vcoalesce(const iovec_t *iov, int iovcnt,
+				iovec_t *newVec, int &newcnt)
+{
+	char		*tail;
+	const iovec_t	*lastVec = iov + iovcnt;
+	iovec_t		*newFirst = newVec;
+	int		totalSize = 0;
+
+	/* prime it with the first chunk */
+	*newVec = *iov++;
+	tail = (char *) newVec->iov_base  + newVec->iov_len;
+	totalSize += newVec->iov_len;
+
+	for (; iov < lastVec; iov++) {
+		if (tail == (char *)iov->iov_base) {
+			newVec->iov_len += iov->iov_len;
+			tail += iov->iov_len;
+		}
+		else {
+			*++newVec = *iov;
+			tail = (char *) newVec->iov_base + newVec->iov_len;
+		}
+		totalSize += iov->iov_len;
+	}
+	newVec++;
+
+#if 0
+	int	newCount = newVec - newFirst;
+	if (newCount < iovcnt)
+		cout << "Coalesce " << iovcnt << " to " << newCount << endl;
+#endif
+
+	/* If it can't be coalesced, who cares, else the count */
+	newcnt = (newVec - newFirst == iovcnt) ? 0 : newVec - newFirst;
+
+	return totalSize;
+}
 
 int	sdisk_t::modeBits(int mode)
 {

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='RAW_LOG_H'>
 
- $Id: raw_log.h,v 1.18 1999/06/15 15:11:54 nhall Exp $
+ $Id: raw_log.h,v 1.19 1999/12/10 05:29:45 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -54,7 +54,7 @@ public:
 	int			fhdl_app() const;
 	void			open_for_read(partition_number_t n, bool err=true);
 	void			open_for_append(partition_number_t n);
-	w_rc_t                  read(logrec_t *&r, lsn_t &ll, int fd = 0);
+	w_rc_t                  read(logrec_t *&r, lsn_t &ll, int fd = invalid_fhdl);
 	void			close(bool both);
 #ifdef OLD
 	w_rc_t                  write(const logrec_t &r, const lsn_t &ll);

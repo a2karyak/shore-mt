@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: lock.cpp,v 1.144 1999/06/07 19:04:09 kupsch Exp $
+ $Id: lock.cpp,v 1.145 1999/10/25 18:34:14 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -43,6 +43,8 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #include <sm_int_1.h>
 #include <lock_x.h>
 #include <lock_core.h>
+
+#include <new.h>
 
 #define W_VOID(x) x
 

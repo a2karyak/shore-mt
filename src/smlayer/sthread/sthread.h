@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='STHREAD_H'>
 
- $Id: sthread.h,v 1.180 1999/07/12 17:55:57 bolo Exp $
+ $Id: sthread.h,v 1.181 2000/02/21 23:22:19 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -512,11 +512,8 @@ private:
 
     static ready_q_t*		_ready_q;	// ready queue
 
-    enum {
-	fd_base = 4000,
-	/* XXX temporary kludge; must match open_max in diskrw.h */
-	sthread_open_max = 32
-    };
+    /* start offset of sthread FDs, to differentiate from system FDs */
+    enum { fd_base = 4000 };
 
     // thread resource tracing
     strace_t	_trace;
@@ -544,7 +541,7 @@ private:
     size_t			_high_water_mark;    
 
     /* I/O subsystem */
-#ifdef dynamic_fds
+#ifndef STHREAD_FDS_STATIC
 	static	sdisk_t		**_disks;
 	static	unsigned	open_max;
 #else

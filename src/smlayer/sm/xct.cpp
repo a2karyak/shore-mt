@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: xct.cpp,v 1.196 1999/08/20 15:31:16 nhall Exp $
+ $Id: xct.cpp,v 1.201 2000/02/02 03:57:34 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -47,6 +47,7 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #include "xct_dependent.h"
 #include "xct_impl.h"
 
+#include <w_strstream.h>
 
 #ifdef EXPLICIT_TEMPLATE
 template class w_list_t<xct_t>;
@@ -1254,10 +1255,23 @@ xct_t::GetEscalationThresholdsArray()
     return i_this->GetEscalationThresholdsArray();
 }
 
+w_rc_t	xct_t::acquire_xlist_mutex()
+{
+	return _xlist_mutex.acquire();
+}
+
+void	xct_t::release_xlist_mutex()
+{
+	_xlist_mutex.release();
+}
+
 void
 xct_t::dump(ostream &out) 
 {
     W_COERCE(_xlist_mutex.acquire());
+    out << "xct_t: "
+    	<< _xlist.num_members() << " transactions"
+	<< endl;
     w_list_i<xct_t> i(_xlist);
     xct_t* xd;
     while ((xd = i.next()))  {
@@ -1348,23 +1362,25 @@ xct_t::num_extents_marked_for_deletion( base_stat_t &num) const
 w_rc_t 
 xct_log_warn_check_t::check(xct_t *& _victim) 
 {
-    _victim = 0;
-    w_base_t::base_stat_t	a = GET_STAT(log_bytes_active);
-    if( log_warn_exceed > 0
-	    && 
-	a > w_base_t::base_stat_t(log_warn_exceed)) {
-	if(log_warn_callback) {
-	    xct_t *v = xct();
-	    xct_i i;
-	    w_rc_t rc = (*log_warn_callback)(&i, v,
-		a,  w_base_t::base_stat_t(log_warn_exceed)
-		);
-	    if(rc && (rc.err_num() == eUSERABORT)) {
-		_victim = v;
+    if (me()->generate_log_warnings())  {
+	_victim = 0;
+	w_base_t::base_stat_t	a = GET_STAT(log_bytes_active);
+	if( log_warn_exceed > 0
+		&& 
+	    a > w_base_t::base_stat_t(log_warn_exceed)) {
+	    if(log_warn_callback) {
+		xct_t *v = xct();
+		xct_i i;
+		w_rc_t rc = (*log_warn_callback)(&i, v,
+		    a,  w_base_t::base_stat_t(log_warn_exceed)
+		    );
+		if(rc && (rc.err_num() == eUSERABORT)) {
+		    _victim = v;
+		}
+		return rc;
+	    } else {
+		return  RC(eLOGSPACEWARN);
 	    }
-	    return rc;
-	} else {
-	    return  RC(eLOGSPACEWARN);
 	}
     }
     return RCOK;

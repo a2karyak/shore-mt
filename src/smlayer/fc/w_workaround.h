@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='W_WORKAROUND_H'>
 
- $Id: w_workaround.h,v 1.48 1999/06/07 19:02:59 kupsch Exp $
+ $Id: w_workaround.h,v 1.51 2000/03/17 20:15:41 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -128,10 +128,6 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
  * things based on __GNUC_MINOR__ and __GNUC__
  * and egcs does not define any different macro to identify itself.
  */
-#ifndef FORCE_EGCS
-# 	error configuration problem: looks like you are using egcs
-# 	error but FORCE_EGCS is not defined
-#endif
 #endif
 
 #if (__GNUC__ == 2) && (__GNUC_MINOR__>=90)
@@ -161,6 +157,28 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #   endif
 
 #endif /* __GNUC__ */
+
+/******************************************************************************
+ *
+ * gcc complains about big literals which don't have the LL suffix.
+ * don't know if egcs or gcc 2.95 have this problem, but it shouldn't hurt.
+ *
+ ******************************************************************************/
+#ifdef __GNUC__
+#define INT64_LITERAL_BUG(x) x ## LL
+#else
+#define INT64_LITERAL_BUG(x) x
+#endif
+
+/* There is a newer version of the STL out there, which is standard with
+   gcc-2.95.  It requires different template instantiations, but most
+   other use of it is seamless from before.  Specifiying the newer STL
+   can either be enabled explicitly in shore.def, or automgically here
+   for the appropriate gcc versions.  XXX probably needs an updated
+   expression if gcc changes major numbers again. */
+#if defined(__GNUC__) && __GNUC__ == 2 && __GNUC_MINOR__ > 90
+#define W_NEWER_STL
+#endif
 
 /******************************************************************************
  *
@@ -371,6 +389,19 @@ extern const char *form(const char *, ...);
    but the 2nd argument to T::operator delete[]() is still wrong.
  */
 #define VCPP_BUG_7 
+
+/*
+ * Visual C++ does allow the conversion of a const char* to a void*
+ * consequently the following fails without a cast to (char*):
+ *
+ * const char* p = new char[n];
+ * delete[] p;  // only works if written as delete[] (char*)p;
+ */
+#define VCPP_BUG_DELETE_CONST (char*)
+
+#else
+
+#define VCPP_BUG_DELETE_CONST
 
 #endif /* _MSC_VER */
 

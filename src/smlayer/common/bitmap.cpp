@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: bitmap.cpp,v 1.25 1999/06/07 19:02:23 kupsch Exp $
+ $Id: bitmap.cpp,v 1.26 2000/02/02 03:01:34 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -43,10 +43,10 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #include "bitmap.h" 
 #include <w_debug.h>
 
-inline int div8(long x)         { return x >> 3; }
-inline int mod8(long x)         { return x & 7; }
-inline int div32(long x)        { return x >> 5; }
-inline int mod32(long x)        { return x & 31; }
+inline int div8(int x)         { return x >> 3; }
+inline int mod8(int x)         { return x & 7; }
+inline int div32(int x)        { return x >> 5; }
+inline int mod32(int x)        { return x & 31; }
 
 #define	OVERFLOW_MASK	0x100
 	
@@ -65,17 +65,17 @@ void bm_fill(u_char* bm, int size)
 		*bm = ~0;
 }
 
-bool bm_is_set(const u_char* bm, long offset)
+bool bm_is_set(const u_char* bm, int offset)
 {
 	return (bm[div8(offset)] & (1 << mod8(offset))) != 0;
 }
 
-void bm_set(u_char* bm, long offset)
+void bm_set(u_char* bm, int offset)
 {
 	bm[div8(offset)] |= (1 << mod8(offset));
 }
 
-void bm_clr(u_char* bm, long offset)
+void bm_clr(u_char* bm, int offset)
 {
 	bm[div8(offset)] &= ~(1 << mod8(offset));
 }

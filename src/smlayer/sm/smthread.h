@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='SMTHREAD_H'>
 
- $Id: smthread.h,v 1.88 1999/06/07 19:04:41 kupsch Exp $
+ $Id: smthread.h,v 1.90 2000/02/22 20:33:54 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -144,14 +144,14 @@ public:
 	bool 			    block_immediate = false,
 	bool 			    auto_delete = false,
 	const char* 		    name = 0, 
-	long 			    lockto = WAIT_FOREVER,
+	timeout_in_ms		    lockto = WAIT_FOREVER,
 	unsigned		    stack_size = default_stack);
     NORET			smthread_t(
 	priority_t 		    priority = t_regular,
 	bool 			    block_immediate = false, 
 	bool 			    auto_delete = false,
 	const char* 		    name = 0,
-	long 			    lockto = WAIT_FOREVER,
+	timeout_in_ms 		    lockto = WAIT_FOREVER,
 	unsigned		    stack_size = default_stack);
 
     NORET			~smthread_t();
@@ -282,6 +282,10 @@ public:
 					const w_rc_t &rc = *(w_rc_t*)0);
     void			prepare_to_block();
 
+    /* functions to get/set whether this thread should generate log warnings */
+    bool			generate_log_warnings() const;
+    void			generate_log_warnings(bool b);
+
 private:
     void			user(); /* disabled sthread_t::user */
 
@@ -291,6 +295,7 @@ private:
     bool			_unblocked;
     bool			_waiting;
     w_rc_t			_sm_rc;
+    bool			generateLogWarnings;
 
     inline
     tcb_t			&tcb() { return _tcb; }
@@ -362,6 +367,16 @@ smthread_t::pin_count()
     return tcb().pin_count;
 }
 
+inline bool smthread_t::generate_log_warnings() const
+{
+    return generateLogWarnings;
+}
+
+inline void smthread_t::generate_log_warnings(bool b)
+{
+    generateLogWarnings = b;
+}
+
 void
 DumpBlockedThreads(ostream& o);
 
@@ -380,6 +395,31 @@ DumpBlockedThreads(ostream& o);
 #define FUNC(fn)\
 	fname_debug__ = _string(fn); DBGTHRD(<< _string(fn));
 #endif /* W_TRACE */
+
+
+/*
+ * class to set the generate log warnings for the thread and to restore when
+ * the object is destroyed.
+ */
+class DisableGenLogWarnings
+{
+    public:
+        DisableGenLogWarnings(bool newValue = false);
+	~DisableGenLogWarnings();
+    private:
+        bool	oldValue;
+};
+
+inline DisableGenLogWarnings::DisableGenLogWarnings(bool newValue)
+{
+    oldValue = me()->generate_log_warnings();
+    me()->generate_log_warnings(newValue);
+}
+
+inline DisableGenLogWarnings::~DisableGenLogWarnings()
+{
+    me()->generate_log_warnings(oldValue);
+}
 
 
 

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: w_error.cpp,v 1.54 1999/06/07 19:02:51 kupsch Exp $
+ $Id: w_error.cpp,v 1.56 1999/12/11 03:04:10 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -36,7 +36,7 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #endif
 
 #include <unix_error.h>
-#ifdef _WINDOWS
+#ifdef _WIN32
 #include <win32_error.h>
 #endif
 
@@ -130,6 +130,42 @@ w_error_t::add_trace_info(
     return *this;
 }
 
+w_error_t&
+w_error_t::set_more_info_msg(const char* more_info)
+{
+    delete[] VCPP_BUG_DELETE_CONST more_info_msg;
+    more_info_msg = more_info;
+    return *this;
+}
+
+w_error_t&
+w_error_t::append_more_info_msg(const char* more_info)
+{
+    if (more_info)  {
+	if (more_info_msg)  {
+	    int more_info_len = strlen(more_info);
+	    int more_info_msg_len = strlen(more_info_msg);
+	    char* new_more_info_msg = new char[more_info_len + more_info_msg_len + 2];
+	    strcpy(new_more_info_msg, more_info_msg);
+	    new_more_info_msg[more_info_msg_len] = '\n';
+	    strcpy(new_more_info_msg + more_info_msg_len + 1, more_info);
+	    new_more_info_msg[more_info_msg_len + more_info_len + 1] = 0;
+	    delete[] VCPP_BUG_DELETE_CONST more_info_msg;
+	    more_info_msg = new_more_info_msg;
+	}  else  {
+	    set_more_info_msg(more_info);
+	}
+    }
+
+    return *this;
+}
+
+const char*
+w_error_t::get_more_info_msg()
+{
+    return more_info_msg;
+}
+
 /* automagically generate a sys_err_num from an errcode */
 inline w_base_t::uint4_t w_error_t::classify(int er)
 {
@@ -138,7 +174,7 @@ inline w_base_t::uint4_t w_error_t::classify(int er)
 	case fcOS:
 		sys = last_unix_error();
 		break;
-#ifdef _WINDOWS
+#ifdef _WIN32
 	case fcWIN32:
 		sys = last_win32_error();
 		break;
@@ -151,11 +187,13 @@ inline
 w_error_t::w_error_t(const char* const	fi,
 		     uint4_t		li,
 		     uint4_t		er,
-		     w_error_t*		list)
+		     w_error_t*		list,
+		     const char*	more_info)
 : err_num(er),
   file(fi),
   line(li), 
   sys_err_num(classify(er)),
+  more_info_msg(more_info),
   _ref_count(0),
   _trace_cnt(0),
   _next(list)
@@ -168,9 +206,10 @@ w_error_t::make(
     const char* const	filename,
     uint4_t		line_num,
     uint4_t		err_num,
-    w_error_t*		list)
+    w_error_t*		list,
+    const char*		more_info)
 {
-    return new w_error_t(filename, line_num, err_num, list);
+    return new w_error_t(filename, line_num, err_num, list, more_info);
 }
 
 inline NORET
@@ -179,10 +218,12 @@ w_error_t::w_error_t(
     uint4_t		li,
     uint4_t		er,
     uint4_t		sys_er,
-    w_error_t*		list)
+    w_error_t*		list,
+    const char*		more_info)
     : err_num(er),
       file(fi), line(li), 
       sys_err_num(sys_er),
+      more_info_msg(more_info),
       _ref_count(0),
       _trace_cnt(0),
       _next(list)
@@ -196,9 +237,10 @@ w_error_t::make(
     uint4_t		line_num,
     uint4_t		err_num,
     uint4_t		sys_err,
-    w_error_t*		list)
+    w_error_t*		list,
+    const char*		more_info)
 {
-    return new w_error_t(filename, line_num, err_num, sys_err, list);
+    return new w_error_t(filename, line_num, err_num, sys_err, list, more_info);
 }
 
 bool
@@ -299,6 +341,7 @@ ostream& w_error_t::print_error(ostream &o) const
 	    break;
 	}
 	o << p->error_string(p->err_num);
+	o << " [0x" << hex << p->err_num << dec << "]";
 
 	/* Eventually error subsystems will have their own interfaces
 	   here. */
@@ -320,6 +363,10 @@ ostream& w_error_t::print_error(ostream &o) const
 	}
 
 	o << endl;
+
+	if (more_info_msg)  {
+	    o << "\tadditional information: " << more_info_msg << endl;
+	}
 
 	if (p->_trace_cnt)  {
 	    o << "\tcalled from:" << endl;

@@ -1,0 +1,233 @@
+.TH FILE_HANDLERS STHREAD "Jan 1999" Release \*(SV" "Shore Storage Manager" "Release 2.0" "Shore Storage Manager Reference Manual"
+.so tmac.man.local
+.SH NAME
+sfile_hdl_base_t, sfile_read_hdl_t \- File Descriptor I/O Handler Classes
+.SH SYNOPSIS
+.EX
+#include <sthread.h>
+
+class sfile_hdl_base_t : public w_vbase_t {
+public:
+    enum { rd = 1, wr = 2, ex = 4 };
+    enum { max = 64 };
+
+    NORET			sfile_hdl_base_t(
+	int			    fd,
+	int			    mask);
+    NORET			~sfile_hdl_base_t();
+
+    const int			fd;
+
+    virtual void		read_ready() = 0;
+    virtual void 		write_ready() = 0;
+    virtual void 		expt_ready() = 0;
+
+    void			enable();
+    void			disable();
+
+    static w_rc_t		wait(long timeout = sthread_base_t::WAIT_FOREVER);
+    static void			dump(const char* str, ostream& out);
+
+    static bool			is_active(int fd);
+};
+
+class sfile_read_hdl_t : public sfile_hdl_base_t {
+public:
+    NORET			sfile_read_hdl_t(int fd);
+    NORET			~sfile_read_hdl_t();
+
+    w_rc_t			wait(long timeout);
+    void			shutdown();
+    bool			is_down()  { return _shutdown; }
+protected:
+    // hide base::read_ready
+    virtual void		read_ready();
+};
+
+class sfile_write_hdl_t : public sfile_hdl_base_t {
+public:
+    NORET			sfile_write_hdl_t(int fd);
+    NORET			~sfile_write_hdl_t();
+
+    w_rc_t			wait(long timeout);
+    void			shutdown();
+    bool			is_down()  { return _shutdown; }
+protected:
+    // hide base::write_ready
+    virtual void		write_ready();
+};
+
+.EE
+.SH DESCRIPTION
+
+File handlers are used in situations when a thread needs to wait for
+I/O on a unix file descriptor but does not want the operating system
+to suspend the whole process. File handlers provide a means with which
+a thread can wait for I/O without affecting other threads that are
+ready to run.  
+
+.SS Class sfile_hdl_base_t
+Class
+.FN sfile_hdl_base_t
+is an abstract base class for handling
+asynchronous file events. In general, users should not be concerned
+with this class. They should, instead, be instantiating more refined
+file handler classes such as 
+.FN sfile_read_hdl_t.  For an example of using this class,
+see the implementation of
+.FN sfile_read_hdl_t
+in src/sthread/sthread.c.
+
+
+.LP
+.B "sfile_hdl_base_t(fd, mask)"
+.IP
+The constructor creates a file handler for the file descriptor
+.VA fd.
+Parameter
+.VA mask
+is a bitwise ORed value of the following flags:
+.EX
+	rd	signifying read intention
+	wr 	signifying write intention
+	ex	signifying exception intention
+.EE
+
+.LP
+.B "~sfile_hdl_base_t()"
+.IP
+
+.LP
+.B "enable()
+.IP
+The
+.FN enable
+method enables the file handler to be waited on when the thread
+package calls the
+.FN select
+system call.
+
+.LP
+.B "disable()
+.IP
+The
+.FN disable
+method disables the file handler from being waited on when the thread
+package calls the
+.FN select
+system call.
+
+.LP
+.B "wait()
+.IP
+The
+.FN wait
+method waits for some file handlers to be ready. An error is returned if
+.VA timeout
+milliseconds elapsed before any file handler is ready.
+.B Warning:
+this method blocks the entire process on a unix 
+.FN select
+system call.
+
+.LP
+.B "is_active(fd)
+.IP
+The
+.FN is_active
+method returns
+.FN true 
+if a file handler exists for file descriptor
+.VA fd.
+
+
+.SS Class sfile_read_hdl_t
+Class
+.FN sfile_read_hdl_t
+inherits from 
+.FN sfile_hdl_base_t
+but handles only
+read events. It is used to block a thread that needs to wait for input
+on a file descriptor before proceeding. For example, a thread that
+processes user commands from stdin would create a 
+.FN sfile_read_hdl_t
+on file descriptor 0.  The the EXAMPLES section for more details.
+
+.LP
+.B "sfile_read_hdl_t(fd)"
+.IP
+The constructor creates a read-intention file handler on
+file descriptor
+.VA fd.
+
+.LP
+.B "~sfile_read_hdl_t()"
+.IP
+
+.LP
+.B "shutdown()
+.IP
+The
+.FN shutdown
+method turns off monitoring of the file descriptor
+manages by the file handler.  Any threads is waiting on it,
+awakened with a 
+.FN stBADFILEHDL
+error code.
+
+.LP
+.B "wait()
+.IP
+The
+.FN wait
+method suspends the current thread, waiting to read from the file
+descriptor.  The method returns timeout error if 
+.VA timeout
+milliseconds elapse before anything arrives on the file descriptor.
+
+.SS Class sfile_write_hdl_t
+Class
+.FN sfile_write_hdl_t
+inherits from 
+.FN sfile_hdl_base_t
+but handles only
+write events. It is used to block a thread that needs to wait for 
+a file descriptor to be ready for writing.
+.LP
+This class has only recently been implemented.  No documentation
+is available yet.  
+TODO
+
+.SH ERRORS
+
+TODO.
+
+.SH EXAMPLES
+.EX
+    stdin_thread_t::run()
+    {
+	sfile_read_hdl_t h(0);    // handle on stdin
+	char buf[256];
+	for (;;)  {
+	    if (h.wait())  {
+		/* handle error */
+		...
+	    }
+	    /* stdin is ready -- read user command into buf */
+	    read(0, buf, sizeof(buf)-1);
+	    /* process user command */
+	    ...
+	}
+    }
+
+.EE
+
+.DA
+.SH "SEE ALSO"
+.SA errors(sthread),
+.SA sthread_t(sthread),
+.SA smutex_t(sthread),
+.SA scond_t(sthread),
+.SA sevsem_t(sthread),
+.SA intro(sthread).
+

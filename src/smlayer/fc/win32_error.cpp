@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: win32_error.cpp,v 1.9 1999/06/07 19:03:00 kupsch Exp $
+ $Id: win32_error.cpp,v 1.10 2000/01/14 00:16:48 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -46,7 +46,7 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 /* An interface to windows-NT error numbers and strings. */
 
 
-#include <windows.h>
+#include <w_windows.h>
 
 #include <win32_error.h>
 

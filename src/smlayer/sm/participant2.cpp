@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: participant2.cpp,v 1.11 1999/06/07 19:04:19 kupsch Exp $
+ $Id: participant2.cpp,v 1.12 1999/11/10 20:04:06 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -58,8 +58,6 @@ participant::register_ep(
 
     W_IGNORE(_ns->cancel((char *)uniquename));
     W_DO(_comm->make_endpoint(ep));
-
-    w_assert3(ep.refs() == 1);
 
     if(smlevel_0::errlog->getloglevel() >= log_info) {
 	smlevel_0::errlog->clog <<info_prio 

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='W_DEBUG_H'>
 
- $Id: w_debug.h,v 1.13 1999/06/07 19:02:51 kupsch Exp $
+ $Id: w_debug.h,v 1.15 2000/02/01 23:33:44 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -117,8 +117,6 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #include "regex_posix.h"
 #endif /* USE_REGEX */
 
-#include <w_stream.h>
-
 /* ************************************************************************ 
  * 
  * DUMP, FUNC, and RETURN macros:
@@ -180,7 +178,7 @@ inline const char    *fname_debug_make_gcc_silent__() {
 
 	class __debug : public ErrLog {
 	private:
-#ifdef _WINDOWS
+#if defined(_WIN32) && defined(FC_DEBUG_WIN32_LOCK)
 		CRITICAL_SECTION _crit;
 #endif
 		char *_flags;

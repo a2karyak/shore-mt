@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: btree.cpp,v 1.276 1999/06/07 19:03:51 kupsch Exp $
+ $Id: btree.cpp,v 1.277 2000/02/22 20:32:18 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -988,12 +988,15 @@ btree_m::_scramble_key(
 
 		// Can't check and don't care for variable-length
 		// stuff:
-		if( (char *)(alignon(((uint4_t)src), (kc[i].length))) != src) {
+		if( (char *)(alignon(((ptrdiff_t)src), (kc[i].length))) != src) {
 		    // 8-byte things (floats) only have to be 4-byte 
 		    // aligned on some machines.  TODO (correctness): figure out
 		    // which allow this and which, if any, don't.
+		    /* XXX */
 		    if(kc[i].length <= 4) {
 			if(malloced) delete[] malloced;
+			cout << "Unaligned, scramble, ptr=" << (void*)src
+				<< ", align=" << kc[i].length << endl;
 			return RC(eALIGNPARM);
 		    }
 		}
@@ -1080,8 +1083,11 @@ btree_m::_unscramble_key(
 		// stuff:
 		int len = kc[i].length;
 		// only require 4-byte alignment for doubles
+		/* XXXX */
 		if(len == 8) { len = 4; }
-		if( (char *)(alignon(((uint4_t)src), len)) != src) {
+		if( (char *)(alignon(((ptrdiff_t)src), len)) != src) {
+		    cerr << "Invalid alignment, unscramble, ptr="
+			<< (void*)src << ", align=" << len << endl;
 		    return RC(eALIGNPARM);
 		}
 	    }

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: sdisk_diskrw.cpp,v 1.12 1999/06/10 23:32:31 bolo Exp $
+ $Id: sdisk_diskrw.cpp,v 1.16 2000/03/17 23:54:56 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -54,6 +54,7 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 
 #include <w_debug.h>
 #include <w_stream.h>
+#include <w_strstream.h>
 #include <w_signal.h>
 #include <stdlib.h>
 #ifndef _WINDOWS
@@ -97,11 +98,7 @@ extern "C" int vfork();
 #include <io.h>
 #include <process.h>
 #ifndef NEW_IO
-#ifdef OLD_WINSOCK
-#include <winsock.h>
-#else
-#include <winsock2.h>
-#endif
+#include <w_winsock.h>
 #endif
 #endif
 
@@ -138,7 +135,7 @@ const int	stNOTIMPLEMENTED = sthread_base_t::stNOTIMPLEMENTED;
 
 extern class sthread_stats SthreadStats;
 
-#if defined(SOLARIS2) || defined(Linux) || defined(__NetBSD__)
+#if defined(SOLARIS2) || defined(Linux) || defined(__NetBSD__) || defined(OSF1)
 #define	EXECVP_AV(x)	((char * const *)(x))
 #else
 #define	EXECVP_AV(x)	(x)
@@ -744,7 +741,7 @@ w_rc_t	sdisk_handler_t::finish_shared()
 			<< RC(fcOS) << endl;
 	}
 #endif
-	for (int i = 0; i < open_max; i++)  {
+	for (unsigned i = 0; i < open_max; i++)  {
 		if (diskport[i].pid && diskport[i].pid != -1) {
 #ifndef _WINDOWS
 			if (kill(diskport[i].pid, SIGTERM) == -1 ||
@@ -793,10 +790,19 @@ w_rc_t sdisk_handler_t::init_shared(unsigned size)
 
 	/*
 	 *  Calculate the extra bytes we need for holding control info.
+	 *
+	 * XXX this calculation, alignment, and the allocation of the 
+	 * diskports are wrong.  The aligned size of the svcport_t
+	 * should be used, not its actual size.  What can happen is
+	 * the svcport may not be the correct size to produce natural
+	 * alignment for the elements in the diskport.  I will fix
+	 * this soon, but am noting it here if you wonder why the
+	 * stupid 'fill' member is in svcport_t.
 	 */
-	int extra = sizeof(svcport_t) + sizeof(diskport_t)*open_max;
-	if (extra & 0x7)	/* XXX align */
-		extra += 8 - (extra & 0x7);
+	int _extra = sizeof(svcport_t) + sizeof(diskport_t)*open_max;
+	if (_extra & 0x7)	/* XXX align */
+		_extra += 8 - (_extra & 0x7);
+	const int extra = _extra;	// to void gcc vfork warning
 
 	/*
 	 *  Allocate the shared memory segment
@@ -812,10 +818,10 @@ w_rc_t sdisk_handler_t::init_shared(unsigned size)
 	 *  segment allocated.
 	 */
 
-	svcport = new (shmem_seg.base()) svcport_t;
+	svcport = new (shmem_seg.base()) svcport_t(open_max);
 
 	diskport = (diskport_t*) (shmem_seg.base() + sizeof(svcport_t));
-	for (int i = 0; i < open_max; i++)
+	for (unsigned i = 0; i < open_max; i++)
 		new (diskport + i) diskport_t(i);
 
 	svcport->sleep = 1;
@@ -825,15 +831,20 @@ w_rc_t sdisk_handler_t::init_shared(unsigned size)
 	 *  Fork a dummy diskrw process that monitors longevity of
 	 *  this process.
 	 */
-	char arg[20];
+	char arg[20];	/* shared memory ID */
 	ostrstream s(arg, sizeof(arg));
 	s << shmem_seg.id() << ends;
 
-	const char *av[4];
+	char arg2[20];	/* offset of svcport */
+	ostrstream s2(arg2, sizeof(arg2));
+	s2 << (char*)svcport - (char*)shmem_seg.base()  << ends;
+
+	const char *av[5];
 	int	ac = 0;
 
 	av[ac++] = _diskrw;
 	av[ac++] = arg;
+	av[ac++] = arg2;
 	av[ac++] = 0;
 
 
@@ -886,9 +897,17 @@ sdisk_handler_t::sdisk_handler_t(const char *diskrw)
   diskport(0),
   diskport_cnt(0),
   svcport(0),
+  open_max(default_open_max),
   chan_event(DISKRW_FD_NONE, *this)
 {
 	master_chan[0] = master_chan[1] = DISKRW_FD_NONE;
+
+	const char *s = getenv("SDISK_DISKRW_OPEN_MAX");
+	if (s && *s) {
+		int n = atoi(s);
+		if (n > 0)
+			open_max = (unsigned)n;
+	}
 }
 
 
@@ -950,7 +969,7 @@ void	sdisk_handler_t::polldisk()
 
 	unsigned count = 0;
 
-	for (int i = 0; i < open_max; i++) {
+	for (unsigned i = 0; i < open_max; i++) {
 		if (diskport[i].pid && diskport[i].pid != -1)  {
 			while (diskport[i].sthread_recv_ready()) {
 				/*
@@ -994,7 +1013,7 @@ w_rc_t sdisk_handler_t::open(const char *path, int flags, int mode,
 		return RC(stBADFD);	/* XXX not ready */
 
 #ifdef _WIN32
-	CommandLineArgs* cmdArgs = new CommandLineArgs(7);
+	CommandLineArgs* cmdArgs = new CommandLineArgs(8);
 	if (!cmdArgs)
 		return RC(fcOUTOFMEMORY);
 #endif

@@ -1,6 +1,6 @@
 # <std-header style='data' orig-src='shore'>
 #
-#  $Id: SrcDirInfo.dat.public,v 1.1 1999/06/23 17:06:10 nhall Exp $
+#  $Id: SrcDirInfo.dat,v 1.16 2000/12/04 22:27:26 bolo Exp $
 #
 # SHORE -- Scalable Heterogeneous Object REpository
 #
@@ -27,17 +27,88 @@
 #
 #   -- do not edit anything above this line --   </std-header>
 
+ADT				src/adt
+ADT_ARRAY			src/adt/array
+ADT_BASE			src/adt/base
+ADT_COMMON			src/adt/common
+ADT_INTERNAL			src/adt/internal
+ADT_MISC			src/adt/misc
+ADT_MULTIMEDIA			src/adt/multimedia
+ADT_SPATIAL			src/adt/spatial
+ADT_STANDARD			src/adt/standard
+ADT_TEXT			src/adt/text
+ADT_WRAPPER			src/adt/wrapper
+ADT_WRAPPER_CLIENT		src/adt/wrapper/client
+ADT_WRAPPER_SERVER		src/adt/wrapper/server
+APPLICATIONS			src/applications
+APP_DUMP			src/applications/dump
+APP_PDSH			src/applications/pdsh
+APP_PTK				src/applications/ptk
+APP_PTK_HELP			src/applications/ptk/help
+APP_PTK_LIB			src/applications/ptk/lib
+APP_PTK_LIB_TIX			src/applications/ptk/lib/tix
+APP_PTK_LIB_TIX_BETA		src/applications/ptk/lib/tix/beta
+APP_PTK_LIB_TIX_BINDINGS	src/applications/ptk/lib/tix/bindings
+APP_PTK_LIB_TIX_BITMAPS		src/applications/ptk/lib/tix/bitmaps
+APP_PTK_LIB_TIX_EXAMPLE		src/applications/ptk/lib/tix/example
+APP_PTK_LIB_TIX_SCHEMES		src/applications/ptk/lib/tix/schemes
+APP_PTK_SRC			src/applications/ptk/src
+APP_PTK_TCL			src/applications/ptk/tcl
+APP_PTK_TCL_COMPAT		src/applications/ptk/tcl/compat
+APP_PTK_TCL_LIBRARY		src/applications/ptk/tcl/library
+APP_PTK_TK			src/applications/ptk/tk
+APP_PTK_TK_BITMAPS		src/applications/ptk/tk/bitmaps
+APP_PTK_TK_LIBRARY		src/applications/ptk/tk/library
+APP_PTK_TK_MPEGIDX		src/applications/ptk/tk/mpegidx
+APP_PTK_TK_MPEG_LIB		src/applications/ptk/tk/mpeg_lib
+APP_RU				src/applications/ru
+APP_SMU				src/applications/smu
+APP_WEBI			src/applications/webi
+CATALOG				src/catalog
+CATALOG_DATA			src/catalog/data
+CLIENT_API			src/client-api
+CLIENT_API_BASE			src/client-api/base
+CLIENT_API_CPLUSPLUS		src/client-api/cplusplus
+CLIENT_API_CPLUSPLUS_EXP	src/client-api/cplusplus/exp
+CLIENT_API_PERL			src/client-api/perl
+COMM				src/comm
 COMMON				src/smlayer/common
 COMMON_TESTS			src/smlayer/common/tests
+COMM_CLIENT			src/comm/client
+COMM_COMMON			src/comm/common
+COMM_PARAFTP			src/comm/paraftp
+COMM_SERVER			src/comm/server
 CONFIG				config
+DEBUGGING			src/debugging
+DEBUGGING_WINDBG		src/debugging/windbg
+DOC				doc
+DOC_PARADISE_MANUAL		doc/paradise_manual
 DOC_SMLAYER_DOCS		doc/smlayer_docs
 FC				src/smlayer/fc
 FC_TESTS			src/smlayer/fc/tests
 IMAKE				imake
-OCOMM_SYSTEM_BUILD		src/smlayer/sm/tests
+OCOMM				src/smlayer/object_comm/src
+OCOMM_GAMMA			src/smlayer/object_comm/gamma
+OCOMM_NS			src/smlayer/object_comm/ns
+OCOMM_SYSTEM			src/smlayer/object_comm
+OCOMM_TESTS			src/smlayer/object_comm/tests
+ODBC				../torcli/odbc/src
+OPERATORS			src/operators
+PARA_THREADS			src/threads
+PARSE_OPT			src/parse_opt
+PARSE_OPT_OPT			src/parse_opt/opt
+PARSE_OPT_PARSER		src/parse_opt/parser
+PARSE_OPT_QUERY			src/parse_opt/query
+PARSE_OPT_SEARCH		src/parse_opt/search
+PARSE_OPT_UTILS			src/parse_opt/utils
+SCHEDULER			src/scheduler
+SERVER				src/server
+SERVER_APP			src/server/application
+SERVER_UTIL			src/server/utils
 SM				src/smlayer/sm
 SMLAYER				src/smlayer
 SM_TESTS			src/smlayer/sm/tests
+SQLTESTS			sqltests
 SRC				src
 SSH				src/smlayer/sm/ssh
 SSH_LIB				src/smlayer/sm/ssh/lib
@@ -46,5 +117,16 @@ SSH_SCRIPTS_BUGS		src/smlayer/sm/ssh/scripts/bugs
 SSH_SCRIPTS_BUGS_FIXED		src/smlayer/sm/ssh/scripts/bugs.fixed
 STHREAD				src/smlayer/sthread
 STHREAD_TESTS			src/smlayer/sthread/tests
-TESTS_BUILD			src/smlayer/sm/tests
+STREAMS				src/streams
+TESTS				tests
+TESTS_CTESTS			tests/ctests
+TESTS_CTESTS_ADT		tests/ctests/adt
+TESTS_CTESTS_CURSOR		tests/ctests/cursor
+TESTS_CTESTS_UDF		tests/ctests/udf
 TOOLS				tools
+TRACE_EVENTS			src/trace_events
+TRACE_EVENTS_TESTS		src/trace_events/tests
+TRACE_EVENTS_TOOLS		src/trace_events/tools
+TUPLE_PROC			src/tuple-proc
+UTILS				src/utils
+ZLIB				src/zlib

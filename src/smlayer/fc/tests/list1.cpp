@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: list1.cpp,v 1.21 1999/06/07 19:03:04 kupsch Exp $
+ $Id: list1.cpp,v 1.22 2000/01/07 07:17:04 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -47,7 +47,7 @@ ostream& operator<<(ostream& o, const elem1_t& e)
     return o << e.i;
 }
 
-main()
+int main()
 {
     w_list_t<elem1_t> l(offsetof(elem1_t, link));
 

@@ -1,0 +1,106 @@
+LIBDIR = /p/shore/documents/latex2html
+LATEX = latex
+BIBTEX = bibtex
+LATEX2HTML = $(LIBDIR)/latex2html -split 1 -info 0
+FILE_CHANGED = $(LIBDIR)/file_changed
+HTMLINCLUDE = $(LIBDIR)/htmlinclude.awk
+EGREP=/bin/egrep
+
+default: html
+html-all: html
+ps-all: psc
+all:: psc html
+	
+html:: 
+	for i in `echo $(DOC)`; do $(MAKE) $$i.html; done
+dvi:: 
+	for i in `echo $(DOC)`; do $(MAKE) $$i.dvi; done
+psc ps:: 
+	for i in `echo $(DOC)`; do $(MAKE) $$i.psc; \
+		mv $$i.psc $(TOP)/releasedoc/ps/$$i.ps; \
+	done
+
+.SUFFIXES: .psc .dvi .tex
+
+.tex.dvi:
+	@echo "$(LATEX) $* </dev/null 2>&1 >$*.out"
+	@if $(LATEX) $* </dev/null 2>&1 >$*.out; \
+	then \
+		grep -i warning $*.out || exit 0; \
+	else \
+		grep -i '^!' $*.out; exit 1; \
+	fi
+	@if $(EGREP) -s "No file $*.aux|Rerun" $*.out; \
+	then \
+		echo '***' rerunning latex to get cross-refs right; \
+		if { grep "bibliography" $*.tex >/dev/null; \
+			test $$? -ne 0; } then \
+			echo '******' no bibliography; \
+		else \
+			echo '******' first run bibtex; \
+			echo "$(BIBTEX) $* </dev/null 2>&1 >$*.out"; \
+			$(BIBTEX) $* </dev/null 2>&1 >$*.out; \
+			echo '******' now re-run latex; \
+		fi;\
+		echo "$(LATEX) $* </dev/null 2>&1 >$*.out"; \
+		if $(LATEX) $* </dev/null 2>&1 >$*.out; \
+		then \
+			grep -i warning $*.out || exit 0; \
+		else \
+			grep -i '^!' $*.out; exit 1; \
+		fi \
+	else \
+		exit 0; \
+	fi
+
+# NB:  use .psc rather than .ps so that "make clean" doesn't
+# accidentally remove an important .ps source file (e.g. idraw).
+
+
+.dvi.psc:
+	dvips -o $*.psc $*.dvi
+
+$(DOC).html: $(DOC) $(DOC)/$(DOC).html
+
+$(DOC).tex: $(DOC).src $(HTMLINCLUDE)
+	$(HTMLINCLUDE) $(DOC) $(SRCDIR) .
+
+$(DOC).dvi: html.sty shore.sty dbimp.bib dbtheory.bib
+
+../docs/$(DOC):
+	mkdir -p $@
+
+$(DOC): ../docs/$(DOC)
+	ln -s ../docs/$(DOC)
+
+../labels.pl:
+	(cd ..; $(MAKE) labels.pl)
+
+$(DOC)/$(DOC).html: $(DOC).tex $(DOC).dvi ../labels.pl
+	cd $*.; test -s labels.pl && cp -p labels.pl labels.pl.bak || :
+	$(LATEX2HTML) $(DOC).tex >$(DOC).l2hout
+	@ if $(FILE_CHANGED) $(DOC)/labels.pl; then \
+		echo '***' rerunning latex2html to get cross-refs right; \
+		echo '***' rerunning latex2html to get cross-refs right \
+			>> $(DOC).l2hout; \
+		echo "$(LATEX2HTML) $(DOC).tex >>$(DOC).l2hout"; \
+		$(LATEX2HTML) $(DOC).tex >>$(DOC).l2hout; \
+	else touch $@; fi
+
+SYMLINKS = ../dbtheory.bib ../dbimp.bib $(LIBDIR)/html.sty $(LIBDIR)/shore.sty
+
+############  cleanup 
+
+clean:: latex_clean html_clean 
+
+latex_clean::
+	-$(RM) -f *.out *.aux *.oaux *.bbl *.dvi *.glo *.idx *.ind \
+		*.lof *.log *.lot *.toc *.psc *.sty *.bib *.blg
+	-@if test -f $(DOC).src; then \
+		echo $(RM) -f $(DOC).tex; \
+		$(RM) -f $(DOC).tex; \
+	fi;
+
+html_clean::
+	-$(RM) -f *.l2hout
+	-$(RM) -f -r $(DOC)

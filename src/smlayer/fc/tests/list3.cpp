@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: list3.cpp,v 1.21 1999/06/07 19:03:05 kupsch Exp $
+ $Id: list3.cpp,v 1.22 2000/01/07 07:17:05 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -45,7 +45,7 @@ struct elem3_t {
 typedef w_ascend_list_t<elem3_t, int>  elem_ascend_list_t;
 typedef w_descend_list_t<elem3_t, int>  elem_descend_list_t;
 
-main()
+int main()
 {
     elem3_t array[10];
     elem3_t* p;

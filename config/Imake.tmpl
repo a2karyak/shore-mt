@@ -9,7 +9,7 @@ CMNT
 
 CMNT <std-header style='imake_cmnt' orig-src='shore'>
 CMNT
-CMNT  $Id: Imake.tmpl,v 1.33 1999/06/07 19:07:23 kupsch Exp $
+CMNT  $Id: Imake.tmpl,v 1.36 2000/01/14 05:35:19 bolo Exp $
 CMNT
 CMNT SHORE -- Scalable Heterogeneous Object REpository
 CMNT
@@ -36,6 +36,12 @@ CMNT Rome Research Laboratory Contract No. F30602-97-2-0247.
 CMNT
 CMNT   -- do not edit anything above this line --   </std-header>
 
+#if defined(ExtTop) || defined(ExtBuildTop)
+#define xlate_names(x) $(subst $(TOP),$(EXT_TOP),$(subst $(BUILD_TOP),$(EXT_BUILD_TOP),x))
+#else
+#define xlate_names(x) x
+#endif
+
 CMNT Force --print-directories unless --silent, not the default in cygwin
 MAKEFLAGS := -r --warn-undefined-variable $(MAKEFLAGS)
 ifneq 's' '$(findstring s, $(filter-out --%, $(MAKEFLAGS)))'
@@ -52,6 +58,8 @@ CONFIG_IMAKEFILE_DEPEND_FILES = Imake.rules Imake.tmpl Platform.select Project.r
  * set, it causes make errors.
  */
 MAKE_OPT=
+
+SLASH = /
 
 /* always include shore.def first */
 #include <shore.def>
@@ -94,7 +102,7 @@ MAKE_OPT += SHELL=MAKE_SHELL
  * META-MACROS: EXEEXT for executable-file extensions
  * META-MACROS: LIBEXT for library-file extensions
  */
-#if IS_NT
+#if IS_DOSDEV
 #	define OBJEXT obj
 #	define EXEEXT exe
 #	define LIBEXT lib

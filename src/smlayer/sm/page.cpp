@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: page.cpp,v 1.137 1999/06/07 19:04:18 kupsch Exp $
+ $Id: page.cpp,v 1.138 1999/10/25 18:25:01 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -465,6 +465,7 @@ page_p::_fix(
 	     */
 	    W_DO(update_bucket_info());
 	    bf->unfix(_pp, false, _refbit);
+	    _pp = 0;
 	}
 
 
@@ -1981,6 +1982,7 @@ page_p::operator=(const page_p& p)
 	    if (bf->is_bf_page(_pp))   {
 		W_COERCE(update_bucket_info());
 		bf->unfix(_pp, false, _refbit);
+		_pp = 0;
 	    }
 	    page_bucket_info.nochecknecessary();
 	}

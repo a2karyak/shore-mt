@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: sthread_cpu.cpp,v 1.6 1999/06/07 19:06:14 kupsch Exp $
+ $Id: sthread_cpu.cpp,v 1.7 2000/01/11 21:44:02 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -78,6 +78,9 @@ void	sthread_t::_reset_cpu()
 #if defined(_WIN32) && defined(I386)
 	/* Adjust precision to 53 bit mantissa (64 bit floats) */
 	_controlfp(_MCW_PC, _PC_53);
+
+#elif defined(I386) && defined(Linux)
+	/* changing FPU mods breaks the C library */
 
 #elif defined(I386) && defined(__GNUG__)
 	/* XXX If this breaks your C runtime, it will need to be disabled */

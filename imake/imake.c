@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' no-defines='true'>
 
- $Id: imake.c,v 1.8 1999/06/07 20:32:56 kupsch Exp $
+ $Id: imake.c,v 1.11 2000/01/03 15:25:15 kupsch Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -319,6 +319,7 @@ typedef	unsigned char	boolean;
 
 char *cpp = NULL;
 
+/* XXX should be $TEMP */
 #ifdef WIN32
 char	*tmpMakefile    = "C:/tmp/Imf.XXXXXX";
 char	*tmpImakefile    = "C:/tmp/IIf.XXXXXX";
@@ -462,14 +463,14 @@ wrapup()
 
 #define  INTSIGCATCH
 
-#ifdef _WINDOWS
-RETVALUE __cdecl catch(int);
-#endif
-
 #ifdef SIGNALRETURNSINT
     #define RETVALUE int
 #else
     #define RETVALUE void
+#endif
+
+#ifdef _WIN32
+RETVALUE __cdecl catch(int);
 #endif
 
 #ifdef INTSIGCATCH
@@ -486,6 +487,75 @@ RETVALUE __cdecl catch(int);
 #endif
 }
 
+
+#ifdef USE_THIS_FOR_CPP
+/* USE_THIS_FOR_CPP if set, needs to be set to the string used for the
+   c preprocessor, including any arguments.  only the -D's and -U's are
+   kept from the stuff set in imakemdep.h.  the macro's value should
+   not be quoted.
+*/
+
+#undef USE_CC_E
+#undef DEFAULT_CPP
+#define DEFAULT_CPP forced_cpp_string
+
+#ifdef STRINGIZE_USE_THIS_FOR_CPP
+#define XX_STRINGIZE(x) XX_STRINGIZE2(x)
+#define XX_STRINGIZE2(x) #x
+char forced_cpp_string[] = XX_STRINGIZE(USE_THIS_FOR_CPP);
+#undef XX_STRINGIZE
+#undef XX_STRINGIZE2
+#else
+char forced_cpp_string[] = USE_THIS_FOR_CPP;
+#endif
+
+void fixup_for_forced_cpp()
+{
+    char* defines[ARGUMENTS];
+    char* s = forced_cpp_string;
+    int i;
+    int num_defines = 0;
+    int cpp_argc = 0;
+
+    /* find -I's, -U's and -D's and keep these */
+    for (i = 0; cpp_argv[i] != 0; ++i)  {
+        if (cpp_argv[i][0] == '-' && (cpp_argv[i][1] == 'I' || cpp_argv[i][1] == 'D' || cpp_argv[i][1] == 'U'))  {
+	    defines[num_defines++] = cpp_argv[i];
+	}
+    }
+
+    while (*s)  {
+	while (*s == ' ')  {		/* skip whitespace */
+	    ++s;
+	}
+
+	if (*s)  {
+	    /* at start of new word */
+	    cpp_argv[cpp_argc++] = s;
+
+	    /* find end of word and null terminate */
+	    while (*s != ' ' && *s != 0)  {
+	        ++s;
+	    }
+	    if (*s == ' ')  {
+		*s++ = 0;
+	    }
+	}
+    }
+
+    /* add -U's and -D's found in original string */
+    for (i = 0; i < num_defines; ++i)  {
+        cpp_argv[cpp_argc++] = defines[i];
+    }
+
+    cpp_argv[cpp_argc] = 0;
+}
+
+#else
+#define fixup_for_forced_cpp()  /* do nothing if USE_THIS_FOR_CPP not set */
+#endif
+
+
 /*
  * Initialize some variables.
  */
@@ -493,6 +563,7 @@ void
 init()
 {
 	register char	*p;
+	fixup_for_forced_cpp();  /* may do nothing, see above */
 
 	make_argindex=0;
 	while (make_argv[ make_argindex ] != NULL)
@@ -1244,7 +1315,7 @@ ReadLine(tmpfd, tmpfname)
 			break;
 		}
 		else if (*p1 == '\n') { /* real EOL */
-#ifdef WIN32
+#if defined(WIN32) || defined(_WIN32)
 			if (p1 > pline && p1[-1] == '\r')
 				p1[-1] = '\0';
 #endif

@@ -1,0 +1,222 @@
+.TH ss_m::device ssm "Jan 1999" "Release \*(SV" "Shore Storage Manager" "Release 2.0" "Shore Storage Manager Manual"
+.so tmac.man.local
+.SH NAME
+format_dev, mount_dev, dismount_dev, dismount_all, list_devices, list_volumes, get_device_quota \- Class ss_m Methods for Device Management
+.SH SYNOPSIS
+.EX
+#include <sm_vas.h>  // which includes sm.h
+
+static rc_t      format_dev(
+    const char*            device,
+    uint4                  quota_in_KB,
+    bool                   force);
+static rc_t      mount_dev(
+    const char*            device,
+    u_int&                 vol_cnt,
+    devid_t&               devid,
+    vid_t                  local_vid = vid_t::null);
+static rc_t      dismount_dev(const char* device);
+static rc_t      dismount_all();
+static rc_t      list_devices(
+    const char**&          dev_list,
+    devid_t*&              devid_list,
+    u_int&                 dev_cnt);
+static rc_t      list_volumes(
+    const char*            device,
+    lvid_t*&               lvid_list,
+    u_int&                 lvid_cnt);
+static rc_t      get_device_quota(
+    const char*            device, 
+    smksize_t&             quota_KB, 
+    smksize_t&             quota_used_KB);
+
+.EE
+
+.SH DESCRIPTION
+
+The above class
+.FN ss_m
+methods all deal with managing the devices
+that hold volumes.
+.LP
+A device is either an operating system file or operating system
+device and is identified by a path name (absolute or relative).
+A device has a quota.  A device may have multiple volumes on it
+(in the current implementation the maximum number of volumes
+is 1).
+.LP
+A volume is where data are stored.  A volume is identified
+uniquely and persistently by a logical volume ID (lvid_t).
+Volumes can be used whenever the device they are located
+on is mounted by the SM.  Volumes have a quota.  The
+sum of the quotas of all the volumes on a device cannot
+exceed the device quota.  Methods for volume management are
+described in
+.SA volume(ssm).
+
+.LP
+.B "format_dev(device, quota_in_KB, force)"
+.IP
+The
+.FN format_dev
+method is used to format a storage device for use in holding
+volumes.  The 
+.VA device
+parameter the path-name of the device to format.  The
+.VA quota_in_KB
+is the quota (maximum usable space) for the device, specified
+in kilobytes.  Setting the
+.VA force
+parameter to
+.B true
+indicates that the device should be formatted even if
+.VA device
+already exists.  Setting it to
+.B false
+ will generate the POSIX error,
+.B EEXIST
+indicating that
+.VA device
+already exists.  Since raw-devices always "exist",
+.B true
+must always be used.
+The SM will now allow a device to be formatted if it is already
+mounted.
+
+.LP
+.B "mount_dev(device, vol_cnt, devid, local_vid)"
+.IP
+The
+.FN mount_dev
+method makes all volumes on a device available for access.
+The number of volumes on the device is returned in
+.VA vol_cnt.  The
+.FN list_devices
+method described below can be used to determine the IDs of
+the volumes on the device.
+The ID of the device (unique only to the server) is returned in
+.VA devid.  Device IDs are not used as parameters in any server methods,
+but some VASs may find them useful for their own purposes.
+The
+.VA local_vid
+parameter is only meant to be a temporary hack for those VASs using the
+physical ID version of the SM interface.
+.VA Local_vid
+is used to specify the
+local handle that should be when a volume is mounted.  The default value,
+.FN vid_t::null
+indicates that the SM can use any number it wants to use.
+.LP
+.IP
+It is OK to mount a device multiple times, as long as
+.VA device
+is always the same (ie. you cannot specify another path that is a
+hard/soft link to the path given in previous mount requests).
+Device mounts are not reference counted, so only a single
+.FN dismount_dev
+call is necessary to dismount a device.
+
+
+.LP
+.B "dismount_dev(device)"
+.IP
+The
+.FN dismount_dev
+method flushes all cached pages on the device and makes all volumes
+on the device unavailable.
+.B Note:
+Currently, there is no check made to make sure no transactions
+are using a device when it is dismounted.  If a transaction
+operation accesses a volume on a device that is no longer mounted, an
+error is returned from the operation.  If a transaction previously 
+accessed a volume on a device that is no longer mounted, and the
+transaction aborts, a fatal error will occur, shutting down
+the server.
+
+.LP
+.B "dismount_all()"
+.IP
+The
+.FN dismount_all
+method dismount all mounted devices.
+
+.LP
+.B "list_devices(dev_list, devid_list, dev_cnt)"
+.IP
+The
+.FN list_devices
+method returns, in
+.VA dev_list,
+an array of char* pointers to the names of
+all mounted devices.  Note that the use of a char*'s is 
+a temporary hack until a standard string class is available.
+The char* pointers are pointing directly into the device
+mount table.
+The
+.VA devid_list
+is changed to point to an array of device IDs. 
+.B Note:
+.VA dev_list
+and
+.VA devid_list
+ must be deleted with delete [] by the
+caller if they are not null (0).  They will be null
+if an error is returned or if there are no devices.
+The
+.VA dev_cnt
+parameter is the number of elements in the returned
+lists.
+
+.LP
+.B "list_volumes(device, lvid_list, lvid_cnt)"
+.IP
+The
+.FN list_volumes
+method returns, via lvid_list, an array containing the 
+IDs of all volumes on
+.VA device.
+The
+.VA lvid_cnt
+parameter is set to the length of the list returned.
+.VA Lvid_list must be deleted with delete [] by the caller if
+lvid_list is not null (0).  lvid_list will be null
+if an error is returned or if there are no volumes on the device.
+
+.LP
+.B "get_device_quota(device, quota_KB, quota_used_KB)"
+.IP
+The
+.FN get_device_quota
+method returns the quota (in K-bytes) in
+.VA quota_KB
+and the amount of the quota, allocated to volumes on the device, in
+.VA quota_used_KB.
+
+
+.SH ERRORS
+
+All of the above methods return a
+.FN w_rc_t
+error code.
+
+.LP
+See
+.SA errors(ssm)
+for more information on error handling.
+
+.SH TRANSACTION ISSUES
+.LP
+Many of the above methods cannot be run in the scope of
+a transaction.  The reason for this restriction is to avoid
+the implication that rolling back (aborting) the transaction
+would rollback the effect of the method.
+
+
+.SH EXAMPLES
+TODO
+
+.DA
+.SH "SEE ALSO"
+.SA intro(ssm),
+.SA volume(ssm).
+

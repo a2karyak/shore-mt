@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='XCT_H'>
 
- $Id: xct.h,v 1.140 1999/07/20 20:28:24 nhall Exp $
+ $Id: xct.h,v 1.143 2000/01/25 23:12:14 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -310,6 +310,12 @@ public:
     // use faster new/delete
     NORET			W_FASTNEW_CLASS_DECL(xct_t);
 
+    // XXX this is only for chkpt::take().  This problem needs to
+    // be fixed correctly.  DO NOT USE THIS.  Really want a
+    // friend that is just a friend on some methods, not the entire class.
+    static w_rc_t		acquire_xlist_mutex();
+    static void			release_xlist_mutex();
+
 
 /////////////////////////////////////////////////////////////////
 // DATA
@@ -414,6 +420,10 @@ public:
     }
 };
 
+/* XXXX This is somewhat hacky becuase I am working on cleaning
+   up the xct_i xct iterator to provide various levels of consistency.
+   Until then, the "locking option" provides enough variance so
+   code need not be duplicated or have deep call graphs. */
 
 class xct_i  {
 public:
@@ -423,36 +433,43 @@ public:
     xct_t* 
     curr()  {
 	    xct_t *x;
-	    W_COERCE(xct_t::_xlist_mutex.acquire());
+	    if (locked)
+		    W_COERCE(xct_t::_xlist_mutex.acquire());
 	    x = unsafe_iterator->curr();
-	    xct_t::_xlist_mutex.release();
+	    if (locked)
+		xct_t::_xlist_mutex.release();
 	    return x;
     }
     xct_t* 
     next()  {
 	xct_t *x;
-	W_COERCE(xct_t::_xlist_mutex.acquire());
+	if (locked)
+		W_COERCE(xct_t::_xlist_mutex.acquire());
 	x = unsafe_iterator->next();
-	xct_t::_xlist_mutex.release();
+	if (locked)
+		xct_t::_xlist_mutex.release();
 	return x;
     }
 
-    NORET xct_i()  {
+    NORET xct_i(bool locked_accesses = true)
+    : unsafe_iterator(0),
+      locked(locked_accesses)
+    {
 	unsafe_iterator = new
 	    w_list_i<xct_t>(xct_t::_xlist);
     }
 
-    NORET ~xct_i() { delete unsafe_iterator; }
+    NORET ~xct_i() { delete unsafe_iterator; unsafe_iterator = 0; }
 
 private:
     w_list_i<xct_t> *unsafe_iterator;
+    const bool	    locked;
 
     // disabled
     xct_i(const xct_i&);
     xct_i& operator=(const xct_i&);
 };
     
-
 
 // For use in sm functions that don't allow
 // active xct when entered.  These are functions that

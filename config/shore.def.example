@@ -1,6 +1,6 @@
 /*<std-header style='imake' orig-src='shore'>
 
- $Id: shore.def.example,v 1.95 1999/06/23 17:05:16 nhall Exp $
+ $Id: shore.def.example,v 1.107 2000/06/01 21:32:35 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -86,6 +86,13 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #undef USE_DIR_SCHEME_FILE
 
 /*
+ * Define if you want a .cvsignore file generated which contains all the files
+ * which this directory generates.  Makes cvs update not show these files as
+ * unknown.
+ */
+#define GENERATE_CVSIGNORE
+
+/*
  * Define one of these to force the use of a specific compiler
  * in the Imakefiles.
  * NB: we haven't used anything but gcc (on Unix) and cl (on NT)
@@ -93,16 +100,6 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
  */
 #undef FORCE_GCC
 #undef FORCE_CC
-
-/*
- * If you want to build with egcs,
- * #define FORCE_EGCS
- * #define EGCS_DIR (e.g., /s/egcs-1.1.1)
- * and
- * #define GCC_PATH EGCS_DIR/bin/gcc
- */
-#undef FORCE_EGCS
-#undef EGCS_DIR
 
 /*
  * Define this if you want to specify a specific gcc to use,
@@ -213,13 +210,13 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
  * Define this if you only want to build the smlayer and not the
  * rest of paradise.
  */
-#define BUILD_SMLAYER_ONLY
+#undef BUILD_SMLAYER_ONLY
 
 /*
  * Define these if you want to build ssh or smlayer tests 
  * by default.  You may will to configure TCL if you build ssh.
  */
-#define BUILD_DEFAULT_SSH
+#undef BUILD_DEFAULT_SSH
 #undef BUILD_DEFAULT_SMLAYER_TESTS
 
 /**************************************************/
@@ -244,7 +241,17 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
  * which are larger than this size.  Turns off treating warnings as errors.
  * gcc only.
  */
-#undef WARN_OBJECTS_LARGER_THAN
+#undef GCC_WARN_OBJECTS_LARGER_THAN
+
+/*
+ * Enable this to prevent gcc from bitching about virtual function
+ * mismatches.  Newer compilers have a slightly different way of
+ * treating virtual functions with the same name ... if one is
+ * redefined the other is lost.  I plan on "fixing" the "problems"
+ * in the source that this causes soon, but it is on by default
+ * so gcc-2.95.2 will just work
+ */
+#define	GCC_NO_WARN_VIRTUAL
 
 /* 
  * Directory to install bin, lib, include, and documents 
@@ -288,6 +295,12 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #define SM_PAGESIZE 8192
 
 /*
+ * Define this if you want clients aborted when the percent threshold of
+ * log in use by all clients is exceeded.  should be less than 50.
+ */
+#define SM_LOG_WARN_EXCEED_PERCENT 40
+
+/*
  * If you want 64 bit serial numbers (logical IDs)
  * rather that 32 bit, define this:
  */
@@ -297,11 +310,11 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 /*
  * Define this if you want to use the server-to-server coordination
  * stuff for two-phase commit.
- * This requires #undef USE_OCOMM, which is not available with
+ * This requires #define USE_OCOMM, which is not available with
  * the public release, so external (non-UW-Madison CSD) users
  * cannot build anything with this defined.
  */
-#undef USE_COORD
+#define USE_COORD
 
 /*
  * Define this if you want to include crash test hooks in your
@@ -416,6 +429,53 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #undef NEW_IO_ONLY
 
 /*
+ * Define this if you want the old "static" sdisk table in
+ * the threads package.   The new default is to allocate file
+ * table entries on demand.  This will go away soon, it is just
+ * here in case some odd dependency occurs.
+ */
+#undef STHREAD_FDS_STATIC
+
+/*
+ * Define this to an >0 integer value if you want to change the
+ * default number of files in the diskRW I/O segment.   The
+ * default is 20.  This limit can also be changed at runtime
+ * by setting the environment variable of the same name.
+ */
+#undef SDISK_DISKRW_OPEN_MAX
+
+/*
+ * Define this to a  >0 integer value if you want to change
+ * the default number of multiple outstanding I/O operations
+ * available on a sdisk_win32_async_t disk class.  The default
+ * is 8 (in the include file).  An environment variable 
+ * of the same name can be used to tune this parameter at
+ * run-time (range == 1 to the maximum specified at compile time)
+ *
+ * Be careful tuning this, since systems with lots of active disk I/O
+ * can increase the number of waited events considerably, and the
+ * system will need to use the "event multiplexer", which does add
+ * a bit of overhead to I/O.  On the other hand, having multiple out
+ * standing I/Os helps a lot on a busy system.
+ */
+#undef	SDISK_WIN32_ASYNC_MAX
+
+/*
+ * Define this to enable "asynchronous" (as far as the threads package
+ * is concerned) sdisk_t::sync() operations on a win32 async sdisk.
+ * This enables the CPU thread to continue running while a sync occurs,
+ * instead of blocking the entire process.  If this option is built
+ * into the system it can be disabled by setting the environment
+ * variable of the same name to an integer value, 0 for disabled,
+ * non-zero to have 'asynchronous  syncs' occur.
+ *
+ * You will not really see any performance improvments when this
+ * is enabled, because the part of the system that most benefits
+ * from it (the SM log) is not capable of taking advantage of it.
+ */
+#define	SDISK_WIN32_ASYNC_ASYNC
+
+/*
  * turn on/off use of PURIFY, QUANTIFY, etc
  */
 #undef USE_PURIFY
@@ -440,7 +500,7 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
  * ** if fastnew is being used ***.  If NO_FASTNEW, this is not
  * required.
  */
-#define INSTRUMENT_MEM_ALLOC
+#undef INSTRUMENT_MEM_ALLOC
 
 /*
  * Define this if you want expensive instrumentation of
@@ -536,7 +596,7 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
  * single threaded (static) library version of the visual c++
  * libraries and runtime.
  */
-#undef USE_CL_RUNTIME_SLIB
+#define USE_CL_RUNTIME_SLIB
 
 /*
  * Define this if you want the visual c++ "stack checking" turned
@@ -646,4 +706,128 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
  * "large" (64 bit) disk addresses in the on-disk structures.
  */
 #undef SM_DISKADDR_LARGE
+
+/*
+ * Define this if you want to specify a different size than
+ * the default (40 bytes) for global transaction IDs, gtids.
+ */
+#undef COMMON_GTID_LENGTH
+
+/*
+ * Define this if you want to specify a different size than
+ * the default (100 bytes) for server handle IDs.
+ */
+#undef COMMON_SERVER_HANDLE_LENGTH
+
+/*
+ * Define this if you want ssh to use the old, event semaphore 
+ * driven sychronization.  It is slower and can have race conditions,
+ * but there may be timing dependencies in it tests can
+ * depend upon in some cases.
+ */
+#undef SSH_SYNC_OLD
+
+/* Options for Paradise follow.  do not edit this line */
+
+#define PARA_DEBUGCODE ON
+
+/*
+ * PARA_VERBOSE_x where x >= PARA_VERBOSE_MIN_LEVEL are compiled in.
+ * leaving it undefined sets it to 1 unless USE_EXTERNAL_TRACE_EVENTS
+ * is turned on, in which case it is set to 2 and 1's are traced by
+ * a different mechanism.
+ */
+#undef PARA_VERBOSE_MIN_LEVEL
+
+/*
+ * PARA_VERBOSE_x where x <= PARA_VERBOSE_MAX_LEVEL are compiled in.
+ * leaving it undefined includes up to the max level.
+ */
+#undef PARA_VERBOSE_MAX_LEVEL
+
+/* 
+ * Enable compression of array tiles.
+ */
+#define PARA_COMPRESS
+
+/* 
+ * Set limit to the number of parathread_t's.  if undefined the value is
+ * determined by the sources.
+ */
+#undef PARA_MAX_PARATHREADS
+
+/*
+ * Turning this on makes each query client thread have its own
+ * attribute schema cache.  This can allow threads to have different
+ * schemas, such as when a system upgrade is in progress.  At
+ * this time, no facility exists, nor is it possible for anyone
+ * to use a seperate schema cache.  But the facility exists if it
+ * is needed.
+ */
+#undef CATALOG_SCHEMA_CACHE_PER_THREAD
+
+
+/*
+ * The new object-oriented communications system.
+ */
+#define USE_OCOMM
+#define OCOMM_USE_TCP
+#define OCOMM_USE_TCP_XXX
+#undef OCOMM_USE_PVM
+#undef OCOMM_USE_UDP
+#undef OCOMM_USE_MYRINET
+#undef OCOMM_USE_MPI
+
+/*
+ * Define this if you want the quick bug fix for a multi-node/multi-disk problem 
+ * related to an exceptional error condition when the receving operator exits 
+ * before the message that starts the local sending operator gets received.
+ * This is turned on by default until the lower level complete fix is done.
+ */
+#define NETSTREAM_ABORT_HACK
+
+/*
+ * Define this if you want top/middle operators to wait for bottom
+ * operators to connect before aborting.  This fixes a hang bug where a
+ * middle or top operator aborts before a bottom operator has a chance to
+ * start up and connect.  The bottom operator then starts up, sends a
+ * couple of pages and waits on flow control.  Since the middle/top
+ * operator is gone, the bottom operator hangs, possibly with locks held.
+ * This fix also modifies the HashJoin operator.  The second input stream
+ * isn't created and opened until the second phase is started because
+ * this two phase operator can abort after the first phase.  This fix
+ * can be disabled when the ability to abort bottom operators directly
+ * is implemented.  See TAR 124967 for more info on this fix.
+ */
+#define BOTTOM_OP_ABORT_FIX
+
+/*
+ * Define this if you want Object Comm to panic the system
+ * when it detects a condition that may cause a system hang
+ * later.  This is a shore.def option because it may be too
+ * aggressive, but it generates correct results.
+ */
+#define	OCOMM_ABORT_HACK
+
+/*
+ * Define these if you want to build ptk or tests/ctests
+ * respectively by default.  You may need to configure TCL if it isn't
+ * in the standard paradise location.
+ */
+#undef BUILD_DEFAULT_PTK
+#undef BUILD_DEFAULT_CTESTS
+#undef BUILD_EVERYTHING
+
+/*
+ * Define this if you want to build the OLAP Server
+ *
+ * Needs LINK_PTHREAD.
+ */
+#undef BUILD_OLAP_SERVER
+
+/*
+ * Define this if you want to use the old executable names instead
+ * of the "TOR" junk names.
+ */
+#undef USE_OLD_EXEC_NAMES
 

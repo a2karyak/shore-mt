@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='W_HASH_H'>
 
- $Id: w_hash.h,v 1.28 1999/06/07 19:02:53 kupsch Exp $
+ $Id: w_hash.h,v 1.30 1999/12/10 16:08:25 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -37,7 +37,6 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #include <w_base.h>
 #include <w_list.h>
 
-#include <new.h>
 
 template <class T, class K> class w_hash_t;
 template <class T, class K> class w_hash_i;
@@ -177,7 +176,7 @@ w_hash_t<T, K>::w_hash_t(
     w_assert1(!_tab); // just to check space
     _tab = new w_list_t<T>[_top];
     w_assert1(_tab);
-    for (uint i = 0; i < _top; i++)  {
+    for (unsigned i = 0; i < _top; i++)  {
 	_tab[i].set_offset(_link_offset);
     }
 }

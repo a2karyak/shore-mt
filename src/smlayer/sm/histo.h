@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='HISTO_H'>
 
- $Id: histo.h,v 1.5 1999/06/07 19:04:05 kupsch Exp $
+ $Id: histo.h,v 1.6 1999/12/07 22:53:30 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -104,8 +104,7 @@ template <class T, class Cmp>
 class SearchableHeap :  public Heap<T,Cmp>
 {
 public:
-    NORET SearchableHeap(const Cmp& cmpFunction, 
-				int initialNumElements);
+    SearchableHeap(const Cmp& cmpFunction, int initialNumElements);
 
     int		Search(int i, const T& t);
 		   // Find smallest element that is
@@ -167,12 +166,11 @@ protected:
         // called from class histoid_update_t 
 	void		update_page(const shpid_t& p, smsize_t amt);
 
-
 public:
 	/*
 	 * constructor/destructor -called when file mgr is initialized
 	 */
-	static void 	initialize_table();
+	static rc_t 	initialize_table();
 	static void 	destroy_table();
 	/*
 	 * When a tx first encounters a store (dir_m::access)
@@ -213,6 +211,10 @@ public:
 			    bool&		success, // output
 			    slotid_t&	idx // output
 			) const;
+
+	ostream		&print(ostream &) const;
+	static ostream	&print_cache(ostream &, bool locked = false);
+
 private:
 	// these mutex methods violate const-ness:
 	void _grab_mutex() const; 
@@ -228,7 +230,6 @@ private:
 	int 		__find_page(
 			    bool		insert_if_not_found,
 			    const shpid_t& 	pid
-			    // NB: doesn't free the histoid_t::mutex!!!!
 			);
 	void		_find_page(
 				bool	 	create_if_not_found, 
@@ -252,8 +253,15 @@ private:
 	static smutex_t	htab_mutex;
 	static w_hash_t<histoid_t, stid_t> *	htab;
 	static bool 	initialized;
-	friend ostream &operator<<(ostream&, const histoid_t&);
+
+ private: /* disabled */
+	histoid_t(const histoid_t &);
+	histoid_t &operator=(const histoid_t &);
 };
+
+extern ostream	&operator<<(ostream&, const histoid_t&);
+
+class file_p;
 
 class histoid_update_t 
 {
@@ -265,8 +273,7 @@ class histoid_update_t
      */
 private:
     bool		_found_in_table;
-    //file_p*		_page; -- include-file order problem 
-    page_p*		_page;
+    file_p*		_page;
     histoid_t*		_h;
     pginfo_t		_info;
     smsize_t		_old_space;
@@ -274,11 +281,11 @@ private:
 public:
     NORET histoid_update_t(sdesc_t *sd);
 
-    NORET histoid_update_t(page_p& pg);
+    NORET histoid_update_t(file_p& pg);
 
     NORET ~histoid_update_t();
 
-    void  replace_page(page_p *p, bool reinstall = false);
+    void  replace_page(file_p *p, bool reinstall = false);
 
     void  remove();
     void  update();

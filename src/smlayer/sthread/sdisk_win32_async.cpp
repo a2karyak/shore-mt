@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: sdisk_win32_async.cpp,v 1.7 1999/06/07 19:06:04 kupsch Exp $
+ $Id: sdisk_win32_async.cpp,v 1.11 2000/06/01 21:32:39 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -32,7 +32,7 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 /*  -- do not edit anything above this line --   </std-header>*/
 
 /*
- *   NewThreads I/O is Copyright 1995, 1996, 1997, 1998 by:
+ *   NewThreads I/O is Copyright 1995, 1996, 1997, 1998, 1999, 2000 by:
  *
  *	Josef Burger	<bolo@cs.wisc.edu>
  *
@@ -64,7 +64,7 @@ const	int	stBADFD = sthread_base_t::stBADFD;
 const	int	stINVAL = sthread_base_t::stINVAL;
 const	int	stINTERNAL = sthread_base_t::stINTERNAL;
 
-
+#define	BROKEN_IO_HACK
 #ifdef BROKEN_IO_HACK
 /*
  * The way that the Storage manager does multiple I/O to the
@@ -93,13 +93,45 @@ const	int	stINTERNAL = sthread_base_t::stINTERNAL;
  * screwing up the async I/O system.  And slowing it down.
  */
 
+// #define	SDISK_VERBOSE
+
+
+static unsigned setMaxAsync(unsigned numAsync, unsigned maxAsync)
+{
+	const	char *s = getenv("SDISK_WIN32_ASYNC_MAX");
+	if (s && *s) {
+		int	n = atoi(s);
+		if (n <= 0)
+			n = 1;
+		numAsync = n;
+	}
+	if (numAsync > maxAsync)
+		numAsync = maxAsync;
+	
+	return numAsync;
+}
+
 
 sdisk_win32_async_t::sdisk_win32_async_t()
-: _pos(0)
+: _pos(0),
+  _num_inuse(0),
+  _num_waited(0),
+  _num_waiting(0),
+  _max_concurrent(0),
+  maxAsync(setMaxAsync(1, MAXasync))
+#ifdef SDISK_WIN32_ASYNC_ASYNC
+  ,
+  _use_async(true),
+  sync_waiters(0),
+  sync_in_progress(false),
+  _sync_waited(0)
+#endif
 {
 	unsigned	i;
 
 	for (i = 0; i < maxAsync; i++) {
+		_inuse[i] = false;
+		_num_concurrent[i] = 0;
 		_async[i].hEvent = INVALID_HANDLE_VALUE;
 	}
 
@@ -108,6 +140,16 @@ sdisk_win32_async_t::sdisk_win32_async_t()
 		io_fast[i] = 0;
 		io_time[i] = 0.0;
 	}
+
+	lock.rename("m:", "sdisk");
+	available.rename("c:", "sdisk");
+
+#ifdef SDISK_WIN32_ASYNC_ASYNC
+	const char *s = getenv("SDISK_WIN32_ASYNC_ASYNC");
+	if (s && *s)
+		_use_async = atoi(s);
+	/* XXX rename sync, should have a rename() for this class */
+#endif
 }
 
 
@@ -178,14 +220,39 @@ w_rc_t	sdisk_win32_async_t::open(const char *name, int flags, int mode)
 		_async[i].hEvent = h;
 		W_COERCE(_event[i].change(_async[i].hEvent));
 		W_COERCE(sthread_t::io_start(_event[i]));
+
+		_inuse[i] = false;
+		_num_concurrent[i] = 0;
 	}
 
+#ifdef SDISK_WIN32_ASYNC_ASYNC
+	/* XXX If the sync thread can't be started it isn't the end
+	   of the world.  We could always fallback */
+	
+	if (_use_async)
+		W_COERCE(syncThread.start(_handle));
+#endif
+
+	_num_inuse = 0;
+	_num_waiting = 0;
+	_num_waited = 0;
+//	_num_concurrent = 0;
+	_max_concurrent = 0;
 	_pos = 0;
 	for (i = 0; i < 3; i++) {
 		io_total[i] = 0;
 		io_fast[i] = 0;
 		io_time[i] = 0.0;
 	}
+
+	const char *s = strrchr(name, '/');
+	if (s && s[1])
+		s = s+1;
+	else
+		s = name;
+
+	lock.rename("m:", "sdisk:", s);
+	available.rename("c:", "sdisk:", s);
 	
 	return RCOK;
 }
@@ -197,8 +264,12 @@ w_rc_t	sdisk_win32_async_t::close()
 	if (e != RCOK)
 		return e;
 
+	/* XXX should wait for any active I/O requests to complete to
+	   be failsafe.  However, it is a complete usage error if the
+	   user tries anything like that. */
+
 	unsigned	i;
-#if 0
+#ifdef SDISK_VERBOSE
 	cout << "async:";
 	if (io_total[0]) {
 		cout << " read[" << io_total[0];
@@ -212,8 +283,13 @@ w_rc_t	sdisk_win32_async_t::close()
 			cout << ", fast=" << io_fast[1];
 		cout << "]";
 	}
-	if (io_total[2])
+	if (io_total[2]) {
 		cout << " sync[" << io_total[2] << "]";
+#ifdef SDISK_WIN32_ASYNC_ASYNC
+		if (_sync_waited)
+			cout << " (" << _sync_waited << " waited)";
+#endif
+	}
 
 	for (i = 0; i < 3; i++) {
 		if (io_time[i] > 0) {
@@ -227,10 +303,34 @@ w_rc_t	sdisk_win32_async_t::close()
 		}
 	}
 
+	if (_num_waited)
+		cout << " #waited=" << _num_waited;
+#if 1
+	if (_max_concurrent) {
+		cout << " #cc_io:";
+		for (i = 0; i < maxAsync; i++)
+			if (_num_concurrent[i])
+				cout << " " << i+1 << ":" << _num_concurrent[i];
+	}
+#else
+	if (_num_concurrent)
+		cout << " #cc_io=" << _num_concurrent;
+#endif
+	if (_max_concurrent)
+		cout << " #max_cc=" << _max_concurrent;
+	if (maxAsync > 1)
+		cout << " maxAsync=" << maxAsync;
+
 	cout << endl;
 #endif
 
 	/* XXX error handling */
+
+#ifdef SDISK_WIN32_ASYNC_ASYNC
+	if (_use_async)
+		W_COERCE(syncThread.stop());
+#endif
+
 	for (i = 0; i < maxAsync; i++) {
 		W_COERCE(sthread_t::io_finish(_event[i]));
 		W_COERCE(_event[i].change(INVALID_HANDLE_VALUE));
@@ -238,6 +338,9 @@ w_rc_t	sdisk_win32_async_t::close()
 		CloseHandle(_async[i].hEvent);	/* XXX lost eror */
 		_async[i].hEvent = INVALID_HANDLE_VALUE;
 	}
+
+	lock.rename("m:", "sdisk:");
+	available.rename("c:", "sdisk:");
 
 	return RCOK;
 }
@@ -350,17 +453,81 @@ w_rc_t	sdisk_win32_async_t::_write(unsigned slot, const void *buf, int count,
 
 inline w_rc_t	sdisk_win32_async_t::allocate_slot(unsigned &slot)
 {
-	slot = 0;
-	return lock.acquire();
+	W_DO(lock.acquire());
+
+#if 0 && defined(SDISK_WIN32_ASYNC_ASYNC)
+	if (sync_in_progress)	/* XXX */
+		SthreadStats.cc_sync_io++;
+#endif
+
+	/* abbreviated lower-overhead lock/release protocol for 1 slot case. */
+	if (maxAsync == 1) {
+		slot = 0;
+		_inuse[slot] = true;
+		_num_inuse = 1;
+		return RCOK;
+	}
+
+	if (_num_inuse >= maxAsync) {
+		_num_waited++;
+		_num_waiting++;
+		while (_num_inuse >= maxAsync)
+			W_COERCE(available.wait(lock));
+		_num_waiting--;
+	}
+
+	unsigned	i;
+	for (i = 0; i < maxAsync; i++)
+		if (!_inuse[i])
+			break;
+	if (i == maxAsync) {
+		lock.release();
+		return RC(stINTERNAL);
+	}
+
+	_num_inuse++;
+	_inuse[i] = true;
+
+	if (_num_inuse > 1) {
+#if 1
+		_num_concurrent[_num_inuse-1]++;
+#else
+		_num_concurrent++;
+#endif
+		if (_num_inuse > _max_concurrent)
+			_max_concurrent = _num_inuse;
+	}
+
+	lock.release();
+
+	slot = i;
+	return RCOK;
 }
 
 inline w_rc_t	sdisk_win32_async_t::release_slot(unsigned slot)
 {
+	/* abbreviated lower-overhead lock/release protocol for 1 slot case. */
+	if (maxAsync == 1) {
+		w_assert3(slot == 0);
+		_inuse[slot] = false;
+		_num_inuse = 0;
+		lock.release();
+		return RCOK;
+	}
+
+	W_DO(lock.acquire());
+
+	w_assert3(slot < maxAsync && _inuse[slot]);
+
+	_num_inuse--;
+	_inuse[slot] = false;
+
+	if (_num_waiting)
+		available.signal();
+
 	lock.release();
 	return RCOK;
 }
-
-
 
 
 w_rc_t	sdisk_win32_async_t::read(void *buf, int count, int &done)
@@ -519,7 +686,6 @@ w_rc_t	sdisk_win32_async_t::write(const void *buf, int count, int &done)
 }
 
 
-#ifdef BROKEN_IO_HACK
 w_rc_t	sdisk_win32_async_t::readv(const iovec_t *iov, int iovcnt, int &done)
 {
 	if (_handle == INVALID_HANDLE_VALUE)
@@ -567,8 +733,33 @@ w_rc_t	sdisk_win32_async_t::writev(const iovec_t *iov, int iovcnt, int &done)
 	if (_handle == INVALID_HANDLE_VALUE)
 		return RC(stBADFD);
 
+	/* XXX broken io hack semantics overlap writev, since all the
+	   vectors are written sequentially, and it is OK.  This takes
+	   care of BROKEN_IO_HACK, and works correctly with or without
+	   that option enabled. */
 	fileoff_t	io_pos = _pos;
 
+	/* Coalesce the iovec_t to minimize user<>kernel transitions.
+	   This could be controlled by a flag IFF some applications
+	   didn't work without an I/O per iov segment.  This is not
+	   something to worry about, but I have seen "hints" that vector
+	   I/O on SOME OSes may have odd semantics doing I/O to SOME
+	   devices (such as records on a tape drive). */
+
+	/* XXX once diskrw uses sdisk, coupling problem goes away */
+	iovec_t	newVec[sthread_t::iovec_max]; /* XXX coupling bad */
+	int	newCnt = 0;
+	if (iovcnt > 1) 
+		vcoalesce(iov, iovcnt, newVec, newCnt);
+	if (newCnt && newCnt < iovcnt) {
+		SthreadStats.writev_coalesce++;
+#ifdef STHREAD_writev_coal_count
+		SthreadStats.writev_coal_count += iovcnt - newCnt;
+#endif
+		iov = newVec;
+		iovcnt = newCnt;
+	}
+		
 	unsigned	slot;
 	W_COERCE(allocate_slot(slot));
 
@@ -602,7 +793,6 @@ w_rc_t	sdisk_win32_async_t::writev(const iovec_t *iov, int iovcnt, int &done)
 
 	return e;
 }
-#endif /* BROKEN_IO_HACK */
 
 
 w_rc_t	sdisk_win32_async_t::pread(void *buf, int count, fileoff_t pos,
@@ -819,7 +1009,75 @@ w_rc_t	sdisk_win32_async_t::sync()
 
 	w_rc_t	e;
 
-	W_COERCE(lock.acquire());
+#ifdef SDISK_WIN32_ASYNC_ASYNC
+	/* XXX stats ... just io_time I think? */
+
+#ifdef EXPENSIVE_STATS
+	stime_t	start_time = stime_t::now();
+#endif
+
+	if (_use_async) {
+		SthreadStats.diskrw_io++;
+
+		/* This code has nothing to do with the sync thread itself,
+		   it just prevents multiple sync's from occuring at once
+		   and hosing the sync thread / error return interface.
+		   If multiple syncs occur at once they should be queued,
+		   so sync's can be batched, which eliminates user<->kernel
+		   transitions. */
+
+		W_COERCE(lock.acquire());
+		bool	waited = false;
+#if 0
+		if (_num_inuse)
+			SthreadStats.cc_sync_io++;
+#endif
+		if (sync_in_progress) {
+			waited = true;
+			sync_waiters++;
+		}
+		while (sync_in_progress) {
+			W_COERCE(syncAvailable.wait(lock));
+		}
+
+		sync_in_progress = true;
+		if (waited) {
+			sync_waiters--;
+			// XXX stats update need not be locked
+			_sync_waited++;
+#if 0
+			SthreadStats.cc_sync++;
+#endif
+		}
+		lock.release();
+	
+		e = syncThread.sync();
+
+		W_COERCE(lock.acquire());
+		sync_in_progress = false;
+		/* XXX convoy versus reality, grouped sync waits, etc */
+		if (sync_waiters)
+			syncAvailable.signal();
+		lock.release();
+	}
+	else {
+		SthreadStats.local_io++;
+		bool	ok;
+		ok = FlushFileBuffers(_handle);
+		if (!ok) {
+			DWORD	err = GetLastError();
+			if (err != ERROR_ACCESS_DENIED && err != ERROR_INVALID_FUNCTION)
+				e = RC2(fcWIN32, err);
+		}
+	}
+
+#ifdef EXPENSIVE_STATS
+	double	delta = stime_t::now() - start_time;
+	io_time[2] += delta;
+	io_total[2]++;
+	SthreadStats.io_time += (float) delta;
+#endif
+#else	/* SDISK_WIN32_ASYNC_ASYNC */
 
 #if 1
 #ifdef EXPENSIVE_STATS
@@ -846,9 +1104,177 @@ w_rc_t	sdisk_win32_async_t::sync()
 	e = sdisk_win32_t::sync();
 #endif
 
-	lock.release();
-
 	sthread_t::yield();
+#endif	/* SDISK_WIN32_ASYNC_ASYNC */
 	
 	return e;
 }
+
+
+#ifdef SDISK_WIN32_ASYNC_ASYNC
+
+/* XXX If the syncThread was new/deleted, state transitions become much
+   easier and cleaner. */
+
+sdisk_win32_async_t::SyncThread::SyncThread()
+: handle(INVALID_HANDLE_VALUE),
+  thread(INVALID_HANDLE_VALUE),
+  threadId(0),
+  request(INVALID_HANDLE_VALUE),
+  _done(INVALID_HANDLE_VALUE),
+  abort(false),
+  _err(0)
+{
+}
+
+w_rc_t	sdisk_win32_async_t::SyncThread::start(HANDLE flush_handle)
+{
+	handle = flush_handle;
+	abort = false;
+	_err = 0;
+
+	HANDLE	h;
+
+	/* auto reset, not set */
+	h = CreateEvent(0, FALSE, FALSE, 0);
+	if (h == INVALID_HANDLE_VALUE)
+		W_FATAL(fcWIN32);
+	request = h;
+
+	/* XXX I forget, does this need to be manual reset to be reliable? */
+	/* auto reset, not set */
+	h = CreateEvent(0, FALSE, FALSE, 0);
+	if (h == INVALID_HANDLE_VALUE)
+		W_FATAL(fcWIN32);
+	_done = h;
+
+	W_COERCE(done.change(_done));
+	W_COERCE(sthread_t::io_start(done));
+
+#ifdef _MT
+	h = (HANDLE) _beginthreadex(NULL, 0,
+				    _start, this,
+				    0,
+				    &threadId);
+#else
+	h = CreateThread(NULL, 0,
+			 _start, this,
+			 0,
+			 &threadId);
+#endif
+	if (h == INVALID_HANDLE_VALUE)
+		W_FATAL(fcWIN32);
+	thread = h;
+
+	return RCOK;
+}
+
+w_rc_t	sdisk_win32_async_t::SyncThread::stop()
+{
+	abort = true;
+	handle = INVALID_HANDLE_VALUE;
+
+	bool	ok;
+	ok = SetEvent(request);
+	if (!ok)
+		W_FATAL(fcWIN32);
+	
+	/* XXX could setup a wait event on the thread */
+	DWORD	err;
+	err = WaitForSingleObject(thread, INFINITE);
+	if (err != WAIT_OBJECT_0)
+		W_FATAL(fcWIN32);
+	CloseHandle(thread);
+	thread = INVALID_HANDLE_VALUE;
+
+	W_COERCE(sthread_t::io_finish(done));
+	W_COERCE(done.change(INVALID_HANDLE_VALUE));
+
+	CloseHandle(_done);
+	_done = INVALID_HANDLE_VALUE;
+
+	CloseHandle(request);
+	request = INVALID_HANDLE_VALUE;
+
+	return RCOK;
+}
+
+
+w_rc_t	sdisk_win32_async_t::SyncThread::sync()
+{
+	/* XXX should synchronize to prevent multiple requests from
+	   trampling, also to batch syncs */
+
+	bool	ok;
+
+	ok = SetEvent(request);
+	if (!ok)
+		W_FATAL(fcWIN32);
+	
+	W_COERCE(done.wait(sthread_t::WAIT_FOREVER));
+
+	return _err ? RC2(fcWIN32, _err) : RCOK;
+}
+
+
+DWORD	sdisk_win32_async_t::SyncThread::run()
+{
+//	cout << "SyncThread: running" << endl;
+	for (;;) {
+		DWORD	err;
+		bool	ok;
+
+		err = WaitForSingleObject(request, INFINITE);
+
+		/* XXX error handling */
+		if (err == WAIT_FAILED)
+			W_FATAL(fcWIN32);
+		else if (err == WAIT_TIMEOUT)
+			W_FATAL(fcWIN32);
+		else if (err != WAIT_OBJECT_0)
+			W_FATAL(fcWIN32);
+
+		if (abort) {
+			_err = 0;
+			break;
+		}
+
+		/* XXX error propogation isn't exactly great, since
+		   it isn't guaranteed to by synchronized.  Probably
+		   need to put a mutex around sync requests to
+		   prevent problems anyway, and that would allow
+		   batch syncing of I/Os too */
+		_err = 0;
+
+		ok = FlushFileBuffers(handle);
+		if (!ok) {
+			err = GetLastError();
+			if (err != ERROR_ACCESS_DENIED
+			    && err != ERROR_INVALID_FUNCTION)
+				_err = err;
+		}
+
+		ok = SetEvent(_done);
+		if (!ok)
+			W_FATAL(fcWIN32);
+	}
+//	cout << "SyncThread: exiting" << endl;
+
+	return 0;
+}
+
+#ifdef _MT
+#define	THREAD_RETURNS	unsigned
+#else
+#define	THREAD_RETURNS	DWORD
+#endif
+
+/* XXX SB SyncThread methods */
+
+THREAD_RETURNS	__stdcall	sdisk_win32_async_t::SyncThread::_start(void *arg)
+{
+	SyncThread	&sd = *(SyncThread *)arg;
+	return sd.run();
+}
+
+#endif

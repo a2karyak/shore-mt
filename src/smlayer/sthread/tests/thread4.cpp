@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: thread4.cpp,v 1.20 1999/06/07 19:06:22 kupsch Exp $
+ $Id: thread4.cpp,v 1.21 1999/10/24 17:45:57 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -57,7 +57,7 @@ unsigned default_timeout[] = {
 bool	verbose = false;
 
 
-main(int argc, char **argv)
+int main(int argc, char **argv)
 {
 	int		timeouts;
 	unsigned	*timeout;

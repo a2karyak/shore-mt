@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='LOGREC_H'>
 
- $Id: logrec.h,v 1.61 1999/06/15 15:11:53 nhall Exp $
+ $Id: logrec.h,v 1.62 1999/11/02 02:44:23 kupsch Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -38,7 +38,7 @@ class nbox_t;
 class rangeset_t;
 
 #include "logfunc_gen.h"
-#include "xct.h"
+#include <xct.h>
 
 #ifdef __GNUG__
 #pragma interface

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: dir.cpp,v 1.103 1999/06/07 19:04:01 kupsch Exp $
+ $Id: dir.cpp,v 1.105 2000/02/02 03:57:28 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -53,8 +53,8 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 // template class w_auto_delete_array_t<snum_t>;
 template class w_auto_delete_array_t<sinfo_s>;
 template class w_auto_delete_array_t<smlevel_3::sm_store_property_t>;
-
 #endif
+
 
 /*
  *  Directory is keyed on snum_t. 
@@ -558,7 +558,7 @@ dir_m::access(const stpgid_t& stpgid, sdesc_t*& sd, lock_mode_t mode,
 
     sd = xct() ? xct()->sdesc_cache()->lookup(stpgid): 0;
     DBGTHRD(<<"xct sdesc cache lookup for " << stpgid.stid()
-	<< " returns " << unsigned(sd));
+	<< " returns " << sd);
 
     if (! sd) {
 
@@ -613,7 +613,7 @@ dir_m::access(const stpgid_t& stpgid, sdesc_t*& sd, lock_mode_t mode,
      * Add store page utilization info
      */
     if(!sd->store_utilization()) {
-	DBGTHRD(<<"no store util for sd=" << unsigned(sd));
+	DBGTHRD(<<"no store util for sd=" << sd);
 	if(sd->sinfo().stype == t_file) {
 	    histoid_t *h = histoid_t::acquire(stpgid.stid());
 	    sd->add_store_utilization(h);
@@ -839,17 +839,23 @@ sdesc_t::set_last_pid(shpid_t p)
 sdesc_t& 
 sdesc_t::operator=(const sdesc_t& other) 
 {
+    if (this == &other)
+    	return *this;
+
     _stpgid = other._stpgid;
     _sinfo = other._sinfo;
     // this last_pid stuff only works in the
     // context of append_file_i. Otherwise, it's
     // not guaranteed to be the last pid.
     _last_pid = other._last_pid;
-    if(other._histoid) {
+
+    if( _histoid && _histoid->release())
+	delete _histoid;
+    _histoid = 0;
+
+    if (other._histoid) {
 	DBGTHRD(<<"copying sdesc_t");
 	add_store_utilization(other._histoid->copy());
-    } else {
-	add_store_utilization(0);
     }
     return *this;
 } 

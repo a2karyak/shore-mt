@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: ssh.cpp,v 1.130 1999/08/16 19:44:52 nhall Exp $
+ $Id: ssh.cpp,v 1.132 2000/02/02 03:25:36 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -168,7 +168,7 @@ unix_stats U;
 unix_stats C(RUSAGE_CHILDREN);
 #endif
 
-main(int argc, const char** argv)
+int main(int argc, const char** argv)
 {
 #if 0	/* Can't use with tools that want ssh output */
 #if defined(W_TRACE)
@@ -620,7 +620,7 @@ main(int argc, const char** argv)
 
 
 ssh_smthread_t::ssh_smthread_t(char *arg)
-: smthread_t(t_regular, false, false, "doit" ),
+: smthread_t(t_regular, false, false, "ssh_smthread", WAIT_FOREVER, 2*default_stack ),
   f_arg(arg)
 {
 }

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: lgrec.cpp,v 1.70 1999/06/07 19:04:07 kupsch Exp $
+ $Id: lgrec.cpp,v 1.71 1999/08/24 22:50:07 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -131,7 +131,7 @@ lg_tag_chunks_h::append(uint4_t num_pages, const lpid_t new_pages[])
 	max_chunks) {
 	// too many chunks
     
-#ifdef W_DEBUG
+#if defined(W_DEBUG) && defined(NOTDEF)
 	cerr << "too many chunks: " << chunk_count
 		<< " _cref.chunk_cnt " << _cref.chunk_cnt
 		<< " contig " << contig

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='LOG_H'>
 
- $Id: log.h,v 1.75 1999/08/06 19:53:46 bolo Exp $
+ $Id: log.h,v 1.77 1999/12/10 05:29:43 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -64,7 +64,9 @@ public:
 
     enum { XFERSIZE =	SM_PAGESIZE };
     // const int XFERSIZE =	SM_PAGESIZE;
-	
+
+    enum { invalid_fhdl = -1 };
+
     virtual void                check_wal(const lsn_t &ll) ;
     virtual void                compute_space() ;
     virtual
@@ -326,12 +328,14 @@ private:
 class log_i {
 public:
     NORET			log_i(log_m& l, const lsn_t& lsn) ;
-    NORET			~log_i()	{};
+    NORET			~log_i();
 
     bool 			next(lsn_t& lsn, logrec_t*& r);
+    w_rc_t&			get_last_rc();
 private:
     log_m&			log;
     lsn_t			cursor;
+    w_rc_t			last_rc;
 };
 
 inline NORET
@@ -339,6 +343,18 @@ log_i::log_i(log_m& l, const lsn_t& lsn)
     : log(l), cursor(lsn)
 {
     DBG(<<"creating log_i with cursor " << lsn);
+}
+
+inline
+log_i::~log_i()
+{
+    last_rc.verify();
+}
+
+inline w_rc_t&
+log_i::get_last_rc()
+{
+    return last_rc;
 }
 
 /*<std-footer incl-file-exclusion='LOG_H'>  -- do not edit anything below this line -- */

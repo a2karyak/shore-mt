@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: kvl.cpp,v 1.11 1999/06/07 19:02:37 kupsch Exp $
+ $Id: kvl.cpp,v 1.12 2000/01/13 18:49:23 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -41,8 +41,7 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #include <zvec_t.h>
 #include <w_debug.h>
 
-int
-main(int argc, const char *argv[])
+int main(int argc, const char *argv[])
 {
     if(argc != 3 && argc != 4) {
 	cerr << "Usage: " << argv[0]

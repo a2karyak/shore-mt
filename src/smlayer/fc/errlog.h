@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='ERRLOG_H'>
 
- $Id: errlog.h,v 1.11 1999/06/07 19:02:42 kupsch Exp $
+ $Id: errlog.h,v 1.12 2000/02/02 15:31:02 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -34,16 +34,16 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 
 /*  -- do not edit anything above this line --   </std-header>*/
 
+/* errlog.h -- facilities for logging errors */
+
 #include <assert.h>
 #include <stdlib.h>
 #include <stddef.h>
 #include <w.h>
 #include <w_stream.h>
-#include <stdio.h>
+#include <w_strstream.h>
+#include <stdio.h>	// XXX just needs a forward decl
 
-
-
-/* errlog.h -- facilities for logging errors */
 
 #ifdef __GNUG__
 #pragma interface
@@ -74,9 +74,9 @@ enum LogPriority {
 	log_warning = LOG_WARNING,	// client error 
 	log_info = LOG_INFO,		// just for yucks 
 	log_debug=LOG_DEBUG,		// for debugging gory details 
-	log_all
+	log_all,
+	default_prio = log_error
 };
-#define default_prio  log_error
 
 extern ostream& flushl(ostream& o);
 extern ostream& emerg_prio(ostream& o);
@@ -88,9 +88,6 @@ extern ostream& info_prio(ostream& o);
 extern ostream& debug_prio(ostream& o);
 extern	void setprio(ostream&, LogPriority);
 extern logstream *is_logstream(ostream &);
-
-#define LOGSTREAM__MAGIC 0xad12bc45
-#define ERRORLOG__MAGIC  0xa2d29754
 
 class logstream : public ostrstream {
 	friend class ErrLog;
@@ -110,6 +107,8 @@ class logstream : public ostrstream {
 
 public:
 	friend logstream *is_logstream(ostream &);
+
+	enum { LOGSTREAM__MAGIC = 0xad12bc45 };
 
 private:
 	static ostrstream static_stream;
@@ -149,7 +148,11 @@ class ErrLog {
 	const char * 		_ident; // identity for syslog & local use
 	char *			_buffer; // default is static buffer
 	size_t			_bufsize; 
+
+	enum { ERRORLOG__MAGIC = 0xa2d29754 };
+
 public:
+
 	ErrLog(
 		const char *ident,
 		LoggingDestination dest, // required

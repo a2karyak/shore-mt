@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: testserial.cpp,v 1.11 1999/06/07 19:02:38 kupsch Exp $
+ $Id: testserial.cpp,v 1.13 2000/02/02 03:02:43 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -140,17 +140,19 @@ unsigned long hex (long j)  { return (unsigned long) j; }
 int dec (long j)  { return (int) j; }
 #endif
 
-int
-main()
+// Give a hint to gcc to match the correct overloaded function
+#define	HINT(x)	unsigned(x)
+
+int main()
 {
 	int i;
 
-	cout << "other_bits          " << hex((long)serial_t::other_bits) << endl;
-	cout << "max_any             " << hex((long)serial_t::max_any) << endl;
-	cout << "overflow_shift_bits " << dec((long)serial_t::overflow_shift_bits) << endl;
-	cout << "max_inc             " << hex((long)serial_t::max_inc) << endl;
-	cout << "mask_remote         " << hex((long)serial_t::mask_remote) << endl;
-	cout << "expect overflow after " << dec((long)(serial_t::max_any<<1)+1) << endl;
+	cout << "other_bits          " << hex(HINT(serial_t::other_bits)) << endl;
+	cout << "max_any             " << hex(HINT(serial_t::max_any)) << endl;
+	cout << "overflow_shift_bits " << dec(HINT(serial_t::overflow_shift_bits)) << endl;
+	cout << "max_inc             " << hex(HINT(serial_t::max_inc)) << endl;
+	cout << "mask_remote         " << hex(HINT(serial_t::mask_remote)) << endl;
+	cout << "expect overflow after " << dec(HINT((serial_t::max_any<<1)+1)) << endl;
 
 #ifdef notdef
 	serial_t xnull;

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: cq2.cpp,v 1.16 1999/06/07 19:03:02 kupsch Exp $
+ $Id: cq2.cpp,v 1.17 2000/01/07 07:17:04 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -43,7 +43,7 @@ template class w_cirqueue_i<int>;
 template class w_cirqueue_reverse_i<int>;
 #endif
 
-main()
+int main()
 {
     int qbuf[10];
     w_cirqueue_t<int> q(qbuf, 10);

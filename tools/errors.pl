@@ -2,7 +2,7 @@
 
 # <std-header style='perl' orig-src='shore'>
 #
-#  $Id: errors.pl,v 1.28 1999/06/07 19:09:13 kupsch Exp $
+#  $Id: errors.pl,v 1.29 1999/08/25 01:43:42 kupsch Exp $
 #
 # SHORE -- Scalable Heterogeneous Object REpository
 #
@@ -31,12 +31,14 @@
 
 # *************************************************************
 #
-# usage: <this-script> [-e] [-d] filename [filename]*
+# usage: <this-script> [-list listfile] [-e] [-d] filename [filename]*
 #
 # -e generate enums
 # -d generate #defines
 #
 # (both -e and -d can be used)
+#
+# -list: generate a list of error codes instead of other outputs
 #
 # *************************************************************
 #
@@ -98,11 +100,12 @@ You must specify one of -d or -e
     --d          generate defines
     --e          generate enums
     --help|h     print this message and exit
+    --list       generate list of error codes instead of other outputs
 EOF
 }
 
-my %options = (d => 0, e => 0, help => 0);
-my @options = ("d!", "e!", "help|h");
+my %options = (d => 0, e => 0, help => 0, 'list' => '');
+my @options = ("d!", "e!", "help|h", "list=s");
 my $ok = GetOptions(\%options, @options);
 $ok = 0 if $#ARGV == -1;
 my $d = $options{d};
@@ -114,6 +117,9 @@ if (!$ok || $options{help})  {
     die(!$ok);
 }
 
+my ( $list, $listfile );
+$list = 0;
+$list = 1, $listfile = $options{'list'}  if ( $options{'list'} ne '' );
 my $timeStamp = localtime;
 
 sub MakeStdHeader
@@ -178,23 +184,25 @@ sub GenErrorFiles
     my $errorEnumName = "${baseName}_error_enum_gen.h";
     my $errorDefName = "${baseName}_error_def_gen.h";
     my $errorInfoBakwName = "${baseName}_einfo_bakw_gen.h";
-    
-    open MSG_OUT, ">$errorMsgName" or die "Couldn't open $errorMsgName";
-    open INFO_OUT, ">$errorInfoName" or die "Couldn't open $errorInfoName";
-    open ENUM_OUT, ">$errorEnumName" or die "Couldn't open $errorEnumName" if ($e);
-    open DEF_OUT, ">$errorDefName" or die "Couldn't open $errorDefName" if ($d);
-    open INFOBAKW_OUT, ">$errorInfoBakwName" or die "Couldn't open $errorInfoBakwName" if ($d);
-    
-    print MSG_OUT MakeStdHeader($fileName, $errorMsgName);
-    print INFO_OUT MakeStdHeader($fileName, $errorInfoName);
-    print ENUM_OUT MakeStdHeader($fileName, $errorEnumName) if ($e);
-    print DEF_OUT MakeStdHeader($fileName, $errorDefName) if ($d);
-    print INFOBAKW_OUT MakeStdHeader($fileName, $errorInfoBakwName) if ($d);
-    
-    print MSG_OUT "static char* ${baseName}_errmsg[] = {\n";
-    print INFO_OUT "w_error_info_t ${arrayPrefix}error_info[] = {\n";
-    print ENUM_OUT "enum {\n" if ($e);
-    print INFOBAKW_OUT "w_error_info_t ${baseName}_error_info_bakw[] = {\n" if ($d);
+
+    if ( ! $list ) {
+        open MSG_OUT, ">$errorMsgName" or die "Couldn't open $errorMsgName";
+        open INFO_OUT, ">$errorInfoName" or die "Couldn't open $errorInfoName";
+        open ENUM_OUT, ">$errorEnumName" or die "Couldn't open $errorEnumName" if ($e);
+        open DEF_OUT, ">$errorDefName" or die "Couldn't open $errorDefName" if ($d);
+        open INFOBAKW_OUT, ">$errorInfoBakwName" or die "Couldn't open $errorInfoBakwName" if ($d);
+        
+        print MSG_OUT MakeStdHeader($fileName, $errorMsgName);
+        print INFO_OUT MakeStdHeader($fileName, $errorInfoName);
+        print ENUM_OUT MakeStdHeader($fileName, $errorEnumName) if ($e);
+        print DEF_OUT MakeStdHeader($fileName, $errorDefName) if ($d);
+        print INFOBAKW_OUT MakeStdHeader($fileName, $errorInfoBakwName) if ($d);
+        
+        print MSG_OUT "static char* ${baseName}_errmsg[] = {\n";
+        print INFO_OUT "w_error_info_t ${arrayPrefix}error_info[] = {\n";
+        print ENUM_OUT "enum {\n" if ($e);
+        print INFOBAKW_OUT "w_error_info_t ${baseName}_error_info_bakw[] = {\n" if ($d);
+    }
     
     foreach my $line (@lines)  {
 	my ($tag, $msg);
@@ -207,16 +215,21 @@ sub GenErrorFiles
         my $dTag = "${uBaseName}_$tag";
         my $eTag = "$baseName$tag";
         
-        print MSG_OUT sprintf("/* %-25s */ \"%s\",\n", $e ? $eTag : $dTag, $msg);
-        print INFO_OUT sprintf("    { %-25s,  \"%s\"},\n", $e ? $eTag : $dTag, $msg);
-        print ENUM_OUT sprintf("    %-25s = 0x%x,\n", $eTag, $base + $num) if ($e);
-        print DEF_OUT sprintf("#define %-25s 0x%x\n", $dTag, $base + $num) if ($d);
-        print INFOBAKW_OUT "    { $dTag, \"$dTag\" },\n" if ($d);
-        
+        if ( $list ) {
+            print LIST sprintf("%s_%s = %s\n", $baseName, $tag, $num + 1);
+	} else {
+            print MSG_OUT sprintf("/* %-25s */ \"%s\",\n", $e ? $eTag : $dTag, $msg);
+            print INFO_OUT sprintf("    { %-25s,  \"%s\"},\n", $e ? $eTag : $dTag, $msg);
+            print ENUM_OUT sprintf("    %-25s = 0x%x,\n", $eTag, $base + $num) if ($e);
+            print DEF_OUT sprintf("#define %-25s 0x%x\n", $dTag, $base + $num) if ($d);
+            print INFOBAKW_OUT "    { $dTag, \"$dTag\" },\n" if ($d);
+        }        
         $num++;
     }
     $num--;
         
+    return  if ( $list );
+
     print MSG_OUT <<EOF;
 	"dummy error code"
 };
@@ -285,7 +298,10 @@ sub ProcessFile
     die "missing }" if defined $baseName;
 }
 
-
+if ( $list ) {
+    open LIST, ">$listfile" or die "Couldn't open $listfile";
+}
 foreach my $file (@ARGV)  {
     ProcessFile($file, $d, $e);
 }
+close LIST  if ( $list );

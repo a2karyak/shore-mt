@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: chkpt.cpp,v 1.70 1999/06/07 19:03:57 kupsch Exp $
+ $Id: chkpt.cpp,v 1.73 2000/01/25 23:12:14 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -43,6 +43,8 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #include "chkpt_serial.h"
 #include "chkpt.h"
 #include "logdef_gen.cpp"
+
+#include <new.h>
 
 #ifdef EXPLICIT_TEMPLATE
 template class w_auto_delete_array_t<lsn_t>;
@@ -316,7 +318,13 @@ void chkpt_m::take()
 	lsn_t*		undo_nxt = new lsn_t[chunk];
 	w_auto_delete_array_t<lsn_t> auto_del_undo(undo_nxt);
 
-	xct_i x;
+	/* Keep the transaction list static while we write the state of
+	   prepared transactions.  Without the lock the list could change
+	   underneath this checkpoint. Note that we are using the
+	   iterator without locking because we own the lock. */
+	W_COERCE(xct_t::acquire_xlist_mutex());
+	xct_i x(false);
+
 	xct_t* xd = 0;
 	do {
 	    int i = 0;
@@ -375,12 +383,17 @@ void chkpt_m::take()
 	} while (xd);
     }
 
+    /* XXX don't release the xlist mutex, we want a consistent state;
+       if a safe iterator is ever installed, it should be scoped 
+       appropriately so that any locks it maintains have a lifetime
+       that contains both the preparation and the checkpoint. */
+
     /*
      *  Checkpoint the prepared transactions 
      */
     {
 	DBG(<< "checkpoint prepared tx");
-	xct_i x;
+	xct_i x(false);	/* again, the unlocked iterator */
 	xct_t* xd = 0;
 	while( (xd = x.next()) )  {
 	    DBG(<< xd->tid() << " has state " << xd->state());
@@ -398,6 +411,8 @@ void chkpt_m::take()
 	    }
 	}
     }
+
+    xct_t::release_xlist_mutex();
 
     /*
      *  Make sure that min_rec_lsn and min_xct_lsn are valid

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: sort_funcs3.cpp,v 1.11 1999/06/15 15:12:03 nhall Exp $
+ $Id: sort_funcs3.cpp,v 1.12 1999/10/25 18:17:30 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -41,6 +41,8 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 
 #include "shell.h"
 #include "sort_funcs.h"
+
+#include <new.h>
 
 //NB: ONLY works with true now. Sorry...
 // the problem has to do with the way spatial

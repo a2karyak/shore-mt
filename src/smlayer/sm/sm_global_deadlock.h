@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='SM_GLOBAL_DEADLOCK_H'>
 
- $Id: sm_global_deadlock.h,v 1.29 1999/06/07 19:04:36 kupsch Exp $
+ $Id: sm_global_deadlock.h,v 1.32 1999/12/24 01:50:55 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -314,14 +314,14 @@ class DeadlockClientCommunicator
 class DeadlockVictimizerCallback
 {
     public:
-	virtual gtid_t& operator()(GtidList& gtidList) = 0;
+	virtual gtid_t operator()(GtidList& gtidList) = 0;
 };
 
 
 class PickFirstDeadlockVictimizerCallback : public DeadlockVictimizerCallback
 {
     public:
-	gtid_t& operator()(GtidList& gtidList)
+	gtid_t operator()(GtidList& gtidList)
 	    {
 		w_assert3(!gtidList.is_empty());
 		return gtidList.top()->gtid;
@@ -329,8 +329,16 @@ class PickFirstDeadlockVictimizerCallback : public DeadlockVictimizerCallback
 };
 
 
+class PickLatestDtidDeadlockVictimizerCallback : public DeadlockVictimizerCallback
+{
+    public:
+	gtid_t operator()(GtidList& gtidList);
+};
+
+
 class CentralizedGlobalDeadlockServer;
 extern PickFirstDeadlockVictimizerCallback selectFirstVictimizer;
+extern PickLatestDtidDeadlockVictimizerCallback latestDtidVictimizer;
 
 class DeadlockServerCommunicator
 {
@@ -510,6 +518,10 @@ class DeadlockGraph  {
 	enum			    { BitsPerWord = sizeof(uint4_t) * CHAR_BIT };
 
 	void			    Resize(uint4_t newSize);
+
+    private:	/* disabled */
+    	DeadlockGraph(const DeadlockGraph &);
+	const DeadlockGraph &operator=(const DeadlockGraph &);
 };
 
 
@@ -524,6 +536,10 @@ class GtidTableElem  {
 	w_link_t		    _link;
 
 	W_FASTNEW_CLASS_DECL(GtidTableElem);
+
+    private: /* disabled */
+    	GtidTableElem(const GtidTableElem &);
+	const GtidTableElem &operator=(const GtidTableElem &);
 };
 
 typedef w_hash_t<GtidTableElem, const gtid_t> GtidTable;

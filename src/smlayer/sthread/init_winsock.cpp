@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: init_winsock.cpp,v 1.6 1999/06/07 19:05:59 kupsch Exp $
+ $Id: init_winsock.cpp,v 1.7 2000/01/14 00:14:09 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -37,11 +37,7 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #include <w_stream.h>
 #include <sys/types.h>
 #include <sys/stat.h>
-#ifdef OLD_WINSOCK
-#include <winsock.h>
-#else
-#include <winsock2.h>
-#endif
+#include <w_winsock.h>
 #include <windows.h>
 #include <io.h>
 #include <process.h>

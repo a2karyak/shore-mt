@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='DTID_T_H'>
 
- $Id: dtid_t.h,v 1.13 1999/06/07 19:04:02 kupsch Exp $
+ $Id: dtid_t.h,v 1.14 1999/11/02 15:25:35 kupsch Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -49,6 +49,8 @@ public:
     void 	update();
     void 	convert_to_gtid(gtid_t &g) const;
     void 	convert_from_gtid(const gtid_t &g);
+    bool	operator==(DTID_T& rhs);
+    bool	operator<(DTID_T& rhs);
 	
 private:
     static uint4_t unique();
@@ -65,6 +67,7 @@ DTID_T::convert_to_gtid(gtid_t &g) const
 {
     w_assert3(sizeof(DTID_T) < max_gtid_len);
     g.zero();
+    // XXX these should be hton'd if we need to do heterogeneous endianess
     g.append(&this->location, sizeof(this->location));
     g.append(&this->relative, sizeof(this->relative));
     g.append(&this->date, sizeof(this->date));
@@ -87,6 +90,20 @@ DTID_T::convert_from_gtid(const gtid_t &g)
     GETX(date);
 #undef GETX
 
+}
+
+inline bool DTID_T::operator==(DTID_T& rhs)
+{
+    return location == rhs.location
+	&& relative == rhs.relative
+	&& !memcmp(date, rhs.date, sizeof(date));
+}
+
+// if true then lhs was created before rhs
+// XXX need to handle wrap around or never wrap around
+inline bool DTID_T::operator<(DTID_T& rhs)
+{
+    return relative < rhs.relative;
 }
 
 /*<std-footer incl-file-exclusion='DTID_T_H'>  -- do not edit anything below this line -- */

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='SFILE_H'>
 
- $Id: sfile.h,v 1.16 1999/06/07 19:06:05 kupsch Exp $
+ $Id: sfile.h,v 1.17 2000/01/14 00:14:10 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -48,12 +48,8 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #endif
 
 extern "C" {
-#if defined(_WINDOWS)
-#ifdef OLD_WINSOCK
-#include <winsock.h>
-#else
-#include <winsock2.h>
-#endif
+#if defined(_WIN32)
+#include <w_winsock.h>
 #else
 #include <sys/socket.h>
 #include <netinet/in.h>

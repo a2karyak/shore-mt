@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='UNIX_STATS_H'>
 
- $Id: unix_stats.h,v 1.20 1999/06/07 19:02:49 kupsch Exp $
+ $Id: unix_stats.h,v 1.21 2000/02/01 23:32:18 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -47,7 +47,7 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #pragma interface
 #endif
 
-#include <w_stream.h>
+class ostream;
 
 /*
  * SGI machines differentiate between SysV and BSD

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='W_RANDOM_H'>
 
- $Id: w_random.h,v 1.10 1999/06/07 19:02:54 kupsch Exp $
+ $Id: w_random.h,v 1.11 2000/02/01 23:33:11 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -39,7 +39,9 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #endif 
 
 #include <w.h>
-#include <w_stream.h>
+
+class istream;
+class ostream;
 
 class random_generator {
 

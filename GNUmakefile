@@ -1,6 +1,6 @@
 # <std-header style='make' orig-src='shore'>
 #
-#  $Id: GNUmakefile,v 1.27 1999/06/07 18:56:44 kupsch Exp $
+#  $Id: GNUmakefile,v 1.35 2001/01/25 20:22:21 bolo Exp $
 #
 # SHORE -- Scalable Heterogeneous Object REpository
 #
@@ -39,6 +39,10 @@ CONFIG_DIR = config
 
 default:
 
+ifndef CONFIG_OPTIONS
+CONFIG_OPTIONS =
+endif
+
 ifdef DIR_SCHEME_FILE
 ifneq (,$(wildcard $(DIR_SCHEME_FILE)))
 include $(DIR_SCHEME_FILE)
@@ -48,7 +52,7 @@ include $(CONFIG_DIR)/$(DIR_SCHEME_FILE)
 $(CONFIG_DIR)/$(DIR_SCHEME_FILE): ;
 endif
 ifeq (,$(findstring USE_DIR_SCHEME_FILE, $(CONFIG_OPTIONS)))
-CONFIG_OPTIONS += USE_DIR_SCHEME_FILE=\"$(DIR_SCHEME_FILE)\"
+override CONFIG_OPTIONS += USE_DIR_SCHEME_FILE=\"$(DIR_SCHEME_FILE)\"
 endif
 export PERL_DIR
 endif
@@ -109,23 +113,47 @@ PERL = $(PERL_DIR)/bin/perl
 endif
 
 
+## Try to work with either a shore-only or a full paradise release
+ifeq ($(shell ls tools/platform.pl 2>/dev/null),tools/platform.pl)
 PLATFORM := $(strip $(shell $(PERL) -x tools/platform.pl -q))
+else
+PLATFORM := $(strip $(shell $(PERL) -x tools/platform_lite.pl -q))
+endif
 DEFAULT_BUILD_DIR = $(PLATFORM)
+
+## Now, we just need some way to force this off for cygwin+gcc on NT,
+## which is done by specifying DOSPATHS='' on the command line
+ifndef DOSPATHS
+DOSPATHS=
+ifneq (,$(findstring nt-,$(PLATFORM)))
+DOSPATHS += --dosPaths
+endif
+endif
 
 # comment out next line to build in PLATFORM dir by default
 DEFAULT_BUILD_DIR = .
 
 ifndef BUILD_DIR
 BUILD_DIR = $(DEFAULT_BUILD_DIR)
+else
 endif
 ifeq ($(strip $(BUILD_DIR)),)
 BUILD_DIR = .
+endif
+ifeq ($(strip $(BUILD_DIR)),.)
+DEMO_BUILD_DIR = demo
+DYNLIB_BUILD_DIR = dynlib
+else
+DEMO_BUILD_DIR = $(BUILD_DIR)-demo
+DYNLIB_BUILD_DIR = $(BUILD_DIR)-dynlib
 endif
 
 TOOLS_DIR = tools
 
 EDIT_CONFIG = $(PERL) $(TOOLS_DIR)/edit_config.pl
+
 GEN_SRCDIRINFO = $(PERL) $(TOOLS_DIR)/GenSrcDirInfo.pl
+GEN_SRCDIRINFO_OPT = --input=$(SRCDIRINFO_DAT) --output=$(SRCDIRINFO_TMPL) --createDirs $(DOSPATHS)
 
 CONFIG_BUILD_DIR = $(BUILD_DIR)/$(CONFIG_DIR)
 SHORE_DEF = $(CONFIG_BUILD_DIR)/shore.def
@@ -135,17 +163,21 @@ SRCDIRINFO_DAT = $(CONFIG_DIR)/SrcDirInfo.dat
 
 IMAKE_DIR = imake
 IMAKE_BUILD_DIR = $(BUILD_DIR)/$(IMAKE_DIR)
+ifdef IMAKE_EXEC_NAME
+IMAKE = $(IMAKE_BUILD_DIR)/$(IMAKE_EXEC_NAME)
+else
 ifeq (,$(findstring nt-,$(PLATFORM)))
 IMAKE = $(IMAKE_BUILD_DIR)/imake
-IMAKE_OBJ = $(IMAKE_BUILD_DIR)/imake.o
 else
 IMAKE = $(IMAKE_BUILD_DIR)/imake.exe
-IMAKE_OBJ = $(IMAKE_BUILD_DIR)/imake.obj
 endif
+endif
+
 MAKEFILE = $(BUILD_DIR)/Makefile
 IMAKE_BOOTSTRAP = $(PERL) $(IMAKE_DIR)/bootstrap.pl
 
 MAKEMAKE = $(PERL) $(TOOLS_DIR)/makemake.pl
+MAKEMAKE_OPT= --topDir=. --buildTopDir=$(BUILD_DIR) --curPath=. $(DOSPATHS)
 
 MAKE_FORWARD = $(MAKE) -C $(BUILD_DIR) -f Makefile
 
@@ -167,17 +199,34 @@ default: $(MAKEFILE)
 
 ### rules to bootstrap generation of Makefiles
 
+MAKEMAKE_OPT = --topDir=. --buildTopDir=$(BUILD_DIR) --curPath=. $(DOSPATHS)
+
+IMAKE_BOOTSTRAP_OPTIONS = --build_dir=$(BUILD_DIR) --imake_dir=$(IMAKE_DIR) --createDirs
+ifdef IMAKE_EXEC_NAME
+IMAKE_BOOTSTRAP_OPTIONS += --imake_exec_name=$(IMAKE_EXEC_NAME)
+MAKEMAKE_OPT += --imakeExecName=$(IMAKE_EXEC_NAME)
+endif
+ifdef COMPILE_C_TO_EXEC
+IMAKE_BOOTSTRAP_OPTIONS += --compile_c_to_exec="$(COMPILE_C_TO_EXEC)"
+endif
+ifdef USE_THIS_FOR_CPP
+IMAKE_BOOTSTRAP_OPTIONS += --use_this_for_cpp="$(USE_THIS_FOR_CPP)"
+endif
+## This also indicates gcc versus cl on NT as an all-in-one automagic
+## switch.  That needs to be fixed by using the above options someday.
+IMAKE_BOOTSTRAP_OPTIONS += $(DOSPATHS)
+
 $(MAKEFILE): $(IMAKE) $(SHORE_DEF) $(SRCDIRINFO_TMPL)
-	$(MAKEMAKE) --topDir=. --buildTopDir=$(BUILD_DIR) --curPath=.
+	$(MAKEMAKE) $(MAKEMAKE_OPT)
 
 $(IMAKE):
-	$(IMAKE_BOOTSTRAP) --build_dir=$(BUILD_DIR) --imake_dir=$(IMAKE_DIR) --createDirs
+	$(IMAKE_BOOTSTRAP) $(IMAKE_BOOTSTRAP_OPTIONS)
 
 $(SHORE_DEF):
 	$(EDIT_CONFIG) --input=$(SHORE_DEF_EXAMPLE) --output=$(SHORE_DEF) --createDirs $(DEFAULT_CONFIG_OPTIONS) $(PLAT_CONFIG_OPTIONS) $(CONFIG_OPTIONS)
 
 $(SRCDIRINFO_TMPL):
-	$(GEN_SRCDIRINFO) --input=$(SRCDIRINFO_DAT) --output=$(SRCDIRINFO_TMPL) --createDirs
+	$(GEN_SRCDIRINFO) $(GEN_SRCDIRINFO_OPT)
 
 pristine:: $(MAKEFILE)
 	$(MAKE_FORWARD) pristine
@@ -206,10 +255,11 @@ for_vstudio: automatic_for_vstudio
 
 ### special targets to set things in shore.def easily
 
-.PHONY: for_release build_smlayer_only build_shore_only demo_version
+.PHONY: for_release build_smlayer_only build_shore_only demo_version dynlib_version
 
-for_release:
-	$(MAKE) CONFIG_OPTIONS='$(CONFIG_OPTIONS) OPTIMIZE=ON SM_PAGESIZE=32768' 
+for_release: default_for_release
+%_for_release:
+	$(MAKE) CONFIG_OPTIONS='$(CONFIG_OPTIONS) OPTIMIZE=ON SM_PAGESIZE=32768' $(patsubst %_for_release, %, $@)
 
 build_smlayer_only:
 	$(MAKE) CONFIG_OPTIONS='$(CONFIG_OPTIONS) BUILD_SMLAYER_ONLY'
@@ -217,8 +267,25 @@ build_smlayer_only:
 build_shore_only:
 	$(MAKE) CONFIG_OPTIONS='$(CONFIG_OPTIONS) BUILD_SMLAYER_ONLY undef-USE_COORD undef-USE_OCOMM'
 
-demo_version:
-	$(MAKE) CONFIG_OPTIONS='$(CONFIG_OPTIONS) PARA_MAX_PARATHREADS=5' for_release
+demo_version: default_demo_version
+%_demo_version:
+	$(MAKE) BUILD_DIR=$(DEMO_BUILD_DIR) CONFIG_OPTIONS='$(CONFIG_OPTIONS) PARA_MAX_PARATHREADS=5' $(patsubst %_demo_version, %, $@)
+
+dynlib_version: default_dynlib_version
+%_dynlib_version:
+	$(MAKE) BUILD_DIR=$(DYNLIB_BUILD_DIR) CONFIG_OPTIONS='$(CONFIG_OPTIONS) undef-USE_CL_RUNTIME_SLIB' $(patsubst %_dynlib_version, %, $@)
+
+### commands to make multiple targets
+
+.PHONY: all_versions default_install
+
+all_versions: default_all_versions
+%_all_versions:
+	$(MAKE) $(patsubst %_all_versions, %, $@)
+	$(MAKE) $(patsubst %_all_versions, %, $@)_dynlib_version
+	$(MAKE) $(patsubst %_all_versions, %, $@)_demo_version
+
+default_install: default install
 
 ### these targets build without dependencies being generated
 

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: thread3.cpp,v 1.24 1999/06/07 19:06:21 kupsch Exp $
+ $Id: thread3.cpp,v 1.25 1999/10/24 17:45:56 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -111,7 +111,7 @@ void harvest(int threads)
 	}
 }
 
-main(int argc, char **argv)
+int main(int argc, char **argv)
 {
 	int i;
 	int	threads;

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: sm_global_deadlock.cpp,v 1.45 1999/08/06 15:22:54 bolo Exp $
+ $Id: sm_global_deadlock.cpp,v 1.52 2000/01/24 19:35:41 kupsch Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -44,6 +44,9 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #ifdef USE_COORD
 #include <sm_global_deadlock.h>
 #include <lock_s.h>
+
+#include <dtid_t.h>
+#include <new.h>
 
 
 #ifdef EXPLICIT_TEMPLATE
@@ -229,7 +232,7 @@ DeadlockClientCommunicator::~DeadlockClientCommunicator()
 	W_COERCE( serverEndpoint.release() );
     }
     
-    W_COERCE( myEndpoint.release() );
+    W_COERCE( myEndpoint.destroy() );
 }
 
 
@@ -353,7 +356,7 @@ rc_t DeadlockClientCommunicator::SendMsg(DeadlockMsg &msg, Buffer &buffer)
 	DBGTHRD( << "Deadlock client sending message:" << endl << " C->" << *sendMsg );
 	w_rc_t			e;
 	EndpointBox		box;
-	if (sendMsg->MsgType() == msgRequestClientId || sendMsg->MsgType() == msgClientEndpointDied)  {
+	if (msg.MsgType() == msgRequestClientId || msg.MsgType() == msgClientEndpointDied)  {
 	    W_DO( box.set(0, myEndpoint) );
 	}
 	msg.hton();
@@ -405,14 +408,46 @@ rc_t DeadlockClientCommunicator::RcvAndDispatchMsg()
 }
 
 
+
+/***************************************************************************
+ *                                                                         *
+ * PickLatestDtidDeadlockVictimizer callback                               *
+ * return the gtid which was created latest (the youngest one).            *
+ *                                                                         *
+ ***************************************************************************/
+
+gtid_t PickLatestDtidDeadlockVictimizerCallback::operator()(GtidList& gtidList)
+{
+    w_assert1(!gtidList.is_empty());
+    GtidElem*	elem = gtidList.pop();
+    gtid_t	latest = elem->gtid;
+    DTID_T	latestDtid;
+    latestDtid.convert_from_gtid(latest);
+    delete elem;
+
+    while ((elem = gtidList.pop()))  {
+	DTID_T curDtid;
+	curDtid.convert_from_gtid(elem->gtid);
+	if (latestDtid < curDtid)  {
+	    latest = elem->gtid;
+	    latestDtid = curDtid;
+	}
+	delete elem;
+    }
+
+    return latest;
+}
+
+PickFirstDeadlockVictimizerCallback selectFirstVictimizer;
+PickLatestDtidDeadlockVictimizerCallback latestDtidVictimizer;
+
+
+
 /***************************************************************************
  *                                                                         *
  * DeadlockServerCommunicator class                                        *
  *                                                                         *
  ***************************************************************************/
-
-PickFirstDeadlockVictimizerCallback selectFirstVictimizer;
-
 
 DeadlockServerCommunicator::DeadlockServerCommunicator(
 	const server_handle_t&		theServerHandle,
@@ -449,6 +484,7 @@ DeadlockServerCommunicator::DeadlockServerCommunicator(
     clientEndpointsSize = InitialNumberOfEndpoints;
     w_assert3(clientEndpointsSize);
 
+    /* Note that name2endpoint gives us a reference */
     W_COERCE( endpointMap->name2endpoint(serverHandle, myEndpoint) );
 }
 
@@ -696,13 +732,13 @@ void DeadlockServerCommunicator::SetDeadlockServer(CentralizedGlobalDeadlockServ
 
 rc_t DeadlockServerCommunicator::SendMsg(MsgDestination destination)
 {
-    DBGTHRD( << "Deadlock server sending message:" << endl << " S->" << *sendMsg );
     uint4_t clientId = sendMsg->ClientId();
     w_rc_t		e;
     EndpointBox		box;
     if (sendMsg->MsgType() == msgServerEndpointDied)  {
 	W_COERCE( box.set(0, myEndpoint) );
     }
+    DBGTHRD( << "Deadlock server sending message:" << endl << " S->" << *sendMsg );
     sendMsg->hton();
     switch (destination) {
     case toVictimizer:
@@ -722,7 +758,6 @@ rc_t DeadlockServerCommunicator::SendMsg(MsgDestination destination)
     return e;
 }
 
-
 rc_t DeadlockServerCommunicator::RcvAndDispatchMsg()
 {
     EndpointBox		box;
@@ -733,6 +768,7 @@ rc_t DeadlockServerCommunicator::RcvAndDispatchMsg()
 	case msgVictimizerEndpoint:
 	    {
 		Endpoint ep;
+		w_assert1(box.count() == 1);
 		W_DO( box.get(0, ep) );
 		W_DO( ReceivedVictimizerEndpoint(ep) );
 	    }
@@ -740,25 +776,31 @@ rc_t DeadlockServerCommunicator::RcvAndDispatchMsg()
 	case msgRequestClientId:
 	    {
 		Endpoint ep;
+		w_assert1(box.count() == 1);
 		W_DO( box.get(0, ep) );
 		W_DO( ReceivedRequestClientId(ep) );
 	    }
 	    break;
 	case msgRequestDeadlockCheck:
+	    w_assert1(box.count() == 0);
 	    W_DO( ReceivedRequestDeadlockCheck() );
 	    break;
 	case msgWaitForList:
+	    w_assert1(box.count() == 0);
 	    W_DO( ReceivedWaitForList(rcvMsg->ClientId(), rcvMsg->GtidCount(), rcvMsg->gtids, rcvMsg->IsComplete()) );
 	    break;
 	case msgVictimSelected:
+	    w_assert1(box.count() == 0);
 	    W_DO( ReceivedVictimSelected(rcvMsg->gtids[0]) );
 	    break;
 	case msgQuit:
+	    w_assert1(box.count() == 0);
 	    done = true;
 	    break;
 	case msgClientEndpointDied:
 	    {
 		Endpoint theServerEndpoint;
+		w_assert1(box.count() == 1);
 		W_DO( box.get(0, theServerEndpoint) );
 		W_DO( ReceivedClientEndpointDied(theServerEndpoint) );
 	    }
@@ -766,6 +808,7 @@ rc_t DeadlockServerCommunicator::RcvAndDispatchMsg()
 	case msgVictimizerEndpointDied:
 	    {
 		Endpoint theServerEndpoint;
+		w_assert1(box.count() == 1);
 		W_DO( box.get(0, theServerEndpoint) );
 		W_DO( ReceivedVictimizerEndpointDied(theServerEndpoint) );
 	    }
@@ -843,7 +886,7 @@ DeadlockVictimizerCommunicator::~DeadlockVictimizerCommunicator()
     W_COERCE( IgnoreScDEAD( serverEndpoint.stop_notify(myEndpoint) ) );
     W_COERCE( serverEndpoint.release() );
     
-    W_COERCE( myEndpoint.release() );
+    W_COERCE( myEndpoint.destroy() );
     
     GtidElem* elem;
     while ((elem = gtidList.pop()))
@@ -858,7 +901,7 @@ rc_t DeadlockVictimizerCommunicator::ReceivedSelectVictim(uint2_t count, gtid_t*
     }
 
     if (complete)  {
-	gtid_t& gtid = selectVictim(gtidList);
+	gtid_t gtid = selectVictim(gtidList);
 
 	W_DO( SendVictimSelected(gtid) );
 
@@ -1243,20 +1286,8 @@ DeadlockGraph::DeadlockGraph(uint4_t initialNumberOfXcts)
     w_assert1(initialNumberOfXcts % BitsPerWord == 0);
     w_assert1(initialNumberOfXcts > 0);
 
-    maxId = initialNumberOfXcts;
 
-    BitMapVector** newBitMap = new BitMapVector*[maxId];
-    uint4_t i=0;
-    for (i = 0; i < maxId; i++)  {
-	newBitMap[i] = new BitMapVector(initialNumberOfXcts);
-    }
-    original = newBitMap;
-
-    newBitMap = new BitMapVector*[maxId];
-    for (i = 0; i < maxId; i++)  {
-	newBitMap[i] = new BitMapVector(initialNumberOfXcts);
-    }
-    closure = newBitMap;
+    Resize(initialNumberOfXcts);
 }
 
 
@@ -1276,6 +1307,8 @@ DeadlockGraph::~DeadlockGraph()
 	
 	delete [] closure;
     }
+    maxId = 0;
+    maxUsedId = 0;
 }
 
 
@@ -1321,14 +1354,15 @@ void DeadlockGraph::Resize(uint4_t newSize)
 
 void DeadlockGraph::AddEdge(uint4_t waitId, uint4_t forId)
 {
-    if (waitId >= maxId)  {
-	Resize(waitId);
-	w_assert3(waitId < maxId);
+    if (waitId >= maxId || forId >= maxId)  {
+	uint4_t need = (waitId >= forId) ? waitId : forId;
+	Resize(need);
+	w_assert3(need < maxId);
     }
 
     if (waitId > maxUsedId)
 	maxUsedId = waitId;
-    
+	    
     if (forId > maxUsedId)
 	maxUsedId = forId;
 
@@ -1616,12 +1650,14 @@ GtidTableElem* CentralizedGlobalDeadlockServer::GetGtidTableElem(const gtid_t& g
     GtidTableElem* gtidTableElem = gtidTable.lookup(gtid);
     uint4_t i=0;
 
-    if (gtidTableElem == 0)  {
-	gtidTableElem = new GtidTableElem(gtid, numGtids);
-	w_assert1(gtidTableElem);
-	gtidTable.push(gtidTableElem);
-	w_assert3(gtidTable.lookup(gtid));
+    if (gtidTableElem)  {
+	return  gtidTableElem;
     }
+		
+    gtidTableElem = new GtidTableElem(gtid, numGtids);
+    w_assert1(gtidTableElem);
+    gtidTable.push(gtidTableElem);
+    w_assert3(gtidTable.lookup(gtid));
 
     if (numGtids >= idToGtidSize)  {
 	uint4_t newIdToGtidSize = 2 * idToGtidSize;

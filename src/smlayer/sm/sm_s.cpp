@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: sm_s.cpp,v 1.26 1999/06/24 14:15:56 bolo Exp $
+ $Id: sm_s.cpp,v 1.27 2000/02/02 03:57:32 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -36,11 +36,9 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #pragma implementation "sm_s.h"
 #endif
 
-#include <stdlib.h>
-#include <w_stream.h>
-#include <stddef.h>
-#include <limits.h>
 #include <sm_int_0.h>
+
+#include <w_strstream.h>
 
 const rid_t rid_t::null;
 

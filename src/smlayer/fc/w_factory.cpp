@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: w_factory.cpp,v 1.15 1999/06/07 19:02:52 kupsch Exp $
+ $Id: w_factory.cpp,v 1.16 1999/10/25 19:32:01 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -412,7 +412,7 @@ w_factory_t::collect_histogram(vtable_info_array_t &v)
 	 * each non-zero bar in the histogram 
 	 */
 	if(h.nelements()>0) {
-	    f.call(w_factory_t::histogram::vtable_collect);
+	    f.call(&w_factory_t::histogram::vtable_collect);
 	}
     }
     return 0; // no error

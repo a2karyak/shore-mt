@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: unix_stats.cpp,v 1.17 1999/06/07 19:02:48 kupsch Exp $
+ $Id: unix_stats.cpp,v 1.18 2000/02/01 23:39:41 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -36,6 +36,9 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #endif
 #include <w_workaround.h>
 #include "unix_stats.h"
+
+#include <w_stream.h>
+
 #define MILLION 1000000
 
 unix_stats::unix_stats()  { who = RUSAGE_SELF; }

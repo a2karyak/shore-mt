@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='EXTENT_H'>
 
- $Id: extent.h,v 1.6 1999/06/07 19:04:02 kupsch Exp $
+ $Id: extent.h,v 1.8 1999/11/19 22:42:30 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -357,6 +357,7 @@ public:
     bool 			on_same_root(extnum_t idx);
 
     rc_t 			get(extnum_t idx, const extlink_t* &);
+    rc_t 			get(extnum_t idx, extlink_t* &);
     rc_t 			get_copy(extnum_t idx, extlink_t &);
     rc_t 			put(extnum_t idx, const extlink_t&);
     bool                        on_same_page(extnum_t ext1, extnum_t ext2) const ;
@@ -402,8 +403,9 @@ private:
 class stnode_i: private smlevel_0 {
 public:
     NORET               stnode_i(const lpid_t& root) : _root(root) {};
-    const stnode_t&     get(snum_t idx);
-    w_rc_t              put(snum_t idx, stnode_t& stnode);      
+    w_rc_t		get(snum_t idx, stnode_t &stnode);
+    w_rc_t		get(snum_t idx, const stnode_t *&stnode);
+    w_rc_t              put(snum_t idx, const stnode_t& stnode);      
     w_rc_t              store_operation(const store_operation_param & op);
 private:
     lpid_t              _root;

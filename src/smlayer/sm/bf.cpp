@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: bf.cpp,v 1.220 1999/06/23 15:02:40 nhall Exp $
+ $Id: bf.cpp,v 1.222 1999/10/25 18:24:58 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -1127,7 +1127,7 @@ bf_m::fixed_by_me(const page_s* buf)
  *
  *********************************************************************/
 void
-bf_m::unfix(const page_s*& buf, bool dirty, int refbit)
+bf_m::unfix(const page_s* buf, bool dirty, int refbit)
 {
     FUNC(bf_m::unfix);
     bool    kick_cleaner = false;
@@ -1232,7 +1232,7 @@ bf_m::unfix(const page_s*& buf, bool dirty, int refbit)
  *
  *********************************************************************/
 void
-bf_m::discard_pinned_page(const page_s*& buf)
+bf_m::discard_pinned_page(const page_s* buf)
 {
     FUNC(bf_m::discard_pinned_page);
     bfcb_t* b = get_cb(buf);
@@ -1539,7 +1539,7 @@ bf_m::_write_out(bfcb_t** ba, uint4_t cnt)
 		     *  Except for the following legit situation:
 		     *
 		     *  Page is first a temp page; it's converted to
-		     *  regular, forceed to disk.  Then it's read, marked
+		     *  regular, forced to disk.  Then it's read, marked
 		     *  regular, and an update is attempted.
 		     *  In order to do the update, the page is latched
 		     *  EX, marked dirty (in the buffer control block).
@@ -1569,14 +1569,16 @@ bf_m::_write_out(bfcb_t** ba, uint4_t cnt)
 	} /* else it's an intervening clean page */
 
 	out_going[i] = ba[i]->frame;
-// TODO :remove
-	if(ba[i]->pid != ba[i]->frame->pid) {
+	/* 
+	 * Page could have changed stores !!!!
+	 */
+	if(ba[i]->pid.page != ba[i]->frame->pid.page) {
 		cerr << "assertion failed, i=" <<i
 			<< " pid=" << ba[i]->pid
-			<< " fram pid=" << ba[i]->frame->pid
+			<< " frame pid=" << ba[i]->frame->pid
 			<<endl;
 	}
-        w_assert1(ba[i]->pid == ba[i]->frame->pid);
+        w_assert1(ba[i]->pid.page == ba[i]->frame->pid.page);
     }
 
     if (! ba[0]->pid.is_remote()) {

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: histo.cpp,v 1.10 1999/06/07 19:04:05 kupsch Exp $
+ $Id: histo.cpp,v 1.12 1999/12/07 22:53:31 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -46,7 +46,8 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 
 template<class T, class Cmp>
 SearchableHeap<T, Cmp>::SearchableHeap(const Cmp& cmpFunction, 
-	int initialNumElements) :  Heap<T,Cmp>(cmpFunction, initialNumElements)
+				       int initialNumElements)
+: Heap<T,Cmp>(cmpFunction, initialNumElements)
 {
 }
 
@@ -127,6 +128,13 @@ int SearchableHeap<T, Cmp>::Match(const T& t) const
     return -1; // none found
 }
 
+ostream &operator<<(ostream &o,
+		    const SearchableHeap<pginfo_t, histoid_compare_t> &sh)
+{
+	sh.Print(o);
+	return o;
+}
+
 #ifdef EXPLICIT_TEMPLATE
 class histoid_t;
 template class Heap<pginfo_t, histoid_compare_t>;
@@ -147,10 +155,12 @@ w_hash_t<histoid_t, stid_t> *	histoid_t::htab = 0;
 bool				histoid_t::initialized = false;
 
 NORET 		
-histoid_t::histoid_t (stid_t s) : cmp(s), refcount(0)
+histoid_t::histoid_t (stid_t s)
+: cmp(s),
+  refcount(0)
 {
     DBGTHRD(<<"create histoid_t for store " << s
-	<< " returns this=" << unsigned(this));
+	<< " returns this=" << this);
     pgheap = new SearchableHeap<pginfo_t, histoid_compare_t>(
 	cmp, pages_in_heap);
     w_assert3(!_in_hash_table()); 
@@ -160,20 +170,19 @@ NORET
 histoid_t::~histoid_t () 
 {
     DBGTHRD(<<"destruct histoid_t for store " << cmp.key()
-	<< " destroying this=" << unsigned(this));
+	<< " destroying this=" << this);
     w_assert3(!_in_hash_table()); 
     w_assert1(refcount == 0);
     delete pgheap;
 }
-void 
-histoid_t::initialize_table()
+
+rc_t histoid_t::initialize_table()
 {
     htab = new w_hash_t<histoid_t, stid_t>( histoid_t::buckets_in_table,
 			offsetof(histoid_t, cmp.key()),
 			offsetof(histoid_t, link));
-    if(!htab) {
-	W_FATAL(eOUTOFMEMORY);
-    }
+
+    return MAKERC(!htab, eOUTOFMEMORY);
 }
 
 void
@@ -191,11 +200,11 @@ histoid_t::destroy_table()
 	h->_grab_mutex_cond(gotit);
 	if(gotit) {
 	    w_assert1(h->refcount == 0);
-	    DBGTHRD(<<"removing " << unsigned(h));
+	    DBGTHRD(<<"removing " << h);
 	    w_assert3(h->_in_hash_table()); 
 	    htab->remove(h);
 	    w_assert3(!h->_in_hash_table()); 
-	    DBGTHRD(<<"deleting " << unsigned(h));
+	    DBGTHRD(<<"deleting " << h);
 	    h->_release_mutex();
 	    delete h;
 	} else {
@@ -205,6 +214,7 @@ histoid_t::destroy_table()
     }
 
     delete htab;
+    htab = 0;
 }
 
 void	
@@ -227,12 +237,12 @@ histoid_t::_victimize(int howmany)
 	h->_grab_mutex_cond(gotit);
 	if(gotit)  {
 	    if(h->refcount == 0) {
-		DBGTHRD(<<"deleting " << unsigned(h));
+		DBGTHRD(<<"deleting " << h);
 	        w_assert3(h->_in_hash_table()); 
 		htab->remove(h); // h->link.detach(), decrement _cnt 
 	        w_assert3(!h->_in_hash_table()); 
 		h->_release_mutex();
-		DBGTHRD(<<"deleting " << unsigned(h));
+		DBGTHRD(<<"deleting " << h);
 		delete h;
 		if(--howmany == 0) break;
 	    } else {
@@ -242,24 +252,25 @@ histoid_t::_victimize(int howmany)
     }
 }
 
+
 //
 // In order to enforce 
 // ref counts, we do this grotesque
 // violation of const-ness here
 //
-histoid_t*	
+histoid_t*
 histoid_t::copy() const
 {
     DBGTHRD(<<"incr refcount for store " << cmp.key() 
 	<< " from " << refcount);
-    histoid_t *I = (histoid_t *)this;
+    histoid_t *I = (histoid_t *) this;
     I->_grab_mutex();
     I->refcount++;
     I->_release_mutex();
     return I;
 }
 
-histoid_t*	
+histoid_t*
 histoid_t::acquire(const stid_t& s) 
 {
     DBGTHRD(<<"acquire histoid for store " << s);
@@ -267,8 +278,11 @@ histoid_t::acquire(const stid_t& s)
     histoid_t *h = htab->lookup(s);
     if(h) {
 	DBGTHRD(<<"existing store " << s);
-	w_assert1(h->refcount >= 0);
 	h->_grab_mutex();
+	w_assert1(h->refcount >= 0);
+	DBGTHRD(<<"incr refcount for " << s
+		<< " from " << h->refcount);
+	h->refcount++;	// give reference before unlocking lookup table
 	htab_mutex.release();
     } else {
 	if(htab->num_members() >= max_stores_in_table) {
@@ -284,17 +298,17 @@ histoid_t::acquire(const stid_t& s)
 	htab->push(h); // insert into hash table
 	w_assert3(h->_in_hash_table()); 
 	h->_grab_mutex();
+	DBGTHRD(<<"incr refcount for " << s
+		<< " from " << h->refcount);
+	h->refcount++;	// give reference before unlocking lookup table!
 	htab_mutex.release();
 	h->_insert_store_pages(s);
     }
-    DBGTHRD(<<"incr refcount for " << s
-	<< " from " << h->refcount);
-    h->refcount++;
     h->_release_mutex();
     w_assert3(h);
     w_assert3(h->refcount >= 0);
     DBGTHRD(<<"acquired, store=" << s 
-	<< " this=" << unsigned(h)
+	<< " this=" << h
 	<< " refcount= " << h->refcount
 	);
     return h;
@@ -338,18 +352,18 @@ histoid_t::_insert_store_pages(const stid_t& s)
     w_assert3(_have_mutex());
 }
 
-bool 		
-histoid_t::release() 
+bool
+histoid_t::release()
 {
     DBGTHRD(<<"decr refcount for store " 
 	<< cmp.key() 
-	<< " this=" << unsigned(this)
+	<< " this=" << this
 	<< " from " << refcount);
 
     _grab_mutex();
     refcount--;
     w_assert1(refcount >= 0);
-    bool deleteit = ( (refcount==0) && !_in_hash_table() )?true:false;
+    bool deleteit = ((refcount==0) && !_in_hash_table());
     _release_mutex();
     return deleteit;
 }
@@ -364,19 +378,21 @@ histoid_t::destroyed_store(const stid_t&s, sdesc_t*sd)
     while (!success) {
 	histoid_t *h = htab->lookup(s);
 	if(h) {
-	    DBGTHRD(<<"lookup found " << unsigned(h)
+	    DBGTHRD(<<"lookup found " << h
 		    << " refcount " << h->refcount);
-	    // ref count had better be no more than 1
-	    // because it takes an EX lock
-	    // on the store to be able to destroy it.
-	    if(sd) {
-		w_assert1(h->refcount == 1);
-	    } else {
-		w_assert1(h->refcount == 0 || h->refcount == 1);
-	    }
-	    DBGTHRD(<<"removing " << unsigned(h) );
+
 	    h->_grab_mutex_cond(success);
 	    if(success) {
+		// ref count had better be no more than 1
+		// because it takes an EX lock
+		// on the store to be able to destroy it.
+		if(sd)
+			w_assert1(h->refcount == 1);
+		else
+			w_assert1(h->refcount == 0 || h->refcount == 1);
+
+	    	DBGTHRD(<<"removing " << h );
+
 		w_assert3( h->_in_hash_table()); 
 		htab->remove(h); // h->link.detach(), decrement _cnt 
 		w_assert3( !h->_in_hash_table()); 
@@ -391,13 +407,13 @@ histoid_t::destroyed_store(const stid_t&s, sdesc_t*sd)
 	    DBGTHRD(<<"");
 	    if(sd || smlevel_0::in_recovery() ) { 
 		if(h->release()) {
-		    DBGTHRD(<<"deleting " << unsigned(h));
+		    DBGTHRD(<<"deleting " << h);
 		    delete h;
 		} else {
 		    w_assert3(0);
 		}
 	    } else if(h->refcount == 0) {
-		DBGTHRD(<<"deleting " << unsigned(h));
+		DBGTHRD(<<"deleting " << h);
 		delete h;
 	    } else {
 		/* We don't have sd, so we can't wipe out
@@ -411,9 +427,10 @@ histoid_t::destroyed_store(const stid_t&s, sdesc_t*sd)
 		 * or in pseudo-crash-recovery/rollback as 
 		 * realized by ssh "sm restart" command.  
 		 */
-		 DBGTHRD(<<"ROLLBACK! can't delete h= " << unsigned(h));
+		 DBGTHRD(<<"ROLLBACK! can't delete h= " << h);
 	    }
 	} 
+	w_assert1(success);
     }
     if(sd) {
 	// wipe out pointer to h
@@ -434,11 +451,9 @@ int
 histoid_t::__find_page(
     bool		insert_if_not_found,
     const shpid_t& 	pid
-    // NB: doesn't free the histoid_t::mutex!!!!
 )
 {
     DBGTHRD(<<"__find_page " << pid );
-    _grab_mutex();
 
     int hook;
     while(1) {
@@ -478,6 +493,7 @@ histoid_t::_find_page(
 )
 {
     // Don't create a pginfo_t, insert, then remove
+    _grab_mutex();
     int hook = __find_page(false, pid);
     w_assert3(_have_mutex());
 
@@ -590,7 +606,11 @@ histoid_t::latch_lock_get_slot(
      * fixed in desired mode; if mode isn't sufficient,
      * is upgrades rather than double-fixing
      */
-    rc_t rc = pagep->conditional_fix(pid, LATCH_EX);
+    // rc_t rc = pagep->conditional_fix(pid, LATCH_EX, 0, st_bad, true);
+    store_flag_t        junk = st_bad;
+    rc_t rc = ((page_p *)pagep)->conditional_fix(pid, page_p::t_any_p,
+			LATCH_EX, 0, junk, true);
+
     DBGTHRD(<<"rc=" << rc);
     if(rc) {
 	if(rc.err_num() == smthread_t::stTIMEOUT) {
@@ -697,6 +717,7 @@ void
 histoid_t::update_page(const shpid_t& pid, smsize_t amt)
 {
     DBGTHRD(<<"update_page");
+    _grab_mutex();
     int hook = __find_page(true, pid); // insert if not found
 
 
@@ -801,21 +822,65 @@ histoid_t::bucket_change(
     }
 }
 
-ostream &
-operator<<(ostream&o, const histoid_t&h)
+
+
+ostream &histoid_t::print(ostream &o) const
 {
-    o << " Key=" << h.cmp.key()
-      << " heap.numelements: " << h.pgheap->NumElements()
-    // o << " heap: "; h.pgheap->Print(o); o <<  endl;
-      << " histogram= " << h.histogram << endl;
-    return o;
+	o << "key=" << cmp.key()
+	  << " refcount=" << refcount;
+	if (_in_hash_table())
+		o << ", hashed";
+	o << ", #pages=" << pgheap->NumElements();
+#if 0
+	o << " heap: " << *pgheap << endl << '\t';
+#endif
+	o << " [" << histogram << ']';
+
+	return o;
+}
+
+ostream &operator<<(ostream&o, const histoid_t&h)
+{
+	return h.print(o);
 }
 
 
-NORET 
-histoid_update_t::histoid_update_t(sdesc_t *sd) : 
-_found_in_table(false),  // _found_in_table ==> want to reinstall
-_page(0), _h(0) 
+// really histoid_m::print()
+ostream &histoid_t::print_cache(ostream &o, bool locked)
+{
+	if (initialized && locked)
+		W_COERCE(htab_mutex.acquire());
+
+	o << "histoid_m:";
+	if (initialized)
+		o << " initialized";
+
+	if (htab) {
+		o << ' ' << htab->num_members() << " entries" << endl;
+
+		w_hash_i_histoid_t_stid_t_iterator	iter(*htab);
+		histoid_t				*h;
+
+		while ((h = iter.next()))  {
+			if (locked)
+				h->_grab_mutex();
+			o << '\t' << *h << endl;
+			if (locked)
+				h->_release_mutex();
+		}
+	}
+
+	if (initialized && locked)
+		htab_mutex.release();
+	
+	return o;
+}
+
+
+histoid_update_t::histoid_update_t(sdesc_t *sd)
+: _found_in_table(false),  // _found_in_table ==> want to reinstall
+  _page(0),
+  _h(0) 
 {
     _h = sd->store_utilization()->copy();
     _info.set(0,0); // unknown size
@@ -827,10 +892,11 @@ _page(0), _h(0)
 #endif /* W_TRACE */
 }
 
-NORET 
-histoid_update_t::histoid_update_t(page_p& pg) : 
-    _found_in_table(false), // _found_in_table ==> will want to reinstall
-    _page(&pg), _h(0)
+
+histoid_update_t::histoid_update_t(file_p& pg)
+: _found_in_table(false), // _found_in_table ==> will want to reinstall
+  _page(&pg),
+  _h(0)
 { 
     w_assert3(_page->is_fixed());
     lpid_t	_pid = _page->pid();
@@ -924,7 +990,7 @@ operator<<(ostream&o, const histoid_update_t&u)
 }
 
 void  
-histoid_update_t::replace_page(page_p *p, bool reinstall) 
+histoid_update_t::replace_page(file_p *p, bool reinstall) 
 {
     if(_page) {
 	DBGTHRD(<<"replace page " << _page->pid().page
@@ -953,8 +1019,7 @@ histoid_update_t::replace_page(page_p *p, bool reinstall)
 		<< " refcount= " << _h->refcount
 		);
 	 // establish new page in table:
-	 _h->_find_page(true, _page->pid().page, 
-		_found_in_table, _info);
+	 _h->_find_page(true, _page->pid().page, _found_in_table, _info);
     }
 }
 
@@ -1091,3 +1156,4 @@ histoid_compare_t::ge(const pginfo_t& left, const pginfo_t& right) const
 #endif
     return false;
 }
+

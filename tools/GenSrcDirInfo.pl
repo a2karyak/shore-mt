@@ -2,7 +2,7 @@
 
 # <std-header style='perl' orig-src='shore'>
 #
-#  $Id: GenSrcDirInfo.pl,v 1.8 1999/06/07 19:09:12 kupsch Exp $
+#  $Id: GenSrcDirInfo.pl,v 1.10 2000/01/14 05:27:55 bolo Exp $
 #
 # SHORE -- Scalable Heterogeneous Object REpository
 #
@@ -38,18 +38,20 @@ sub Usage
     my $progname = $0;
     $progname =~ s/.*[\\\/]//;
     print STDERR <<EOF;
-Usage: $progname [--input=infilename] [--output=outfilename] [--createDirs] [--help]
+Usage: $progname [--input=infilename] [--output=outfilename] [--createDirs] [--help] [--dosPaths]
 Generates set of make variables from list of names and directories.
 
     --input         input file
     --ouput         output file
     --createDirs    creates dir for output file if it doesn't exist
+    --dosPaths	    accept dos 'drive-letter:' paths
     --help|h        prints this message and exits.
 EOF
 }
 
-my %options = (input => '-', output => '-', createDirs => 0, help => 0);
-my @options = ("input=s", "output=s", "createDirs!", "help|h!");
+my %options = (input => '-', output => '-', createDirs => 0,
+	       dosPaths => 0, help => 0);
+my @options = ("input=s", "output=s", "createDirs!", "dosPaths!", "help|h!");
 my $ok = GetOptions(\%options, @options);
 $ok = 0 if $#ARGV != -1;
 if (!$ok || $options{help})  {
@@ -95,8 +97,10 @@ sub CanonicalFilename
     join('/', @filename);
 }
 
+my $isDOS = $options{dosPaths};
 my $input = $options{input};
 my $output = $options{output};
+$output =~ s|^//([a-zA-Z])|$1:| if $isDOS;
 my $input_dir = '-';
 my $output_dir = '-';
 $input_dir  = CanonicalFilename($input =~ /(.*)\//) if $input ne '-';

@@ -1,0 +1,108 @@
+.TH errors ssm "Jan 1999" "Release \*(SV" "Shore Storage Manager" "Release 2.0" "Shore Storage Manager Reference Manual"
+.so tmac.man.local
+.SH NAME
+errors \- Error codes returned by the Shore Storage Manager (SSM)
+.SH SYNOPSIS
+.IN <sm_vas.h>
+class ss_m derived from class smlevel_0
+.SH DESCRIPTION
+Errors in the SSM are indicated by an unsigned integer
+wrapped in a mechanism that includes stack
+traces and other debugging aids.
+The mechanism is the class
+.FN w_rc_t
+which is the return-type for most SSM methods.
+.LP
+The error codes return from SSM methods are:
+
+.EX
+eASSERT             - Assertion failed
+eUSERABORT          - User initiated abort
+eCRASH              - Server told to crash or shutdown immediately
+eCOMM               - Error from shore communication facility
+eNAMESERVER         - Error from shore name-server facility
+eOUTOFSPACE         - out of disk space
+eALIGNSIZE          - size is not aligned
+eALIGNPARM          - parameter is not aligned
+eBADSTID            - invalid store id
+e1PAGESTORELIMIT    - 1-page store needs to grown beyond 1 page
+eBADPID             - invalid page id
+eBADVOL             - invalid volume id
+eVOLTOOLARGE        - volume is too large for device
+eBADDEVNAME         - invalid device name
+eDEVICEVOLFULL      - device cannot hold anymore volumes
+eDEVNOTMOUNTED      - device is not mounted
+eALREADYMOUNTED     - device already mounted
+eVOLEXISTS          - volume already exists
+eBADFORMAT          - volume has bad format
+eNVOL               - too many volumes
+eEOF                - end of scan/record reached
+eDUPLICATE          - duplicate entries found
+eBADSTORETYPE       - bad store type
+eBADSTOREFLAGS      - bad store flags
+eBADNDXTYPE         - bad index type
+eBADSCAN            - bad scan
+eWRONGKEYTYPE       - key type unsupported for current index
+eBADSTRING          - bad string type
+eNDXNOTEMPTY        - index is not empty
+eNOTSORTED          - sort order expected
+eBADKEYTYPESTR      - bad key type descriptor
+eBADFLAG            - bad flag param
+eBADCMPOP           - bad compare operators
+eOUTOFLOGSPACE      - out of log space
+ePAGENOTCACHED      - page is not cached
+eRECWONTFIT         - record will not fit
+eBADSLOTNUMBER      - record ID slot number is bad
+eRECUPDATESIZE      - record update request is too large
+eBADSTART           - start parameter larger than record size
+eBADAPPEND          - append size too large for the record
+eBADLENGTH          - bad length parameter
+eBADSAVEPOINT       - bad save point 
+eTOOMANYLOADONCEFILES - too many load-once files
+ePAGECHANGED        - page has changed
+eTRANSFIXED         - transaction is fixed by other thread(s)
+eTOOMANYTRANS       - too many active transactions
+eTWOTHREAD          - multiple threads not allowed for this operation
+eNOTRANS            - no active transaction
+eTWOQUARK           - second quark in a single transaction is not allowed
+eNOQUARK            - no quark is open
+eNOABORT            - logging is turned off -- cannot roll back
+eNOTPREPARED        - transaction thread is not prepared -- cannot 
+		       commit or abort
+eISPREPARED         - transaction thread is prepared -- cannot do 
+		       this operation
+eEXTERN2PCTHREAD    - transaction is (already) participating in 
+                       external 2-phase commit
+eNOTEXTERN2PC       - transaction is not participating in 
+                       external 2-phase commit
+eVOTENO             - prepare resulted in vote to abort (abort done)
+eVOTEREADONLY       - prepare resulted in vote readonly (comit done)
+eNOSUCHPTRANS       - could not find a prepared transaction with 
+		       given global transaction id
+eBADLOCKMODE        - invalid lock mode
+eLOCKTIMEOUT        - lock timeout
+eMAYBLOCK           - lock req will block locally or may block remotely
+eDEADLOCK           - deadlock detected
+eNOTLOCKED          - lock not granted
+eBADCCLEVEL         - unsupported concurrency control level
+
+eVOLIDALREADY       - logical volume ID already set on volume
+eBADLOGICALID       - logical ID does not exist 
+eBADLOGICALIDTYPE   - logical ID has different reference type
+eLOGICALIDOVERFLOW  - logical ID counter overflow
+eNOLOGICALTEMPFILES - logical temp files are prohibited
+
+eCANTWHILEACTIVEXCTS - can't do to volume while there are active transactions
+
+eINTRANSIT          - had to wait for pending remote read
+eNOTONREMOTEVOL     - this volume operation disallowed on remote volume
+eNOHANDLE           - Missing coordinator handle
+
+
+.EE
+
+.DA
+.SH "SEE ALSO"
+.SA error(fc),
+.SA rc(fc),
+.SA errors(sthread)

@@ -55,7 +55,7 @@ w_rc_t out_of_log_space (xct_i* , xct_t *& xd,
 	     }
 	 }
 	 if(pan == tid_t::null) {
-	     cout << " Curr=" << int(curr) << " Thresh=" << int(thresh) <<endl;
+	     cout << " Curr=" << curr << " Thresh=" << thresh <<endl;
 	     cout << " Returning E_USERABORT for xct " << xd->tid() << endl;
 	     pan = xd->tid();
 	     rc = RC(E_USERABORT);

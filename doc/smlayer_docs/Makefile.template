@@ -1,0 +1,75 @@
+# $Header: /p/paradise/cvs_repository/doc/smlayer_docs/Makefile.template,v 1.1.1.1 1996/07/17 20:33:41 nhall Exp $
+
+# Top-level Makefile for Shore documentation -- Beta release version
+# (Perhaps to be replaced with an Imakefile at a future date).
+
+DOCUMENTS = stree sdlman
+LIBDIR = /p/shore/documents/latex2html
+FILE_CHANGED = $(LIBDIR)/file_changed
+
+all: docs save_labels subdirs make_labels
+	@if $(FILE_CHANGED) labels.pl; then \
+		echo '=== ' rebuilding documents to get cross-refs right; \
+		$(MAKE) remake; \
+	else exit 0; fi
+
+remake: save_labels subdirs make_labels
+	@if $(FILE_CHANGED) labels.pl; then \
+		echo "***" error: labels have not converged; \
+	else \
+		exit 0; \
+	fi; \
+
+save_labels: labels.pl
+	@echo "=== saving labels.pl"
+	@cp -p labels.pl labels.pl.bak
+
+labels.pl:
+	echo "1;" > labels.pl
+
+docs:
+	mkdir docs
+	-for x in $(DOCUMENTS); \
+	do \
+		mkdir docs/$$x; \
+	done
+
+make_labels:
+	@echo '=== ' gathering labels from $(DOCUMENTS)
+	@$(RM) labels.pl
+	@for x in $(DOCUMENTS); \
+	do \
+		if test -r docs/$$x/labels.pl ; \
+		then \
+			echo '$$URL="'"../$$x"'";' >>labels.pl; \
+			echo '' >> labels.pl; \
+			grep external_labels docs/$$x/labels.pl >> labels.pl; \
+			echo '' >> labels.pl; \
+		else \
+			echo "Warning: no labels.pl file in docs/$$x"; \
+		fi; \
+	done
+	@echo "1;" >> labels.pl
+
+subdirs:
+	@ for x in $(DOCUMENTS); \
+	do \
+		echo '=== ' making $$x.html; \
+		cd $$x; $(MAKE) html; cd ..; \
+	done
+
+html_clean:
+	-for x in $(DOCUMENTS); \
+	do \
+		cd $$x; $(MAKE) html_clean; cd ..; \
+	done
+	-$(RM) labels.pl*
+	-$(RM) -r docs
+
+clean:
+	-for x in $(DOCUMENTS); \
+	do \
+		cd $$x; $(MAKE) clean; cd ..; \
+	done
+	-$(RM) labels.pl*
+	-$(RM) -r docs

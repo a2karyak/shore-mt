@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: sort.cpp,v 1.121 1999/06/07 19:04:41 kupsch Exp $
+ $Id: sort.cpp,v 1.124 1999/11/05 20:37:07 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -119,8 +119,8 @@ record_free(smsize_t /* amt */ )
 // key struct for sorting stream
 //
 struct sort_key_t {
-    void* val;          // pointer to key
-    void* rec;          // pointer to data
+    char* val;          // pointer to key
+    char* rec;          // pointer to data
     uint2_t klen;         // key length
     uint2_t rlen;         // record data length (if large, in place indx size)
 
@@ -136,11 +136,11 @@ struct sort_key_t {
 
 
 struct file_sort_key_t {
-    const void* val;    // pointer to key
-    const void* rec;    // pointer to data
+    const char* val;    // pointer to key
+    const char* rec;    // pointer to data
     uint2_t klen;         // key length
     uint2_t rlen;         // record data length (if large, in place indx size)
-    void* hdr;          // pointer to header
+    char* hdr;          // pointer to header
     uint4_t blen;         // real body size
     uint2_t hlen;         // record header length
 
@@ -1613,7 +1613,7 @@ sort_stream_i::file_put(const cvec_t& key, const void* rec, uint rlen,
     }
 
     // set up body
-    k->rec = rec;
+    k->rec = (char *) rec;	/* XXX should arg be char? */
     k->rlen = rlen;
     if (tag && !(tag->flags & t_small))
 	k->blen = tag->body_len;
@@ -2046,9 +2046,11 @@ ss_m::_sort_file(const stid_t& fid, vid_t vid, stid_t& sfid,
 	file_p last_page;
 
 	if (!sort_stream.is_empty()) { 
-    	    char* tmp_buf = new char[1000]; // auto-del
-	    record_malloc(1000);
-    	    w_assert1(tmp_buf);
+	    size_t	tmp_len = 1000;
+    	    char* tmp_buf = new char[tmp_len];
+	    record_malloc(tmp_len);
+    	    if (!tmp_buf)
+		W_FATAL(fcOUTOFMEMORY);
     	    w_auto_delete_array_t<char> auto_del_buf(tmp_buf);
 
             bool eof;
@@ -2064,7 +2066,30 @@ ss_m::_sort_file(const stid_t& fid, vid_t vid, stid_t& sfid,
             w_assert1(sdesc);
 
     	    while (!eof) {
+		/* XXX I think it might be possible to not require the
+		   temporary buffer to hold the key.  The vec/key stuff
+		   can probably just grab the correct bytes without
+		   the intermediate copy.  However, that stuff
+		   is complex and I have no way of testing it at
+		   the moment, so this auto-sizing key stuff is it
+		   for now. */
+		if (key.size() > tmp_len) {
+			// XXX if keys become large, don't allocate too much
+			size_t	new_len = tmp_len > 1024*512
+						?  key.size() + 1024
+						: tmp_len * 2;
+			char	*new_buf = new char[new_len];
+			if (!new_buf)
+				W_FATAL(fcOUTOFMEMORY);
+	    		record_malloc(new_len - tmp_len);
+			delete [] tmp_buf;
+			tmp_buf = new_buf;
+			tmp_len = new_len;
+			auto_del_buf.set(tmp_buf);
+		}
+
 		uint hlen;
+
 		if ((hlen=(uint)(key.size()-offset))>0 || sp.keep_lid) {
 	    	    key.copy_to(tmp_buf, key.size());
 		}

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: lid.cpp,v 1.147 1999/06/07 19:04:08 kupsch Exp $
+ $Id: lid.cpp,v 1.149 2000/02/02 03:14:27 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -44,10 +44,15 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #include "auto_release.h"
 
 #ifdef SOLARIS2
+#define	USE_UTSNAME
 #include <sys/utsname.h>
-#include <netdb.h>	/* XXX really should be included for all */
 #else
 #include <hostname.h>
+#endif
+#ifdef _WIN32
+#include <w_winsock.h>
+#else
+#include <netdb.h>	/* XXX really should be included for all */
 #endif
 
 
@@ -697,7 +702,7 @@ void
 lid_m::cache_remove(const lid_t& id)
 {
     FUNC(lid_m::cache_remove);
-    lid_cache_entry_t* hit = _id_cache->find(id);
+    const lid_cache_entry_t* hit = _id_cache->find(id);
     if (hit) {
 	_id_cache->remove(hit);
 	_id_cache->release_mutex();
@@ -781,7 +786,7 @@ lid_m::generate_new_volid(lvid_t& lvid)
     const int max_name = 100;
     char name[max_name+1];
 
-#ifdef SOLARIS2
+#ifdef USE_UTSNAME
 	struct utsname uts;
 	if (uname(&uts) == -1) return RC(eOS);
 	strncpy(name, uts.nodename, max_name);

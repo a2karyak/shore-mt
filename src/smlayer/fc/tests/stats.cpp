@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: stats.cpp,v 1.14 1999/06/07 19:03:06 kupsch Exp $
+ $Id: stats.cpp,v 1.15 2000/01/07 07:17:05 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -49,13 +49,21 @@ main()
 
     int i;
     for(i=0; i < 10000000; i++) {
+#ifdef Alpha
+	f *= 3.0/2.9999;
+#else
 	f *= 3.0/2.8;
+#endif
     }
 
     U.stop(1); // 1 iteration
 
     cout << "Unix stats :" <<endl;
+#ifdef Alpha
+    cout << "float f=" << f << endl;
+#else
     cout << "float f=" << float(f) << endl;
+#endif
     cout << U << endl << endl;
     cout << flush;
 

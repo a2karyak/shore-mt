@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: stats.cpp,v 1.12 1999/06/07 19:02:37 kupsch Exp $
+ $Id: stats.cpp,v 1.13 2000/01/13 18:49:23 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -47,8 +47,7 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 
 void statstest();
 
-int
-main()
+int main()
 {
 
 	DBG(<<"app_test: main");

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='BF_H'>
 
- $Id: bf.h,v 1.96 1999/06/07 19:03:48 kupsch Exp $
+ $Id: bf.h,v 1.97 1999/10/25 18:24:56 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -130,7 +130,7 @@ public:
 	);
 
     static void			unfix(
-	const page_s*&		    buf, 
+	const page_s*		    buf, 
 	bool			    dirty = false,
 	int			    refbit = 1);
 
@@ -144,7 +144,7 @@ public:
     static bool			is_dirty(const page_s* buf) ;
     static void			set_clean(const lpid_t& pid);
 
-    static void			discard_pinned_page(const page_s*& buf);
+    static void			discard_pinned_page(const page_s* buf);
     static rc_t			discard_store(stid_t stid);
     static rc_t			discard_volume(vid_t vid);
     static rc_t			discard_all();

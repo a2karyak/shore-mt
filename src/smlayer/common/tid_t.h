@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='TID_T_H'>
 
- $Id: tid_t.h,v 1.57 1999/06/07 19:02:34 kupsch Exp $
+ $Id: tid_t.h,v 1.62 2001/01/24 20:28:32 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -45,15 +45,30 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #include <w_base.h>
 #endif
 
+/* XXX it is just plain wrong to pollute the global namespace with the
+   networking include files JUST go get ntohl and htonl.  It should be
+   fixed sometime, but it is broken for now. */
+
 /* Include netinet stuff for ntoh() and hton() */
-#ifdef _WINDOWS
-#ifdef OLD_WINSOCK
-#include <winsock.h>
-#else
-#include <winsock2.h>
-#endif
+#ifdef _WIN32
+#include <w_winsock.h>
 #else
 #include <netinet/in.h>
+
+/* XXX when compiling with redhat linux 6X, with optimization,
+   with gcc-2.95.2, there is a problem.  gcc bitches about the inline
+   assembly in the include files.  I see nothing wrong with it,
+   but it just doesn't work.  To make it work I force "volatile"
+   to be redefined to nothing, which allows gcc to compile the
+   inline stuff.  Then it is turned off again.  This is all
+   incredibly disgusting, but it works.  The system doesn't have
+   problems with ntohl in other header files, just here.  It may
+   be due to the template instantiation. */
+
+#if defined(linux) && !defined(__volatile__)
+#define	W_VOLATILE_HACK
+#endif
+
 #endif /* !_WINDOWS */
 
 #if defined(AIX41)
@@ -113,10 +128,6 @@ public:
     static const tid_t Max;
     static const tid_t null;
 
-#define max_tid  (tid_t::Max)
-#define null_tid (tid_t::null)
-
-    
 private:
 
     uint4_t       hi;
@@ -124,8 +135,21 @@ private:
 };
 
 
-#define max_gtid_len  256
+/* XXX yes, this is disgusting, but at least it allows it to
+   be a shore.def option.  In reality, this specification should
+   be revisited.    These fixed length objects have caused a 
+   fair amount of problems, and it might be time to rethink the
+   issue a bit. */
+#ifdef COMMON_GTID_LENGTH
+#define max_gtid_len	COMMON_GTID_LENGTH
+#else
+#define max_gtid_len  40
+#endif
+#ifdef COMMON_SERVER_HANDLE_LENGTH
+#define max_server_handle_len  COMMON_SERVER_HANDLE_LENGTH
+#else
 #define max_server_handle_len  100
+#endif
 
 template <int LEN> class opaque_quantity;
 template <int LEN> 
@@ -214,7 +238,7 @@ private:
 		return *this;
 	}
 	void *
-	data_at_offset(uint i)  const
+	data_at_offset(unsigned i)  const
 	{
 		w_assert3(i < length());
 		return (void*)&_opaque[i];
@@ -240,6 +264,9 @@ private:
 		    return l;
 		}
 	}
+#if defined(W_VOLATILE_HACK)
+#define	__volatile__
+#endif
 	void	      ntoh()  {
 	    if(is_aligned()) {
 		_length = ntohl(_length);
@@ -248,7 +275,6 @@ private:
 		char *m = (char *)&l;
 		memcpy(&_length, m, sizeof(_length));
 	    }
-
 	}
 	void	      hton()  {
 	    if(is_aligned()) {
@@ -259,14 +285,17 @@ private:
 		memcpy(&_length, m, sizeof(_length));
 	    }
 	}
+#if defined(W_VOLATILE_HACK)
+#undef	__volatile__
+#endif
 	bool	      is_aligned() const  {
 	    return (((int)(&_length) & (sizeof(_length) - 1)) == 0);
 	}
 
 	ostream		&print(ostream & o) const {
-		o << "opaque[" << _length << "]" ;
+		o << "opaque[" << length() << "]" ;
 
-		uint4_t print_length = _length;
+		uint4_t print_length = length();
 		if (print_length > LEN) {
 			o << "[TRUNC TO LEN=" << LEN << "!!]";
 			print_length = LEN;

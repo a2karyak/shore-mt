@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: timer.cpp,v 1.13 1999/06/07 19:03:06 kupsch Exp $
+ $Id: timer.cpp,v 1.14 2000/01/07 07:17:05 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -57,7 +57,7 @@ mytimer	one, two, three, four, five;
 #define SLEEP(x) sleep(x)
 #endif
 
-main()
+int main()
 {
 	cout << events << endl;
 

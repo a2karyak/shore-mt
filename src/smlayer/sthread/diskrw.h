@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='DISKRW_H'>
 
- $Id: diskrw.h,v 1.67 1999/06/10 23:32:30 bolo Exp $
+ $Id: diskrw.h,v 1.68 2000/02/22 21:25:14 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -54,13 +54,12 @@ typedef	sdisk_t::fileoff_t	diskrw_off_t;
  * Increment the last part of the magic number if you make
  * any change to the size or shape of any of the data structures:
  */
-enum { diskrw_magic = 0x7adbda13 + sizeof(diskrw_off_t) };
+enum { diskrw_magic = 0x7adbda23 + sizeof(diskrw_off_t) };
 
 class sthread_t;
 
 #include "shmc_stats.h"
 
-const int open_max = 32;
 const int max_diskv = 8;
 
 struct diskv_t {
@@ -233,6 +232,7 @@ private:
 
 public:
     VOLATILE int		sleep;		// server sleep
+    const    unsigned		open_max;
 
 private:
     // NOTE: be sure to increment diskrw_magic if you change this
@@ -240,9 +240,12 @@ private:
     enum	{ magic = diskrw_magic };
     const int	_magic;
 
+    unsigned			fill;		// XXX will fix right later
+
 public:
     bool check_magic()	{ return magic == _magic; }
-    svcport_t() : incoming(0), sleep(0), _magic(magic) {
+    svcport_t(unsigned open)
+    : incoming(0), sleep(0), open_max(open), _magic(magic), fill(0) {
 	    if(!check_magic()) {
 		cerr << 
 		"Configurations of diskrw and server do not match." 

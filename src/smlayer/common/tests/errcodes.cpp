@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: errcodes.cpp,v 1.10 1999/06/07 19:02:37 kupsch Exp $
+ $Id: errcodes.cpp,v 1.11 2000/01/13 18:49:23 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -42,8 +42,7 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #include <option.h>
 #include <w_debug.h>
 
-int
-main()
+int main()
 {
 	cout << "ERROR CODES:\n"; 
 	(void) w_error_t::print(cout);

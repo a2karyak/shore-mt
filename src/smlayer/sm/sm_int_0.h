@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='SM_INT_0_H'>
 
- $Id: sm_int_0.h,v 1.14 1999/06/07 19:04:36 kupsch Exp $
+ $Id: sm_int_0.h,v 1.15 1999/11/02 02:44:23 kupsch Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -50,11 +50,11 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #include <lid_t.h>
 #if defined(SM_SOURCE)
 /* Do not force this on VASs */
-#include "sm_s.h"
+#include <sm_s.h>
 #endif /* SM_SOURCE */
 
 
-#include "smthread.h"
+#include <smthread.h>
 
 #include <tid_t.h>
 #include "smstats.h"

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: sdisk_unix.cpp,v 1.12 1999/06/07 19:06:04 kupsch Exp $
+ $Id: sdisk_unix.cpp,v 1.13 2000/02/02 00:01:55 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -68,11 +68,29 @@ extern class sthread_stats SthreadStats;
 #include <sys/uio.h>
 #endif
 
-#if !defined(AIX41) && !defined(SOLARIS2) && !defined(_WIN32)
+#if !defined(AIX41) && !defined(SOLARIS2) && !defined(_WIN32) && !defined(OSF1)
 extern "C" {
 	extern int writev(int, const struct iovec *, int);
 	extern int readv(int, const struct iovec *, int);
 }
+#endif
+
+#if defined(OSF1)
+/* XXX some stupid readv rename going on */
+#ifdef readv
+#undef readv
+#undef writev
+#endif
+#endif
+
+#ifndef _WIN32
+#define	HAVE_IO_VECTOR
+#endif
+#ifdef SOLARIS2
+#define	HAVE_IO_POSITIONED
+#endif
+#ifdef OSF1
+#define	IOVEC_MISMATCH
 #endif
 
 #include <os_interface.h>
@@ -255,7 +273,7 @@ w_rc_t	sdisk_unix_t::write(const void *buf, int count, int &done)
 	return RCOK;
 }
 
-#ifndef _WIN32
+#ifdef HAVE_IO_VECTOR
 w_rc_t	sdisk_unix_t::readv(const iovec_t *iov, int iovcnt, int &done)
 {
 	if (_fd == FD_NONE)
@@ -265,8 +283,18 @@ w_rc_t	sdisk_unix_t::readv(const iovec_t *iov, int iovcnt, int &done)
 
 	IOmonitor_local	monitor(SthreadStats.local_io);
 
-	/* XXX if iovec_t doesn't match iovec, need to translate */
+#ifdef IOVEC_MISMATCH
+	{
+		struct iovec _iov[sthread_t::iovec_max];
+		for (int i = 0; i < iovcnt; i++) {
+			_iov[i].iov_base = (char *) iov[i].iov_base;
+			_iov[i].iov_len = iov[i].iov_len;
+		}
+		n = ::os_readv(_fd, _iov, iovcnt);
+	}
+#else
 	n = ::os_readv(_fd, (const struct iovec *)iov, iovcnt);
+#endif
 	if (n == -1)
 		return RC(fcOS);
 
@@ -284,8 +312,18 @@ w_rc_t	sdisk_unix_t::writev(const iovec_t *iov, int iovcnt, int &done)
 
 	IOmonitor_local	monitor(SthreadStats.local_io);
 
-	/* XXX if iovec_t doesn't match iovec, need to translate */
+#ifdef IOVEC_MISMATCH
+	{
+		struct iovec _iov[sthread_t::iovec_max];
+		for (int i = 0; i < iovcnt; i++) {
+			_iov[i].iov_base = (char *) iov[i].iov_base;
+			_iov[i].iov_len = iov[i].iov_len;
+		}
+		n = ::os_writev(_fd, _iov, iovcnt);
+	}
+#else
 	n = ::os_writev(_fd, (const struct iovec *)iov, iovcnt);
+#endif
 	if (n == -1)
 		return RC(fcOS);
 
@@ -295,7 +333,7 @@ w_rc_t	sdisk_unix_t::writev(const iovec_t *iov, int iovcnt, int &done)
 }
 #endif
 
-#ifdef SOLARIS2
+#ifdef HAVE_IO_POSITIONED
 w_rc_t	sdisk_unix_t::pread(void *buf, int count, fileoff_t pos, int &done)
 {
 	if (_fd == FD_NONE)

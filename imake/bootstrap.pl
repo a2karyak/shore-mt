@@ -2,7 +2,7 @@
 
 # <std-header style='perl' orig-src='shore' no-defines='true'>
 #
-#  $Id: bootstrap.pl,v 1.13 1999/06/07 20:32:55 kupsch Exp $
+#  $Id: bootstrap.pl,v 1.16 2000/01/14 06:53:02 bolo Exp $
 #
 # SHORE -- Scalable Heterogeneous Object REpository
 #
@@ -37,25 +37,33 @@ sub Usage
     my $progname = $0;
     $progname =~ s/.*[\\\/]//;
     print <<EOF;
-Usage: $progname [--imake_dir=imakedir] [--build_dir=builddir] [--createDirs=createdirs] [--help] [--make=make]
+Usage: $progname [--imake_dir=imakedir] [--build_dir=builddir] [--createDirs=createdirs] [--help] [--make=make] [--imake_exec_name=imake_prog] [--compile_c_to_exec='c compile string'] [--use_this_for_cpp="cpp string to use"] [--dosPaths]
 Make imake.
 
-    --imake_dir    directory which contains imake files
-    --build_dir    directory into which to build imake
-    --createDirs   create build_dir if true
-    --help|h       print this message and exit
-    --make	   name of make executable
+    --imake_dir          directory which contains imake files
+    --build_dir          directory into which to build imake
+    --createDirs         create build_dir if true
+    --help|h             print this message and exit
+    --make	         name of make executable
+    --imake_exec_name    name of imake program
+    --compile_c_to_exec  string to compile c to exec (special tokens: EXEC_FILE SOURCE_FILE IMAKE_DEFINES)
+                           eg. if using gcc  "gcc -O IMAKE_DEFINES -o EXEC_FILE SOURCE_FILE"
+    --use_this_for_cpp   program and options to use for a cpp program
+                           eg. if using gcc  "gcc -E -traditional"
+    --dosPaths		 Grok DOS drive-letter: pathnames
 EOF
 }
 
 
-my %options = (imake_dir => '.', build_dir => '.', createDirs => 0, help => 0, make => 'make');
-my @options = ("imake_dir=s", "build_dir=s", "createDirs!", "help|h!", "make=s");
+my %options = (imake_dir => '.', build_dir => '.', createDirs => 0, help => 0, make => 'make', imake_exec_name => '', compile_c_to_exec => '', use_this_for_cpp => '', dosPaths => 0);
+my @options = ("imake_dir=s", "build_dir=s", "createDirs!", "help|h!", "make=s", "imake_exec_name=s", "compile_c_to_exec=s", "use_this_for_cpp=s", "dosPaths!");
 my $ok = GetOptions(\%options, @options);
 if (!$ok || $options{help})  {
     Usage();
     exit(!$ok);
 }
+
+my $isDOS = $options{dosPaths};
 
 
 sub CreateDirs
@@ -81,28 +89,31 @@ $cwdDir =~ s/\\/\//g;
 my $build_dir = $options{build_dir};
 $build_dir = "$cwdDir/$build_dir" if $build_dir !~ /^\//;
 $build_dir .= "/$options{imake_dir}";
+$build_dir =~ s|^//([a-zA-Z])|$1:| if $isDOS;
 
 CreateDirs($build_dir) if $options{createDirs} && $build_dir ne '-';
 
-my $isNT = ($^O =~ /Win32/);
+if (!$options{imake_exec_name})  {
+    $options{imake_exec_name} = 'imake';
+    $options{imake_exec_name} .= '.exe' if $isDOS;
+}
 
 my $target_build_dir = $build_dir;
-$target_build_dir =~ s/^(.):\/?/\/\/$1\// if $isNT;
+$target_build_dir =~ s/^(.):\/?/\/\/$1\// if $isDOS;
 
 my $makeflags = "-C $options{imake_dir} BUILD_DIR='$build_dir' TARGET_BUILD_DIR='$target_build_dir'";
-$makeflags .= " WINDOWS=1" if $isNT;
-$makeflags =~ s/'//g if $isNT;
+$makeflags .= " WINDOWS=1" if $isDOS;
+$makeflags =~ s/'//g if $isDOS;
+$makeflags .= " IMAKE_EXEC_NAME=$options{imake_exec_name}";
+$makeflags .= " COMPILE_C_TO_EXEC='$options{compile_c_to_exec}'" if $options{compile_c_to_exec};
+if ($options{use_this_for_cpp})  {
+    $makeflags .= " USE_THIS_FOR_CPP='$options{use_this_for_cpp}'";
+    $makeflags .= " STRINGIZE_USE_THIS_FOR_CPP=1" if ($options{use_this_for_cpp} =~ /^cl/);
+}
 my $makefile = "makefile.boot";
 my $makeCmd = "$options{make} -f $makefile $makeflags";
 
-my $cmd = "$makeCmd clean";
-print "$cmd\n";
-print `$cmd`;
-die "$0: '$cmd' failed" if $?;
-
-$cmd = "$makeCmd $target_build_dir/imake";
-$cmd .= '.exe' if $isNT;
-print "If following fails, execute the following from the shell:\n";
+my $cmd = "$makeCmd $target_build_dir/$options{imake_exec_name}";
 print "$cmd\n";
 print `$cmd`;
 die "$0: '$cmd' failed" if $?;

@@ -1,6 +1,6 @@
 # <std-header style='data' orig-src='shore'>
 #
-#  $Id: sthread_stats.dat,v 1.17 1999/06/07 19:06:15 kupsch Exp $
+#  $Id: sthread_stats.dat,v 1.18 2000/04/12 17:08:27 bolo Exp $
 #
 # SHORE -- Scalable Heterogeneous Object REpository
 #
@@ -72,6 +72,9 @@ sthread Threads = 0x00050000 sthread_stats {
 	int	write		Number of writes
 	int	sync		Number of syncs
 	int	truncate	Number of truncates
+
+	int	writev		Number of writevs
+	int	writev_coalesce	Number of writevs coalesced
 
 	int     selects		Total # select() calls
 	int     selfound	select() calls that returned before timeout

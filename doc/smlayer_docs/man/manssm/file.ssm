@@ -1,0 +1,366 @@
+.TH ss_m::file/record ssm "Jan 1999" "Release \*(SV" "Shore Storage Manager" "Release 2.0" "Shore Storage Manager Reference Manual"
+.so tmac.man.local
+.SH NAME
+append_rec, create_file, create_id, create_rec, create_rec_id, destroy_file, destroy_rec, lfid_of_lrid, truncate_rec, update_rec, update_rec_hdr \- Class ss_m Methods for File/Record Operations
+
+.SH SYNOPSIS
+.EX
+#include <sm_vas.h>  // which includes sm.h
+
+
+    /* Logical-ID version */
+static rc_t                 create_file(const lvid_t&	lvid, 
+			    serial_t&		lfid,
+			    store_property_t	property);
+
+    /* Physical-ID version */
+static rc_t                 create_file( vid_t		vid,
+			    stid_t&		fid,
+			    store_property_t	property,
+			    const serial_t&		logical_id = serial_t::null, 
+			    shpid_t		cluster_hint = 0); // not used
+
+
+    /* Logical-ID version */
+static rc_t                 destroy_file(const lvid_t&	lvid,
+			    const serial_t&		lfid); 
+
+    /* Physical-ID version */
+static rc_t                 destroy_file(const stid_t&	fid);
+
+
+    /* Logical-ID version */
+static rc_t                 create_rec(const lvid_t&	lvid, 
+			    const serial_t&		lfid,
+			    const vec_t&		hdr, 
+			    smsize_t		len_hint,
+			    const vec_t&		data, 
+			    serial_t&		lrid); 
+
+    /* Logical-ID version */
+static rc_t                 create_id(const lvid_t&	lvid, 
+			    int			id_count, 
+			    serial_t&		id_start); 
+
+    /* Logical-ID version */
+static rc_t                 create_rec_id(const lvid_t&	lvid, 
+			    const serial_t&		lfid,
+			    const vec_t&		hdr,
+			    smsize_t		len_hint,
+			    const vec_t&		data, 
+			    const serial_t&		lrid); 
+
+    /* Physical-ID version */
+static rc_t                 create_rec(const stid_t&	fid,
+			    const vec_t&		hdr,
+			    smsize_t 			len_hint,
+			    const vec_t&		data,
+			    rid_t&			new_rid,
+			    const serial_t& 		serial = serial_t::null );
+
+
+    /* Logical-ID version */
+static rc_t            	    destroy_rec(const lvid_t&	lvid, 
+			    const serial_t&		lrid);
+
+    /* Physical-ID version */
+static rc_t                 destroy_rec(const rid_t&	rid);
+
+
+    /* Logical-ID version */
+static rc_t                 update_rec(const lvid_t&	lvid, 
+			    const serial_t&		lrid,
+			    smsize_t		start, 
+			    const vec_t&		data);
+
+    /* Physical-ID version */
+static rc_t                 update_rec(const rid_t&	rid,
+			    smsize_t 		start,
+			    const vec_t&		data);
+
+
+    /* Logical-ID version */
+static rc_t                 update_rec_hdr(const lvid_t& 	lvid, 
+			    const serial_t&		lrid,
+			    smsize_t		start, 
+			    const vec_t&		hdr);
+
+    /* Physical-ID version */
+static rc_t                 update_rec_hdr(const rid_t&	rid,
+			    smsize_t		start,
+			    const vec_t&		hdr);
+			    // see also pin_i::update_rec*()
+
+
+    /* Logical-ID version */
+static rc_t                 append_rec(const lvid_t&	lvid, 
+			    const serial_t&		lrid,
+			    const vec_t&		data);
+
+    /* Physical-ID version */
+static rc_t                 append_rec(const rid_t&	rid,
+			    const vec_t&		data,
+			    bool			allow_forward);
+
+
+    /* Logical-ID version */
+static rc_t                 truncate_rec(const lvid_t&	lvid, 
+			    const serial_t& 	lrid, 
+			    smsize_t		amount);
+
+    /* Physical-ID version */
+static rc_t                 truncate_rec(const rid_t&	rid, 
+			    smsize_t		amount);
+
+
+    // lfid_of_lrid converts a logical record ID into a logical file ID
+    /* Logical-ID version */
+static rc_t                 lfid_of_lrid(const lvid_t&	lvid, 
+			    const serial_t& 	lrid,
+			    serial_t&		lfid);
+
+.EE
+.SH DESCRIPTION
+
+The above class
+.FN ss_m
+methods all deal with manipulating files and records.
+The logical-ID and physical-ID APIs have direct analogues, except 
+when it comes to creating records.  When using logical IDs, it is
+possible to pre-allocate logical IDs to apply to records upon creation
+of the records.  For this, there is no counterpart in the physical-ID
+API.
+
+.SS Common Parameters
+.LP 
+There are a number of common parameters for these methods:
+.IP lvid 5
+Logical volume ID of volume containing a file/record.
+.IP lfid 5
+Logical file ID, the serial number of a file.
+.IP lrid 5
+Logical record ID, the serial number of a record.
+.IP data 5
+A vector pointing to data used to fill/overwrite the body of a record.
+.IP hdr 5
+A vector pointing to data used to fill/overwrite the header of a record.
+
+.LP
+.B "create_file(lvid, lfid, property)"
+.IP
+The
+.FN create_file
+method creates a new file on the volume
+.VA lvid,
+and returns its serial number in
+.VA lfid.
+The 
+.VA property
+parameter specifies whether the file is temporary or not.
+See
+.SA enum(ssm)
+for more information on file properties.
+.LP
+.IP
+See the "ROOT INDEX METHODS" section of
+.SA volume(ssm)
+for information on how to keep track of the files on a volume.
+
+.LP
+.B "destroy_file(lvid, lfid)"
+.IP
+The
+.FN destroy_file
+method destroys all records in the file and deallocates space used
+by a file.  The space used by the file is not available for reuse until
+the transaction destroying the file commits.
+
+.LP
+.B "create_rec(lvid, lfid, hdr, len_hint, data, lrid)"
+.IP
+The 
+.FN create_rec
+method creates a record in a file.  The ID of the new record is
+returned in the
+.VA lrid
+parameter.  The
+.VA len_hint
+parameter is a "hint" about the final length of the record.  If the
+creation will be followed by appends,
+.VA len_hint
+should ideally be set to the final length of the record.  This will
+allow the SM to place the record in a location with sufficient
+contiguous space for the record.  A value of 0 should be used
+if the final length is unknown.
+No order is defined on the records in a file: when a new record
+is created, the I/O subsystem may place the record anywhere in the
+file.
+
+.LP
+.B "create_id(lvid, id_count, id_start)"
+.IP
+The
+.FN create_id
+method generates
+.VA id_count
+new IDs that can be used later
+by
+.FN create_rec_id
+to associate a records with the IDs.
+The first ID is returned in
+.VA id_start.
+The other IDs should be obtained by calling
+.FN id_start::increment(1)
+.VA id_count
+-1 times.
+
+.LP
+.B "create_rec_id(lvid, lfid, hdr, len_hint, data, lrid)"
+.IP 
+The
+.FN create_rec_id
+method is identical to
+.FN create_rec
+except that the record ID is specified by the caller with the
+.VA lrid
+parameter rather than being generated and returned in
+.VA lrid
+as is done in
+.FN create_rec.
+
+.LP
+.B "destroy_rec(lvid, lrid)"
+.IP
+The
+.FN destroy_rec
+method destroys the specified record.
+
+.LP
+.B "update_rec(lvid, lrid, start, data)"
+.IP
+The
+.FN update_rec
+method updates a range of bytes in the body of the record specified by
+.VA "lvid, lrid".
+The byte offset, from the beginning of the record body, for the
+beginning of the range is specified by the
+.VA start
+parameter.  The length of the range is the length of the
+.VA data
+vector.  The range is replaced by the bytes pointed to by the
+.VA data
+parameter.  Note that 
+.FN update_rec
+cannot be used to change the size of the record.  It is an error
+to specify a starting location and vector length that imply updating
+beyond the end of the record.
+
+.LP
+.B "update_rec_hdr(lvid, lrid, start, hdr)"
+.IP
+The
+.FN update_rec_hdr
+method updates a range of bytes in the header of the record
+specified by
+.VA "lvid, lrid".
+The byte offset, from the beginning of the header, for the beginning
+of the range is specified by the
+.VA start
+parameter.  The length of the range is the length of the
+.VA hdr
+vector.  The range is replaced by the bytes pointed to by the
+.VA hdr
+parameter.
+.IP
+.B Note:
+There are no methods for appending to a record header or truncating
+a record header (as there are for a record body).  If these methods
+would be useful for you, please contact the Shore developers.
+
+.LP
+.B "append_rec(lvid, lrid, data)"
+.IP
+The
+.FN append_rec
+method appends the bytes pointed to by
+.VA data
+to the end of the record body.
+
+.LP
+.B "truncate_rec(lvid, lrid, amount)"
+.IP
+The
+.FN truncate_rec
+method removes
+.VA amount
+bytes from the end of a record body.
+
+.LP
+.B "lfid_of_lrid(lvid, lrid, lfid)"
+.IP
+The
+.FN lfid_of_lrid
+method returns, in
+.VA lfid,
+the ID of file containing the record,
+.VA lrid.
+
+.SH "UNINITIALIZED DATA"
+.LP
+The functions 
+.FN create_rec,
+.FN append_rec,
+and
+.FN update_rec
+can be used to write blocks of data
+that are all zeroes, with minimal logging.
+This is useful, for example, when a value-added server 
+creates a record of a known size but with uninitialized
+data.
+To make use of this feature, these functions are called
+with data vectors of a specialized type,
+.VA zvec_t,
+whose constructor takes only a size:
+.EX
+    rc_t    rc;
+    char    h[HEADER_SIZE];
+    vec_t   hdr(h, sizeof(h));
+
+    // ... fill in hdr
+
+    // create a vector representing 1000 
+    // contiuous bytes of zeroes
+    zvec_t  zdata(1000);
+
+    rc = ss_m::create_rec(lvid, lfid, hdr,
+        HEADER_SIZE + 1000, zdata, result);
+.EE
+
+
+.SH ERRORS
+
+All of the above methods return a
+.FN w_rc_t
+error code.  If an error occurs during a method that is updating
+persistent data (the create, update, append, and truncate methods will
+update data) then the record/file could be in an inconsistent state.
+The caller then has the choice of aborting the transaction or rolling
+back to the nearest save-point (see
+.SA transaction(ssm)
+).
+
+.LP
+See
+.SA errors(ssm)
+for more information on error handling.
+
+.SH EXAMPLES
+To Do.
+
+.DA
+.SH "SEE ALSO"
+.SA vec_t(common),
+.SA pin_i(ssm),
+.SA scan_file_i(ssm),
+.SA intro(ssm),
+

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: bf_core.cpp,v 1.54 1999/06/07 19:03:49 kupsch Exp $
+ $Id: bf_core.cpp,v 1.57 2000/02/02 03:13:02 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -32,8 +32,6 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 /*  -- do not edit anything above this line --   </std-header>*/
 
 
-//  -=- /tor/src/smlayer/sm -=-
-
 #define TRYTHIS
 #define TRYTHIS6 0x1
 
@@ -52,6 +50,8 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #include "bf_core.h"
 #include "page_s.h"
 #include "vtable_info.h"
+
+#include <w_strstream.h>
 
 #ifdef W_DEBUG
 extern "C" void dumpthreads();
@@ -74,8 +74,8 @@ template class w_hash_t<bfcb_t, bfpid_t>;
  *      _buftab         : array of bf control blocks (one per frame)
  *
  *********************************************************************/
-unsigned long			bf_core_m::ref_cnt = 0;// # calls to find/grab
-unsigned long			bf_core_m::hit_cnt = 0;// # finds w/ find/grab
+w_base_t::uint8_t		bf_core_m::ref_cnt = 0;// # calls to find/grab
+w_base_t::uint8_t		bf_core_m::hit_cnt = 0;// # finds w/ find/grab
 
 smutex_t			bf_core_m::_mutex("bf_mutex");
 
@@ -1098,6 +1098,10 @@ bf_core_m::audit() const
 void
 bf_core_m::dump(ostream &o, bool /*debugging*/)const
 {
+    o << "bf_core_m:"
+      << ' ' << _num_bufs << " frames"
+      << ' ' << _total_fix << " fixed"
+      << endl;
 
     o << "pid" << '\t'
 	<< '\t' << "dirty?" 
@@ -1124,11 +1128,10 @@ bf_core_m::dump(ostream &o, bool /*debugging*/)const
 	    p->print_frame(o, false);
 	}
     }
-    o << "number of frames: " << _num_bufs << endl;
+
     o << "number of frames in the HASH TABLE: " << n << endl;
     o << "number of frames in TRANSIT: " << t << endl;
-    o << "total_fix: " << _total_fix<< endl;
-    o <<endl<<flush;
+    o << endl << flush;
 }
 
 ostream &

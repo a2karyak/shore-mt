@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='SM_S_H'>
 
- $Id: sm_s.h,v 1.81 1999/06/15 15:11:56 nhall Exp $
+ $Id: sm_s.h,v 1.82 1999/10/25 19:33:51 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -367,7 +367,11 @@ inline lsn_t& lsn_t::operator=(const lsn_t& l)
 #ifdef SM_DISKADDR_LARGE
     copy_rba(l);
 #ifdef PURIFY_ZERO
-    (void) new (&_fill) fill4; // get it initialized
+	/* XXX this is really hacky.  It means that someone isn't
+	   running a constructor on a lsn and/or it's enclosing
+	   log record.  That is the real bug, this is just
+	   a symptom. */
+    _fill.u4 = 0;
 #endif
 #else
     _rba = l._rba; 

@@ -1,0 +1,83 @@
+.TH debug ssm "Jan 1999" "Release \*(SV" "Shore Storage Manager" "Release 2.0" "Shore Storage Manager Reference Manual"
+.so tmac.man.local
+.SH NAME
+debug \- Debugging with the Shore Storage Manager (SSM)
+.SH SYNOPSIS
+
+.EX
+Config-time macros:  DEBUGCODE, TRACECODE
+Compile-time macros: -DW_DEBUG, -DW_TRACE
+
+Run-time assertions: 	w_assert3(...), w_assert1(...)
+
+Run-time environment variables:  
+setenv DEBUG_FLAGS "file.cpp sm.cpp"
+setenv DEBUG_FILE "debug.out"
+.EE
+
+.SH DESCRIPTION
+
+.LP
+The SM code is peppered with assertions whose inclusion depends on
+compile-time macros.
+If 
+.CW W_DEBUG 
+is defined, 
+.CW "w_assert3()"
+is included.
+Even in the absence of 
+.CW "W_DEBUG" ,
+.CW "w_assert1()"
+is included.
+.LP
+The configuration macro 
+.EX
+#define DEBUGCODE ON
+.EE
+in the configuration file
+.CW "config/shore.def"
+controls the W_DEBUG compile-time macro.
+
+.LP
+The configuration macro 
+.EX
+#define TRACECODE ON
+.EE
+in the configuration file
+.CW "config/shore.def"
+controls the W_TRACE compile-time macro.  When 
+.CW W_TRACE
+is defined, the macros
+.EX
+DBG(<<"miscellaneous tracing" << x->number() );
+DBGTHRD(<<"prints thread#" << x->number() );
+.EE
+are included in the source to be compiled.  The 
+.CW DBG 
+macro prints the file and line number, followed by the 
+output given between the parentheses.
+The 
+.CW DBGTHRD 
+also prints the thread number of the thread in which the 
+macro is executed.
+
+.SH ENVIRONMENT
+.LP
+To engage the 
+.CW DBG
+macros at run-time, use the
+environment variable
+.EX
+setenv DEBUG_FLAGS "sourcefile.cpp sourcefile.h"
+.EE
+This will activate the printing in the named source files.
+To redirect the output from standard output to a file, use
+.EX
+setenv DEBUG_FLAGS outfilename
+.EE
+.SH ERRORS
+
+.DA
+
+.SH "SEE ALSO"
+

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: file.cpp,v 1.189 1999/06/07 19:04:02 kupsch Exp $
+ $Id: file.cpp,v 1.193 1999/12/07 22:53:32 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -138,10 +138,11 @@ file_m::_bytes_last_page(smsize_t rec_sz)
     return rec_sz == 0 ? 0 :
 			 lgdata_p::data_sz - _space_last_page(rec_sz);
 }
+
 file_m::file_m () 
 { 
     w_assert1(is_aligned(sizeof(rectag_t)));
-    histoid_t::initialize_table();
+    W_COERCE(histoid_t::initialize_table());
 }
 
 file_m::~file_m()   
@@ -240,7 +241,7 @@ file_m::_create_rec(
 {
     smsize_t	space_needed;
     recflags_t	rec_impl; 
-    slotid_t	slot;
+    slotid_t	slot = 0;
 
     {
 	/*
@@ -388,12 +389,18 @@ file_m::_find_slotted_page_with_space(
     bool may_search_file = false;
 
     /*
-     * Next, if policy calls for it, search the file for space
+     * Next, if policy calls for it, search the file for space.
+     * We're going to be a little less aggressive here than when
+     * we searched the cache.  If we read a page in from disk, 
+     * we want to be sure that it will have enough space.  So we
+     * bump ourselves up to the next bucket.
      */
     if(policy & t_compact) {
 	INC_TSTAT(fm_compact);
 	DBG(<<"looking at file histogram");
-	W_DO(h->exists_page(space_needed, found));
+	smsize_t sn = page_p::bucket2free_space(
+                      page_p::free_space2bucket(space_needed)) + 1;
+	W_DO(h->exists_page(sn, found));
 	if(found) {
 	    INC_TSTAT(fm_histogram_hit);
 
@@ -436,11 +443,11 @@ file_m::_find_slotted_page_with_space(
 		DBG(<<"get next page after " << lpid 
 			<< " for space " << space_needed);
 		W_DO(next_page_with_space(lpid, eof,
-			file_p::free_space2bucket(space_needed)));
+			file_p::free_space2bucket(space_needed) + 1));
 		DBG(<<"next page is " << lpid);
 	    }
-	    // Ok - it's a bad hint - based on buckets, not exact
-	    // amounts.
+            // This should never happen now that we bump ourselves up
+            // to the next bucket.
 	    INC_TSTAT(fm_search_failed);
 	    found = false;
 	} else {
@@ -692,7 +699,7 @@ file_m::update_rec(const rid_t& rid, uint4_t start, const vec_t& data, const ser
     /*
      *	Do some parameter checking
      */
-    if (start >= rec->body_size()) {
+    if (start > rec->body_size()) {
 	return RC(eBADSTART);
     }
     if (data.size() > (rec->body_size()-start)) {

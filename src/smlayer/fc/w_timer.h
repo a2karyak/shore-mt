@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='W_TIMER_H'>
 
- $Id: w_timer.h,v 1.19 1999/06/07 19:02:59 kupsch Exp $
+ $Id: w_timer.h,v 1.20 2000/02/01 23:37:12 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -34,8 +34,9 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 
 /*  -- do not edit anything above this line --   </std-header>*/
 
-#include <w_stream.h>
 #include <stime.h>
+
+class ostream;
 
 #ifdef __GNUG__
 #pragma interface

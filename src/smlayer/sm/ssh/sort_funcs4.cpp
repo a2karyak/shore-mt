@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: sort_funcs4.cpp,v 1.10 1999/06/15 15:12:03 nhall Exp $
+ $Id: sort_funcs4.cpp,v 1.11 1999/10/25 18:17:31 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -41,6 +41,8 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 
 #include "shell.h"
 #include "sort_funcs.h"
+
+#include <new.h>
 
 #ifdef EXPLICIT_TEMPLATE
 template class w_auto_delete_array_t<metadata>;

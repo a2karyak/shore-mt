@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='W_BASE_H'>
 
- $Id: w_base.h,v 1.59 1999/08/05 16:26:43 bolo Exp $
+ $Id: w_base.h,v 1.60 1999/10/25 05:53:18 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -89,6 +89,8 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #define NORET		/**/
 #define CAST(t,o)	((t)(o))
 #define SIZEOF(t)	(sizeof(t))
+
+#define	W_UNUSED(x)	/**/
 
 #ifdef W_DEBUG
 #define W_IFDEBUG(x)	x

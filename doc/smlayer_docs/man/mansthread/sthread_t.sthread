@@ -1,0 +1,308 @@
+.TH STHREAD_T STHREAD "Jan 1999" Release \*(SV" "Shore Storage Manager" "Release 2.0" "Shore Storage Manager Reference Manual"
+.so tmac.man.local
+.SH NAME
+sthread_t \- Shore Thread Abstract Base Class
+.SH SYNOPSIS
+.EX
+
+#include <sthread.h>
+
+/* See sthread.h - too long to include here */
+
+
+.EE
+.SH DESCRIPTION
+.LP
+The thread mechanism allows several threads of control to share the
+same address space. Each thread is represented by an instance of class
+.FN sthread_t.
+Once created, a thread is an independent entity
+with its own stack. A thread's execution begins with its
+.FN run
+method and ends when
+.FN run
+returns. 
+A thread can also be made to end early by calling 
+.FN end,
+which forces a longjmp out of the 
+.FN run
+method. 
+.LP
+A thread is created by allocating it from the heap with a
+call to 
+.FN new
+and it is started by calling its method
+.FN fork.
+One can await a thread's completion by calling its method
+.FN wait.
+The following code is an example from the Tcl-based storage manager test shell,
+.CW ssh.
+
+.EX
+    /*
+     * ssh_smthread_t is derived from smthread_t, which is
+     *  derived from sthread_t.
+     */
+    smthread_t *doit = new ssh_smthread_t(f_arg);
+    if (!doit) { 
+	/* error  - out of memory */ 
+    }
+
+    w_rc_t rc = doit->fork();
+    if(rc) { 
+	/* fatal error */ 
+    }
+
+    w_rc_t rc = doit->wait();
+    if(rc) { 
+	/* fatal error */ 
+    }
+
+    delete doit;
+.EE
+
+.LP
+In a C++ program, the sthread initialization code is built into the
+library such that it will execute before the 
+.FN main
+function. The
+initialization code is responsible for spawning a 
+.FN main_thread,
+such that, when the initialization function returns, it returns in the
+context of the 
+.FN main_thread.
+This ensures that the program
+executes in a threaded environment from the very beginning. 
+
+.LP
+Class
+.FN sthread_base_t
+is the base class for all sthread classes. It defines
+constants and enums used throughout the thread package.
+.LP
+Class
+.FN sthread_named_base_t
+inherits from
+.FN sthread_base_t
+and adds a name
+string to the class. Its only purpose is to ease debugging by
+providing a name to sthread classes.
+.LP
+Class
+.FN sthread_t
+is an abstract base class that represents a thread of execution; it
+must be derived in order to be used, hence the protected constructor.
+
+.SS Enumerations
+.LP
+.B "enum status_t"
+.IP
+A thread can be in one of the following states at any one time:
+.EX
+	t_defunct		is dead
+	t_ready 		is in the ready queue waiting to run
+	t_running 		is running
+	t_blocked 		is not ready to run
+.EE
+
+.LP
+.B "enum priority_t"
+.IP
+These are the thread priority levels in decreasing order:
+.EX
+	t_time_critical		has highest priority
+	t_regular		has regular priority
+	t_fixed_low		has lower than regular priority
+	t_idle_time		only runs when system is idle
+.EE
+
+.SS Methods
+
+.LP
+.B "sthread_t(priority, block_immediate, auto_delete, name)"
+.IP
+The constructor creates a 
+.VA priority
+level thread. If
+.VA block_immediate
+is true, the thread will automatically be run
+sometime soon.  Otherwise, the thread is blocked awaiting an explicit
+.FN unblock
+call. If 
+.VA auto_delete
+is true, the thread automatically deallocates (destroys) itself
+when it ends.  Otherwise, the caller must 
+deallocate the thread with 
+.FN delete.
+The
+.VA name
+parameter is used for debugging purposes only.
+
+.IP
+The constructor is protected because 
+.FN sthread_t
+is an abstract base class. Users should derive from
+.FN sthread_t and provide
+the virtual
+.FN run
+method.
+
+.LP
+.B "~sthread_t()"
+.IP
+The destructor deallocates the stack and other resources used
+by the thread.
+
+.LP
+.B "run()"
+.IP
+Method 
+.FN run
+is automatically started (by the thread switching code) when
+a thread begins execution.  It is a pure virtual function that
+must be implemented in a derived class.
+The thread ends when 
+
+.LP
+.B "static end()"
+.IP
+The
+.FN end
+method ends the execution of the current thread
+by forcing a longjmp out of the 
+.FN run
+method. 
+
+.LP
+.B "static block(timeout, list, caller)"
+.IP
+The
+.FN block
+method makes the current thread dormant for at least 
+.VA timeout
+milliseconds. The thread can be awakened explicitly by an
+.FN unblock
+call. The calling thread's tcb is inserted into {\bf
+list}, and the 
+.VA caller
+string is saved for debugging purposes.
+Note that
+.FN block
+only returns when the thread is unblocked (by another thread).
+Ordinarily, programs do not call 
+.FN block
+of
+.FN unblock,
+since they are the basis for more powerful synchronization
+mechanisms: mutexes and condition variables.
+
+.LP
+.B "unblock(rc)"
+.IP
+The
+.FN unblock
+method unblocks the thread with an the error
+.VA rc
+and marks it as ready to continue running.
+The value of
+.VA rc
+will be returned from the 
+.FN block
+method.
+
+.LP
+.B "static me()"
+.IP
+The
+.FN me
+method returns a pointer to the current (running) thread.
+
+.LP
+.B "wait(timeout)"
+.IP
+The
+.FN wait
+method waits for the thread to terminate. The method returns
+without error when the thread terminates within 
+.VA timeout
+milliseconds. Otherwise, a timeout error is returned.
+
+.LP
+.B "sleep(timeout)"
+.IP
+The
+.FN sleep
+method causes the thread to halt execution for
+.VA timeout
+milliseconds.  Other threads continue running.
+
+.LP
+.B "yield()"
+.IP
+The
+.FN yield
+method gives up the CPU so other threads can run. The current thread
+remains active and will be run again soon.
+
+
+.SS I/O Operations
+
+The thread package provides asynchronous I/O operations.  Threads
+performing these operations will block, but the server process will not.
+The implementation was developed for operating systems that
+do not provide threads or asynchronous I/O.  For each open file a
+process,
+.C diskrw,
+is started.
+When a thread needs I/O on a file, the sthread library
+blocks the thread, forwards its request to
+.C diskrw
+and switches to another ready thread.
+When the I/O request is complemented, the 
+.C diskrw
+process informs the sthread library, which in turn
+unblocks the original thread that requested the I/O.
+
+.LP
+.FN Sthread_t
+provides methods similar to Unix in handling file
+I/O. However, the file descriptors used by these methods are not
+interchangeable with that of Unix, i.e., the
+.VA fd
+returned by 
+.FN sthread_t::open
+can only be used with other methods in
+.FN sthread_t
+such as 
+.FN sthread_t::read.
+
+.LP
+These I/O operations are closely integrated with buffer pool management.
+The storage manager buffer pool is located in memory shared with
+the
+.C diskrw
+processes.  I/O requests must refer to locations in this shared memory.
+
+.LP
+Now that most popular operating systems provide threads and asynchronous
+I/O, the
+.FN sthread_t
+I/O operations should be re-implemented or even eliminated.
+
+.SH ERRORS
+
+See
+.SA errors(sthread)
+
+.SH EXAMPLES
+
+
+.DA
+.SH "SEE ALSO"
+.SA smthread_t(ssm),
+.SA smutex_t(sthread),
+.SA scond_t(sthread),
+.SA sevsem_t(sthread),
+.SA file_handlers(sthread),
+.SA intro(sthread).
+

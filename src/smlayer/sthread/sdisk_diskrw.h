@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='SDISK_DISKRW_H'>
 
- $Id: sdisk_diskrw.h,v 1.8 1999/06/07 19:06:04 kupsch Exp $
+ $Id: sdisk_diskrw.h,v 1.9 2000/02/22 21:25:15 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -87,6 +87,12 @@ public:
 	typedef		sdisk_t::iovec_t iovec_t;
 	enum { iovec_max = max_diskv };
 
+#ifdef SDISK_DISKRW_OPEN_MAX
+	enum { default_open_max = SDISK_DISKRW_OPEN_MAX };
+#else
+	enum { default_open_max = 20 };
+#endif
+
 private:
 	const char	*_diskrw;	// name of diskrw executable
 	pid_t		_dummy_disk;
@@ -97,6 +103,8 @@ private:
 	diskport_t	*diskport;
 	unsigned	diskport_cnt;
 	svcport_t 	*svcport;
+
+	unsigned	open_max;
 
 	smutex_t	forkdisk;
 

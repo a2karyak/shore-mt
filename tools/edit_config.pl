@@ -2,7 +2,7 @@
 
 # <std-header style='perl' orig-src='shore'>
 #
-#  $Id: edit_config.pl,v 1.11 1999/06/07 19:09:12 kupsch Exp $
+#  $Id: edit_config.pl,v 1.14 1999/12/31 07:04:10 bolo Exp $
 #
 # SHORE -- Scalable Heterogeneous Object REpository
 #
@@ -101,7 +101,7 @@ my (%map);
 my (%isdef);
 
 #
-# read arguments (-input and -output are handled by -s flag)
+# read arguments
 #
 foreach my $arg (@ARGV)  {
     if ($arg =~ /^(\w*)=(.*)$/)  {
@@ -114,13 +114,13 @@ foreach my $arg (@ARGV)  {
 	$map{$1} = '';
 	$isdef{$1} = 1;
     }  else  {
-	die "$0: invalid arguement format \"$arg\"\n";
+	die "$0: invalid argument format \"$arg\"\n";
     }
 }
 
-
 my $output = $options{output};
 my $input  = $options{input};
+$output =~ s|^//([a-zA-Z])|$1:|;
 
 CreateDirs($output =~ /(.*)\//) if $options{createDirs} && $output ne '-';
 

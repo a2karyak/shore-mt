@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='ERRLOG_S_H'>
 
- $Id: errlog_s.h,v 1.6 1999/06/07 19:02:42 kupsch Exp $
+ $Id: errlog_s.h,v 1.7 1999/10/24 17:44:01 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -45,10 +45,10 @@ class simple_string {
 public:
 	// friend w_base_t uint4_t hash(const simple_string &);
 	simple_string(const char *s) { _s = s; }
-	operator==(const simple_string &another) const {
+	bool operator==(const simple_string &another) const {
 		return strcmp(this->_s,another._s)==0; 
 	}
-	operator!=(const simple_string &another) const {
+	bool operator!=(const simple_string &another) const {
 		return strcmp(this->_s,another._s)!=0; 
 	}
 	friend ostream &operator<<(ostream &out, const simple_string x);

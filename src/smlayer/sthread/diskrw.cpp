@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: diskrw.cpp,v 1.114 1999/06/07 19:05:57 kupsch Exp $
+ $Id: diskrw.cpp,v 1.119 2000/02/22 21:51:58 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -46,6 +46,7 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 
 #include <stdio.h>
 #include <w_stream.h>
+#include <w_strstream.h>
 #include <w.h>
 #include <w_statistics.h>
 #include <w_signal.h>
@@ -62,6 +63,7 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #ifdef _WINDOWS
 #include <io.h>
 #include <process.h>
+#define	getpid()	_getpid()
 #endif
 
 
@@ -78,7 +80,7 @@ struct iovec {
 	void	*iov_base;
 	int	iov_len;
 };
-#elif !defined(AIX41) && !defined(SOLARIS2)
+#elif !defined(AIX41) && !defined(SOLARIS2) && !defined(OSF1)
 extern "C" {
 	extern int writev(int, const struct iovec *, int);
 	extern int readv(int, const struct iovec *, int);
@@ -149,6 +151,7 @@ bool 		kill_siblings = 0;
 int 		statfd = -1;
 const char	*path = 0;
 int 		smode = 0755;
+unsigned	open_max = 0;
 
 
 
@@ -176,7 +179,7 @@ fatal(int line)
 
 #ifdef _WINDOWS
     W_FORM2(cerr,("diskrw: pid=%d, threadid=%d: fatal error at line %d\n", 
-	_getpid(),  GetCurrentThreadId(), line));
+	getpid(),  GetCurrentThreadId(), line));
 #ifdef W_DEBUG
 	// NB: maybe this should be TerminateProcess?
 	DBGTHRD( << "FATAL ERROR: _endthreadex(-1)" );
@@ -517,7 +520,7 @@ flush_wbuf(int fd)
 #endif
 	__stdcall DiskRWMain(void* data)
 #else
-    main(int argc, char* argv[])
+int    main(int argc, char* argv[])
 #endif /* !_WINDOWS */
 
 {
@@ -541,31 +544,31 @@ flush_wbuf(int fd)
     int		fflags = 0;
     const char	*fname = "<noname-diskrw>";
 
-
-#ifdef _WINDOWS
-    ppid = _getpid();
-#else
-    ppid = getppid();
-    if (argc != 7 && argc != 2) {
-	cerr << "usage: " << argv[0]
-	     << " shmid [svcport diskport fflags mode path]"
-	     << endl;
-	fatal(__LINE__);
-    }
-#endif /* !_WINDOWS */
-
-#ifdef DEBUG_DISKRW
-    W_FORM2(cerr, ("diskrw: pid=%d:", getpid()));
+#if defined(DEBUG_DISKRW)
+    cerr << "diskrw: pid=" << getpid() << ':';
     for (i = 0; i < argc; i ++)
 	cerr << ' ' << argv[i];
     cerr << endl;
 #endif /* DEBUG_DISKRW */
 
+
+#ifdef _WIN32
+    ppid = getpid();
+#else
+    ppid = getppid();
+    if (argc != 7 && argc != 3) {
+	cerr << "usage: " << argv[0]
+	     << " shmid svcport [diskport fflags mode path]"
+	     << endl;
+	fatal(__LINE__);
+    }
+#endif /* !_WINDOWS */
+
     /*
      *  Attach to shared memory segment.
      */
     const char* arg1 = argv[1];
-    istrstream((char*)arg1) >> i;
+    istrstream(VCPP_BUG_1 arg1) >> i;
 
 #ifndef _WINDOWS
 #define HANDLE int
@@ -578,14 +581,15 @@ flush_wbuf(int fd)
 	fatal(__LINE__);
     }
 
+    i = atoi(argv[2]);
+    sp = (svcport_t*) (shmem_seg->base() + i);
+    open_max = sp->open_max;
+
     /*
      *  If this is a regular diskrw process, set up pointers to
      *  svcport and diskport.
      */
-    if (argc > 2) {
-
-	i = atoi(argv[2]);
-	sp = (svcport_t*) (shmem_seg->base() + i);
+    if (argc > 3) {
 	i = atoi(argv[3]);
 	dp = (diskport_t*) (shmem_seg->base() + i);
 
@@ -608,7 +612,7 @@ flush_wbuf(int fd)
     alarm(60);
 #endif /* !_WINDOWS */
 
-    if (argc == 2)  {
+    if (argc == 3)  {
 	/*
 	 *  This is the dummy diskrw-- the one that cleans up 
 	 *  the shared memory. Loop forever.
@@ -786,7 +790,7 @@ flush_wbuf(int fd)
 	    if(!z) {
 	     	z = fname;
 	    }
-	    char *b = new char[strlen(c) + strlen(z)];
+	    char *b = new char[strlen(c) + strlen(z) + 1];
 	    if(b) {
 		strcpy(b,c);
 		strcat(b,z);
@@ -1129,15 +1133,11 @@ clean_shutdown(int DBG_ONLY(why))
 	// shared memory segments
 	diskport_t* dp = (diskport_t*) (shmem_seg->base() +
 					sizeof(svcport_t));
-	for (int i = 0; i < open_max; i++, dp++)  {
+	for (unsigned i = 0; i < open_max; i++, dp++)  {
 	    if (dp->pid && dp->pid != -1)  {
 #ifdef W_DEBUG
 		cerr << "diskrw (pid="
-#ifdef _WINDOWS
-			<< _getpid()
-#else
 			<< getpid()
-#endif
 			<< ") killing sibling process " << dp->pid
 			<<endl;
 #endif /* W_DEBUG */
@@ -1176,7 +1176,7 @@ clean_shutdown(int DBG_ONLY(why))
 	char key[40];
 
 	while(n==7) {
-#if defined(Linux) || defined(__NetBSD__)	/* pid_t is a int */
+#if defined(Linux) || defined(__NetBSD__) || defined(OSF1)	/* pid_t is a int */
 	    n = fscanf(res, "m %d %s %s %s %s %d %d\n",
 		&id, key, perm,  person, group, &owner, &last);
 #else
@@ -1196,7 +1196,7 @@ clean_shutdown(int DBG_ONLY(why))
 			failed = true;
 		    }
 		}
-#ifdef DEBUG_DISKRW
+#if defined(DEBUG_DISKRW)
 		else
 		    cerr << "Ignoring segment " << id 
 			<< " created by " << owner << endl;
@@ -1218,7 +1218,8 @@ clean_shutdown(int DBG_ONLY(why))
 #endif /* !_WINDOWS */
 
 #ifdef DEBUG_DISKRW
-    W_FORM2(cerr,("diskrw: pid=%d: %s: normal exit.\n", getpid(), fname));
+    cerr << "diskrw: pid=" << getpid() << ": " << fname << ": normal exit."
+	<< endl;
 #endif /* DEBUG_DISKRW */
 
 #ifdef _WINDOWS
@@ -1279,7 +1280,8 @@ caught_signal(int sig)
 	if(statfd > 0) writestats();
 
 #ifdef DEBUG_DISKRW
-	W_FORM2(cerr, ("diskrw: pid=%d: %s: SIGHUP.\n", getpid(), fname));
+	cerr << "diskrw: pid=" << getpid() << ": " << fname << ": SIGHUP."
+		<< endl;
 #endif
 	exit(0);
     case SIGUSR1:

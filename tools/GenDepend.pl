@@ -2,7 +2,7 @@
 
 # <std-header style='perl' orig-src='shore'>
 #
-#  $Id: GenDepend.pl,v 1.6 1999/06/07 19:08:42 kupsch Exp $
+#  $Id: GenDepend.pl,v 1.8 2000/01/14 05:27:55 bolo Exp $
 #
 # SHORE -- Scalable Heterogeneous Object REpository
 #
@@ -47,7 +47,7 @@ sub Usage
     my $progname = $0;
     $progname =~ s/.*[\\\/]//;
     print STDERR <<EOF;
-Usage: $progname [--outFile=file] [--autoUpdating] [--verbose] [--help] --cppCmd=cmd [--objExtension=objExt] files...
+Usage: $progname [--outFile=file] [--autoUpdating] [--verbose] [--help] --cppCmd=cmd [--objExtension=objExt] [--dosPaths] files...
 Create file which contains a list of dependencies used by make.
 
     --outFile            name of output file defaults to stdout
@@ -56,6 +56,7 @@ Create file which contains a list of dependencies used by make.
     --help|h             prints this message and exits
     --cppCmd             C preprocessor command and options
     --objExtension       object file extension (ex. .obj or .o)
+    --dosPaths		 grok DOS 'drive-letter:' pathnames
     file...              files to include as targets in the output file
 EOF
 }
@@ -63,14 +64,18 @@ EOF
 
 # Configuration parameters.
 
-my $isNT = ($^O =~ /win32/i);
-my $objExt = $isNT ? '.obj' : '.o';
-my %options = (outFile => '-', autoUpdating => 0, verbose => 0, help => 0, objExtension => $objExt);
-my @options = ("outFile=s", "autoUpdating!", "verbose|v!", "help|h!", "cppCmd=s", "objExtension=s");
+my %options = (outFile => '-', autoUpdating => 0, verbose => 0, help => 0, objExtension => '', dosPaths => 0);
+my @options = ("outFile=s", "autoUpdating!", "verbose|v!", "help|h!", "cppCmd=s", "objExtension=s", "dosPaths!");
 my $ok = GetOptions(\%options, @options);
 if (!$ok || $options{help} || !defined($options{cppCmd}))  {
     Usage();
     exit($ok == 0);
+}
+
+my $isDOS = $options{dosPaths};
+## If one isn't provided, try guessing based on unix or DOS
+if (!$options{objExtension}) {
+	$options{objExtension} = $isDOS ? '.obj' : '.o';
 }
 
 
@@ -93,7 +98,7 @@ foreach $file (@ARGV) {
     $objFile =~ s/^.*\///;
     $objFile =~ s/\.[^.]*$/$options{objExtension}/o;
     my $command = "$options{cppCmd} $file";
-    if ($isNT)  {
+    if ($isDOS)  {
 	$command =~ s/'/"/g; # NT can't handle '
 	$command = "sh -c '$command'" if $command =~ /^"/;
     }
@@ -105,9 +110,10 @@ foreach $file (@ARGV) {
     while (<CMDOUT>) {
 	if (/^\s*#\s*line\s*\d+\s+"(.*)"\s*$/ || /^\s*#\s*\d+\s+"(.*)"/)  {		# line num file
 	    my $depFile = $1;
+	    $depFile =~ tr/\\/\//;
+	    $depFile =~ s/\/+/\//g;
+	    $depFile =~ s|([a-zA-Z]):|//$1| if $isDOS;
 	    if ($depFile !~ /[: ]/)  {
-		$depFile =~ tr/\\/\//;
-		$depFile =~ s/\/+/\//g;
 	        $dependency{$depFile}++;
 	    }
 	}

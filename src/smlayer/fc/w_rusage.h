@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='W_RUSAGE_H'>
 
- $Id: w_rusage.h,v 1.9 1999/06/07 19:02:55 kupsch Exp $
+ $Id: w_rusage.h,v 1.10 2000/01/14 19:34:39 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -35,7 +35,7 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 /*  -- do not edit anything above this line --   </std-header>*/
 
 #ifdef _WINDOWS
-#include <winsock2.h>
+#include <w_winsock.h>
 #include <time.h>
 #include <sys/timeb.h>
 #else

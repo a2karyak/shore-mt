@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: log.cpp,v 1.124 1999/08/06 19:53:45 bolo Exp $
+ $Id: log.cpp,v 1.125 1999/12/10 04:10:39 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -106,27 +106,13 @@ log_m::log_m(
     _shared->_maxLogDataSize = max_logsz - s->length();
     delete s;
 
-    /*
-     * mimic argv[]
-     */
-    char arg1[100];
-  // TODO remove  char arg2[100];
-
-    ostrstream s1(arg1, sizeof(arg1));
-    s1 << path << '\0';
-
-/*
-    ostrstream s2(arg2, sizeof(arg2));
-    s2 << _shmem_seg.id() << '\0';
-*/
-
     DBGTHRD(<< "_shared->_min_chkpt_rec_lsn = " 
 	<<  _shared->_min_chkpt_rec_lsn);
 
     //_peer = srv_log::new_log_m(s1.str(), s2.str(), reformat);
     w_rc_t	e;
     srv_log	*slog;
-    e = srv_log::new_log_m(slog, s1.str(),  
+    e = srv_log::new_log_m(slog, path,
 			   rdbufsize, wrbufsize, shmbase,
 			   reformat);
 

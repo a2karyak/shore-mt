@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: io.cpp,v 1.8 1999/06/22 20:04:47 bolo Exp $
+ $Id: io.cpp,v 1.10 2000/02/01 23:38:08 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -27,13 +27,16 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 
 */
 
+#include "w_defines.h"
+
+/*  -- do not edit anything above this line --   </std-header>*/
 
 /*
  * On NetBSD and Solaris, we can compare our parsing code with
  * the library code (strtoull, strotoq, etc).
  * On NT, there's no such comparison to make.
  *
- * If USE_OUR_IMPLEMENTATION is defined in ../w_base.cpp, 
+ * If USE_OUR_IMPLEMENTATION is defined in ../w_base.cpp,
  * we should define TESTIT here.
  * except that you can't so so on NT.
  */
@@ -43,11 +46,9 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #undef TESTIT
 #endif
 
-#include "w_defines.h"
 
-/*  -- do not edit anything above this line --   </std-header>*/
-
-#include <iostream.h>
+#include <w_stream.h>
+#include <w_strstream.h>
 #include <w_base.h>
 #include <unix_stats.h>
 

@@ -1,0 +1,23 @@
+.TH INTRO COMMON "Jan 1999" Release \*(SV" "Shore Storage Manager" "Release 2.0" "Shore Storage Manager Reference Manual"
+.so tmac.man.local
+.SH NAME
+INTRO \- Introduction to the Shore Common code
+.SH DESCRIPTION
+.LP
+The classes in the common directory are 
+available for use by any Shore users, but 
+they are intended for those writing value-added
+servers.
+
+.SH "SEE ALSO"
+
+.SA errlog(common),
+.SA lid_t(common),
+.SA options(common),
+.SA vec_t(common),
+.SA nbox_t(common),
+.SA serial_t(common),
+.SA latch_t(common),
+.SA rsrc(common),
+and
+.SA intro(fc)

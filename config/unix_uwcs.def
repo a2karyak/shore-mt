@@ -3,4 +3,4 @@ VCPP_DIR =
 TCL_DIR = /p/paradise/tcl/tcl8.0
 BISON_DIR = $(UTIL_DIR)/bison/bin
 FLEX_DIR = $(UTIL_DIR)/flex/bin
-PERL_DIR = $(UTIL_DIR)/perl
+PERL_DIR = /s/perl-5.005

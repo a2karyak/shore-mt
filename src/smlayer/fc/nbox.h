@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='NBOX_H'>
 
- $Id: nbox.h,v 1.15 1999/06/07 19:02:45 kupsch Exp $
+ $Id: nbox.h,v 1.16 1999/10/31 04:31:14 kupsch Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -135,6 +135,7 @@ public:
 	nbox_t& operator=(const nbox_t& other);
 	bool operator==(const nbox_t& other) const;
 	bool operator/(const nbox_t& other) const;
+    bool contains(const nbox_t& other) const { return *this / other; }
 	bool operator||(const nbox_t& other) const;
 	bool operator>(const nbox_t& other) const;
 	bool operator<(const nbox_t& other) const;

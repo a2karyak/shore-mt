@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: shell2.cpp,v 1.43 1999/06/07 19:04:59 kupsch Exp $
+ $Id: shell2.cpp,v 1.45 2000/02/02 03:28:50 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -33,6 +33,8 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 
 #include <ctype.h>
 #include "shell.h"
+
+#include <new.h>
 
 #ifdef EXPLICIT_TEMPLATE
 template class w_auto_delete_array_t<bool>;
@@ -156,8 +158,8 @@ int u4_cmp(const void *_p, const void *_q)
     uint4_t *p = (uint4_t *)&values_i4[*(int *)_p];
     uint4_t *q = (uint4_t *)&values_i4[*(int *)_q];
 
-    DBG(<<"p=" << *(int4_t *)p
-        <<"q=" << *(int4_t *)q
+    DBG(<<"p=" << *(uint4_t *)p
+        <<"q=" << *(uint4_t *)q
 	);
     if (*p < *q) return -1;
     if (*p > *q) return 1;
@@ -169,8 +171,8 @@ int u8_cmp(const void *_p, const void *_q)
     w_base_t::uint8_t *p = (w_base_t::uint8_t *)&values_i8[*(int *)_p];
     w_base_t::uint8_t *q = (w_base_t::uint8_t *)&values_i8[*(int *)_q];
 
-    DBG(<<"p=" << *(w_base_t::int8_t *)p
-        <<"q=" << *(w_base_t::int8_t *)q
+    DBG(<<"p=" << *(w_base_t::uint8_t *)p
+        <<"q=" << *(w_base_t::uint8_t *)q
 	);
     if (*p < *q) return -1;
     if (*p > *q) return 1;
@@ -682,7 +684,7 @@ _t_test_typed_btree(
 		case test_spatial:
 		default: w_assert1(0);
 	    }
-	    qsort(sorted, n, sizeof(void *), compar);
+	    qsort(sorted, n, sizeof(int), compar);
 
 	    /* 
 	     * sorted[] has been sorted, values_* remains the same
@@ -1867,7 +1869,7 @@ _t_test_typed_btree(
 				break;
 
 				case test_u8:
-				cerr << (unsigned) i8 << endl;
+				cerr << (w_base_t::uint8_t) i8 << endl;
 				break;
 				case test_i8:
 				cerr << i8 << endl;
@@ -2784,7 +2786,7 @@ t_sort_file(Tcl_Interp* ip, int ac, char* av[])
 
     info.offset = 0;
     info.where = key_info_t::t_body;
-    info.universe = NULL;
+    info.universe = 0;	/* XXX reset or something ??? */
 
     bool unique = false;
     if (strcmp("normal", av[distinct_arg]))  {

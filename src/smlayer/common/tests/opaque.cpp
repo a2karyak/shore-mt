@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: opaque.cpp,v 1.11 1999/06/07 19:02:37 kupsch Exp $
+ $Id: opaque.cpp,v 1.12 2000/01/13 18:49:23 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -42,8 +42,7 @@ template ostream &operator<<(ostream &, const opaque_quantity<max_server_handle_
 #endif
 
 
-int
-main()
+int main()
 {
     // test unaligned vectors if possible;
 

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: vtable_info.cpp,v 1.11 1999/06/07 19:02:49 kupsch Exp $
+ $Id: vtable_info.cpp,v 1.12 2000/02/01 23:34:42 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -33,6 +33,8 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 
 #include <w.h>
 #include <vtable_info.h>
+
+#include <w_strstream.h>
 
 
 void 

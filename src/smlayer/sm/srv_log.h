@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='SRV_LOG_H'>
 
- $Id: srv_log.h,v 1.30 1999/06/15 15:11:57 nhall Exp $
+ $Id: srv_log.h,v 1.31 1999/12/10 05:29:47 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -166,18 +166,16 @@ protected:
 };
 
 
-typedef int  FHDL;
-
-
 /* abstract class: */
 class partition_t {
 	friend class srv_log;
 
 public:
-	// typedef sthread_base_t::fileoff_t fileoff_t;
+	/* XXX why not inerhit from log_base ??? */
 	typedef smlevel_0::fileoff_t fileoff_t;
-	// const XFERSIZE = log_base::XFERSIZE;
 	enum { XFERSIZE = log_base::XFERSIZE };
+	enum { invalid_fhdl = log_base::invalid_fhdl };
+
 	partition_t() :_start(0),
 		_index(0), _num(0), _size(0), _mask(0), 
 		_owner(0) {}
@@ -255,7 +253,7 @@ public:
 	virtual
 	w_rc_t			write(const logrec_t &r, const lsn_t &ll) ;
 
-	w_rc_t			read(logrec_t *&r, lsn_t &ll, int fd);
+	w_rc_t			read(logrec_t *&r, lsn_t &ll, int fd = invalid_fhdl);
 
 	virtual
 	void			close(bool both) = 0;

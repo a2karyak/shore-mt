@@ -1,6 +1,6 @@
 # <std-header style='data' orig-src='shore'>
 #
-#  $Id: e_error.dat,v 1.52 1999/07/19 21:55:33 nhall Exp $
+#  $Id: e_error.dat,v 1.53 1999/10/31 04:42:01 kupsch Exp $
 #
 # SHORE -- Scalable Heterogeneous Object REpository
 #
@@ -66,8 +66,7 @@ NDXNOTEMPTY		index is not empty
 BADKEYTYPESTR		bad key type descriptor
 BADKEY			bad key value
 BADCMPOP		bad compare operators
-OUTOFLOGSPACE		out of log space
-LOGSPACEWARN		log space warning (not necessarily out) 
+OUTOFLOGSPACE		out of log space 
 RECWONTFIT		record will not fit
 BADSLOTNUMBER		record ID slot number is bad
 RECUPDATESIZE		record update request is too large
@@ -138,5 +137,6 @@ LOGVERSIONTOOOLD	Log created with older incompatible server
 BADMASTERCHKPTFORMAT	Bad format for master checkpoint
 
 ABORTED			Transaction aborted by another thread
+LOGSPACEWARN		log space warning (not necessarily out)
 }
 

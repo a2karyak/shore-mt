@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='W_FACTORY_FAST_H'>
 
- $Id: w_factory_fast.h,v 1.8 1999/06/07 19:02:52 kupsch Exp $
+ $Id: w_factory_fast.h,v 1.9 2000/02/01 23:22:42 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -97,7 +97,7 @@ w_fastnew_t::_array_dealloc(void* p, size_t, int)
 
 #if defined(NO_FASTNEW)
 #define	W_FASTNEW_CLASS_DECL(T)
-#define	W_FASTNEW_CLAS_PTR_DECL(T)
+#define	W_FASTNEW_CLASS_PTR_DECL(T)
 #define	_W_FASTNEW_CLASS_DECL(_fn,T)
 
 #define W_FASTNEW_STATIC_DECL(T, el_per_chunk)

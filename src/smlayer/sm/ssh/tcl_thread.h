@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='TCL_THREAD_H'>
 
- $Id: tcl_thread.h,v 1.31 1999/06/07 19:05:02 kupsch Exp $
+ $Id: tcl_thread.h,v 1.33 2000/03/02 23:52:31 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -56,15 +56,25 @@ public:
     Tcl_Interp*			get_ip() { return ip; }
 
     static w_list_t<tcl_thread_t> list;
-    sevsem_t			sync_point;
-    scond_t			proceed;
-    smutex_t			lock;
     w_link_t 			link;
 
+#ifdef SSH_SYNC_OLD
+    sevsem_t			sync_point;
+#else
+    bool			isWaiting;
+    bool			canProceed;
+    bool			hasExited;
+    scond_t			quiesced;
+#endif
+    scond_t			proceed;
+    smutex_t			lock;
+
     static void			initialize(Tcl_Interp* ip, const char* lib_dir);
+
     static void 		sync_other(unsigned long id);
-    static void 		sync();
     static void 		join(unsigned long id);
+
+    void 			sync();
 
     // This is a pointer to a global variable that all
     // threads can use to pass info between them.
@@ -79,6 +89,8 @@ protected:
     char*			args;
     Tcl_Interp*			ip;
     smutex_t   			thread_mutex;
+
+    static tcl_thread_t		*find(unsigned long id);
 
     static int 			count;
 public:

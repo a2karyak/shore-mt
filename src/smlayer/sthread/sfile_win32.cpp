@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: sfile_win32.cpp,v 1.5 1999/06/07 19:06:07 kupsch Exp $
+ $Id: sfile_win32.cpp,v 1.6 2000/01/14 00:14:10 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -53,11 +53,7 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #include <sthread.h>
 #include <sfile_win32.h>
 
-#ifdef OLD_WINSOCK
-#include <winsock.h>
-#else
-#include <winsock2.h>
-#endif
+#include <w_winsock.h>
 
 /*
  * Convert the socket to the underling win32 handle.

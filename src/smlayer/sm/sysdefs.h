@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='SYSDEFS_H'>
 
- $Id: sysdefs.h,v 1.33 1999/06/07 19:04:45 kupsch Exp $
+ $Id: sysdefs.h,v 1.34 1999/10/25 18:34:11 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -66,8 +66,6 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #include <netdb.h>
 #endif
 
-#include <setjmp.h>
-#include <new.h>
 #include <w_stream.h>
 //#include <rpc/rpc.h>
 

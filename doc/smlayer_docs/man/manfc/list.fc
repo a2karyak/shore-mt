@@ -1,0 +1,190 @@
+.TH LIST FC "Jan 1999" Release \*(SV" "Shore Storage Manager" "Release 2.0" "Shore Storage Manager Reference Manual"
+.so tmac.man.local
+.SH NAME
+w_list_t \- generic list structures
+.SH SYNOPSIS
+.EX
+.IN w.h
+.IN w_list.h
+// for definition of offsetof(x,y):
+.IN stddef.h
+
+class w_link_t;
+class T {
+    // your type
+    ...
+    w_link_t    _link;
+    ...
+};
+
+// unsorted lists:
+template <class T> class w_list_t; 
+
+// iterator over a w_list_t:
+template <class T> class w_list_i; 
+template <class T> class w_list_const_i; 
+
+// sorted lists:
+template <class T, class K> w_descend_list_t;
+template <class T, class K> w_ascend_list_t;
+.EE
+.SH DESCRIPTION
+.LP
+This is a set templates for managing doubly-linked lists of
+objects of type 
+.B T 
+(for user-defined types T).
+The double-linking of items into lists is accomplished
+with the class
+.VA w_link_t,
+which must be a member of the type T.
+The template methods operate on the 
+.VA w_link_t
+member.  The name of the member can be anything;
+the methods locate the member
+by information given when the list is constructed:
+.EX
+w_list_t<mytype> l(offsetof(mytype, mylink));
+.EE
+where the template parameter is the type:
+.EX
+class mytype {
+    int            a;
+    w_link_t       mylink;
+    ...
+    int            b;
+};
+.EE
+.LP
+The lists managed by these templates are of
+two general kinds: 
+unsorted and sorted.
+.SS Unsorted lists
+.LP
+Unsorted 
+lists (
+.FN w_list_t<T> ) 
+are constructed as in the example given above.
+.LP
+Items are put into the list with 
+the any of the following methods:
+.EX
+w_list_t<T>&   push(T* t);
+T*             pop();    // reverse of push
+w_list_t<T>&   append(T* t) ;
+T*             chop();    //reverse of append
+.EE
+.LP
+These methods return the objects at the
+front and rear of the lists:
+.EX
+T*     top();
+T*     bottom();
+.EE
+.LP
+A list can be printed with 
+.EX
+friend ostream&             operator<<(
+    ostream&                    o,
+    const w_list_t<T>&          l);
+.EE
+
+.LP
+Unsorted lists 
+are traversed with iterators (instances of 
+.FN w_list_i<T> ),
+which have methods
+.FN next(),
+.FN curr(),
+and 
+.FN reset().
+.EX
+{
+    mytype    *p;
+    w_list_i<mytype> iter(l);
+    for (int i = 0; i < 10; i++)  {
+        p = iter.next();
+        if ( p->a == ....  // whatever you wish
+    }
+}
+.EE
+
+.SS Sorted lists
+.LP
+Sorted lists (
+.FN w_descend_list_t<T,K> 
+and
+.FN w_ascend_list_t<T,K> )
+are lists of objects containing
+.BR keys ,
+which are members of the template parameter class T,
+whose type is the template parameter type K.
+.LP
+Sorted lists are traversed by calling their 
+methods 
+.EX
+virtual T *search(const K &);
+.EE
+In order for the method
+.FN search
+to work, the
+template has to find a member of the key type 
+.B K
+in each instance of type T that is in the list.
+For this reason, each ordered list is constructed with the
+location of the key as well as the location of the 
+.FN w_link_t:
+.EX
+// order this list on the value of a in descending order
+w_descend_list_t<mytype, int> l(
+        offsetof(mytype, a),     
+        offsetof(mytype, mylink) // offset of link
+);
+
+// order this list on the value of b in ascending order
+w_ascend_list_t<mytype, int> l(
+        offsetof(mytype, b),     
+        offsetof(mytype, mylink) // offset of link
+);
+.EE
+.LP
+Objects are inserted into sorted lists with the
+method
+.FN put_in_order:
+.EX
+virtual void   put_in_order(T* t);
+.EE
+.LP
+Sorted lists can be traversed with iterators (
+.FN w_list_i ),
+and with these methods:
+.EX
+T*    first();
+T*    last();
+.EE
+.LP
+In addition, methods derived from
+.FN w_list_i
+such as 
+.FN pop
+can be used to remove items from the head
+list (e.g, for destroying the entire list). 
+.SS DERIVING NEW LISTS
+The methods
+.FN search 
+and 
+.FN put_in_order
+are declared virtual so that other list types
+can be derived from these templates.
+.SH BUGS
+.LP
+There are no methods for removing items from 
+the middle of a list.
+.DA
+.SH "SEE ALSO"
+.SA rc(fc), 
+.SA intro(fc),
+.SA statistics(oc),
+.SA statistics(svas),
+and
+.SA statistics(ssm).

@@ -1,0 +1,296 @@
+<std-header style='plain' orig-src='shore'>
+
+ $Id: build.README,v 1.11 1999/06/07 19:09:21 kupsch Exp $
+
+SHORE -- Scalable Heterogeneous Object REpository
+
+Copyright (c) 1994-99 Computer Sciences Department, University of
+                      Wisconsin -- Madison
+All Rights Reserved.
+
+Permission to use, copy, modify and distribute this software and its
+documentation is hereby granted, provided that both the copyright
+notice and this permission notice appear in all copies of the
+software, derivative works or modified versions, and any portions
+thereof, and that both notices appear in supporting documentation.
+
+THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+"AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+
+This software was developed with support by the Advanced Research
+Project Agency, ARPA order number 018 (formerly 8230), monitored by
+the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+Further funding for this work was provided by DARPA through
+Rome Research Laboratory Contract No. F30602-97-2-0247.
+
+  -- do not edit anything above this line --   </std-header>
+
+*******************************************************************************
+HOW to build a workspace under solaris
+
+    gunzip pshore.tar.gz
+    mkdir shore.test
+    cd shore.test
+    tar xf ../pshore.tar
+    cd config
+    cp shore.def.example shore.def
+#   edit shore.def if you see fit
+    cd ../imake
+    chmod +x bootstrap.pl
+    bootstrap.pl
+    cd ../src
+    ../tools/makemake .. (this step is optional if "makefile" exists in this dir)
+    make
+
+*******************************************************************************
+HOW to build a workspace under NT  
+
+You need a bunch of unix utilities installed on NT.  See
+the REQUIREMENTS section, below.
+
+1) relative to this directory: to build imake
+   cd ./imake
+   perl ../tools/ntclean.pl Makefile.ini
+
+   chmod +x bootstrap.pl
+   perl boostrap.pl
+
+   If that fails, it's probably due to the locations of installed
+   utilities, so look at the README file in this (the imake) directory
+   for further instructions.
+
+
+2) relative to ./imake:
+   cd ../config
+
+   Edit shore.def.  on NT, you have to define USE_OCOMM,
+	USE_OCOMM_TCP, and USE_COMM_TCP_XXX.
+        The debugging stuff can go either way.
+
+   Edit Project.tmpl to show where you have installed
+	common utilities  (UTIL_DSK)
+	DevStudio (VCPP_DSK)
+	tcl (TCL_DIR)
+
+3) relative to ./imake:
+   cd ../src
+
+   perl ../tools/makemake.pl ..
+   # on solaris, this is the same as doing: ../tools/makemake ..
+
+4) still in src/:
+   #
+   # on NT, do: 
+   # (NB: this might not work any longer, depending on the
+   # state of your GNU utilities.  Probably not.)
+   #
+   perl ../tools/make.pl depend
+   #
+   # OR do this:
+   #
+   make depend
+   #
+   # This is more likely to work, but beware:
+   # the cygwin dlls sometimes (quasi-randomly) choke
+   # and leave you in an infinite loop.  We don't know the
+   # fix for this yet. 
+   # Some test directories in object_comm get errors
+   # with "make depend" but that's ok for now, since these
+   # are tests, and they don't build under NT yet.
+   #
+
+4) still in src/:
+
+   make
+
+   # Sometimes you can get away with just "make", but 
+   # it doesn't seem to cope with recursive makes in all cases;
+   # I don't yet know why.  It's rather random.  Some days,
+   # the cygwin dlls do ok; other days they choke all over 
+   # the place.
+   # Sometimes you just have to descend into the directories
+   # and say "make" there, one at a time.
+   # ARG!
+
+
+HOW TO CLEAN a workspace on NT (or solaris)
+
+1) relative to this directory:
+   cd src
+   make clean
+   #
+   # At latest writing, this craps out in the cygwin dlls,
+   # but if you descend to each directory in turn and run "make clean"
+   # it seems to work.  ARG!
+   #
+   
+INSTALLING:
+
+   make -i install
+   # make install seems to choke miserably on NT.  What we've been 
+   # seeing is that "cp" returns an error (with a senseless error msg)
+   # but it still seems to do the copy!  So its return code
+   # causes make to choke.  You can use -i to ignore these return codes.
+   # ARG!
+
+*******************************************************************************
+ANNOYANCES
+
+1) gnu make doesn't seem to handle recursive makes very well.
+    I'm still trying to track down the sources of some of the problems.
+    It helps a lot if you do this, suitably modified to show your
+    path to sh.exe (where sh.exe is a copy of bash.exe):
+
+	alias make make "SHELL=D:/usr/local/bin/sh.exe" 
+
+2) rm x.* abc fails to remove <anything> if x.* expands to nothing.
+    Consequently, all the clean:: targets have been split into
+    a bunch of separate rm commands.  It's most annoying.
+
+3) gnu make (or bash - not sure which) places the bash command that
+    it's executing in the NT window's title bar.  This seems to be
+    quite slow.
+
+4) The makefiles are more verbose than they used to be.  This is because
+    of the myriad problems getting make to work on NT.  Not being
+    sure that the problems are gone, I've left the verbosity intact.
+
+5) VC++ and other DevStudio tools litter your workspace with files 
+    with various extensions: .opt .sbr .pdb .ilk and so on. I've
+    tried to clean them up by putting "rm" commands for them in the
+    clean:: targets.
+
+6) If you want to get any debugging help whatsoever from DevStudio, you
+    not only have to have symbols in the object files, but you have to
+    have the browser files created.  So there are new targets that 
+    generate these -- they run the compiler in syntax-check mode,
+    and have it generate the .sbr files; this does NOT update your .obj
+    files.  The targets are
+	.cpp.sbr:
+    and
+	sbrfiles
+
+7) the ^M's left around from NT editors can be removed with 
+    the script tools/ntclean.pl
+
+8) On NT, object files have .obj extensions, not .o; 
+    libraries have .lib extensions, not .a;
+    executables have .exe extensions.
+    Thus, you must munge your Imakefiles.  Do so as follows:
+
+    -change every occurrence of .o to .OBJEXT
+    -change every occurrence of .a to .LIBEXT
+    -use the macros build_library(), append_library(), etc. for 
+	creating libraries.
+    -use the c_plus_program() and c_program() macros for creating
+	executables.
+    -use the EXEC macro as follows for multiple executable targets 
+	with a default to mean "build them all":
+
+	EXEC = target1 target2 target3
+
+	You can thereafter, if you so choose, refer to $(EXECS) to
+	mean the list given in $(EXEC), suitably munged to include
+	the .exe extension if this is NT.  This works because 
+	config/Project.rules contains these rules:
+
+	on NT: EXECS = $(EXEC:%=%.EXEEXT)
+	on Unix: EXECS = $(EXEC)
+
+	and, in all cases:
+	all::      automatic $(ALLTARGETS) $(EXECS)
+
+9)  Be aware that [control your gag reflex] the VC++ compiler puts
+	into each .obj file a list of libraries that the compiled
+	code thinks it's using (based on compiler flags and #include-ed
+	file names, as far as I can tell).  Thus, you can have some trouble
+	if you try just to re-link with a different implementation of 
+	a library.  There are two ways to deal with this.
+	1) use editbin.exe to flip the bit in the .obj file that
+	   indicates that the library list is to be used in linking.
+	   editbin /section:.drectve,\!o file.obj
+	   (to restore the bit, do: editbin /section:.drectve,o file.obj)
+	2) compile with the /Zl flag to omit the library names from
+	   the .obj files. (Configuration does NOT do that). 
+
+
+10) Source code changes for VC++ (see src/fc/w_workaround.h).
+	1) W_FORM is deprecated; all uses had to be changed to 
+		W_FORM2 for formatting output
+	2) instances of strstream s(a,b) used as ostrstreams must
+	    be declared as ostrstream or 
+		strstream s(a,b, ios::out)
+	3) ALL stream I/O-related include files are encapsulated in
+	    <w_stream.h>.  NO SOURCE FILES SHOULD DIRECTLY INCLUDE ANY
+	    OF THE FILES FOUND THEREIN.  Since there are 2 implementations
+	    of the stream I/O libraries under VC++, and they cannot be
+	    be intermixed, we must have ONE and only one place where the
+	    choice is made between the old and new libraries; w_stream.h
+	    is that place.
+	4) All definitions of getopt, optind, and related stuff are in
+	    src/common/getopt.h.  USE THIS instead of explicit declarations.
+	    If you prefer to use the C++ implementation directly, instead of
+	    using through the C interface,  include getopt++.h instead of
+	    getopt.h.  The implementation is in src/common, and getopt.[ch]
+	    are wrappers for getopt++.[ch].
+	5) The sources can use 
+		#if defined(_WINDOWS)
+	    when building on NT.  
+	    The Imakefiles can use 
+		#if defined(IS_NT).
+
+*******************************************************************************
+REQUIREMENTS
+
+NT 4.0
+VC++ 5.0
+
+Some reasonable unix-like shell, e.g. tcsh -- found at
+    ftp://ftp.blarg.net/users/amol/tcsh
+
+Tcl 8.0 -- can be found in the repository  or at http://sunscript.sun.com
+Gnu make, bash, basename, rm, cp, etc -- from cygnus:
+	ftp://ftp.cygnus.com/pub/gnu-win32/gnu-win32/
+perl -- from http://www.activeware.com
+
+You might want to copy some DevStudio utilities from
+    C:/Program Files/DevStudio/VC/bin 
+to your D:/usr/local/bin (or somewhere else in your path
+that has NO SPACES in its pathname):
+    bscmake.exe
+    cl.exe
+    lib.exe
+    link.exe
+    dumpbin.exe
+
+You probably also want a decent editor (emacs or wvim)
+	ftp://uiarchive.uiuc.edu/pub/packages/vim/
+	or
+	ftp://www.halcyon.com/local/gvr/
+	ftp://www.halcyon.com/local/gvr/vim
+
+
+ENVIRONMENT:
+You have to use settings->control panel->system->environment
+    to put all these things in your path: utils, perl location,
+    DevStudio.
+    In particular, you need LIB to include <...>DevStudio/VC/lib and
+	<...>DevStudio/VC/mfc/lib
+
+    ****************************************************************
+    NB: I've had trouble getting this right.  I'm told that if you
+    have spaces in your path names, you should use quotes in your
+    Path environment variable's value, but I've found that doing this
+    makes tcsh choke.  On the other hand, if the quotes are NOT there,
+    bash barfs.  The solution for bash seems to be to set PATH
+    in your ~/.bashrc, using quotes.  Here's my .bashrc:
+
+PATH="C:/WINNT/system32":"C:/WINNT":.:"D:/usr/local/bin":"D:/s/perl/bin":"D:/s/vim":"C:/Program Files/bin":"C:/Program Files/DevStudio/SharedIDE/bin":"C:/Program Files/DevStudio/VC/bin":"C:/Program Files/DevStudio/VC/bin/winnt"
+
+
+NB: You must have a sh.exe installed.  Copy bash.exe to sh.exe in your
+    utilities directory, and GNU make will be happy.
+    ****************************************************************
+

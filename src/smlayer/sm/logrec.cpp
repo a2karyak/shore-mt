@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: logrec.cpp,v 1.139 1999/06/15 15:11:53 nhall Exp $
+ $Id: logrec.cpp,v 1.142 2000/11/28 21:00:17 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -45,6 +45,8 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 
 #include "btree_p.h"
 #include "rtree_p.h"
+
+#include <new.h>
 
 enum { 	eINTERNAL = smlevel_0::eINTERNAL,
 	eOUTOFMEMORY = smlevel_0::eOUTOFMEMORY
@@ -223,6 +225,12 @@ void logrec_t::redo(page_p* page)
     FUNC(logrec_t::redo);
     DBG( << "Redo  log rec: " << *this 
 	<< " size: " << _len << " prevlsn: " << _prev );
+
+    /* XXX stupid NCR hack that doesn't truely indicate how the 
+       system is running. */
+    if (!smlevel_0::_did_recovery)
+        smlevel_0::_did_recovery = true;
+
     switch (_type)  {
 #include "redo_gen.cpp"
     }

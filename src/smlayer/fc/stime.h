@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='STIME_H'>
 
- $Id: stime.h,v 1.18 1999/06/07 19:02:46 kupsch Exp $
+ $Id: stime.h,v 1.19 1999/11/02 03:58:22 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -167,6 +167,9 @@ public:
 
 	/* the Current time */
 	static	stime_t now();
+
+	/* Offset of this timezone from GMT */
+	static	stime_t	gmtOffset();
 
 	ostream	&print(ostream &s) const;
 	ostream &ctime(ostream &s) const;

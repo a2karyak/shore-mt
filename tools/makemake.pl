@@ -2,7 +2,7 @@
 
 # <std-header style='perl' orig-src='shore'>
 #
-#  $Id: makemake.pl,v 1.26 1999/06/07 19:09:14 kupsch Exp $
+#  $Id: makemake.pl,v 1.29 2000/01/14 05:27:55 bolo Exp $
 #
 # SHORE -- Scalable Heterogeneous Object REpository
 #
@@ -33,14 +33,13 @@
 use strict;
 
 
-my $isNT = ($^O =~ /Win32/);
-
-my $imakeExec = 'imake/imake';
-$imakeExec .= '.exe' if $isNT;
+my $imakeDir = 'imake';
+my $imakeExec = "$imakeDir/imake";
 my $imakefileName = 'Imakefile';
 my $tmpMakefileName = 'Makefile.new';
 my $makefileName = 'Makefile';
 my $defFile = 'config/shore.def';
+my $isDOS = 0;
 
 
 sub CanonicalFilename
@@ -63,6 +62,13 @@ sub CanonicalFilename
     join('/', @filename);
 }
 
+sub CygwinName
+{
+    my $filename = shift;
+    $filename =~ s|^([a-zA-Z]):|\$(SLASH)/$1| if $isDOS;
+    return $filename;
+}
+
 
 # generate the Makefile in dir from the Imakefile.
 # first generate it into a tmp Makefile then copy
@@ -79,12 +85,18 @@ sub DoImake
     my $top = CanonicalFilename($topDirPath);
     my $buildTop = CanonicalFilename($buildTopDirPath);
     my $thisPath = CanonicalFilename($path);
+    my $extTop = $top;
+    my $extBuildTop = $buildTop;
+    $top = CygwinName($top) if $isDOS;
+    $buildTop = CygwinName($buildTop) if $isDOS;
 
     # do unlink since previous makemake made these read-only.
     unlink $tmpMakefile;
 
     my $defines = "-DTop='$top' -DBuildTop='$buildTop' -DThisPath='$thisPath'";
-    $defines =~ s/'//g if $isNT;	# NT SHELL doesn't do quotes!!
+    $defines .= " -DExtTop='$extTop'" if $top ne $extTop;
+    $defines .= " -DExtBuildTop='$extBuildTop'" if $buildTop ne $extBuildTop;
+    $defines =~ s/'//g if $isDOS;	# NT SHELL doesn't do quotes!!
     my $cmd = "$buildTopDir/$imakeExec $includeDirs $defines -C$tmpMakefileC -f$fullDir/$imakefileName -s$tmpMakefile";
     print "$cmd\n";
 
@@ -159,14 +171,22 @@ sub Usage
     my $progname = $0;
     $progname =~ s/.*[\\\/]//;
     print STDERR <<EOF;
-Usage: $progname [--topDir=repository_dir] [--buildTopDir=build_dir] [--curPath=path] [--help] [repository_dir]
+Usage: $progname [--topDir=repository_dir] [--buildTopDir=build_dir] [--curPath=path] [--help] [--imakeExecName=imake_program_name] [--dosPaths] [repository_dir]
 Call imake on each Imakefile found in repository_dir and generate Makefile's in build_dir.
 
     --topDir         set directory to start search for Imakefiles
     --buildTopDir    set parallel directory to generate Makefiles
     --curPath        set current path from top dir to this directory
+    --imakeExecName  name of imake program
+    --dosPaths	     mangle and recognize 'drive-letter:' pathnames
     --help|h         print this message and exit
 EOF
+}
+
+sub IsRelativePath
+{
+    my $filename = shift;
+    return !($filename =~ m|^/| || $isDOS && $filename =~ m|^[a-zA-Z]:|);
 }
 
 use Getopt::Long;
@@ -174,8 +194,8 @@ use Cwd;
 my $cwdDir = cwd();
 $cwdDir =~ s/\\/\//g;
 
-my %options = (topDir => '', buildTopDir => '', curPath => '', help => 0);
-my @options = ("topDir=s", "buildTopDir=s", "curPath=s", "help|h!");
+my %options = (topDir => '', buildTopDir => '', curPath => '', help => 0, imakeExecName => '', dosPaths => 0);
+my @options = ("topDir=s", "buildTopDir=s", "curPath=s", "help|h!", "imakeExecName=s", "dosPaths!");
 my $ok = GetOptions(\%options, @options);
 
 $ok = 0 if $#ARGV > 0;
@@ -187,17 +207,29 @@ $options{topDir} = '.' if !$options{topDir};
 $options{buildTopDir} = $options{topDir} if !$options{buildTopDir};
 $options{curPath} = $cwdDir if !$options{curPath};
 
+$imakeExec = "$imakeDir/$options{imakeExecName}" if ($options{imakeExecName});
+
 my $topDir = $options{topDir};
 my $buildTopDir = $options{buildTopDir};
+$buildTopDir =~ s|^//([a-zA-Z])|$1:|;
 my $curPath = $options{curPath};
+$isDOS = $options{dosPaths};
 
 if (!$ok || $options{help})  {
     Usage();
     die(!$ok);
 }
 
-$topDir = "$cwdDir/$topDir" if $topDir !~ /^\//;
-$buildTopDir = "$cwdDir/$buildTopDir" if $buildTopDir !~ /^\//;
+## This may not be needed, it should find the non .exe filename
+## in the search, as the name is looked for with a generated
+## extension.   This would also allow substitution of imake with
+## a front-end script, or other normal unix-like things.
+if ($isDOS) {
+    $imakeExec .= ".exe";
+}
+
+$topDir = "$cwdDir/$topDir" if IsRelativePath($topDir);
+$buildTopDir = "$cwdDir/$buildTopDir" if IsRelativePath($buildTopDir);
 
 $topDir = CanonicalFilename($topDir);
 $buildTopDir = CanonicalFilename($buildTopDir);
@@ -207,7 +239,7 @@ $curPath =~ s/^$buildTopDir\/?//;
 $curPath = CanonicalFilename($curPath);
 my $curPathToTop = $curPath eq '.' ? '.' : CanonicalFilename("../" x (($curPath =~ tr|/||) + 1));
 
-die "$0: error curPath ($curPath) must be contained in buildTopDir ($buildTopDir)." if $curPath =~ /^\//  || $curPath =~ /^\.\./;
+die "$0: error curPath ($curPath) must be contained in buildTopDir ($buildTopDir)." if !IsRelativePath($curPath) || $curPath =~ /^\.\./;
 die "$0: error curPath must be contained in '.'" if $curPath =~ /^\.\./;
 
 my $relativeBuildTopDir = '';

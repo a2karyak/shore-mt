@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: deadlock_events.cpp,v 1.16 1999/06/07 19:04:00 kupsch Exp $
+ $Id: deadlock_events.cpp,v 1.17 2000/02/02 03:57:28 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -33,9 +33,13 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 
 #define SM_SOURCE
 #include <sm_int_1.h>
+
+#include <w_strstream.h>
+
 #ifdef EXPLICIT_TEMPLATE
 template class w_list_t<GtidElem>;
 #endif
+
 W_FASTNEW_STATIC_DECL(GtidElem, 64);
 
 void

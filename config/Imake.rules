@@ -1,6 +1,6 @@
 /*<std-header style='imake' orig-src='shore'>
 
- $Id: Imake.rules,v 1.144 1999/06/11 16:00:33 bolo Exp $
+ $Id: Imake.rules,v 1.155 2000/11/15 20:40:40 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -27,36 +27,33 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 
   -- do not edit anything above this line --   </std-header>*/
 
-/*
- LDLIBS for libraries
-*/
-
 NEWSUFFIXES += .C .c .cc .cpp
 
-#if IS_NT
+#if IS_DOSDEV
 NEWSUFFIXES += .obj .exe .sbr .bsc .pdb
 
 /* Zs for syntax-only -- just to get the .sbr file */
 %.sbr: %.c
-	$(COMPILE.c) -Zs $< 
+	xlate_names($(COMPILE.c) -Zs $<)
 /* Zs for syntax-only -- just to get the .sbr file */
 %.sbr: %.cpp
-	$(COMPILE.c) -Zs $< 
+	xlate_names($(COMPILE.c) -Zs $<)
 #endif /* IS_NT */
 
 ifdef INCLUDE_DEPEND
 %.OBJEXT: %.c
-	$(COMPILE.c) $< 
+	xlate_names($(COMPILE.c) $<)
 
 %.OBJEXT: %.cpp
-	$(COMPILE.cpp) $<
+	xlate_names($(COMPILE.cpp) $<)
 endif
 
 preprocess_%: %
-	$(CPP) $<
+	xlate_names($(CPP) $<)
 
 /* need command to follow shell construct && which doesn't return an error */
 #define NULL_CMD exit 0
+#define FAIL_CMD exit 1
 WILD = *
 COLON = :
 EMPTY_VAR =
@@ -70,12 +67,12 @@ EXTRA_LD_FLAGS =
 
 #ifdef USE_CC
 #if IS_SNAKE_HPUX8
-#define pxdb_message $(ECHO) 'NB: Ignore error messages from pxdb.'
+#define post_link_step(group) $(ECHO) 'NB: Ignore error messages from pxdb.'
 #endif
 #endif
 
-#ifndef pxdb_message
-#define pxdb_message 
+#ifndef post_link_step
+#define post_link_step(group)
 #endif
 
 #ifndef full_file_names
@@ -334,16 +331,16 @@ IMAKEFILE_DEPEND_FILES += files
 #ifndef do_clean_targets
 #define do_clean_targets()							@@\
 clean_localdir::								@@\
-	$(RM_F) $(CLEAN_FILES)							@@\
+	xlate_names($(RM_F) $(CLEAN_FILES))					@@\
 										@@\
 squeaky_localdir:: clean_localdir						@@\
-	$(RM_F) $(SQUEAKY_FILES)						@@\
+	xlate_names($(RM_F) $(SQUEAKY_FILES))					@@\
 										@@\
 pristine_localdir:: squeaky_localdir						@@\
-	$(RM_F) $(PRISTINE_FILES)						@@\
+	xlate_names($(RM_F) $(PRISTINE_FILES))					@@\
 										@@\
 clean_install_localdir::							@@\
-	$(RM_F) $(INSTALL_FILES)
+	xlate_names($(RM_F) $(INSTALL_FILES))
 #endif
 
 /*
@@ -352,13 +349,33 @@ clean_install_localdir::							@@\
 ** into one (for each library, for example).
 */
 
-#ifdef IS_NT
+#if IS_DOSDEV
 #define EXENAME(exec) exec.EXEEXT
 #define GLOBAL_LD_OUTFLAGS(exec) -out$(COLON)$(strip EXENAME(exec))
 #define AR_OUTFLAGS(lib)	-out$(COLON)lib
 #define nt_exe_dep(exec) exec: EXENAME(exec) ;
 
 #define GLOBAL_LD_DLL_OUTFLAGS(dll) -out$(COLON)$(strip dll)
+
+#ifndef add_rc_file
+#define add_rc_file(group, rc_file)						\
+$(patsubst %.rc,%.res,$(notdir rc_file)): rc_file				@@\
+	xlate_names($(compile.RC) $<)						@@\
+$(strip group).other += rc_file							@@\
+$(strip group).gen.other += $(patsubst %.rc,%.res,$(notdir rc_file))		@@\
+$(strip group).objs += $(patsubst %.rc,%.res,$(notdir rc_file))
+#endif
+
+#ifndef add_common_ncr_rc_file
+#define add_common_ncr_rc_file(group)						\
+ifndef DEFINED_NCR_COMMON_RES							@@\
+DEFINED_NCR_COMMON_RES = 1							@@\
+init_file_group(ncr_res_group)							@@\
+add_rc_file(ncr_res_group, $(COMMON_NCR_RC_FILE))				@@\
+endif										@@\
+add_to_group(group, ncr_res_group)						@@\
+$(strip group).objs += $(ncr_res_group.objs)
+#endif
 
 #ifndef build_bsc_file
 #define build_bsc_file(exec, libs)						@@\
@@ -377,6 +394,8 @@ exec.bsc:									@@\
 #define GLOBAL_LD_DLL_OUTFLAGS(dll)  -o dll
 #define AR_OUTFLAGS(lib)	lib
 #define nt_exe_dep(exec) 
+#define add_rc_file(group, res_file)
+#define add_common_ncr_rc_file(group)
 #ifndef build_bsc_file
 #define build_bsc_file(exec, libs)
 #endif /* build_bsc_file */
@@ -431,8 +450,8 @@ $(group.full_exec_name): $(group.objs) $(group.libs)				@@\
 endif										@@\
 										@@\
 $(group.exec_name).link:							@@\
-	$(LD) GLOBAL_LD_OUTFLAGS($(group.exec_name)) $(group.objs) $(group.libs) $(EXTRA_LD_FLAGS) $(LDFLAGS) $(LOCAL_LDFLAGS) $(CPLUSLIB) $(group.sys_libs) $(GLOBAL_LDFLAGS)		@@\
-	pxdb_message								@@\
+	xlate_names($(LD) GLOBAL_LD_OUTFLAGS($(group.exec_name)) $(group.objs) $(group.libs) $(EXTRA_LD_FLAGS) $(LDFLAGS) $(LOCAL_LDFLAGS) $(CPLUSLIB) $(group.sys_libs) $(GLOBAL_LDFLAGS))	@@\
+	post_link_step(group)							@@\
 build_purify_exec(group, $(PURE_OPT))						@@\
 build_quantify_exec(group, $(QUANT_OPT))					@@\
 build_purecov_exec(group, $(PURECOV_OPT))
@@ -473,8 +492,8 @@ $(group.full_exec_name): $(group.objs) $(group.libs)				@@\
 endif										@@\
 										@@\
 $(group.exec_name).link:							@@\
-	$(LD) GLOBAL_LD_OUTFLAGS($(group.exec_name)) $(group.objs) $(group.libs) $(EXTRA_LD_FLAGS) $(LDFLAGS) $(LOCAL_LDFLAGS) $(CPLUSLIB) $(group.sys_libs) $(GLOBAL_WINDOWS_LDFLAGS)		@@\
-	pxdb_message
+	xlate_names($(LD) GLOBAL_LD_OUTFLAGS($(group.exec_name)) $(group.objs) $(group.libs) $(EXTRA_LD_FLAGS) $(LDFLAGS) $(LOCAL_LDFLAGS) $(CPLUSLIB) $(group.sys_libs) $(GLOBAL_WINDOWS_LDFLAGS))		@@\
+	post_link_step(group)
 #endif /* build_categorized_windows_exec */
 
 #if defined(IS_SP2)
@@ -513,8 +532,8 @@ EXENAME($(group.exec_name).poe): $(group.objs) $(group.libs)			@@\
 endif										@@\
 										@@\
 EXENAME($(group.exec_name)).poe.link:						@@\
-	$(LD) -mpoe GLOBAL_LD_OUTFLAGS($(group.exec_name).poe) $(group.objs) $(group.libs) $(EXTRA_LD_FLAGS) $(LDFLAGS) $(LOCAL_LDFLAGS) $(CPLUSLIB) $(group.sys_libs) $(GLOBAL_LDFLAGS)	@@\
-	pxdb_message
+	xlate_names($(LD) -mpoe GLOBAL_LD_OUTFLAGS($(group.exec_name).poe) $(group.objs) $(group.libs) $(EXTRA_LD_FLAGS) $(LDFLAGS) $(LOCAL_LDFLAGS) $(CPLUSLIB) $(group.sys_libs) $(GLOBAL_LDFLAGS))	@@\
+	post_link_step(group)
 #endif /* build_categorized_poe_exec */
 #else
 #define build_poe_exec(group)
@@ -583,7 +602,7 @@ EXENAME($(group.exec_name).pure): $(group.objs) $(group.libs)			@@\
 endif										@@\
 										@@\
 EXENAME($(group.exec_name).pure).link:						@@\
-	$(PURIFY) $(GLOBAL_PURE_OPT) pure_options $(LD) GLOBAL_LD_OUTFLAGS(EXENAME($(group.exec_name).pure)) $(group.objs) $(group.libs) $(EXTRA_LD_FLAGS) $(LDFLAGS) $(LOCAL_LDFLAGS) $(CPLUSLIB) $(group.sys_libs) $(GLOBAL_LDFLAGS)
+	xlate_names($(PURIFY) $(GLOBAL_PURE_OPT) pure_options $(LD) GLOBAL_LD_OUTFLAGS(EXENAME($(group.exec_name).pure)) $(group.objs) $(group.libs) $(EXTRA_LD_FLAGS) $(LDFLAGS) $(LOCAL_LDFLAGS) $(CPLUSLIB) $(group.sys_libs) $(GLOBAL_LDFLAGS))
 #endif /* build_purify_exec */
 #else
 #ifndef build_purify_exec
@@ -628,7 +647,7 @@ EXENAME($(group.exec_name).quant): $(group.objs) $(group.libs)			@@\
 endif										@@\
 										@@\
 EXENAME($(group.exec_name).quant).link:						@@\
-	$(QUANTIFY) $(GLOBAL_QUANT_OPT) quant_options $(LD) GLOBAL_LD_OUTFLAGS($(group.exec_name).quant) $(group.objs) $(group.libs) $(EXTRA_LD_FLAGS) $(LDFLAGS) $(LOCAL_LDFLAGS) $(CPLUSLIB) $(group.sys_libs) $(GLOBAL_LDFLAGS)
+	xlate_names($(QUANTIFY) $(GLOBAL_QUANT_OPT) quant_options $(LD) GLOBAL_LD_OUTFLAGS($(group.exec_name).quant) $(group.objs) $(group.libs) $(EXTRA_LD_FLAGS) $(LDFLAGS) $(LOCAL_LDFLAGS) $(CPLUSLIB) $(group.sys_libs) $(GLOBAL_LDFLAGS))
 #endif /* build_quantify_exec */
 #else
 #ifndef build_quantify_exec
@@ -672,7 +691,7 @@ EXENAME($(group.exec_name).purecov): $(group.objs) $(group.libs)		@@\
 endif										@@\
 										@@\
 EXENAME($(group.exec_name).purecov).link:					@@\
-	$(PURECOV) $(GLOBAL_PURECOV_OPT) pure_options $(LD) GLOBAL_LD_OUTFLAGS(exec.purecov) $(group.objs) $(group.libs) $(EXTRA_LD_FLAGS) $(LDFLAGS) $(LOCAL_LDFLAGS) $(CPLUSLIB) $(group.sys_libs) $(GLOBAL_LDFLAGS)
+	xlate_names($(PURECOV) $(GLOBAL_PURECOV_OPT) pure_options $(LD) GLOBAL_LD_OUTFLAGS(exec.purecov) $(group.objs) $(group.libs) $(EXTRA_LD_FLAGS) $(LDFLAGS) $(LOCAL_LDFLAGS) $(CPLUSLIB) $(group.sys_libs) $(GLOBAL_LDFLAGS))
 #endif /* build_purecov_exec */
 #else
 #ifndef build_purecov_exec
@@ -689,7 +708,7 @@ EXENAME($(group.exec_name).purecov).link:					@@\
  * How to make a library
  * remove it and use quick append (fastest way)
  */
-#ifdef IS_NT
+#if IS_DOSDEV
 AR_FLAGS = -nologo
 #else
 AR_FLAGS = qv
@@ -726,16 +745,16 @@ $(group.lib_name): $(group.objs) $(group.libs)					@@\
 endif										@@\
 										@@\
 $(group.lib_name).archive:							@@\
-	-$(RM_F) $(group.lib_name)						@@\
+	xlate_names(-$(RM_F) $(group.lib_name))					@@\
 ifeq ($(group.libs),)								@@\
-	$(AR) $(AR_FLAGS) AR_OUTFLAGS($(group.lib_name)) $(group.objs)			@@\
-	@$(RANLIB_IFNEEDED) $(group.lib_name) 	   				@@\
+	xlate_names($(AR) $(AR_FLAGS) AR_OUTFLAGS($(group.lib_name)) $(group.objs))	@@\
+	xlate_names(@$(RANLIB_IFNEEDED) $(group.lib_name))			@@\
 else										@@\
 	$(ECHO) '(re)build joint library ' lib					@@\
 	$(ECHO) 'from objects ' objlist						@@\
-	$(AR) qv lib objlist							@@\
+	xlate_names($(AR) qv lib objlist)					@@\
 	$(ECHO) 'add libraries ' otherlibs					@@\
-	@$(COMBINELIBS) $(AR) lib otherlibs					@@\
+	xlate_names(@$(COMBINELIBS) $(AR) lib otherlibs)			@@\
 endif
 #endif /* build_library */
 
@@ -770,8 +789,8 @@ $(group.lib_name): $(group.objs) $(group.libs)					@@\
 endif										@@\
 										@@\
 $(group.lib_name).archive:							@@\
-	-$(RM_F) $(group.lib_name)						@@\
-	$(LD) $(DLL_FLAGS) GLOBAL_LD_DLL_OUTFLAGS($(group.lib_name)) $(group.objs) $(group.libs) $(EXTRA_LD_FLAGS) $(LDFLAGS) $(LOCAL_LDFLAGS) $(CPLUSLIB) $(group.sys_libs) $(GLOBAL_LDFLAGS) 
+	xlate_names(-$(RM_F) $(group.lib_name))						@@\
+	xlate_names($(LD) $(DLL_FLAGS) GLOBAL_LD_DLL_OUTFLAGS($(group.lib_name)) $(group.objs) $(group.libs) $(EXTRA_LD_FLAGS) $(LDFLAGS) $(LOCAL_LDFLAGS) $(CPLUSLIB) $(group.sys_libs) $(GLOBAL_LDFLAGS))
 #endif /* build_categorized_shared_library */
 
 /*
@@ -782,9 +801,9 @@ $(group.lib_name).archive:							@@\
 #define depend_target(src_list)							@@\
 DEPEND_FILES += $(addprefix ., $(addsuffix .d, $(basename src_list)))		@@\
 .%.d: %.cpp									@@\
-	$(GENDEPEND) --outFile=$@ $< 						@@\
+	xlate_names($(GENDEPEND) --outFile=$@ $<)				@@\
 .%.d: %.c									@@\
-	$(GENDEPEND) --outFile=$@ $< 						@@\
+	xlate_names($(GENDEPEND) --outFile=$@ $<)				@@\
 depend: automatic								@@\
 	$(MAKE_W_OPT) depend_no_automatic					@@\
 										@@\
@@ -803,7 +822,7 @@ endif										@@\
 										@@\
 clean_depends_localdir:								@@\
 ifneq (,$(strip src_list))							@@\
-	$(RM_F) $(DEPEND_FILES)							@@\
+	xlate_names($(RM_F) $(DEPEND_FILES))					@@\
 endif
 #else  /* USE_SINGLE_DEPEND */
 #define depend_target(src_list)							@@\
@@ -812,12 +831,12 @@ depend: automatic								@@\
 										@@\
 depend_no_automatic_localdir: src_list						@@\
 ifneq (,$(strip src_list))							@@\
-	-$(RM_F) $(DEPEND_FILES)						@@\
-	$(GENDEPEND) --outFile=$(DEPEND_FILES) $+ 				@@\
+	xlate_names(-$(RM_F) $(DEPEND_FILES))					@@\
+	xlate_names($(GENDEPEND) --outFile=$(DEPEND_FILES) $+)			@@\
 										@@\
 DEPEND_FILES += .depend								@@\
 $(DEPEND_FILES): Imakefile							@@\
-	$(TOUCH) $@								@@\
+	xlate_names($(TOUCH) $@)						@@\
 	$(MAKE_W_OPT) depend							@@\
 										@@\
 pristine_files($(DEPEND_FILES))							@@\
@@ -833,7 +852,7 @@ endif										@@\
 										@@\
 clean_depends_localdir:								@@\
 ifneq (,$(strip src_list))							@@\
-	$(RM_F) $(DEPEND_FILES)							@@\
+	xlate_names($(RM_F) $(DEPEND_FILES)) 					@@\
 endif
 #endif /* USE_SINGLE_DEPEND */
 #endif /* depend_target */
@@ -844,7 +863,7 @@ endif
 #ifndef gen_with_known_files
 #define gen_with_known_files(group, script, dataFile, flags, args, hFiles, cFiles, cppFiles, asmFiles, otherFiles)@@\
 hFiles cFiles cppFiles asmFiles otherFiles: script dataFile			@@\
-	$(PERL) $< flags $(filter-out Makefile $<,$+) args			@@\
+	xlate_names($(PERL) $< flags $(filter-out Makefile $<,$+) args)		@@\
 										@@\
 group.other += script dataFile							@@\
 group.gen.h += hFiles								@@\
@@ -861,7 +880,7 @@ init_file_group(gen_group)							@@\
 include gen_group.mak								@@\
 										@@\
 gen_group.mak $($(strip gen_group).gen.h) $($(strip gen_group).gen.c) $($(strip gen_group).gen.cpp) $($(strip gen_group).gen.asm) $(filter-out script dataFile,$($(strip group).gen.other)): script dataFile	@@\
-	$(PERL) $< flags $(filter-out Makefile $<,$+) args			@@\
+	xlate_names($(PERL) $< flags $(filter-out Makefile $<,$+) args)		@@\
 add_to_group(group, gen_group)							@@\
 group.gen.other += gen_group.mak
 #endif
@@ -873,6 +892,11 @@ group.gen.other += gen_group.mak
 #define gen_error_codes(group, errDataFile, errFlags, errFiles)			\
 gen_with_known_files(group, $(ERRORPL), errDataFile, errFlags, NA, errFiles, NA, NA, NA, NA)
 #endif	/* gen_error_codes */
+
+#ifndef gen_adt_function_registrations
+#define gen_adt_function_registrations(group, adtname)			\
+gen_with_known_files(group, $(GENADTFUNCREGPL), adtname.xml, NA, adtname, $(strip adtname)_gen.h, NA, $(strip adtname)_gen.cpp, NA, NA)
+#endif	/* gen_adt_function_registrations */
 
 #ifndef gen_statistics
 #define gen_statistics(group, statDataFile, statFiles)				\
@@ -930,8 +954,8 @@ group.h += cppFiles
 #ifndef gen_yacc_parser
 #define gen_yacc_parser(group, outFile, inFile)			@@\
 outFile $(basename outFile).h $(basename outFile).act: inFile	@@\
-	$(BISON_W_OPT) --output-file=$(basename $@).c $<	@@\
-	$(MV) $(basename $@).c $(basename $@).cpp	        @@\
+	xlate_names($(BISON_W_OPT) --output-file=$(basename $@).c $<)	@@\
+	xlate_names($(MV) $(basename $@).c $(basename $@).cpp)	@@\
 								@@\
 group.other += inFile						@@\
 group.gen.cpp += outFile					@@\
@@ -943,8 +967,8 @@ squeaky_files($(basename outFile).c)
 #ifndef gen_lex_scanner
 #define gen_lex_scanner(group, outFile, inFile)		        @@\
 outFile: inFile							@@\
-	$(FLEX_W_OPT) $<					@@\
-	$(MV) lex.yy.cc $@					@@\
+	xlate_names($(FLEX_W_OPT) $<)				@@\
+	xlate_names($(MV) lex.yy.cc $@)				@@\
 								@@\
 group.other += inFile						@@\
 group.gen.cpp += outFile					@@\
@@ -977,21 +1001,21 @@ gen_with_known_files(group, $(GENVERSIONPL), dataFile, flags --filePrefix=$(stri
 #ifndef do_install_prepare
 #define do_install_prepare(dir)							\
 	$(MKDIR_P) $(INSTALL_DIR)/dir						@@\
-	$(RM_F) $(foreach i, $(notdir $+), $(INSTALL_DIR)/dir/$(i))
+	xlate_names($(RM_F) $(foreach i, $(notdir $+), $(INSTALL_DIR)/dir/$(i)))
 #endif
 
 #ifndef do_install_links
 #define do_install_links(dir, toinstall)					@@\
 install_links_localdir:: EXTRA_INSTALL(toinstall)				@@\
 	do_install_prepare(dir)							@@\
-	$(foreach file, $+, $(LN_S) full_file_names($(file)) $(INSTALL_DIR)/dir/$(notdir $(file)) && ) NULL_CMD
+	xlate_names($(foreach file, $+, $(LN_S) full_file_names($(file)) $(INSTALL_DIR)/dir/$(notdir $(file)) && ) NULL_CMD)
 #endif
 
 #ifndef install_copy
 #define install_copy(dir, toinstall)						@@\
 install_localdir:: EXTRA_INSTALL(toinstall)					@@\
 	do_install_prepare(dir)							@@\
-	$(CP_P) $+ $(INSTALL_DIR)/dir						@@\
+	xlate_names($(CP_P) $+ $(INSTALL_DIR)/dir)				@@\
 do_install_links(dir, toinstall)						@@\
 install_files($(foreach i, $(notdir EXTRA_INSTALL(toinstall)), $(INSTALL_DIR)/dir/$(i)))
 #endif /*install_copy*/
@@ -1000,7 +1024,7 @@ install_files($(foreach i, $(notdir EXTRA_INSTALL(toinstall)), $(INSTALL_DIR)/di
 #define install_copy_noextra(dir, toinstall)					@@\
 install_localdir:: toinstall							@@\
 	do_install_prepare(dir)							@@\
-	$(CP_P) $+ $(INSTALL_DIR)/dir						@@\
+	xlate_names($(CP_P) $+ $(INSTALL_DIR)/dir)				@@\
 do_install_links(dir, toinstall)						@@\
 install_files($(foreach i, $(notdir toinstall), $(INSTALL_DIR)/dir/$(i)))
 #endif /*install_copy*/
@@ -1009,7 +1033,7 @@ install_files($(foreach i, $(notdir toinstall), $(INSTALL_DIR)/dir/$(i)))
 #define install_move(dir, toinstall)						@@\
 install_localdir:: EXTRA_INSTALL(toinstall)					@@\
 	do_install_prepare(dir)							@@\
-	$(MV) $+ $(INSTALL_DIR)/dir						@@\
+	xlate_names($(MV) $+ $(INSTALL_DIR)/dir)				@@\
 do_install_links(dir, toinstall)						@@\
 install_files($(foreach i, $(notdir EXTRA_INSTALL(toinstall)), $(INSTALL_DIR)/dir/$(i)))
 #endif /*install_move*/
@@ -1031,7 +1055,7 @@ install_files($(foreach i, $(notdir EXTRA_INSTALL(toinstall)), $(INSTALL_DIR)/di
 #ifndef do_subdir_cmd
 #define do_subdir_cmd(make_cmd, subdirs)					\
 ifneq (,$(strip subdirs))							@@\
-ifneq (,$(filter s,$(MAKEFLAGS)))						@@\
+ifeq (,$(findstring s,$(filter-out --%,$(MAKEFLAGS))))				@@\
 	$(ECHO) DOING TARGET $* FOR SUBDIRS subdirs				@@\
 endif										@@\
 	@$(foreach i, subdirs, make_cmd -C $(i) $* && ) NULL_CMD		@@\
@@ -1120,35 +1144,35 @@ pristine_files($(CLEAN_TAG_FILES))						@@\
 										@@\
 ctags:										@@\
 	-$(RM_F) $(GLOBAL_CTAG_FILE)						@@\
-	$(TOUCH) $(TEMP_CTAG_FILE)						@@\
+	xlate_names($(TOUCH) $(TEMP_CTAG_FILE))					@@\
 	$(MAKE_W_OPT) -C $(TOP) automatic					@@\
 	$(MAKE_W_OPT) -C $(TOP) local_ctags					@@\
-	$(SORT_U) $(TEMP_CTAG_FILE) > $(GLOBAL_CTAG_FILE)			@@\
-	-$(RM_F) $(TEMP_CTAG_FILE)						@@\
+	xlate_names($(SORT_U) $(TEMP_CTAG_FILE) > $(GLOBAL_CTAG_FILE))		@@\
+	xlate_names(-$(RM_F) $(TEMP_CTAG_FILE))					@@\
 										@@\
 local_ctags_localdir: $(LOCAL_CTAG_FILE)					@@\
 ifneq (,$(strip srcs))								@@\
-	$(CAT) $(LOCAL_CTAG_FILE) >> $(TEMP_CTAG_FILE)				@@\
+	xlate_names($(CAT) $(LOCAL_CTAG_FILE) >> $(TEMP_CTAG_FILE))		@@\
 endif										@@\
 										@@\
 $(LOCAL_CTAG_FILE): srcs							@@\
 ifneq (,$(strip srcs))								@@\
-	$(CTAGS) -f $(LOCAL_CTAG_FILE) full_file_names($^)			@@\
+	xlate_names($(CTAGS) -f $(LOCAL_CTAG_FILE) full_file_names($^))		@@\
 endif										@@\
 										@@\
 etags:										@@\
-	-$(RM_F) $(GLOBAL_ETAG_FILE)						@@\
+	xlate_names(-$(RM_F) $(GLOBAL_ETAG_FILE))				@@\
 	$(MAKE_W_OPT) -C $(TOP) automatic					@@\
 	$(MAKE_W_OPT) -C $(TOP) local_etags					@@\
 										@@\
 local_etags_localdir: $(LOCAL_ETAG_FILE)					@@\
 ifneq (,$(strip srcs))								@@\
-	$(CAT) $(LOCAL_ETAG_FILE) >> $(GLOBAL_ETAG_FILE)			@@\
+	xlate_names($(CAT) $(LOCAL_ETAG_FILE) >> $(GLOBAL_ETAG_FILE))		@@\
 endif										@@\
 										@@\
 $(LOCAL_ETAG_FILE): srcs							@@\
 ifneq (,$(strip srcs))								@@\
-	$(ETAGS) -f $(LOCAL_ETAG_FILE) full_file_names($^)			@@\
+	xlate_names($(ETAGS) -f $(LOCAL_ETAG_FILE) full_file_names($^))		@@\
 endif
 #endif /* do_tags */
 
@@ -1161,4 +1185,84 @@ file::										@@\
 
 #ifndef remove_values
 #define remove_values(variable, values) variable := $(filter-out values, $(variable))
+#endif
+
+#ifdef GENERATE_CVSIGNORE
+#ifndef gen_cvsignore
+#define gen_cvsignore()                                                         @@\
+ifeq ($(TOP),$(BUILD_TOP))                                                      @@\
+SRC.gen.other += .cvsignore                                                     @@\
+.cvsignore: Makefile                                                            @@\
+	$(RM_F) $@                                                              @@\
+	$(ECHO_NO_AT) $(CLEAN_FILES) $(SQUEAKY_FILES) $(PRISTINE_FILES) > $@    @@\
+endif
+#endif
+#else
+#ifndef gen_cvsignore
+#define gen_cvsignore()
+#endif
+#endif
+
+#ifndef dont_src_link_files
+#define dont_src_link_files(files)                                              \
+DONT_SRC_LINK_FILES += files
+#endif
+
+#ifndef do_src_links
+#define do_src_links()                                                          @@\
+ifeq ($(TOP),$(BUILD_TOP))                                                      @@\
+LN_SRC_FILES =                                                                  @@\
+else                                                                            @@\
+LN_SRC_FILES = $(filter-out $(DONT_SRC_LINK_FILES), $(sort $(filter $(notdir $(SRC.all.all_types)),$(SRC.all.all_types)) Imakefile))    @@\
+pristine_files($(LN_SRC_FILES))                                                 @@\
+endif                                                                           @@\
+                                                                                @@\
+src_links_localdir:                                                             @@\
+ifeq ($(TOP),$(BUILD_TOP))                                                      @@\
+	$(ECHO) 'Error$(COLON) BUILD_DIR cannot be . in make src_links'         @@\
+	FAIL_CMD                                                                @@\
+else                                                                            @@\
+	$(RM_F) $(LN_SRC_FILES)                                                 @@\
+	$(foreach i, $(addprefix $(TOP)/$(THIS_PATH)/,$(LN_SRC_FILES)),$(LN_S) $(i) &&) NULL_CMD        @@\
+endif                                                                           @@\
+                                                                                @@\
+clean_src_links_localdir:                                                       @@\
+ifeq ($(TOP),$(BUILD_TOP))                                                      @@\
+	$(ECHO) 'Error$(COLON) BUILD_DIR cannot be . in make clean_src_links'   @@\
+	FAIL_CMD                                                                @@\
+else                                                                            @@\
+	$(RM_F) $(LN_SRC_FILES)                                                 @@\
+endif
+#endif
+
+#ifndef do_cvs_commands
+#define do_cvs_commands()                                                       @@\
+cvsupdate:                                                                      @@\
+	$(CVS_UPDATE)                                                           @@\
+cvsupdatea:                                                                     @@\
+	$(CVS_UPDATE_A)                                                         @@\
+cvsverify:                                                                      @@\
+	$(CVS_N_UPDATE)                                                         @@\
+cvsverifya:                                                                     @@\
+	$(CVS_N_UPDATE_A)                                                       @@\
+cvscommit:                                                                      @@\
+	$(CVS_COMMIT)                                                           @@\
+%_cvscommit: %                                                                  @@\
+	$(CVS_COMMIT) xlate_names($<)                                           @@\
+cvsstatus:                                                                      @@\
+	$(CVS_STATUS)                                                           @@\
+%_cvsstatus: %                                                                  @@\
+	$(CVS_STATUS) xlate_names($<)                                           @@\
+cvsstatusv:                                                                     @@\
+	$(CVS_STATUS_V)                                                         @@\
+%_cvsstatusv: %                                                                 @@\
+	$(CVS_STATUS_V) xlate_names($<)                                         @@\
+cvsdiff:                                                                        @@\
+	$(CVS_DIFF)                                                             @@\
+%_cvsdiff: %                                                                    @@\
+	$(CVS_DIFF) xlate_names($<)                                             @@\
+cvsdiffc:                                                                       @@\
+	$(CVS_DIFF_C)                                                           @@\
+%_cvsdiffc: %                                                                   @@\
+	$(CVS_DIFF_C) xlate_names($<)
 #endif

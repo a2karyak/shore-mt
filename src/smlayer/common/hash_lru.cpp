@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: hash_lru.cpp,v 1.24 1999/06/07 19:02:24 kupsch Exp $
+ $Id: hash_lru.cpp,v 1.25 1999/10/25 18:28:26 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -232,7 +232,7 @@ void
 hash_lru_i<TYPE, KEY>::discard_curr()
 {
     w_assert3(_curr);
-    TYPE* tmp = &_curr->entry;
+    const TYPE* tmp = &_curr->entry;
     _h.remove(tmp);
     _curr = 0;
 }

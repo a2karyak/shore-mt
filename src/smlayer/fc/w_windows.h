@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='W_WINDOWS_H'>
 
- $Id: w_windows.h,v 1.13 1999/06/07 19:02:59 kupsch Exp $
+ $Id: w_windows.h,v 1.14 2000/01/14 19:34:40 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -68,7 +68,7 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #undef OFF 
 
 #ifndef W_CONFIG_ONLY
-#include <winsock2.h>
+#include <w_winsock.h>
 #include <os_types.h>
 
 #include <string.h>

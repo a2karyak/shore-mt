@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: bitmap.cpp,v 1.9 1999/06/07 19:02:36 kupsch Exp $
+ $Id: bitmap.cpp,v 1.10 2000/01/13 18:49:22 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -60,7 +60,7 @@ void bm_print(ostream &o, u_char *map, const int bits)
 #endif
 
 
-main(int argc, char **argv)
+int main(int argc, char **argv)
 {
 	int	numBits = 71;
 	int	numBytes;

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='UNIX_LOG_H'>
 
- $Id: unix_log.h,v 1.17 1999/06/15 15:11:57 nhall Exp $
+ $Id: unix_log.h,v 1.18 1999/12/10 05:29:48 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -41,12 +41,14 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 
 class unix_partition : public partition_t {
 public:
+	unix_partition();
+
 	// these are abstract in the parent class
 	void			_clear();
 	void			_init(srv_log *o);
-	FHDL			fhdl_rd() const;
-	FHDL			fhdl_app() const;
-	FHDL			seekend_app();
+	int			fhdl_rd() const;
+	int			fhdl_app() const;
+	int			seekend_app();
 	void			open_for_append(partition_number_t n);
 	void			open_for_read(partition_number_t n, bool err=true);
 	int			seeklsn_rd(uint4_t offset);
@@ -72,8 +74,8 @@ public:
 	void			_flush(int fd);
 
 private:
-	FHDL			_fhdl_rd;
-	FHDL			_fhdl_app;
+	int			_fhdl_rd;
+	int			_fhdl_app;
 };
 
 class unix_log : public srv_log {
