@@ -1,6 +1,6 @@
 /*<std-header style='imake' orig-src='shore'>
 
- $Id: Project.tmpl,v 1.259 2001/06/06 22:31:27 bolo Exp $
+ $Id: Project.tmpl,v 1.261 2001/10/08 20:24:45 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -621,7 +621,7 @@ DEBUGFLAGS += -DW_TRACE
 #  else	/* IS_UNIX */
     CCOPTIMIZE =  -O
     CFRONTOPTIMIZE =  -O 
-#ifdef BUILD_SMLAYER_ONLY
+#if defined(BUILD_SMLAYER_ONLY)
     CMNT Shore compiles and tests with optimization on g++
     GCCOPTIMIZE =  -O2 -finline-functions -fexpensive-optimizations
 #else
@@ -766,7 +766,8 @@ GCCDEBUGSYMBOLS = -g3
 
 #endif
 
-#if IS_SPARC_SUNOS41 || IS_SPARC_SOLARIS2 || IS_I386_LINUX || IS_R6000_AIX32 || IS_RS6000_AIX41 || IS_NETBSD || IS_CYGWIN
+/* XXXX this should probably be the fallback if nothing else is defined */
+#if IS_SPARC_SUNOS41 || IS_SPARC_SOLARIS2 || IS_I386_LINUX || IS_R6000_AIX32 || IS_RS6000_AIX41 || IS_NETBSD || IS_OSF1 || IS_CYGWIN
     /*  SUN ATT CC does not seem to know about //, ansi cpp #, ## 
      *  so we use gcc.  SUN cc also doesn't seem to handle any of 
      *  the above, so we use gcc for everything
@@ -997,10 +998,16 @@ CCFLAGS		+= -UCOMPRESS
 #endif
 
 
-#if defined(LARGEFILE_AWARE) && defined(IS_SOLARIS2)
+#if defined(LARGEFILE_AWARE)
+#if defined(IS_SOLARIS2)
 /* Allow access to both normal file words and 64-bit aware variants */
 CCFLAGS += -D_LARGEFILE64_SOURCE=1
 #endif
+#if defined(IS_LINUX)
+/* Just use the native 64bit interface, don't mix-n-match */
+CCFLAGS += -D_FILE_OFFSET_BITS=64
+#endif
+#endif	/* LARGEFILE_AWARE */
 
 /*
  * Tools
@@ -1132,6 +1139,7 @@ PURIFY_FLAGS =
 
 CFLAGS = $(CCFLAGS) $(INCLUDE_DIRS) $(DEBUGFLAGS) $(PLATFORM_FLAGS) \
 	$(PURIFY_FLAGS) $(WARN_FLAGS)
+/* XXX coupling of solaris and pthreads versus pthreads */
 #if defined(LINK_PTHREAD) || defined(SOLARIS_REENTRANT)
 CFLAGS += -D_REENTRANT
 #endif

@@ -1,6 +1,6 @@
 # <std-header style='make' orig-src='shore'>
 #
-#  $Id: GNUmakefile,v 1.36 2001/09/11 22:22:16 bolo Exp $
+#  $Id: GNUmakefile,v 1.37 2001/10/10 19:22:49 bolo Exp $
 #
 # SHORE -- Scalable Heterogeneous Object REpository
 #
@@ -182,6 +182,9 @@ MAKEMAKE_OPT= --topDir=. --buildTopDir=$(BUILD_DIR) --curPath=. $(DOSPATHS)
 MAKE_FORWARD = $(MAKE) -C $(BUILD_DIR) -f Makefile
 
 DEFAULT_CONFIG_OPTIONS = DEBUGCODE=OFF
+
+## uncomment this line for a shore-only default build
+DEFAULT_CONFIG_OPTIONS += BUILD_SMLAYER_ONLY undef-USE_COORD undef-USE_OCOMM
 
 PLAT_CONFIG_OPTIONS =
 ifneq (,$(findstring nt-,$(PLATFORM)))

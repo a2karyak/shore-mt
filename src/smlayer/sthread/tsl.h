@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='TSL_H'>
 
- $Id: tsl.h,v 1.20 2001/06/20 04:28:21 bolo Exp $
+ $Id: tsl.h,v 1.21 2001/09/21 07:13:59 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -49,9 +49,6 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 /*
  * lock definition file for testandset() package.
  */
-
-#define W_CONFIG_ONLY
-#include <w_windows.h>
 
 typedef struct tslcb_t {
 #if defined(hp800) || defined(hppa)

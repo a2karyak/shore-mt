@@ -1,6 +1,6 @@
 /*<std-header style='imakefile' orig-src='shore'>
 
- $Id: Imakefile,v 1.146 2001/09/17 18:58:40 bolo Exp $
+ $Id: Imakefile,v 1.147 2001/10/08 20:17:21 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -28,9 +28,9 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
   -- do not edit anything above this line --   </std-header>*/
 
 INCLUDE_DIRS += \
-	$(FC_INCL)		\
+	$(COMMON_INCL)		\
 	$(STHREAD_INCL)		\
-	$(COMMON_INCL)
+	$(FC_INCL)
 
 init_file_group(libcommon)
 init_file_group(regex)

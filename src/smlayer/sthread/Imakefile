@@ -1,6 +1,6 @@
 /*<std-header style='imakefile' orig-src='shore'>
 
- $Id: Imakefile,v 1.111 2001/09/18 22:09:53 bolo Exp $
+ $Id: Imakefile,v 1.112 2001/10/08 20:17:27 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -29,14 +29,6 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 
 INCLUDE_DIRS += \
 	$(FC_INCL)
-
-#if 0
-/* XXXX why was this here? */
-INCLUDE_DIRS += \
-	$(SM_INCL)		\
-	$(TCL_INCL)		\
-	$(COMMON_INCL)
-#endif
 
 #ifdef USE_GCC
 CFLAGS += -fvolatile
