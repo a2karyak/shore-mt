@@ -15,7 +15,6 @@ set num_rec 2
 set id_width %08d
 
 set s [format data 1]
-echo $s
 
 if {$page_size == 8192} {
     set pattern_cnt 16
@@ -26,8 +25,7 @@ if {$page_size == 8192} {
 set pattern ".123456789"
 for {set i 0} {$i < $pattern_cnt} {incr i} {
     set pattern $pattern$pattern
-    echo $i
-    #echo $pattern
+    #verbose $pattern
 }
 
 
@@ -37,14 +35,14 @@ for {set i 0} {$i < $pattern_cnt} {incr i} {
 sm begin_xct
 set fid [sm create_file $volid ]
 set rid(0) $null_rid
-echo creating $num_rec 
+verbose creating $num_rec 
 for {set i 1} {$i <= $num_rec} {incr i} {
     set rid($i) [
 	sm create_rec $fid [format $id_width $i] $page_size $pattern
     ]
-    echo created $i
+    verbose created $i
 }
-echo done creating $num_rec records
+verbose done creating $num_rec records
 sm commit_xct
 
 ###############################################
@@ -54,14 +52,14 @@ sm begin_xct
 for {set i 1} {$i <= $num_rec} {incr i} {
     set r [sm read_rec $rid($i) 0 0]
     set id [format $id_width $i]
-    #echo $i $id $r [lindex $r 2]
+    #verbose $i $id $r [lindex $r 2]
     set hdr [lindex $r 2]
     verbose $r
     assert {expr [string compare $hdr $id] == 0}
 }
 
-echo scanning after separate scan using pin
-verbose [sm scan_recs $fid]
+verbose scanning after separate scan using pin
+sm scan_recs $fid
 
 sm commit_xct
 
@@ -71,15 +69,15 @@ dstats $volid
 ###############################################
 #   append to the records
 #
-echo APPEND hello ...
+verbose APPEND hello ...
 for {set i 1} {$i <= $num_rec} {incr i} {
     sm append_rec $rid($i) "hello"
     verbose [sm read_rec $rid($i) 0 0 ]
 }
 dstats $volid
-echo APPEND AAApattern ...
+verbose APPEND AAApattern ...
 for {set i 1} {$i <= $num_rec} {incr i} {
-    echo $i: sm append_rec $rid($i) 
+    verbose $i: sm append_rec $rid($i) 
     sm append_rec $rid($i) AAA$pattern
     dstats $volid
     verbose [sm read_rec $rid($i) 0 0 ]
@@ -89,19 +87,19 @@ dstats $volid
 ###############################################
 #   update the records
 #
-echo UPDATE 970 hello ...
+verbose UPDATE 970 hello ...
 for {set i 1} {$i <= $num_rec} {incr i} {
     sm update_rec $rid($i) 970 hello 
     verbose [sm read_rec $rid($i) 0 0 ]
 }
 dstats $volid
-echo UPDATE 1910 hello_this_is_a_long_update ...
+verbose UPDATE 1910 hello_this_is_a_long_update ...
 for {set i 1} {$i <= $num_rec} {incr i} {
     sm update_rec $rid($i) 1910 hello_this_is_a_long_update 
     verbose [sm read_rec $rid($i) 0 0 ]
 }
 dstats $volid
-echo UPDATE 1964 aaapattern ...
+verbose UPDATE 1964 aaapattern ...
 for {set i 1} {$i <= $num_rec} {incr i} {
     sm update_rec $rid($i) 1944 aaa${pattern}zzz
     verbose [sm read_rec $rid($i) 0 0 ]
@@ -113,35 +111,35 @@ dstats $volid
 #
 dstats $volid
 
-echo TRUNCATE 2 ...
+verbose TRUNCATE 2 ...
 for {set i 1} {$i <= $num_rec} {incr i} {
     sm truncate_rec $rid($i) 2 
     verbose [sm read_rec $rid($i) 0 0 ]
 }
 dstats $volid
-echo TRUNCATE 2000 ...
+verbose TRUNCATE 2000 ...
 for {set i 1} {$i <= $num_rec} {incr i} {
     sm truncate_rec $rid($i) 2000
     verbose [sm read_rec $rid($i) 0 0 ]
 }
 
 dstats $volid
-echo TRUNCATE 100000 ...
+verbose TRUNCATE 100000 ...
 for {set i 1} {$i <= $num_rec} {incr i} {
     sm truncate_rec $rid($i) 100000
     verbose [sm read_rec $rid($i) 0 0 ]
 }
 
-echo scanning after separate scan using pin
+verbose scanning after separate scan using pin
 verbose [sm scan_recs $fid]
 
 sm commit_xct
 
 ###############################################
 #   delete all odd records
-echo DESTROY all odd records
+verbose DESTROY all odd records
 sm begin_xct
-echo destroying [expr $num_rec/2]
+verbose destroying [expr $num_rec/2]
 for {set i 1} {$i <= $num_rec} {incr i; incr i} {
     sm destroy_rec $rid($i)
 }
@@ -154,7 +152,7 @@ sm begin_xct
 for {set i 2} {$i <= $num_rec} {incr i; incr i} {
     set r [sm read_rec $rid($i) 0 0]
     set id [format $id_width $i]
-    verbose echo $i $id $r
+    verbose $i $id $r
     set hdr [lindex $r 2]
     set body [lindex $r 4]
     assert {expr [string compare $hdr $id] == 0}
@@ -162,11 +160,11 @@ for {set i 2} {$i <= $num_rec} {incr i; incr i} {
     assert {expr [string compare $body $pattern] != 0}
     # see lgrec.1 for proper way to check the object
 }
-echo trying an odd record -- THIS SHOULD GENERATE AN ERROR
+verbose trying an odd record -- THIS SHOULD GENERATE AN ERROR
 catch {[sm read_rec $rid(1) 0 0]} result
-echo $result
+verbose $result
 
-echo trying an even record
+verbose trying an even record
 verbose [sm read_rec $rid(2) 0 0]
 
 sm commit_xct

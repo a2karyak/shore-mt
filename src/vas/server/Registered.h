@@ -8,7 +8,7 @@
 #ifndef __REGISTERED_H__
 #define __REGISTERED_H__
 /*
- *  $Header: /p/shore/shore_cvs/src/vas/server/Registered.h,v 1.21 1995/07/14 22:39:05 nhall Exp $
+ *  $Header: /p/shore/shore_cvs/src/vas/server/Registered.h,v 1.22 1997/01/24 16:47:41 nhall Exp $
  */
 #include <copyright.h>
 
@@ -67,17 +67,17 @@ public:
 	VASResult	chmod( 
 		objAccess			ackind,
 		mode_t				newmode= 0,
-		bool				writeback = FALSE // (write back to disk)
+		bool				writeback = false // (write back to disk)
 	);
 	VASResult	chown( 
 		objAccess			ackind,	// indicates uid or gid
 		uid_t				uid = (uid_t)-1,
 		gid_t				gid = (gid_t)-1,
-		bool				writeback = FALSE // (write back to disk)
+		bool				writeback = false // (write back to disk)
 	);
 	VASResult	modifytimes(
 			unsigned 	int 	which,
-			bool				writeback=FALSE, // to disk
+			bool				writeback=false, // to disk
 			time_t				*clock = NULL // if null, (use Now())
 		);
 	VASResult	updateLinkCount(changeOp op, int *result);

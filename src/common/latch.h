@@ -6,12 +6,14 @@
 /* --------------------------------------------------------------- */
 
 /*
- *  $Id: latch.h,v 1.17 1995/10/31 19:47:55 nhall Exp $
+ *  $Id: latch.h,v 1.22 1997/05/19 19:41:03 nhall Exp $
  */
 #ifndef LATCH_H
 #define LATCH_H
 
+#ifndef STHREAD_H
 #include <sthread.h>
+#endif
 
 #ifdef __GNUG__
 #pragma interface
@@ -70,7 +72,9 @@ public:
     int				num_holders() const;
     int				held_by(const sthread_t* t) const;
     bool 			is_mine() const;
-    mode_t			mode() const;
+    latch_mode_t		mode() const;
+
+    const sthread_t * 		holder() const;
 
     enum { max_sh = 4 }; // max threads that can hold a share latch
 
@@ -78,7 +82,7 @@ public:
 
 private:
     smutex_t			_mutex;
-    mode_t			_mode;		    // highest mode held
+    latch_mode_t		_mode;		    // highest mode held
 
     // slots for each holding thread
     uint2_t			_cnt[max_sh];	    // number of times held
@@ -104,6 +108,7 @@ private:
 inline void
 latch_t::setname(const char* const desc)
 {
+    rename(desc?"l:":0, desc);
     _mutex.rename(desc?"l:m:":0, desc);
     _waiters.rename(desc?"l:c:":0, desc);
 }
@@ -129,7 +134,13 @@ latch_t::is_mine() const
     return _mode == LATCH_EX && _holder[0] == sthread_t::me();
 }
 
-inline mode_t
+inline const sthread_t * 
+latch_t::holder() const
+{
+    return _holder[0];
+}
+
+inline latch_mode_t
 latch_t::mode() const
 {
     return _mode;

@@ -5,6 +5,7 @@
 /* -- Reserved.                                                 -- */
 /* --------------------------------------------------------------- */
 #include <stream.h>
+#include <w.h>
 #include <basics.h>
 #include <serial_t.h>
 #include <assert.h>
@@ -23,14 +24,16 @@ char *ajunk = "Ajunk";
 
 void V(const vec_t &a, int b, int c, vec_t &d)
 {
+	int	i;
+
 	DBG(<<"*******BEGIN TEST("  << b << "," << c << ")");
-	for(int i=0; i<a.count(); i++) {
+	for(i=0; i<a.count(); i++) {
 		DBG(<<"vec["<<i<<"]=("
 			<<::dec((unsigned int)a.ptr(i)) <<"," <<a.len(i) <<")");
 	}
 
 	for(int l = 0; l<100; l++) {
-		if(c > a.size()) break;
+		if(c > (int) a.size()) break;
 		a.mkchunk(b, c, d);
 
 #ifdef DEBUG
@@ -40,7 +43,7 @@ void V(const vec_t &a, int b, int c, vec_t &d)
 			<<::dec((unsigned int)d.ptr(i)) <<"," <<d.len(i) <<")" << endl;
 	}
 	for(i=0; i<d.count(); i++) {
-		for(int j=0; j<d.len(i); j++) {
+		for(int j=0; j< (int)d.len(i); j++) {
 			cout << *(char *)(d.ptr(i)+j);
 		}
 	} cout << endl;
@@ -103,6 +106,7 @@ main()
 	V(test, 100, 9, tout);
 
 	P("{ {1   \"}\" }");
+	/*{{{*/
 	P("{ {3 \"}}}\"      }}");
 	P("{ {30 \"xxxxxxxxxxyyyyyyyyyyzzzzzzzzzz\"} }");
 	P("{ {30 \"xxxxxxxxxxyyyyyyyyyyzzzzzzzzzz\"}{10    \"abcdefghij\"} }");
@@ -139,6 +143,35 @@ main()
 			cout << "zv.set(z).count() = " << zv.count() << endl;
 			cout << "zv(0) is zero vec: " << zv.is_zvec() << endl;
 		}
+	}
+
+	{
+		int n = 0x80000003;
+		int m = 0xeffffffc;
+		vec_t   num( (void*)&n, sizeof(n));
+		vec_t   num2( (void*)&m, sizeof(m));
+
+		cout << "vec containing 0x80000003 prints as: " << num  << endl;
+		cout << "vec containing 0xeffffffc prints as: " << num2  << endl;
+	}
+
+	{
+		char c = 'h';
+		char last = (char)'\377';
+		char last1 = '\377';
+		char last2 = (char)0xff;
+
+		vec_t   cv( (void*)&c, sizeof(c));
+		vec_t   lastv( (void*)&last, sizeof(last));
+		vec_t   last1v( (void*)&last1, sizeof(last1));
+		vec_t   last2v( (void*)&last2, sizeof(last2));
+
+		bool result = (bool)(cv < lastv);
+		cout << "cv <= lastv: " << result << endl;
+		cout << "cv prints as: " << cv <<endl;
+		cout << "lastv prints as: " << lastv <<endl;
+		cout << "last1 prints as: " << last1v <<endl;
+		cout << "last2 prints as: " << last2v <<endl;
 	}
 }
 

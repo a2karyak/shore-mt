@@ -6,7 +6,7 @@
 /* --------------------------------------------------------------- */
 
 /*
- *  $Header: /p/shore/shore_cvs/src/vas/server/Pool.C,v 1.37 1995/09/01 22:17:08 nhall Exp $
+ *  $Header: /p/shore/shore_cvs/src/vas/server/Pool.C,v 1.38 1997/01/24 16:47:36 nhall Exp $
  */
 #include <copyright.h>
 
@@ -56,7 +56,7 @@ FSTART
 	// 
 	res =  this->createRegistered( lvid, pfid, 
 		allocated, ReservedSerial::_Pool,
-		TRUE, 0/*csize*/, 0/*hsize*/, 
+		true, 0/*csize*/, 0/*hsize*/, 
 		diskcore, no_heap, 
 		NoText, 0/*no indexes*/,
 		mode | S_IFPOOL, group,	
@@ -118,7 +118,7 @@ Pool::isempty() // returns SVAS_OK if is empty
 {
 
 	OFPROLOGUE(Pool::isempty);
-	bool			eof=FALSE;
+	bool			eof=false;
 	OBJECT_ACTION;
 FSTART
 	serial_t		fid;

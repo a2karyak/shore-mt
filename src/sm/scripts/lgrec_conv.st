@@ -18,20 +18,20 @@ if {$volid == 0} {
 #
 st begin_xct
 set fid [sm create_file $volid]
-echo "\nFile $fid created\n"
+verbose "\nFile $fid created\n"
 
 set r1 [st create_rec $fid 96]
-echo "Record $r1 created\n"
+verbose "Record $r1 created\n"
 
 set r2 [st create_rec $fid 96]
-echo "Record $r2 created\n"
+verbose "Record $r2 created\n"
 
 for { set i 1 } { $i <= 200 } { incr i } {
         st append_rec $r1 96 
         st append_rec $r2 96 
-        echo "\n$i ---------------------------------------"
+        verbose "\n$i ---------------------------------------"
         st validate_file $fid
-        echo "---------------------------------------"
+        verbose "---------------------------------------"
         #st print_scan_recs $fid
 }
 

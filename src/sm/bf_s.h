@@ -6,7 +6,7 @@
 /* --------------------------------------------------------------- */
 
 /*
- *  $Id: bf_s.h,v 1.21 1996/05/06 20:10:07 nhall Exp $
+ *  $Id: bf_s.h,v 1.29 1997/05/27 13:09:19 kupsch Exp $
  */
 #ifndef BF_S_H
 #define BF_S_H
@@ -19,6 +19,7 @@ public:
     NORET			bfpid_t(const lpid_t& p);
     bfpid_t& 			operator=(const lpid_t& p);
     bool 		        operator==(const bfpid_t& p) const;
+    static const bfpid_t	null;
 };
 
 inline NORET
@@ -62,28 +63,22 @@ public:
     bool        old_pid_valid;  // is the previous page in-transit-out?
     page_s*     frame;          // pointer to the frame
 
-    bool	dirty;          // TRUE if page is dirty
+    bool	dirty;          // true if page is dirty
     lsn_t       rec_lsn;        // recovery lsn
-
-#if defined(OBJECT_CC) && defined(MULTI_SERVER)
-    smutex_t    recmap_mutex;           // protection for "recmap" and remote_io
-    u_char      recmap[smlevel_0::recmap_sz];	// map of available recs
-    int         remote_io;              // > 0 if there are outstanding rem IOs
-#endif
 
     int4        pin_cnt;        // count of pins on the page
     latch_t     latch;          // latch on the frame
     scond_t     exit_transit;   //signaled when frame exits the in-transit state
 
-    uint4       refbit;         // ref count (for strict clock algorithm)
+    int4        refbit;         // ref count (for strict clock algorithm)
 				// for replacement policy only
 
-    uint4       hot;         	// keeps track of how many sweeps a page should
-				// remain dirty in the buffer pool (skipped by
-				// the cleaner) because it is just going to be
-				// dirtied again soon
+    int4        hot;         	// copy of refbit for use by the cleaner algorithm
+				// without interfering with clock (replacement)
+				// algorithm.
 
-    inline ostream&    print_frame(ostream& o, int nslots, bool in_htab);
+    inline ostream&    print_frame(ostream& o, bool in_htab);
+    void 	       update_rec_lsn(latch_mode_t);
 
 private:
     // disabled
@@ -92,43 +87,27 @@ private:
 };
 
 
-#if !(defined(OBJECT_CC) && defined(MULTI_SERVER))
-#define nslots /*not used*/
-#endif
 inline ostream&
-bfcb_t::print_frame(ostream& o, int nslots, bool in_htab)
-#undef nslots
+bfcb_t::print_frame(ostream& o, bool in_htab)
 {
     if (in_htab) {
         o << pid << '\t'
-	  << (dirty ? "dirty" : "clean") << '\t'
+	  << (dirty ? "X" : " ") << '\t'
 	  << rec_lsn << '\t'
 	  << pin_cnt << '\t'
 	  << latch_t::latch_mode_str[latch.mode()] << '\t'
 	  << latch.lock_cnt() << '\t'
 	  << latch.is_hot() << '\t'
-	  << latch.id() << '\t'
-#if defined(OBJECT_CC) && defined(MULTI_SERVER)
-	  << remote_io
+	  << refbit << '\t'
+#ifdef DEBUG
+	  << latch.holder() 
+#else
+	  << latch.id() 
 #endif
 	  << endl;
-
-#if defined(OBJECT_CC) && defined(MULTI_SERVER)
-	o << "RECMAP: ";
-	for (int i = 0; i < nslots; i++) {
-	    if (bm_is_set(recmap, i))	o << '1';
-	    else			o << '0';
-	}
-	o << " dummy: "
-	  << (bm_is_set(recmap, smlevel_0::max_recs-1) ? '1' : '0')
-	  << endl << flush;
-#endif
     } else {
 	o << pid << '\t' 
 	  << " InTransit " << (old_pid_valid ? (lpid_t)old_pid : lpid_t::null)
-#if defined(OBJECT_CC) && defined(MULTI_SERVER)
-	  << " remote_io=" << remote_io
-#endif
 	  << endl << flush;
     }
     return o;
@@ -145,24 +124,9 @@ bfcb_t::clear()
     rec_lsn = lsn_t::null;
     hot = 0;
     refbit = 0;
-#if defined(OBJECT_CC) && defined(MULTI_SERVER)
-    remote_io = 0;
-    bm_zero(recmap, smlevel_0::max_recs);
-#endif
     w_assert3(pin_cnt == 0);
-    w_assert3(latch.num_holders() == 0);
+    w_assert3(latch.num_holders() <= 1);
 }
 
-
-#if defined(OBJECT_CC) && defined(MULTI_SERVER)
-
-struct cb_race_t {
-		cb_race_t() {}
-		~cb_race_t() { link.detach(); }
-
-    w_link_t	link;
-    rid_t	rid;
-};
-#endif /* OBJECT_CC && MULTI_SERVER */
 
 #endif /*BF_S_H*/

@@ -6,7 +6,7 @@
 /* --------------------------------------------------------------- */
 
 /*
- *  $Id: keyed.h,v 1.20 1996/04/09 20:44:12 nhall Exp $
+ *  $Id: keyed.h,v 1.23 1997/05/19 19:47:18 nhall Exp $
  */
 #ifndef KEYED_H
 #define KEYED_H
@@ -65,10 +65,10 @@ protected:
     
     MAKEPAGE(keyed_p, page_p, 1)
     
-    const keyrec_t& 		rec(int idx) const;
+    const keyrec_t& 		rec(slotid_t idx) const;
 
-    int 			rec_size(int idx) const;
-    int 			nrecs() const;
+    int 			rec_size(slotid_t idx) const;
+    slotid_t 			nrecs() const;
     rc_t			set_hdr(const cvec_t& data);
     const void* 		get_hdr() const {
 	return page_p::tuple_addr(0);
@@ -89,7 +89,7 @@ inline const char* keyrec_t::sep() const	{ return _body(); }
  *  keyed_p::rec()					        *
  *--------------------------------------------------------------*/
 inline const keyrec_t& 
-keyed_p::rec(int idx) const
+keyed_p::rec(slotid_t idx) const
 {
     return * (keyrec_t*) page_p::tuple_addr(idx + 1);
 }
@@ -98,7 +98,7 @@ keyed_p::rec(int idx) const
  *  keyed_p::rec_size()					        *
  *--------------------------------------------------------------*/
 inline int
-keyed_p::rec_size(int idx) const
+keyed_p::rec_size(slotid_t idx) const
 {
     return page_p::tuple_size(idx + 1);
 }
@@ -106,7 +106,7 @@ keyed_p::rec_size(int idx) const
 /*--------------------------------------------------------------*
  *    keyed_p::nrecs()						*
  *--------------------------------------------------------------*/
-inline int 
+inline slotid_t 
 keyed_p::nrecs() const
 {
     return nslots() - 1;

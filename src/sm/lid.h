@@ -6,7 +6,7 @@
 /* --------------------------------------------------------------- */
 
 /*
- * $Id: lid.h,v 1.57 1996/04/09 20:44:16 nhall Exp $
+ * $Id: lid.h,v 1.58 1997/05/19 19:47:22 nhall Exp $
  */
 #ifndef LID_H
 #define LID_H
@@ -88,7 +88,9 @@
 
 **********************************************************************/
 
-#include "hash_lru.h"
+#ifndef HASH_LRU_H
+#include <hash_lru.h>
+#endif
 
 #ifdef __GNUG__
 #pragma interface
@@ -98,13 +100,15 @@
 // to a template.  So, we must include these structures outside of
 // lid_m.
 #ifdef HP_CC_BUG_3
+#ifndef LID_S_H
 #   include <lid_s.h>
+#endif
 #endif
 
 /*
  * Logical ID Manager class.
  */
-class lid_m : public smlevel_3 {
+class lid_m : public smlevel_4 {
 public:
 
     // define vol_lid_info_t entry_type_t, and lid_entry_t
@@ -119,7 +123,9 @@ public:
         };
 	typedef ::vol_lid_info_t vol_lid_info_t;
 #   else
+#ifndef LID_S_H
 #   	include <lid_s.h>
+#endif
 #   endif
 
     // ref_type_t is used for calls which need to know whether a 

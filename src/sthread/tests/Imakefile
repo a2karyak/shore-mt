@@ -6,46 +6,45 @@
 /* --------------------------------------------------------------- */
 
 /*
- *  $Id: Imakefile,v 1.22 1996/07/15 22:50:59 bolo Exp $
+ *  $Id: Imakefile,v 1.26 1997/07/31 19:01:28 solomon Exp $
  */
+SRC = diskinfo.c ioperf.c thread1.c thread2.c thread3.c thread4.c
+CPPFLAGS = -I.. -I../../fc -I../../common
+LIB = ../libst.a ../../fc/libfc.a ../../common/libcommon.a
 
-SRC = thread1.c thread2.c thread3.c thread4.c
-OBJ = $(SRC:.c=.o)
-EXEC = thread1 thread2 thread3 thread4 ioperf
+all_local:: thread1 thread2 thread3 thread4 ioperf diskinfo
 
-INCLUDE += $(STHREAD_INCL) $(FC_INCL)  $(COMMON_INCL)
-LIB = $(STHREAD_LIB)  $(FC_LIB) $(COMMON_LIB)
-SYMLINKS = ../../sthread/diskrw
+%GEN tags($(SRC))
 
-$(STHREAD_LIB): ALWAYS
-	(cd $(STHREAD_DIR); $(MAKE) $(OPTIONS))
+%GEN c_plus_program(thread1, thread1.o, $(LIB))
+%GEN c_plus_program(thread2, thread2.o, $(LIB))
+%GEN c_plus_program(thread3, thread3.o, $(LIB))
+%GEN c_plus_program(thread4, thread4.o, $(LIB))
+%GEN c_plus_program(ioperf, ioperf.o, $(LIB))
+%GEN c_plus_program(diskinfo, diskinfo.o, $(LIB))
 
-c_plus_program(thread1, thread1.o, $(LIB))
-c_plus_program(thread2, thread2.o, $(LIB))
-c_plus_program(thread3, thread3.o, $(LIB))
-c_plus_program(thread4, thread4.o, $(LIB))
-c_plus_program(ioperf, ioperf.o, $(LIB))
 
 PURE_OPTIONS = $(PURE_OPT)
 
 PURE_EXEC= thread1.pure thread2.pure thread3.pure thread4.pure
 pure_exec: $(PURE_EXEC)
 
-purify_c_plus_program(thread1, thread1.o, $(LIB), $(PURE_OPTIONS))
-purify_c_plus_program(thread2, thread2.o, $(LIB), $(PURE_OPTIONS))
-purify_c_plus_program(thread3, thread3.o, $(LIB), $(PURE_OPTIONS))
-purify_c_plus_program(thread4, thread4.o, $(LIB), $(PURE_OPTIONS))
+%GEN purify_c_plus_program(thread1, thread1.o, $(LIB), $(PURE_OPTIONS))
+%GEN purify_c_plus_program(thread2, thread2.o, $(LIB), $(PURE_OPTIONS))
+%GEN purify_c_plus_program(thread3, thread3.o, $(LIB), $(PURE_OPTIONS))
+%GEN purify_c_plus_program(thread4, thread4.o, $(LIB), $(PURE_OPTIONS))
+%GEN purify_c_plus_program(ioperf, ioperf.o, $(LIB), $(PURE_OPTIONS))
+%GEN quantify_c_plus_program(ioperf, ioperf.o, $(LIB), $(QUANT_OPTIONS))
 
 #ifdef IS_SP2
 POE_EXEC= thread1.poe thread2.poe thread3.poe thread4.poe ioperf.poe
 poe_exec: $(poe_EXEC)
 
-poe_c_plus_program(thread1.poe, thread1.o, $(LIB))
-poe_c_plus_program(thread2.poe, thread2.o, $(LIB))
-poe_c_plus_program(thread3.poe, thread3.o, $(LIB))
-poe_c_plus_program(thread4.poe, thread4.o, $(LIB))
-poe_c_plus_program(ioperf.poe, ioperf.o, $(LIB))
+%GEN poe_c_plus_program(thread1.poe, thread1.o, $(LIB))
+%GEN poe_c_plus_program(thread2.poe, thread2.o, $(LIB))
+%GEN poe_c_plus_program(thread3.poe, thread3.o, $(LIB))
+%GEN poe_c_plus_program(thread4.poe, thread4.o, $(LIB))
+%GEN poe_c_plus_program(ioperf.poe, ioperf.o, $(LIB))
 #endif /* SP2 */
 
-depend_target($(SRC))
-
+%GEN depend_target($(SRC))

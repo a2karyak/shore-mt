@@ -6,6 +6,10 @@
 source $script_dir/vol.init
 source $script_dir/bt.lib
 
+if {$logging==0} {
+    echo "Logging off: script not run. "
+} else {
+
 set unique btree
 
 
@@ -47,15 +51,12 @@ for { set i 1 } { $i <= 800 } { incr i } {
 proc mkval { i e } {
     global max_btree_entry_size
     set maxsize [expr {$max_btree_entry_size / 2}]
-    if {$max_btree_entry_size <= 4048} {
-	set res [format "%0*s" $maxsize a]
-    } else {
-	set res [format "%0*s" $e a]
-    }
+    set res [format "%0*s" $maxsize a]
     return $res
 }
 
 source $script_dir/bt.insert.0
 
 unset prefixa prefixb prefixc
-unset keylist unique
+unset keylist unique j k used
+}

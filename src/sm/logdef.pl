@@ -12,7 +12,7 @@ eval 'exec perl $0 ${1+"$@"}'
 #
 #  Perl script for generating log record types.
 #
-#  $Id: logdef.pl,v 1.29 1996/01/26 20:27:53 nhall Exp $
+#  $Id: logdef.pl,v 1.36 1997/06/13 19:30:15 solomon Exp $
 #
 open(INPUT, "<logdef.dat")	|| die "cannot open logdef.dat: $!\n";
 open(FUNC, ">logfunc.i")	|| die "cannot open logfunc.i: $!\n";
@@ -96,7 +96,6 @@ sub def_rec {
     local($type, $xflag, $aflag, $sync, $redo, $undo, $cat, $arg) = @_;
     local($class) = $type . "_log";
     local($has_idx);
-    local($uses_page);
 
     $redo_stmt = ($redo) ? 'void redo(page_p*);' : '';
     $undo_stmt = ($undo) ? 'void undo(page_p*);' : '';
@@ -126,7 +125,7 @@ CLASSDEF
     # print "arg = $arg\n";
     # print "real = $real\n";
     # print "decl = $decl\n";
-    print "$type: cat = $cat\n";
+    # print "$type: cat = $cat\n";
 
     if ($xflag)  {
         $func = "rc_t log_$type($arg)";
@@ -136,36 +135,32 @@ CLASSDEF
         print STUB "{\n";
 	($page = $real) =~ s/(\w*).*/$1/;
     	# print "page = $page\n";
-	if($aflag==1) {
-	    print STUB "    int is_no_log = 0;\n";
-	} else {
-	    print STUB "    int is_no_log = (smlevel_1::log == 0);\n";
-	    if ($page eq "page") {
-		print STUB "    is_no_log |= (page.store_flags() & \
-						page.st_no_log) != 0;\n";
-	    }
-	}
 	print STUB "    xct_t* xd = xct();\n";
-	print STUB "    if (!is_no_log && xd && xd->is_log_on())  {\n";
+        print STUB "    bool should_log = smlevel_1::log && smlevel_0::logging_enabled";
+	if($aflag==0) {
+	    if ($page eq "page") {
+		print STUB "\n\t\t\t&& (page.store_flags() & page.st_tmp) == 0";
+	    }
+	    print STUB "\n\t\t\t&& xd && xd->is_log_on()";
+	}
+	print STUB ";\n";
+	print STUB "    if (should_log)  {\n";
 	print STUB "        logrec_t* logrec;\n";
 	print STUB "        W_DO( xd->get_logbuf(logrec) ); \n";
         print STUB "        new (logrec) $class($real);\n";	   
-	print STUB "        xd->give_logbuf(logrec);\n";
+	if ($page eq "page") {
+	    print STUB "        xd->give_logbuf(logrec, &page);\n";
+	} else {
+	    print STUB "        xd->give_logbuf(logrec);\n";
+	}
 	if ($sync) {
 	    print STUB "        xd->flush_logbuf();\n";
 	    print STUB "        W_COERCE( smlevel_0::log->flush_all() );\n";
 	}
 	print STUB "    }\n";
 	if ($page eq "page") {
-	    print STUB "    page.set_dirty();\n" if ($real);
-	    print STUB "#ifdef MULTI_SERVER\n" if ($real);
-	    print STUB "    if (page.pid().is_remote())\n" if ($real);
-	    if ($has_idx) {
-		print STUB "    xd->set_dirty(page, idx);\n" if ($real);
-	    } else {
-		print STUB "    xd->set_dirty(page);\n" if ($real);
-	    }
-	    print STUB "#endif\n" if ($real);
+	    # no longer need to call set_dirty explicitly after give_logbuf 
+	    print STUB "    else page.set_dirty();\n" if ($real);
 	}
 	print STUB "    return RCOK;\n";
     print STUB "}\n";

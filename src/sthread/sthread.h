@@ -15,6 +15,7 @@
 #include <w_timer.h>
 
 class sthread_t;
+class smthread_t;
 
 #include <signal.h>
 
@@ -56,10 +57,15 @@ typedef w_list_t<sthread_t>		sthread_list_t;
 #undef WAIT_ANY
 #endif
 
+#if 1
+    /* XXX temporary hack to scope geometry stuff here */
+#include "sdisk.hh"
+#endif
+
 class smutex_t;
 class scond_t;
 class sevsem_t;
-struct iovec;
+
 /*
  * Normally these typedefs would be defined in the sthread_t class,
  * but due to bugs in gcc 2.5 we had to move them outside.
@@ -106,6 +112,32 @@ public:
 	stINTERNAL = fcINTERNAL,
 	stNOTIMPLEMENTED = fcNOTIMPLEMENTED,
     };
+    /* XXX sdisk stuff hung into sthread for now */
+    enum {
+	    OPEN_RDWR = O_RDWR,
+	    OPEN_RDONLY = O_RDONLY,
+	    OPEN_WRONLY = O_WRONLY,
+	    OPEN_TRUNC = O_TRUNC,
+	    OPEN_CREATE = O_CREAT,
+	    OPEN_SYNC = O_SYNC,
+	    OPEN_EXCL = O_EXCL
+    };
+
+    /* additional open flags which shouldn't collide with unix flags */
+    enum {
+	OPEN_LOCAL = 0x10000000,	// do I/O locally
+	OPEN_KEEP  = 0x20000000,	// keep fd open
+	OPEN_FAST  = 0x40000000 	// open for fastpath I/O
+    };
+    enum {
+	IOF_LOCAL = 0x1,		// do I/O locally
+	IOF_KEEP = 0x2,			// FD open locally
+	IOF_FASTPATH= 0x4		// fd open for fastpath I/O	
+    };
+    /* XXX if this doesn't match the native iovec, the I/O code
+       will need to convert between shore and kernel formats. */
+    typedef struct iovec iovec;
+    enum { iovec_max = 8 };	/* XXX magic number from diskrw */
 };
 
 #define NAME_ARRAY 64
@@ -157,6 +189,15 @@ sthread_named_base_t::name() const
 
 class sthread_main_t;
 class sthread_idle_t;
+class sfile_handler_t;
+class sfile_hdl_base_t;
+
+class ThreadFunc
+{
+    public:
+	virtual void operator()(const sthread_t& thread) = 0;
+};
+
 
 #include "strace.h"
 class _strace_t;
@@ -170,6 +211,12 @@ class sthread_t : public sthread_named_base_t  {
     friend class sthread_idle_t;
     friend class sthread_main_t;
     friend class sthread_timer_t;
+#ifndef OLD_SM_BLOCK
+    /* For access to block() and unblock() */
+    friend class smutex_t;
+    friend class scond_t;
+    friend class diskport_t;
+#endif
     
 public:
 
@@ -205,6 +252,9 @@ public:
 
     int				trace_level;	// for debugging
 
+#ifndef OLD_SM_BLOCK
+private:
+#endif
     /*
        Block() and unblock() do not belong in the user-visible interface.
        They are scheduled for deletion in the near future.
@@ -215,12 +265,16 @@ public:
 	const char* const	    caller = 0,
 	const void *		    id = 0);
     w_rc_t			unblock(const w_rc_t& rc = *(w_rc_t*)0);
+#ifndef OLD_SM_BLOCK
+public:
+#endif
 
     virtual void		_dump(ostream &); // to be over-ridden
     static void			dump(const char *, ostream &); // traverses whole list
     static void                 dump_stats(ostream & o);
     static void                 reset_stats();
     static void			find_stack(void *address);
+    static void			for_each_thread(ThreadFunc& f);
 
     w_rc_t			set_priority(priority_t priority);
     priority_t			priority() const;
@@ -262,8 +316,18 @@ public:
 	off_t			    offset,
 	int			    whence,
 	off_t&			    ret);
+    /* returns an error if the seek doesn't match its destination */
+    static w_rc_t		lseek(
+	int			    fd,
+	off_t			    offset,
+	int			    whence);
     static w_rc_t		fsync(int fd);
-    static w_rc_t		ftruncate(int fd, int sz);
+    static w_rc_t		ftruncate(int fd, off_t sz);
+    static w_rc_t		fstat(int fd, struct stat &sb);
+    static w_rc_t		fgetfile(int fd, void *);
+    static w_rc_t		fgetgeometry(int fd, struct disk_geometry &dg);
+    static w_rc_t		fisraw(int fd, bool &raw);
+    static	int		_io_in_progress;
 
 
     /*
@@ -274,7 +338,9 @@ public:
     /* XXX  sleep, fork, and wait exit overlap the unix version. */
 
     // sleep for timeout milliseconds
-    void			sleep(long timeout = WAIT_IMMEDIATE);
+    void			sleep(long timeout = WAIT_IMMEDIATE,
+				      char *reason = 0);
+    void			wakeup();
 
     // wait for a thread to finish running
     w_rc_t			wait(long timeout = WAIT_FOREVER);
@@ -294,7 +360,20 @@ public:
 
     ostream			&print(ostream &) const;
 
-    int				stack_size();
+    unsigned			stack_size() const;
+
+    // anyone can wait and delete a thread
+    virtual			~sthread_t();
+
+    static w_rc_t		io_start(sfile_hdl_base_t &);
+    static w_rc_t		io_finish(sfile_hdl_base_t &);
+    static bool			io_active(int fd);
+
+    // function to do runtime up-cast to smthread_t
+    // return 0 if the sthread is not derrived from sm_thread_t.
+    // should be removed when RTTI is supported
+    virtual smthread_t*		dynamic_cast_to_smthread();
+    virtual const smthread_t*	dynamic_cast_to_const_smthread() const;
 
 protected:
     NORET			sthread_t(
@@ -310,8 +389,6 @@ protected:
 	      unsigned		stack_size = default_stack);
 #endif
 
-    virtual NORET		~sthread_t();
-
     virtual void		run() = 0;
 
 private:
@@ -323,6 +400,8 @@ private:
 
     enum {
 	fd_base = 4000,
+	/* XXX temporary kludge; must match open_max in diskrw.h */
+	sthread_open_max = 32
     };
 
     // thread resource tracing
@@ -343,13 +422,15 @@ private:
     static sthread_list_t*	_class_list;
 
     sthread_t*			_ready_next;	// used in ready_q_t
+    sthread_timer_t*		_tevent;	// used in sleep/wakeup
 
+    static	unsigned char	_io_flags[sthread_open_max];	    
     static w_rc_t		_io(
 	int 			    fd, 
 	int 			    op,
 	const 			    iovec*, 
 	int			    cnt,
-	int                         other=0);
+	off_t                       other=0);
 
     /* in-thread startup and shutdown */ 
     static void			__start(void *arg_thread);
@@ -372,6 +453,8 @@ private:
     static sthread_t*		_main_thread; 
     static uint4_t		_next_id;	// unique id generator
     static w_timerqueue_t	_event_q;
+    static sfile_handler_t	*_io_events;
+    
 
     /* Control for idle thread dynamically changing priority */
     static int			_idle_priority_phase;
@@ -382,6 +465,7 @@ private:
 
 extern ostream &operator<<(ostream &o, const sthread_t &t);
 extern ostream &operator<<(ostream &o, const sthread_core_t &c);
+void print_timeout(ostream& o, const long timeout);
 
 
 class sthread_main_t : public sthread_t  {
@@ -561,110 +645,9 @@ sevsem_t::setname(const char* n1, const char* n2)
 }
 
 
-class sfile_hdl_base_t : public w_vbase_t {
-public:
-    enum { rd = 1, wr = 2, ex = 4 };
-    //enum { max = FD_SETSIZE };   (now set by sysconf())
+/* include sfile stuff for backwards-compatability */
+#include "sfile_handler.h"
 
-    NORET			sfile_hdl_base_t(
-	int			    fd,
-	int			    mask);
-    NORET			~sfile_hdl_base_t();
-
-    const int			fd;
-
-    virtual void		read_ready()	{};
-    virtual void 		write_ready()	{};
-    virtual void 		expt_ready()	{};
-
-    virtual int			priority() { return 0; }
-
-    void			enable();
-    void			disable();
-
-    // Wait for sfile events
-    static w_rc_t		prepare(const stime_t &timeout,
-					bool no_timeout);
-    static w_rc_t		wait();
-    static void			dispatch();
-    static void			dump(const char* str, ostream& out);
-
-    static bool			is_active(int fd);
-protected:
-    void			_dump(ostream& out);
-private:
-    w_link_t			_link;
-
-    const int			_rwe_mask;
-    bool			_enabled;
-
-    void			_dispatch();
-
-    static w_list_t<sfile_hdl_base_t> _list;
-    static	fd_set		masks[3];
-    static	fd_set		ready[3];
-    static	fd_set		*any[3];
-    static int			direction;	
-    static int			rc, wc, ec;
-    static int			dtbsz;
-    static struct timeval	tval;
-    static struct timeval	*tvp;
-
-    // disabled
-    NORET			sfile_hdl_base_t(const sfile_hdl_base_t&);
-    sfile_hdl_base_t&		operator=(const sfile_hdl_base_t&);
-};
-
-class sfile_read_hdl_t : public sfile_hdl_base_t {
-public:
-    NORET			sfile_read_hdl_t(
-	int			    fd);
-    NORET			~sfile_read_hdl_t();
-
-    w_rc_t			wait(long timeout);
-    void			shutdown();
-    bool			is_down()  { return _shutdown; }
-protected:
-    virtual void		read_ready();
-private:
-
-    bool			_shutdown;
-    sevsem_t			sevsem;
-
-    
-    // disabled
-    virtual void		write_ready()		{};
-    virtual void		expt_ready()		{};
-
-    NORET			sfile_read_hdl_t(const sfile_read_hdl_t&);
-    sfile_read_hdl_t&		operator=(const sfile_read_hdl_t&);
-};
-
-class sfile_write_hdl_t : public sfile_hdl_base_t {
-public:
-    NORET			sfile_write_hdl_t(
-	int			    fd);
-    NORET			~sfile_write_hdl_t();
-
-    w_rc_t			wait(long timeout);
-    void			shutdown();
-    bool			is_down()  { return _shutdown; }
-protected:
-    virtual void		write_ready();
-    virtual int			priority() { return 1; }
-private:
-
-    bool			_shutdown;
-    sevsem_t			sevsem;
-
-    
-    // disabled
-    virtual void		read_ready()		{};
-    virtual void		expt_ready()		{};
-
-    NORET			sfile_write_hdl_t(const sfile_write_hdl_t&);
-    sfile_write_hdl_t&		operator=(const sfile_write_hdl_t&);
-};
 
 inline    void	sthread_t::push_resource_alloc(const char* n,
 					       const void *id,

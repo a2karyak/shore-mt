@@ -8,7 +8,7 @@
 #ifndef __VASERR_H__
 #define __VASERR_H__
 /*
- *  $Header: /p/shore/shore_cvs/src/vas/server/vaserr.h,v 1.32 1995/07/14 22:40:28 nhall Exp $
+ *  $Header: /p/shore/shore_cvs/src/vas/server/vaserr.h,v 1.33 1997/01/24 16:48:24 nhall Exp $
  */
 #include <copyright.h>
 #include "svas_service.h"
@@ -143,14 +143,14 @@ extern int errno; // from unix
 
 #define TX_REQUIRED  \
 	bool __txreq__; \
-	if(enter(TRUE)!=SVAS_OK){\
+	if(enter(true)!=SVAS_OK){\
 		LEAVE; RETURN SVAS_FAILURE;\
 	}else{ SET_CLI_SAVEPOINT; } 
 
 
 #define TX_NOT_ALLOWED  \
 	bool __txreq__; \
-	if(enter(FALSE)!=SVAS_OK){ LEAVE; RETURN SVAS_FAILURE; } 
+	if(enter(false)!=SVAS_OK){ LEAVE; RETURN SVAS_FAILURE; } 
 
 #endif
 #endif

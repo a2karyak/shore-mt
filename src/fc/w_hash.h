@@ -6,7 +6,7 @@
 /* --------------------------------------------------------------- */
 
 /*
- *  $Id: w_hash.h,v 1.18 1996/05/03 03:17:31 kupsch Exp $
+ *  $Id: w_hash.h,v 1.19 1997/06/16 21:35:54 solomon Exp $
  */
 #ifndef W_HASH_H
 #define W_HASH_H
@@ -105,7 +105,7 @@ private:
 
 #ifdef __GNUC__
 #if defined(IMPLEMENTATION_W_HASH_H) || !defined(EXTERNAL_TEMPLATES)
-#include <w_hash.c>
+#include <w_hash.cc>
 #endif
 #endif
 

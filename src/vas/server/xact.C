@@ -6,7 +6,7 @@
 /* --------------------------------------------------------------- */
 
 /*
- *  $Header: /p/shore/shore_cvs/src/vas/server/xact.C,v 1.3 1996/06/25 14:38:41 nhall Exp $
+ *  $Header: /p/shore/shore_cvs/src/vas/server/xact.C,v 1.4 1997/06/13 21:43:35 solomon Exp $
  */
 #include <copyright.h>
 
@@ -17,7 +17,7 @@
 #include "w.h"
 #include "option.h"
 #include "opt_error_def.h"
-#include "sm_int.h"
+#include "sm_int_4.h"
 
 #include "sysp.h"
 #include "vas_internal.h"
@@ -32,11 +32,11 @@ svas_server::check_index_cookie(
 	scan_index_i	*i = (scan_index_i *)cookie;
 	xct_t			*x = this->_xact;
 
-	if(x->find_dependent((xct_dependent_t *)i)) {
+	//if(x->find_dependent((xct_dependent_t *)i)) {
 		dassert(i->xid() == x->tid());
 		return i;
-	}
-	return (scan_index_i *)0;
+	//}
+	//return (scan_index_i *)0;
 }
 
 scan_file_i *
@@ -47,22 +47,23 @@ svas_server::check_file_cookie(
 	scan_file_i	*i = (scan_file_i *)cookie;
 	xct_t			*x = this->_xact;
 
-	if(x->find_dependent((xct_dependent_t *)i)) {
+	//if(x->find_dependent((xct_dependent_t *)i)) {
 		dassert(i->xid() == x->tid());
 		return i;
-	}
-	return (scan_file_i *)0;
+	//}
+	//return (scan_file_i *)0;
 }
 
 long
 svas_server::timeout()const
 {
 	xct_t			*x = this->_xact;
-	return x->timeout_c();
+	//return x->timeout_c();
+	return 0; // FIXME
 }
 void
 svas_server::set_timeout(long t)const
 {
 	xct_t			*x = this->_xact;
-	x->set_timeout(t);
+	//x->set_timeout(t); // FIXME
 }

@@ -6,13 +6,13 @@
 /* --------------------------------------------------------------- */
 
 /*
- *  $Id: w_base.h,v 1.28 1995/10/03 16:13:26 nhall Exp $
+ *  $Id: w_base.h,v 1.32 1997/06/13 22:32:18 solomon Exp $
  */
 #ifndef W_BASE_H
 #define W_BASE_H
 
-/* get configuration definitions from config/shore.def */
-#include <shore.def>
+/* get configuration definitions from config/config.h */
+#include <config.h>
 
 #ifndef W_OS2
 #define W_UNIX
@@ -30,8 +30,12 @@
 #include <unistd.h>
 #endif
 
+#ifndef W_WORKAROUND_H
 #include "w_workaround.h"
+#endif
+#ifndef W_BOOLEAN_H
 #include "w_boolean.h"
+#endif
 
 #ifdef DEBUG
 #define W_DEBUG
@@ -96,6 +100,9 @@ public:
     typedef long		int4_t;
     typedef u_long		uint4_t;
 
+    typedef float		f4_t;
+    typedef double		f8_t;
+
     static const int1_t		int1_max, int1_min;
     static const int2_t		int2_max, int2_min;
     static const int4_t		int4_max, int4_min;
@@ -114,6 +121,9 @@ public:
     // static uint4_t		align(uint4_t sz);
 	*/
 #ifndef align
+#define alignonarg(a) (((uint4_t)a)-1)
+#define alignon(p,a) (((uint4_t)((char *)p + alignonarg(a))) & ~alignonarg(a))
+
 #define ALIGNON 0x8
 #define ALIGNON1 (ALIGNON-1)
 #define align(sz) ((uint4_t)((sz + ALIGNON1) & ~ALIGNON1))
@@ -199,7 +209,7 @@ public:
     enum special_t { 
 	t_infinity = -1,
 	t_forever = t_infinity,
-	t_immediate = 0,
+	t_immediate = 0
     };
 
     NORET			w_msec_t();
@@ -224,9 +234,17 @@ w_msec_t::is_forever()
     return ms == t_forever;
 }
 
+#ifndef W_AUTODEL_H
 #include <w_autodel.h>
+#endif
+#ifndef W_FASTNEW_H
 #include <w_fastnew.h>
+#endif
+#ifndef W_ERROR_H
 #include <w_error.h>
+#endif
+#ifndef W_RC_H
 #include <w_rc.h>
+#endif
 
 #endif /*W_BASE_H*/

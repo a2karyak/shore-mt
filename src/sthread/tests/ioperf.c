@@ -6,7 +6,7 @@
 /* --------------------------------------------------------------- */
 
 /*
- *  $Id: ioperf.c,v 1.11 1996/07/15 22:51:00 bolo Exp $
+ *  $Id: ioperf.c,v 1.16 1996/12/04 00:16:37 bolo Exp $
  */
 #include <iostream.h>
 #include <strstream.h>
@@ -16,6 +16,7 @@
 #include <assert.h>
 #include <memory.h>
 #include <time.h>
+#include <unix_error.h>
 #ifdef SOLARIS2
 #include <solaris_stats.h>
 #else
@@ -23,6 +24,15 @@
 #endif
 #include <sys/time.h>
 #include <sys/stat.h>
+#include <sys/uio.h>
+
+#if !(defined(HPUX8) && defined(_INCLUDE_XOPEN_SOURCE)) && !defined(SOLARIS2) && !defined(AIX41)
+extern "C" {
+	int fsync(int);
+	int ftruncate(int, off_t);
+	int readv(int, struct iovec *, int);
+}
+#endif
 
 #include <w.h>
 #include <w_statistics.h>
@@ -33,6 +43,7 @@
 #define BUFSIZE		1024
 
 char* buf = 0;
+int fastpath=0;
 
 class io_thread_t : public sthread_t {
 public:
@@ -42,9 +53,13 @@ public:
 	const	char* file,
 	size_t	block_size,
 	int	block_cnt,
-	char*	buf);
+	char*	buf,
+	bool    fastpath
+	);
 
     ~io_thread_t();
+    void 	rewind(int i);
+    bool 	error() const { return _error;} 
 
 protected:
 
@@ -57,6 +72,14 @@ private:
     size_t	_block_size;
     int	 	_block_cnt;
     char*	_buf;
+    bool 	_is_special;
+    int 	_nblocks;
+    bool 	_fastpath;
+    int 	_fd;
+    int 	_remote_fd;
+    off_t	_offset;
+    bool        _error;
+    int         _total_bytes;
 };
 
 io_thread_t::io_thread_t(
@@ -64,12 +87,19 @@ io_thread_t::io_thread_t(
     const char* file,
     size_t block_size,
     int block_cnt,
-    char* buf)
+    char* buf,
+    bool    fastpath
+    )
 : _rw_flag(rw_flag),
   _fname(file),
   _block_size(block_size), _block_cnt(block_cnt),
   _buf(buf),
-  sthread_t(t_regular)
+  _fastpath(fastpath),
+  _remote_fd(0),
+  _offset(0),
+  _error(false),
+  _total_bytes(0),
+  sthread_t(t_regular, 0, 0, "io_thread")
 {
 }
 
@@ -78,25 +108,71 @@ io_thread_t::~io_thread_t()
 }
 
 void
+io_thread_t::rewind( int )
+{
+    // for device files, skip over the first 2 sectors so we don't trash
+    // the disk label
+    w_rc_t rc;
+    off_t off = 0;
+    if(_is_special){
+	off = 2 * SECTOR_SIZE;
+    }
+    if(_fastpath) {
+	errno = 0;
+	if( (off = ::lseek(_fd, off, SEEK_SET)) == -1) {
+	    cerr << "lseek:" << endl << errno << endl;
+	}
+    } else {
+	/* not a system call */
+	rc = sthread_t::lseek(_fd, off, SEEK_SET, off);
+	if(rc){
+	    cerr << "lseek:" << endl << rc << endl;
+	    W_COERCE(rc);
+	}
+    }
+    // relative to end of sectors 1 & 2
+    _offset = 0;
+
+}
+
+void
 io_thread_t::run()
 {
     stime_t timeBegin;
     stime_t timeEnd;
     struct stat stbuf;
-    bool is_special;
     int oflag = O_RDONLY;
     const char* op_name = 0;
-    int fd;
     w_rc_t rc;
 
     // see if it's a raw or character device
-    if(stat(_fname, &stbuf))
-	is_special = false;
-    else if((stbuf.st_mode & S_IFMT) == S_IFCHR ||
+    if (stat(_fname, &stbuf))
+	_is_special = false;
+    else if ((stbuf.st_mode & S_IFMT) == S_IFCHR ||
 	    (stbuf.st_mode & S_IFMT) == S_IFBLK)
-	is_special = true;
+	_is_special = true;
     else
-	is_special = false;
+	_is_special = false;
+
+    if (_is_special) {
+	// don't count the first two sectors.
+	_nblocks = (stbuf.st_size - (2 * SECTOR_SIZE)) / _block_size;
+    }
+    else if (_rw_flag != 'r') 
+	/* Don't adjust your file; we control the
+	   horizontal AND the vertical. */
+	_nblocks = _block_cnt;
+    else {
+	_nblocks = ((int)stbuf.st_size) / _block_size;
+    }
+
+    if (_nblocks < _block_cnt) {
+	// Warn
+	cerr << "Warning: file " << _fname << " has only " << _nblocks
+		<< " blocks of size " << _block_size << "." <<endl;
+	cerr << "Will have to re-read file to read " << _block_cnt
+		<< " blocks." <<  endl;
+    }
 
     // figure out what the open flags should be
     if(_rw_flag == 'r'){
@@ -115,55 +191,125 @@ io_thread_t::run()
 	cerr << "internal error at " << __LINE__ << endl;
 
     // some systems don't like O_CREAT with device files
-    if(!is_special)
+    if(!_is_special) {
 	oflag |= O_CREAT;
-
-    // open the file
-    rc = sthread_t::open(_fname, oflag, 0666, fd);
-    if(rc){
-	cerr << "open:" << endl << rc << endl;
-	W_COERCE(rc);
     }
 
-    // for device files, skip over the first 2 sectors so we don't trash
-    // the disk label
-    if(is_special){
-	off_t ret;
-	rc = sthread_t::lseek(fd, 2 * SECTOR_SIZE, SEEK_SET, ret);
+    {
+	rc = sthread_t::open(_fname, oflag, 0666, _fd);
 	if(rc){
-	    cerr << "lseek:" << endl << rc << endl;
+	    cerr << "open:" << endl << rc << endl;
 	    W_COERCE(rc);
 	}
     }
+    // open the file locally, also
+    if(_fastpath) {
+	_remote_fd = _fd;
+	errno = 0;
+	_fd = ::open(_fname, oflag, 0666);
+	if(_fd < 0) {
+	    cerr << "open:" << endl << errno << endl;
+	}
+    } 
+
+    // for device files, skip over the first 2 sectors so we don't trash
+    // the disk label
+    this->rewind(-1);
 
     cout << "starting: " << _block_cnt << " "
 	 << op_name << " ops of " << _block_size
 	 << " bytes each." << endl;
 
-    timeBegin = stime_t::now();
+    iovec iov;
+
+    timeBegin = stime_t::now(); /********************START ***************/
 
     for (int i = 0; i < _block_cnt; i++)  {
+	if(i % _nblocks == (_nblocks-1) ) {
+	    this->rewind(i);
+	}
+
 	if (_rw_flag == 'r' || _rw_flag == 'b') {
-	    if (rc = sthread_t::read(fd, _buf, _block_size))  {
-		cerr << "read:" << endl << rc << endl;
-		W_COERCE(rc);
+	    int cc;
+	    if(_fastpath) {
+		errno = 0;
+		iov.iov_base = (caddr_t) _buf;
+		iov.iov_len = _block_size;
+
+		/*
+		if ((cc = ::lseek(_fd, _offset, SEEK_SET)) != _offset)  {
+		    cerr << "lseek (" << i << "/" << _offset << "):  returned " 
+			<<  cc <<endl;
+		    _error = true;
+		    return;
+		}
+		*/
+
+		if ((cc=::readv(_fd, &iov, 1)) != (int)_block_size)  {
+		    cerr << "readv (" << i << "/" << _offset << "):  returned " 
+			<< cc
+			<< "; errno= " << errno << endl;
+		    _error = true;
+		    return;
+		}
+		/*
+		if ((cc=::read(_fd, _buf, _block_size)) != _block_size)  {
+		    cerr << "read (" << i << "/" << _offset << "):  returned " 
+			<< cc
+			<< "; errno= " << errno << endl;
+		    _error = true;
+		    return;
+		}
+		*/
+	    } else {
+		if (rc = sthread_t::read(_fd, _buf, _block_size))  {
+		    cerr << "read:" << endl << rc << endl;
+		    _error = true;
+		    W_COERCE(rc);
+		}
 	    }
 	}
 	if (_rw_flag == 'w' || _rw_flag == 'b') {
-	    if (rc = sthread_t::write(fd, _buf, _block_size))  {
-		cerr << "write:" << endl << rc << endl;
-		W_COERCE(rc);
+	    if(_fastpath) {
+		errno = 0;
+		if (::write(_fd, _buf, _block_size) < 0)  {
+		    cerr << "write (" << i << "/" << _offset << "): " 
+		    << endl << errno << endl;
+		    _error = true;
+		    return;
+		}
+	    } else {
+		if (rc = sthread_t::write(_fd, _buf, _block_size))  {
+		    cerr << "write:" << endl << rc << endl;
+		    _error = true;
+		    W_COERCE(rc);
+		}
 	    }
 	}
+	_offset += _block_size;
+	_total_bytes += _block_size;
+    }
+    timeEnd = stime_t::now(); /**************************** FINISH **********/
+
+    if(_fastpath) {
+	errno = 0;
+	if(::fsync(_fd) < 0) {
+	    cerr << "fsync:" << endl << errno << endl;
+	}
+    } else {
+	W_COERCE( sthread_t::fsync(_fd) );
     }
 
-    W_COERCE( sthread_t::fsync(fd) );
-
-    timeEnd = stime_t::now();
+    // timeEnd = stime_t::now(); 
     
-    cout << "finished: " << _block_cnt << " "
+    cout << "finished " 
+	<< (char *)(_fastpath?"local":"remote") 
+	<< " I/O :"
+	<< _block_cnt << " "
 	 << op_name << " ops of " << _block_size
-	 << " bytes each." << endl;
+	 << " bytes each; " 
+	 << _total_bytes  << " bytes total. " 
+	 << endl;
 
     if (_rw_flag == 'b') {
 	_block_cnt <<= 1; // times 2
@@ -173,11 +319,21 @@ io_thread_t::run()
 
     cout << "Total time: " << delta << endl;
 
+    float f =
+	 (_block_size*_block_cnt)/(1000.0*1000.0) / (double)((stime_t)delta);
     cout << "MB/sec: "
-	 << (_block_size*_block_cnt)/(1024.0*1024.0) / (double)delta
+	 << f
 	 << endl;
 
-    W_COERCE( sthread_t::close(fd) );
+    if(_fastpath) {
+	errno = 0;
+	if(::close(_fd) < 0) {
+	    cerr << "close:" << endl << errno << endl;
+	}
+	_fd = _remote_fd;
+    }
+
+    W_COERCE( sthread_t::close(_fd) );
 }
 
 static unix_stats U1;
@@ -186,6 +342,7 @@ static unix_stats U3(RUSAGE_CHILDREN);
 #else
 static unix_stats U3; // wasted
 #endif
+
 
 int
 main(int argc, char** argv)
@@ -200,10 +357,15 @@ main(int argc, char** argv)
 
     char rw_flag = argv[1][0];
     switch (rw_flag) {
+    case 'R': case 'W': case 'B':
+        fastpath++;
+        rw_flag = (char)(((int) rw_flag) + 0x20);  // make lower-case
+	cerr << "FAST PATH version of " << (char) rw_flag <<endl;
+        break;
     case 'r': case 'w': case 'b':
 	break;
     default:
-	cerr << "first parameter must be read write flag either r or w"
+	cerr << "first parameter must be read write flag [rRwWbB]"
 	     << endl;
 	return 1;
     }
@@ -215,19 +377,23 @@ main(int argc, char** argv)
     char* 	buf = sthread_t::set_bufsize(block_size);
 
 
-    io_thread_t thr(rw_flag, fname, block_size, block_cnt, buf);
+    io_thread_t thr(rw_flag, fname, block_size, block_cnt, buf, fastpath);
     W_COERCE( thr.fork() );
     W_COERCE( thr.wait() );
 
-    cout << SthreadStats << endl;
+    if (!thr.error()) {
+	cout << SthreadStats << endl;
+    }
 
     U1.stop();
     U3.stop();
-    cout << "Unix stats for parent:" << endl ;
-    cout << U1 << endl <<endl;
+    if(!thr.error()) {
+	cout << "Unix stats for parent:" << endl ;
+	cout << U1 << endl <<endl;
 #ifndef SOLARIS2
-    cout << "Unix stats for children:" << endl;
-    cout << U3 << endl <<endl;
+	cout << "Unix stats for children:" << endl;
+	cout << U3 << endl <<endl;
 #endif
+    }
     return 0;
 }

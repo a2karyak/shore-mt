@@ -8,7 +8,15 @@
 #ifndef _SORT_H_
 #define _SORT_H_
 
+typedef int  (*PFC) (uint4 kLen1, const void* kval1, uint4 kLen2, const void*
+kval22, const void* cdata);
+
+#ifndef LEXIFY_H
+#include <lexify.h>
+#endif
+#ifndef SORT_S_H
 #include <sort_s.h>
+#endif
 
 struct sort_desc_t;
 class run_scan_t;
@@ -132,22 +140,6 @@ class sort_stream_i : public smlevel_top, public xct_dependent_t {
     serial_t		_logical_id;	// logical id
 };
 
-#if (defined(_AIX) || defined(mips) || defined(__cplusplus) || \
-     defined(c_plusplus) || defined(__GNUC__) )
-#       define PROTOTYPE(_parms) _parms
-#else
-/*
- *      Turn it off for everything else
- */
-#       define PROTOTYPE(_parms) ()
-#endif
-
-#ifndef PFCDEFINED
-
-#define PFCDEFINED
-typedef int  (*PFC) PROTOTYPE((uint4 kLen1, const void* kval1, uint4 kLen2, const void* kval2));
-
-#endif
 
 class file_p;
 
@@ -164,14 +156,14 @@ class run_scan_t {
     key_info_t kinfo;   // key description (location, len, type)
     int2   toggle_base; // default = 1, unique sort = 2
     bool   single;	// only one page
-
+    bool   _unique;	// unique sort
+    PFC cmp;            // The comparison function
+    const void *cdata;  // A handle on any extra data the cmp function needs
 public:
-    PFC cmp;
-
     NORET run_scan_t();
     NORET ~run_scan_t();
 
-    rc_t init(rid_t& begin, PFC c, const key_info_t& k, bool unique);
+    rc_t init(rid_t& begin, const key_info_t& k, bool unique);
     rc_t current(const record_t*& rec);
     rc_t next(bool& eof);
 

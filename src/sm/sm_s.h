@@ -6,20 +6,20 @@
 /* --------------------------------------------------------------- */
 
 /*
- *  $Id: sm_s.h,v 1.58 1996/07/01 22:07:43 nhall Exp $
+ *  $Id: sm_s.h,v 1.64 1997/05/19 19:48:13 nhall Exp $
  */
 #ifndef SM_S_H
 #define SM_S_H
 
-typedef uint2	snum_t;
 typedef uint4	shpid_t;
 
 extern "C" pull_in_sm_export();
 
 typedef uint2	extnum_t;
 
-#include <vid_t.h>
-#include <devid_t.h>
+#ifndef STID_T_H
+#include <stid_t.h>
+#endif
 
 #ifdef __GNUG__
 // implementation is in common/sm_export.C
@@ -32,28 +32,6 @@ struct extid_t {
 
     friend ostream& operator<<(ostream&, const extid_t& x);
 };
-
-#define STID_T
-struct stid_t {
-    vid_t	vol;
-    snum_t	store;
-    
-    stid_t();
-    stid_t(const stid_t& s);
-    stid_t(vid_t vid, snum_t snum);
-
-    bool operator==(const stid_t& s) const;
-    bool operator!=(const stid_t& s) const;
-
-    friend ostream& operator<<(ostream&, const stid_t& s);
-    friend istream& operator>>(istream&, stid_t& s);
-
-    static const stid_t null;
-    operator const void*() const;
-};
-
-inline stid_t::stid_t(const stid_t& s) : vol(s.vol), store(s.store)
-{}
 
 #define LPID_T
 struct lpid_t {
@@ -104,6 +82,7 @@ struct stpgid_t {
     const stid_t& stid() const;
 
     bool operator==(const stpgid_t&) const;
+    bool operator!=(const stpgid_t&) const;
 };
 
 
@@ -208,13 +187,18 @@ private:
 				// byte) record in file
 };
 
-
 struct key_type_s {
     enum type_t {
-	i = 'i',		// integer
-	u = 'u',		// unsigned integer
-	f = 'f',		// float
-	b = 'b'			// binary (unterpreted)
+	i = 'i',		// integer (1,2,4)
+	u = 'u',		// unsigned integer (1,2,4)
+	f = 'f',		// float (4,8)
+	b = 'b'			// binary (uninterpreted) (*max, fixed-len)
+	// NB : u1==b1, u2==b2, u4==b4 semantically, 
+	// BUT
+	// u2, u4 must be  aligned, whereas b2, b4 need not be,
+	// AND
+	// u2, u4 may use faster comparisons than b2, b4, which will 
+	// always use umemcmp (possibly not optimized). 
     };
     enum { max_len = 2000 };
     char	type;
@@ -230,10 +214,9 @@ struct key_type_s {
     // the number of elements filled in "kc" is returned through
     // "count". 
     static w_rc_t parse_key_type(const char* s, uint4& count, key_type_s kc[]);
+    static w_rc_t get_key_type(char* s, int buflen, uint4 count, const key_type_s *kc);
 
 };
-
-
 #define null_lsn (lsn_t::null)
 #define max_lsn  (lsn_t::max)
 
@@ -332,17 +315,6 @@ inline istream& operator>>(istream& i, lsn_t& l)
     return i >> l._file >> c >> l._rba;
 }
 
-inline stid_t::stid_t() : vol(0), store(0)
-{}
-
-inline stid_t::stid_t(vid_t v, snum_t s) : vol(v), store(s)
-{}
-
-inline stid_t::operator const void*() const
-{
-    return vol ? (void*) 1 : 0;
-}
-
 inline lpid_t::lpid_t() : page(0) {}
 
 inline lpid_t::lpid_t(const stid_t& s, shpid_t p) : _stid(s), page(p)
@@ -352,10 +324,6 @@ inline lpid_t::lpid_t(vid_t v, snum_t s, shpid_t p) :
 	_stid(v, s), page(p)
 {}
 
-inline lpid_t::operator const void*() const
-{
-    return _stid.vol ? (void*) 1 : 0;
-}
 
 inline stpgid_t::stpgid_t()
 {
@@ -414,16 +382,6 @@ inline stid_t rid_t::stid() const
     return pid.stid();
 }
 
-inline bool stid_t::operator==(const stid_t& s) const
-{
-    return (vol == s.vol) && (store == s.store);
-}
-
-inline bool stid_t::operator!=(const stid_t& s) const
-{
-    return ! (*this == s);
-}
-
 inline bool lpid_t::operator==(const lpid_t& p) const
 {
     return (page == p.page) && (stid() == p.stid());
@@ -457,6 +415,11 @@ inline u_long hash(const vid_t v)
 inline bool stpgid_t::operator==(const stpgid_t& s) const
 {
     return lpid == s.lpid;
+}
+
+inline bool stpgid_t::operator!=(const stpgid_t& s) const
+{
+    return lpid != s.lpid;
 }
 
 

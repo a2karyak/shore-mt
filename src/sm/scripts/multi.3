@@ -28,21 +28,21 @@ proc go_go_gadget {name t} {
     sm attach_xct $t
     for {set j 1} {$j <= $nxct} {incr j} {
 	for {set i 1} {$i <= $ntries} {incr i} {
-	    echo $name ":" $i
+	    verbose $name ":" $i
 	    set f0 [sm create_file $volid]]
-	    echo $name created ":" $f0
+	    verbose $name created ":" $f0
 	    set f1 [sm create_file $volid]]
-	    echo $name created ":" $f1
+	    verbose $name created ":" $f1
 	    sm sleep 1
-	    echo $name destroy ":" $f0
+	    verbose $name destroy ":" $f0
 	    sm destroy_file $f0
-	    echo $name destroy ":" $f1
+	    verbose $name destroy ":" $f1
 	    sm destroy_file $f1
 	}
     }
 }
 
-echo starting 2 threads
+verbose starting 2 threads
 
 
 sm begin_xct
@@ -50,12 +50,12 @@ set tid [sm xct]
 set t1 [fork_thread go_go_gadget {"t1" $tid} ]
 set t2 [fork_thread go_go_gadget {"t2" $tid} ]
 
-echo waiting for threads
+verbose waiting for threads
 
 join_thread $t1
 join_thread $t2
 
 sm commit_xct
 
-echo threads done
+verbose threads done
 }

@@ -15,8 +15,9 @@ source $script_dir/vol.init
 
 set nrec 50
 
-echo testing integer key btree
+verbose testing integer key btree
 sm begin_xct
 sm test_int_btree $volid $nrec
 sm commit_xct
 
+unset nrec

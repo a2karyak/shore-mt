@@ -10,57 +10,24 @@
 #
 source $script_dir/vol.init
 
-set nrec 40
+set nrec 11
+set ktype i4
 
-#create and load a integer stream in reverse order for sort
+# set typelist { u1 u2 u4 i1 i2 i4 f4 f8 b1 b*1000 }
+set typelist { u1 u2 u4 i1 i2 i4 f4 f8 b1 }
+#
+# sort does not work for variable-length keys, since
+# the key lengths then need to be stored with each key
+# set typelist { b*1000 }
+#
 
-sm begin_xct
-sm begin_sort_stream $volid 2 int 4 10 distinct up
+set len [llength $typelist]
 
-for {set i 0} {$i < $nrec} {incr i} {
-    for {set j 0} {$j <= $i } {incr j} {
-        sm sort_stream_put int [expr { $nrec - $i }] [expr { $nrec - $i }]
-    }
+for {set k 0} {$k < $len} {incr k} {
+    set ktype [lindex $typelist $k] 
+    verbose "---- testing -- $ktype"
+
+    source $script_dir/sort.3a
 }
 
-#display
-echo sort up ...
-for {set i 0} {$i < $nrec} {incr i} {
-    for {set j 0} {$j < $i } {incr j} {
-        set r [sm sort_stream_get next]
-        if {$r == "eof"} then { break }
-        set key [string trimleft [lindex $r 0] 0]
-        set el [lindex $r 1]
-        echo ($key) $el
-    }
-}
-sm sort_stream_end
-
-sm commit_xct
-
-#create and load a stream in ascending order for sort in reverse order
-sm begin_xct
-sm begin_sort_stream $volid 2 int 4 10 distinct down
-
-for {set i 0} {$i < $nrec} {incr i} {
-    for {set j 0} {$j < $i } {incr j} {
-        sm sort_stream_put int $i $i
-    }
-}
-
-#display
-echo sort down ...
-for {set i 0} {$i < $nrec} {incr i} {
-    for {set j 0} {$j < $i } {incr j} {
-        set r [sm sort_stream_get next]
-        if {$r == "eof"} then { break }
-        set key [string trimleft [lindex $r 0] 0]
-        set el [lindex $r 1]
-        echo ($key) $el
-    }
-}
-sm sort_stream_end
-
-sm commit_xct
-
-unset key j r el i nrec
+unset nrec ktype typelist len k

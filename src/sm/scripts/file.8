@@ -19,38 +19,40 @@ echo THIS IS OK as long as it does not get an assertion failure.
 
 set tot 1216
 # 4 for slot, 16 for tag , 0 for header
-set tot [expr { $tot + 4 + 16 }]
+set slotsize 4
+set tagsize 16
+set tot [expr { $tot + $slotsize + $tagsize }]
 
-echo creating r0 size 1216
+verbose creating r0 size 1216
 set r0 [sm create_rec $fid "" 0 $id_body_1216]
 for {set i 0} {$i < 300} {incr i} {
     sm create_rec $fid "" 0 "01234567"
-    set tot [expr { $tot + 8 + 4 + 16 }]
+    set tot [expr { $tot + 8 + $slotsize + $tagsize }]
 }
 
 set catcherr 0
-echo appending 400 to $r0 while total = $tot
+verbose appending 400 to $r0 while total = $tot
 set res [catch { sm append_rec $r0  $id_body_400 } catcherr] 
-echo $res
+verbose $res
 if { $res == 1 } {
-	echo Error is: $catcherr
+	verbose Error is: $catcherr
 } else {
 	set tot [expr { $tot + 400 }]
 
 	for {set i 0} {$i < 100} {incr i} {
-		set tot [expr { $tot + 8 + 4 + 16 }]
+		set tot [expr { $tot + 8 + $slotsize + $tagsize }]
 		sm create_rec $fid "" 0 "01234567"
 	}
 
-	echo appending 400 to $r0 while total = $tot
+	verbose appending 400 to $r0 while total = $tot
 	set res [catch { sm append_rec $r0  $id_body_400 } catcherr] 
 	if { $res == 1 } {
-		echo Error is: $catcherr
+		verbose Error is: $catcherr
 	} else {
 		set tot [expr { $tot + 400 }]
 
 		for {set i 0} {$i < 100} {incr i} {
-			set tot [expr { $tot + 8 + 4 + 16 }]
+			set tot [expr { $tot + 8 + $slotsize + $tagsize }]
 			sm create_rec $fid "" 0 "01234567"
 		}
 	}
@@ -60,3 +62,4 @@ sm commit_xct
 
 unset r0 res i
 unset tot fid id_body_1216 id_body_400 catcherr
+unset slotsize tagsize

@@ -8,7 +8,7 @@
 #ifndef NOSHELL
 
 /*
- *  $Header: /p/shore/shore_cvs/src/vas/server/stdin.C,v 1.35 1996/07/16 15:24:34 nhall Exp $
+ *  $Header: /p/shore/shore_cvs/src/vas/server/stdin.C,v 1.36 1997/01/24 16:48:16 nhall Exp $
  */
 #include <copyright.h>
 
@@ -58,7 +58,7 @@ shell_client_t::shell_client_t( FILE *file, bool *ok, tclshell_service *s ) :
 
 	dassert(ok);
 	if(_server==0) {
-		*ok = FALSE;
+		*ok = false;
 		return;
 	}
 	dassert(this == CLTAB->find(0 /* socket 0 */));
@@ -76,19 +76,19 @@ shell_client_t::shell_client_t( FILE *file, bool *ok, tclshell_service *s ) :
 			DBG(<<"shell_client_t: could not init server, deleting ");
 			delete _server;
 			 _server = 0;
-			*ok = FALSE;
+			*ok = false;
 			return;
 		} 
 	}
 	if(_interpreter = new interpreter_t(_file, _server )) {
 		this->rename("shell");
 		DBG(<<"");
-		*ok = TRUE;
+		*ok = true;
 	} else {
 		delete _server;
 		_server = 0;
 		DBG(<<"");
-		*ok = FALSE;
+		*ok = false;
 	}
 	DBG( << "exiting shell_client_t::shell_client_t");
 }
@@ -108,7 +108,7 @@ shell_client_t::~shell_client_t()
 	_serves->disconnect(this);
 }
 
-char	*version = "($Revision: 1.35 $ $Date: 1996/07/16 15:24:34 $)";
+char	*version = "($Revision: 1.36 $ $Date: 1997/01/24 16:48:16 $)";
 
 void
 shell_client_t::welcome()

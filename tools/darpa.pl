@@ -50,7 +50,7 @@ sub copyright {
 	/terms/ && $y++;
 	/Copyright/ && $y++;
 	/Computer Sciences Department/ && $y++;
-	/199[4-6]/ && $y++;
+	/199[4-7]/ && $y++;
 	return $y;
 }
 sub darpa {

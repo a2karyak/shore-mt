@@ -23,27 +23,27 @@ sm commit_xct
 #
 sm begin_xct
 set ndx [sm create_set_index $volid 4 rdtree]
-echo created rdtree $ndx
+verbose created rdtree $ndx
 for {set i 1} {$i <= $nrec} {incr i} {
     set sets($i) [sm next_set $numvals $bound $seed]
-#    echo inserting $sets($i) $i
+#    verbose inserting $sets($i) $i
     sm create_set_assoc $ndx $sets($i) $i
 }
-echo inserted $nrec entries
+verbose inserted $nrec entries
 #sm draw_rtree $ndx
 #sm print_set_index $ndx
 sm commit_xct
 
 sm begin_xct
-echo probe:
+verbose probe:
 for {set i 1} {$i <= $nrec} {incr i} {
-#    echo $i $sets($i)
+#    verbose $i $sets($i)
     set r [sm find_set_assoc $ndx $sets($i)]
     set el [lindex $r 0]
-#    echo r = $r, i = $i, el = $el
+#    verbose r = $r, i = $i, el = $el
     assert {[ expr {$el != " "} ]}
 }
-echo "---- successful"
+verbose "---- successful"
 
 sm commit_xct
 

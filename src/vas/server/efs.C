@@ -6,7 +6,7 @@
 /* --------------------------------------------------------------- */
 
 #define __EFS_C__
-static char *rcsid="$Header: /p/shore/shore_cvs/src/vas/server/efs.C,v 1.63 1996/07/23 22:42:44 nhall Exp $";
+static char *rcsid="$Header: /p/shore/shore_cvs/src/vas/server/efs.C,v 1.64 1997/01/24 16:47:54 nhall Exp $";
 
 #define __malloc_h
 
@@ -338,7 +338,7 @@ svas_nfs::efs_stat(const nfs_fh &h, SysProps &s, ftype &type,
 	mode_t mode;
 #endif
 
-	if (this->sysprops(target, &s, FALSE,
+	if (this->sysprops(target, &s, false,
 		SH, &is_unix_file ) != SVAS_OK) { 
 		errlog->log(log_internal, "Cannot stat object\n");
 		return errno2nfs(vasstatus2errno());
@@ -361,7 +361,7 @@ svas_nfs::efs_stat(const nfs_fh &h, SysProps &s, ftype &type,
 			lrid_t	poolid;
 			poolid.lvid = target.lvid;
 			poolid.serial = s.anon_pool;
-			if (this->sysprops(poolid, &poolsysprops, FALSE,
+			if (this->sysprops(poolid, &poolsysprops, false,
 				SH, 0, 0 ) != SVAS_OK) { 
 				errlog->log(log_internal, "Cannot stat pool\n");
 				// really ought to croak here
@@ -614,25 +614,25 @@ svas_nfs::efs_attrs(const nfs_fh &h, const sattr &a)
 	VASResult vasres;
 	const u_int *modep = 0, *uidp = 0, *gidp = 0, *sizep = 0;
 	timeval atime, mtime, *at=0, *mt=0;
-	bool any = FALSE;
+	bool any = false;
 
 	errlog->log(log_info, "SETATTR: \n");
 
 	if (a.uid != IGNORE)
-		uidp = &a.uid, any = TRUE;
+		uidp = &a.uid, any = true;
 	if (a.gid != IGNORE)
-		gidp = &a.gid, any = TRUE;
+		gidp = &a.gid, any = true;
 
 	/* undocumented feature?  the "ignore" value for mode is 0177777 */
 
 	if (a.mode != SHORT_IGNORE && a.mode != IGNORE)
-		modep = &a.mode, any = TRUE;
+		modep = &a.mode, any = true;
 
 	if (a.atime.seconds != IGNORE && a.atime.useconds != IGNORE) {
 		atime.tv_sec = a.atime.seconds;
 		atime.tv_usec = a.atime.useconds;
 		at = &atime;
-		any = TRUE;
+		any = true;
 		errlog->log(log_info, "sattr atime(%s)", 
 			ctime((TIME_T *)&atime.tv_sec));
 	}
@@ -640,13 +640,13 @@ svas_nfs::efs_attrs(const nfs_fh &h, const sattr &a)
 		mtime.tv_sec = a.mtime.seconds;
 		mtime.tv_usec = a.mtime.useconds;
 		mt = &mtime;
-		any = TRUE;
+		any = true;
 		errlog->log(log_info, "sattr mtime(%s)", 
 			ctime((TIME_T *)&mtime.tv_sec));
 	}
 
 	if (a.size != IGNORE)
-		sizep = &a.size, any = TRUE;
+		sizep = &a.size, any = true;
 
 	if (!any) {
 		errlog->log(log_info, "SETATTR: no attributes set\n");

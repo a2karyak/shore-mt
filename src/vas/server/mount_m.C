@@ -6,7 +6,7 @@
 /* --------------------------------------------------------------- */
 
 /*
- *  $Header: /p/shore/shore_cvs/src/vas/server/mount_m.C,v 1.45 1995/07/14 22:39:36 nhall Exp $
+ *  $Header: /p/shore/shore_cvs/src/vas/server/mount_m.C,v 1.46 1997/01/24 16:48:06 nhall Exp $
  */
 #include <copyright.h>
 
@@ -238,7 +238,7 @@ mount_m::find(
 {
 	FUNC(mount_m::find);
 	Path 			path = _path;
-	bool 			found = FALSE;
+	bool 			found = false;
     mount_info* 	mount_info;
 
 	// get rid of leading '/'s
@@ -263,7 +263,7 @@ mount_m::find(
 	bool				*const writable // OUT
 )
 {
-	bool			found = TRUE;
+	bool			found = true;
     mount_info* 	mount_info = _find(lvid, &found);
 
 	if(mount_info == NULL || !found) {
@@ -288,7 +288,7 @@ mount_m::namei(
 )
 {
 	FUNC(mount_m::namei);
-	bool 		found = FALSE;
+	bool 		found = false;
     mount_info* 	mount_info;
 
 	audit();
@@ -341,7 +341,7 @@ mount_m::_map(
 )
 {
 	FUNC(mount_m::_map);
-	bool			found = FALSE;
+	bool			found = false;
 	{
     rsrc_i<mount_info, HASH_VALUE> iter(*_table); // when it goes out
 		// of scope, it unpins whatever was pinned
@@ -353,7 +353,7 @@ mount_m::_map(
 
 		DBG(<<"mount_info->mnt=" << mount_info->mnt << " from=" << from);
 		if(mount_info->mnt == from && mount_info->kind == k) {
-			found = TRUE;
+			found = true;
 			DBG(<< "map found lvid=" 
 				<< mount_info->lvid
 				<< " root=" 
@@ -436,11 +436,11 @@ mount_m::_namei(const Path path, bool *found, int *prefix_len)
 				_table->pin(mount_info); // a second time
 				// because the iterator unpins when it goes
 				// out of scope
-				*found = TRUE;
+				*found = true;
 				RETURN mount_info;
 			}
 		}
-		*found = FALSE;
+		*found = false;
 	}
 	audit();
 	RETURN NULL;
@@ -465,11 +465,11 @@ mount_m::_find(const lvid_t& lvid, bool *found)
 
 	if(mi) {
 		DBG(<<"found " << lvid);
-		*found = TRUE;
+		*found = true;
 	} else {
 		DBG(<<"not found " << lvid);
 		audit();
-		*found = FALSE;
+		*found = false;
 	}
 	RETURN mi;
 }
@@ -485,7 +485,7 @@ mount_m::_find(const Path _path, bool *found)
 	rc_t		err;
 
 	if( strlen(path) > MNT_STR_LEN) {
-		*found = FALSE;
+		*found = false;
 		audit();
 		RETURN NULL;
 	}
@@ -508,10 +508,10 @@ mount_m::_find(const Path _path, bool *found)
 
 	if(mi) {
 		DBG(<<"Found " << mi->mountpoint );
-		*found = TRUE;
+		*found = true;
 		// should be pinned
 	} else {
-		*found = FALSE;
+		*found = false;
 		audit();
 	}
 	RETURN mi;
@@ -751,7 +751,7 @@ mount_m:: getmnt_info(
 	FSDATA *fsd 			// out
 )
 {
-	bool			found = TRUE;
+	bool			found = true;
     mount_info* 	mount_info = _find(lvid, &found);
 	rc_t			smerrorrc;
 

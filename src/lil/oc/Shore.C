@@ -21,7 +21,9 @@
 #define OC ObjCache 
 // this define gets svas_base::get_oc types right.
 #include "svas_base.h"
+#ifdef PURIFY
 #include "purify.h"
+#endif
 #include "w.h"
 #include "option.h"
 
@@ -29,7 +31,7 @@ bool	XactMacro::valid = false;
 jmp_buf	XactMacro::jmpbuf;
 shrc	XactMacro::rc;
 
-bool 			Shore::_options_set = FALSE;
+bool 			Shore::_options_set = false;
 option_group_t 	*Shore::_options = 0;
 option_t 		*Shore::_opt_mlimit = 0;
 #ifdef notdef
@@ -288,7 +290,7 @@ Shore::process_options(
 		progclass, progname, rcfilename, 
 		ustring, setup_options, func, process_hv);
     if (!rc) {
-	_options_set = TRUE;
+	_options_set = true;
 	_options = *res;
     }
     return rc;

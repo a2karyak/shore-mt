@@ -6,7 +6,7 @@
 /* --------------------------------------------------------------- */
 
 /*
- *  $Id: chkpt.h,v 1.15 1996/04/05 18:13:17 kupsch Exp $
+ *  $Id: chkpt.h,v 1.16 1997/05/19 19:46:57 nhall Exp $
  */
 #ifndef CHKPT_H
 #define CHKPT_H
@@ -29,7 +29,7 @@ class chkpt_thread_t;
  *  (this is only for testing concurrent checkpoint/other-action.)
  *
  *********************************************************************/
-class chkpt_m : public smlevel_3 {
+class chkpt_m : public smlevel_1 {
 public:
     NORET			chkpt_m();
     NORET			~chkpt_m();
@@ -42,14 +42,11 @@ public:
 private:
     chkpt_thread_t*		_chkpt_thread;
 
-    // mutex for serializing prepares and checkpoints
-    static smutex_t		_chkpt_mutex;
 
 public:
     // These functions are for the use of chkpt -- to serialize
     // logging of chkpt and prepares 
-    static void			chkpt_mutex_acquire();
-    static void			chkpt_mutex_release();
 };
+
 
 #endif /*CHKPT_H*/

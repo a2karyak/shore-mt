@@ -8,7 +8,7 @@
 #define DBGTHRD(arg) DBG(<<" th."<<me()->id << " " arg)
 
 /*
- *  $Header: /p/shore/shore_cvs/src/vas/server/tcp_rpc_service.C,v 1.19 1996/05/03 04:15:34 kupsch Exp $
+ *  $Header: /p/shore/shore_cvs/src/vas/server/tcp_rpc_service.C,v 1.20 1997/06/13 21:43:34 solomon Exp $
  */
 #include <copyright.h>
 #include <vas_internal.h>
@@ -115,6 +115,7 @@ tcp_rpc_service::_start()
 			if(force) {
 				failed=0;
 				// unregister and try again
+				log->log(log_info, "svc_unregister(%d,%d)\n", program, version);
 				(void)svc_unregister(program, version);
 				if (!svc_register(svcxprt, program, version, prog_1,IPPROTO_TCP)) {
 					failed=1;
@@ -122,7 +123,7 @@ tcp_rpc_service::_start()
 			}
 			if(failed) {
 				// for now, it's fatal
-				catastrophic("Cannot register RPC/TCP service.\n");
+				catastrophic("Cannot register RPC/TCP service");
 
 				log->log(log_internal, "svc_register(%d,%d) for %s fails\n",
 					program, version, name);

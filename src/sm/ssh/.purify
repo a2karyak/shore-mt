@@ -12,6 +12,10 @@
 #
 unsuppress umc *
 
+# for gcc library:
+suppress umc istream::operator>>(unsigned short&)
+suppress umc decimal_to_double; strtod; ExprLex
+
 #
 # Needed for the sthread package
 #
@@ -19,6 +23,12 @@ suppress fmw sthread_core_switch
 suppress fmr sthread_core_switch
 suppress abr sthread_core_switch
 suppress bsr sthread_core_switch
+
+## This thread package suppression is for versions of purify
+## newer than 3.0a.  These versions of purify don't handle the
+## register window changes "correctly".
+ignore sthread_core_switch stcore.o
+ignore _sthread_core_switch stcore.o
 
 # these are regular expr functions
 suppress umc bcopy ; re_match_2_internal
@@ -85,3 +95,8 @@ suppress um* Tcl_*
 suppress umc  *;decimal_to_double 
 
 suppress umc istream::operator>>(unsigned short&)
+suppress umc TcpTransport::_inbound(sfile_t&)
+
+suppress umc decimal_to_double; strtod
+suppress um* qst; qsort
+suppress umc _libc_sigaction; signal; Tcl_CreateInterp

@@ -8,7 +8,7 @@
 // ObjCache.h
 //
 
-/* $Header: /p/shore/shore_cvs/src/lil/oc/ObjCache.h,v 1.78 1995/10/27 15:30:45 schuh Exp $ */
+/* $Header: /p/shore/shore_cvs/src/lil/oc/ObjCache.h,v 1.79 1997/01/24 20:14:09 solomon Exp $ */
 
 #ifndef _OBJCACHE_H_
 #define _OBJCACHE_H_
@@ -113,7 +113,7 @@ class ObjCache
     w_rc_t begin_transaction(int degree = 2);
     w_rc_t commit_transaction(bool invalidate = false );
     w_rc_t chain_transaction();
-    w_rc_t abort_transaction(bool invalidate = FALSE);
+    w_rc_t abort_transaction(bool invalidate = false);
     TxStatus get_txstatus();
 
 
@@ -207,7 +207,7 @@ class ObjCache
 
     void   prefetch(OTEntry *ote); // called to prefetch a page...
     w_rc_t make_writable(OTEntry *ote, LockMode lm = WRITE_LOCK_MODE);
-    w_rc_t lock_obj(OTEntry *ote, LockMode lm, bool force = FALSE);
+    w_rc_t lock_obj(OTEntry *ote, LockMode lm, bool force = false);
 
     // Removes an object from the object cache.  If the object is not
     // currently in the cache then no action is taken.  If the object
@@ -291,7 +291,7 @@ class ObjCache
     w_rc_t stat(OTEntry *ote, OStat *osp);
     void stat(SysProps *props, OStat *osp);
     w_rc_t sysprops(OTEntry *ote, SysProps *props = 0,
-			   bool cache_obj = FALSE,
+			   bool cache_obj = false,
 			   LockMode lock = SYSPROPS_LOCK_MODE,
 			   int * prefect_count = 0);
 
@@ -384,7 +384,7 @@ class ObjCache
     // transactions, and may therefore fail to request necessary
     // locks.
     void reset(bool invalidate,
-		      bool flush = TRUE, bool reset_locks = TRUE);
+		      bool flush = true, bool reset_locks = true);
 
 	// writeback_all - write back all objects w/o resetting
 	// anything -- used for chaining transactions

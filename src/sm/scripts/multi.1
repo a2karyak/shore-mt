@@ -22,6 +22,8 @@ set_config_info
 if {$multi_threaded_xct == 0 } {
 	echo "Not configured for multi-threaded xcts"
 } else {
+set sp [sm preemption_simulated]
+sm simulate_preemption off
 
 set o1			"k(s(10.0).100.200)"
 set o2			"k(s(10.0).100.340)"
@@ -31,29 +33,29 @@ proc t1 {} {
     global volid o1 o2 o3
     sm begin_xct
 	set x [sm xct]
-	echo TX $x sync
+	verbose TX $x sync
 sync
-	echo TX start tid = $x
+	verbose TX start tid = $x
 	sm lock $o1 EX LONG
 	sm lock $o2 EX LONG
 	sm lock $o3 EX LONG
-	echo TX $x sync
+	verbose TX $x sync
 sync
-	echo TX $x committing
+	verbose TX $x committing
     sm commit_xct
-	echo TX $x committed
+	verbose TX $x committed
 }
 proc t2 {x o} {
     sm attach_xct $x
-	echo TX $x sync
+	verbose TX $x sync
 sync
-	echo TX $x.$o locking
+	verbose TX $x.$o locking
 	sm lock $o SH LONG
-	echo TX $x.$o acquired, sync
+	verbose TX $x.$o acquired, sync
 sync
-	echo TX $x.$o done
+	verbose TX $x.$o done
     sm detach_xct $x
-	echo detach done
+	verbose detach done
 }
 
 ##########  main  ##########
@@ -61,31 +63,35 @@ sync
 	sm begin_xct
 
 	set tx [sm xct]
-	echo started TX $tx
+	verbose started TX $tx
     set y1 [fork_thread t2 {$tx $o1}]
     set y2 [fork_thread t2 {$tx $o2}]
     set y3 [fork_thread t2 {$tx $o3}]
-	echo started 3 threads for t2
+	verbose started 3 threads for t2
 	sm detach_xct $tx
 
     set x [fork_thread t1 {}]
 
-    echo sync_thread $x $y1 $y2 $y3
+    verbose sync_thread $x $y1 $y2 $y3
     sync_thread $x $y1 $y2 $y3
 
-    echo sync_thread  $x $y1 $y2 $y3
+    verbose sync_thread  $x $y1 $y2 $y3
     sync_thread $x $y1 $y2 $y3
 
-    echo join_thread $x $y1 $y2 $y3
+    verbose join_thread $x $y1 $y2 $y3
     join_thread $x $y1 $y2 $y3
 
-	echo WARNING sm state_xct is fragile
+	verbose WARNING sm state_xct is fragile
 	set s [sm state_xct $tx]
-	if {$s == 1} {
+	if {$s == "xct_active"} {
 		sm attach_xct $tx
 		sm commit_xct
 	}
-echo "SUCCESS"
+sm simulate_preemption $sp
+verbose "SUCCESS"
 unset tx o1 o2 o3  s
-unset y1 y2 y3 x
+unset y1 y2 y3 x sp
 }
+
+sm dump_xcts
+sm dump_locks

@@ -6,16 +6,21 @@
 /* --------------------------------------------------------------- */
 
 /*
- *  $Id: smthread.h,v 1.51 1996/05/06 20:11:59 nhall Exp $
+ *  $Id: smthread.h,v 1.60 1997/05/22 20:12:09 kupsch Exp $
  */
 #ifndef SMTHREAD_H
 #define SMTHREAD_H
 
 #define W_INCL_LIST
+#ifndef W_H
 #include <w.h>
-
+#endif
+#ifndef SM_BASE_H
 #include <sm_base.h>
+#endif
+#ifndef STHREAD_H
 #include <sthread.h>
+#endif
 
 const WAIT_FOREVER = sthread_t::WAIT_FOREVER;
 const WAIT_IMMEDIATE = sthread_t::WAIT_IMMEDIATE;
@@ -23,12 +28,40 @@ const WAIT_SPECIFIED_BY_XCT = sthread_t::WAIT_SPECIFIED_BY_XCT;
 const WAIT_SPECIFIED_BY_THREAD = sthread_t::WAIT_SPECIFIED_BY_THREAD;
 
 class xct_t;
+class xct_log_t;
 class sdesc_cache_t;
 class lockid_t;
 
 #ifdef __GNUG__
 #pragma interface
 #endif
+
+class SmthreadFunc
+{
+    public:
+	virtual void operator()(const smthread_t& smthread) = 0;
+};
+
+class SelectSmthreadsFunc : public ThreadFunc
+{
+    public:
+	SelectSmthreadsFunc(SmthreadFunc& func) : f(func) {};
+	void operator()(const sthread_t& thread);
+    private:
+	SmthreadFunc&	f;
+};
+
+class PrintSmthreadsOfXct : public SmthreadFunc
+{
+    public:
+	PrintSmthreadsOfXct(ostream& out, const xct_t* x) : o(out), xct(x) {};
+	void operator()(const smthread_t& smthread);
+    private:
+	ostream&	o;
+	const xct_t*	xct;
+};
+
+
 
 typedef void st_proc_t(void*);
 
@@ -46,10 +79,12 @@ class smthread_t : public sthread_t {
 	cvec_t	kc_vec;
 	sdesc_cache_t	*_sdesc_cache;
 	lockid_t	*_lock_hierarchy;
+	xct_log_t* _xct_log;
 
 	tcb_t() : user(0), xct(0), pin_count(0), prev_pin_count(0),
 	    _in_sm(false), lock_timeout(WAIT_FOREVER), // default for a thread
-	    kc_len(0), _sdesc_cache(0), _lock_hierarchy(0)
+	    kc_len(0), _sdesc_cache(0), _lock_hierarchy(0), 
+	    _xct_log(0)
 	{ 
 #ifdef PURIFY
 	    kc_vec.reset();
@@ -81,6 +116,10 @@ public:
     NORET			~smthread_t();
 
     virtual void 		run() = 0;
+    virtual smthread_t*		dynamic_cast_to_smthread();
+    virtual const smthread_t*	dynamic_cast_to_const_smthread() const;
+
+    static void			for_each_smthread(SmthreadFunc& f);
     
     void 			attach_xct(xct_t* x);
     void 			detach_xct(xct_t* x);
@@ -102,6 +141,7 @@ public:
     inline
     const xct_t* 		const_xct() const { return const_tcb().xct; }
 
+    // XXX assumes all threads are smthreads
     static smthread_t* 		me() { return (smthread_t*) sthread_t::me(); }
 
     /*
@@ -146,8 +186,14 @@ public:
     void			set_kc_len(int len) {
 				    tcb().kc_len = len;
 				}
-    void			new_xct();
-    void			no_xct();
+    void			new_xct(xct_t *);
+    void			no_xct(xct_t *);
+
+    inline
+    xct_log_t*  		xct_log() {
+				    return tcb()._xct_log;
+				}
+
 
     inline
     lockid_t * 			lock_hierarchy() {
@@ -161,8 +207,41 @@ public:
 
     virtual void		_dump(ostream &); // to be over-ridden
 
+#ifndef OLD_SM_BLOCK
+    /* thread-level block() and unblock aren't public or protected
+       accessible.  Control sm thread-level blocking with ordinary
+       synchronization tools at the sm level */
+    w_rc_t			block(int4_t timeout = WAIT_FOREVER,
+				      sthread_list_t *list = 0,
+				      const char * const caller = 0,
+				      const void * id = 0);
+    w_rc_t			unblock(const w_rc_t &rc = *(w_rc_t*)0);
+
+    /* block/unblock is used as an adhoc sync. method instead of
+       using "guaranteed" synchronization.  Some places in the code
+       which block/unblock may already have a mutex that locks
+       the synchronization area.  This interface allows those locations
+       to block(area_mutex) and get rid of the overhead associated
+       with locking another mutex for the sm-level block */
+    w_rc_t			block(smutex_t &on,
+				      int4_t timeout = WAIT_FOREVER,
+				      const char * const why =0);
+    w_rc_t			unblock(smutex_t &on,
+					const w_rc_t &rc = *(w_rc_t*)0);
+    void			prepare_to_block();
+#endif
+
 private:
     void			user(); /* disabled sthread_t::user */
+
+#ifndef OLD_SM_BLOCK
+    /* sm-specif block / unblock implementation */
+    smutex_t			_block;
+    scond_t			_awaken;
+    bool			_unblocked;
+    bool			_waiting;
+    w_rc_t			_sm_rc;
+#endif
 
     inline
     tcb_t			&tcb() { return _tcb; }
@@ -179,7 +258,6 @@ private:
     static int 			count;
 };
 
-static smthread_init_t smthread_init;
 
 
 

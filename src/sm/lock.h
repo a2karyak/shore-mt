@@ -6,12 +6,17 @@
 /* --------------------------------------------------------------- */
 
 /*
- *  $Id: lock.h,v 1.45 1996/06/27 17:23:01 kupsch Exp $
+ *  $Id: lock.h,v 1.50 1997/05/27 13:40:58 kupsch Exp $
  */
 #ifndef LOCK_H
 #define LOCK_H
 
+#ifndef KVL_T_H
+#include <kvl_t.h>
+#endif
+#ifndef LOCK_S_H
 #include <lock_s.h>
+#endif
 
 class xct_lock_info_t;
 class lock_core_m;
@@ -56,7 +61,8 @@ public:
 	duration_t 		    duration = t_long,
 	long 			    timeout = WAIT_SPECIFIED_BY_XCT,
 	mode_t*			    prev_mode = 0,
-	mode_t*			    prev_pgmode = 0);
+	mode_t*			    prev_pgmode = 0,
+	lockid_t**		    nameInLockHead = 0);
      
     rc_t			lock_force(
 	const lockid_t& 	    n,
@@ -64,19 +70,25 @@ public:
 	duration_t 		    duration = t_long,
 	long			    timeout = WAIT_SPECIFIED_BY_XCT,
 	mode_t*			    prev_mode = 0,
-	mode_t*			    prev_pgmode = 0);
+	mode_t*			    prev_pgmode = 0,
+	lockid_t**		    nameInLockHead = 0);
 
     rc_t			unlock(const lockid_t& n);
 
     rc_t			unlock_duration(
 	duration_t 		    duration,
-	bool 			    all_less_than);
+	bool 			    all_less_than,
+	bool			    dont_clean_exts = false);
+    
+    rc_t			dont_escalate(
+	const lockid_t&		    n,
+	bool			    passOnToDescendants = true);
 
     rc_t			query(
 	const lockid_t& 	    n, 
 	mode_t& 		    m, 
 	const tid_t& 		    tid = tid_t::null,
-	bool			    implicit = FALSE);
+	bool			    implicit = false);
    
    rc_t				query_lockers(
 	const lockid_t&		    n,
@@ -104,7 +116,8 @@ private:
 	mode_t&			    prev_pgmode,
 	duration_t 		    duration,
 	long 			    timeout,
-	bool 			    force);
+	bool 			    force,
+	lockid_t**		    nameInLockHead);
 
     rc_t			_query_implicit(
 	const lockid_t&		    n,

@@ -11,7 +11,8 @@
 
 source $script_dir/vol.init
 
-set form %08000d
+# format for body size -- >= one page
+set form %0${lg_rec_page_space}d
 
 
 proc scanit { f } {
@@ -20,90 +21,96 @@ proc scanit { f } {
     set i 0
     while {$pin != "NULL"} {
 	set rec [sm pin_rid $pin]
-	echo rec: $rec
-	sm pin_unpin $pin
+	verbose rec: $rec
+	# definitely don't -- it screws up the context
+	# sm pin_unpin $pin
 	set pin [sm scan_file_next $scan 0]
 	set i [expr {$i+1} ]
     }
     sm scan_file_destroy $scan
-    echo scan found $i records
+    verbose scan found $i records
 }
 proc t1 {} {
     global volid  f0 r0 form
     sm begin_xct
-    echo xact [sm xct]
-    echo t1-sync-1
+    verbose xact [sm xct]
+    verbose t1-sync-1
 sync
-    echo creating 10 more recs ...
+    verbose creating 10 more recs ...
     for { set i 1} { $i <= 10} { incr i} {
 	set j [sm create_rec $f0 h$i 1000 [format $form $i] ] 
-	echo created rec $j
+	verbose created rec $j
     }
-    echo created 10 recs file $f0 -- committing
+    verbose created 10 recs file $f0 -- committing
     sm commit_xct
-    echo t1-sync-2
+    verbose t1-sync-2
 sync
 }
 proc t2 {} {
-    global volid  f0
+    global volid  f0 logging
     sm begin_xct
-    echo xact [sm xct]
-    echo destroying all records ...
+    verbose xact [sm xct]
+    verbose destroying all records ...
     set scan [sm scan_file_create $f0 t_cc_record]
     set pin [sm scan_file_next $scan 0]
     set i 0
     while {$pin != "NULL"} {
 	set rec [sm pin_rid $pin]
-	echo about to destroy $rec
+	verbose about to destroy $rec
 	catch { sm destroy_rec $rec } err
-	echo destroy $rec yields $err
+	verbose destroy $rec yields $err
 	catch {sm scan_file_next $scan 0} err
-	echo scan_file_next yields $err
+	verbose scan_file_next yields $err
 	if {[string compare $err "{update success}"] != 0} {
-	   echo Error: $err
+	   verbose Error: $err
 	   break
 	}
 	set pin [sm scan_file_cursor $scan ]
-	echo scan_file_cursor yields $pin
+	verbose scan_file_cursor yields $pin
 	set i [expr {$i+1} ]
     }
     sm scan_file_destroy $scan
-    echo destroyed $i recs file $f0
-    echo t2-sync-1
+    verbose destroyed $i recs file $f0
+    verbose t2-sync-1
 sync
-    echo aborting...
-    sm abort_xct
-    echo t2-sync-2
+    if {$logging==0} {
+	verbose Logging off: substituting commit for abort
+	sm commit_xct
+    } else {
+	verbose aborting...
+	sm abort_xct
+    }
+    verbose t2-sync-2
 sync
 }
 
 
 sm begin_xct
 set f0 [sm create_file $volid]]
-echo created file $f0
+verbose created file $f0
 for { set i 1} { $i <= 10} { incr i} {
     set j [sm create_rec $f0 h$i 1000 [format $form $i] ]
-    echo created rec $j
+    verbose created rec $j
 }
-echo created 10 recs file $f0
-echo committing
+verbose created 10 recs file $f0
+verbose committing
 sm commit_xct
 
-echo dstats $volid
+verbose dstats $volid
 dstats $volid
 
-echo forking t1
+verbose forking t1
 set y1 [fork_thread t1 {}]
-echo forking t2
+verbose forking t2
 set y2 [fork_thread t2 {}]
 
 
 
-echo sync_thread $y1 $y2
+verbose sync_thread $y1 $y2
 sync_thread $y1 $y2
-echo sync_thread $y1 $y2
+verbose sync_thread $y1 $y2
 sync_thread $y1 $y2
-echo join_thread $y1 $y2
+verbose join_thread $y1 $y2
 join_thread $y1 $y2
 
 sm begin_xct

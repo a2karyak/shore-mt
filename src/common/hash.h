@@ -6,7 +6,7 @@
 /* --------------------------------------------------------------- */
 
 /*
- *  $Header: /p/shore/shore_cvs/src/common/hash.h,v 1.14 1995/04/24 19:27:52 zwilling Exp $
+ *  $Header: /p/shore/shore_cvs/src/common/hash.h,v 1.15 1997/06/16 21:35:47 solomon Exp $
  */
 #ifndef HASH_H
 #define HASH_H
@@ -93,7 +93,7 @@ public:
 
 #ifdef __GNUC__
 // included in rsrc.h
-#include "hash.c"
+#include "hash.cc"
 #endif
 
 #endif  /* HASH_H */

@@ -24,19 +24,21 @@ proc t1 {} {
 }
 
 proc t2 {} {
-    global o1 
+    global o1 verbose_flag
     sm begin_xct
     sm lock $o1 SH LONG
     verbose "t2: acquired SH on o1"
     sync
     sync
-    sm dump_locks
+    if {$verbose_flag}  {
+	sm dump_locks
+    }
     verbose "t2: attempting to acquire EX on o1"
 
     # catch deadlock
-    echo catch deadlock:
+    verbose catch deadlock:
     catch {sm lock $o1 EX LONG} errorno
-    echo "error is $errorno"
+    verbose "(EXPECTED E_DEADLOCK) error is $errorno"
     assert {error_is $errorno E_DEADLOCK}
     sm commit_xct
 }

@@ -48,14 +48,14 @@ proc rel_lock { args } {
 proc holder { id type op me } {
     sync
 
-    echo "$me: $type ($op) requesting lock on $id"
+    verbose "$me: $type ($op) requesting lock on $id"
     req_lock $id $type $op
-    echo "$me: $type ($op) lock on $id granted"
+    verbose "$me: $type ($op) lock on $id granted"
 
     sync
     sync
 
-    echo "$me: $type ($op) releasing lock on $id"
+    verbose "$me: $type ($op) releasing lock on $id"
     rel_lock
 }
 
@@ -63,13 +63,13 @@ proc requester { id type op me } {
     sync
     sync
 
-    echo "$me: $type ($op) requesting lock on $id"
+    verbose "$me: $type ($op) requesting lock on $id"
     req_lock $id $type $op
-    echo "$me: $type ($op) lock on $id granted"
+    verbose "$me: $type ($op) lock on $id granted"
 
     sync
 
-    echo "$me: $type ($op) releasing lock on $id"
+    verbose "$me: $type ($op) releasing lock on $id"
     rel_lock
 }
 
@@ -86,7 +86,7 @@ proc sh_sh { id } {
 	    sync_thread $x $y
 	    sync_thread $x $y
 	    join_thread $x $y
-	    echo "----------------"
+	    verbose "----------------"
 	}
     }
 }
@@ -105,7 +105,7 @@ proc sh_ex { id } {
 	    sync_thread $x $y
 	    sync_thread $x $y
 	    join_thread $x $y
-	    echo "----------------"
+	    verbose "----------------"
 	}
     }
 }
@@ -124,7 +124,7 @@ proc ex_sh { id } {
 	    sync_thread $x $y
 	    sync_thread $x $y
 	    join_thread $x $y
-	    echo "----------------"
+	    verbose "----------------"
     	}
     }
 }
@@ -142,7 +142,7 @@ proc ex_ex {id} {
 	    sync_thread $x $y
 	    sync_thread $x $y
 	    join_thread $x $y
-	    echo "----------------"
+	    verbose "----------------"
 	}
     }
 }
@@ -160,22 +160,22 @@ set fid [sm create_file $volid]
 set rid [sm create_rec $fid hdr12345 11 hellodata]
 sm commit_xct
 
-#echo volid = $volid
-#echo fid = $fid
-echo rid = $rid
+#verbose volid = $volid
+#verbose fid = $fid
+verbose rid = $rid
 
-echo "TEST:\tRecord Locking with SM Record Operations  *******\n"
+verbose "TEST:\tRecord Locking with SM Record Operations  *******\n"
 
-echo "==================   SH  SH  ====================="
+verbose "==================   SH  SH  ====================="
 sh_sh $rid
 
-echo "==================   SH  EX  ====================="
+verbose "==================   SH  EX  ====================="
 sh_ex $rid
 
-echo "==================   EX  SH  ====================="
+verbose "==================   EX  SH  ====================="
 ex_sh $rid
 
-echo "==================   EX  EX  ====================="
+verbose "==================   EX  EX  ====================="
 ex_ex $rid
 
 unset sh_ops

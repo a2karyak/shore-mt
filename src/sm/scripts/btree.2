@@ -15,22 +15,32 @@
 #
 source $script_dir/vol.init
 
+for {set nrec 1} {$nrec <= 8} {incr nrec} {
+    set nrec [expr {$nrec + 100} ]
+    verbose testing integer key btree  nrec= $nrec
+    sm begin_xct
+    sm test_int_btree $volid $nrec
+    sm commit_xct
+}
 
-set nrec 800
+set nrec 20
 
-echo testing integer key btree
+verbose testing integer key btree
 sm begin_xct
 sm test_int_btree $volid $nrec
 sm commit_xct
+
+
+set nrec 800
 
 #
 # create index and load it up 
 #
 sm begin_xct
 set ndx [sm create_index $volid btree]
-echo created index $ndx
+verbose created index $ndx
 for {set i 1} {$i <= $nrec} {incr i} {
-    #echo inserting $i [format %03d $i] [format %015d $i]
+    #verbose inserting $i [format %03d $i] [format %015d $i]
     if {$i%20 == 0} { 
 	verbose inserting $i [format %03d $i] [format %015d $i] 
     }
@@ -43,23 +53,23 @@ for {set i 1} {$i <= $nrec} {incr i} {
 	    set el [sm find_assoc $ndx [format %03d $j] ]
 	    #assert {[expr {[format %015d $j] == $el}]}
 	    if {[format %015d $j] != $el} {
-	        echo [format %015d $j] != $el
+	        verbose [format %015d $j] != $el
 		assert {0}
 	    }
 	}
     }
 }
-echo "probe:"
+verbose "probe:"
 for {set i 1} {$i <= $nrec} {incr i} {
     set el [sm find_assoc $ndx [format %03d $i] ]
     assert {expr [string compare [format %015d $i] $el ] == 0}
 }
-echo probed [expr $i - 1]
-echo "---- successful"
+verbose probed [expr $i - 1]
+verbose "---- successful"
 
 sm commit_xct
 
-
+verbose [sm gather_stats]
 
 unset ndx nrec
 unset i j el

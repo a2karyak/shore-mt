@@ -10,17 +10,17 @@
 #
 source $script_dir/vol.init
 
-echo VOLID $volid
+verbose VOLID $volid
 
 sm begin_xct
 set f1 [sm create_file $volid]
-echo f1 $f1
+verbose f1 $f1
 set r2 [sm create_rec $f1 hdr12345 11 abcdefghijklmnopqrstuvwxyz]
-echo r2 $r2
+verbose r2 $r2
 
 sm abort_xct
 
 unset f1
 unset r2
 
-echo SUCCESS
+verbose SUCCESS

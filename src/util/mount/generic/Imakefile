@@ -6,44 +6,19 @@
 /* --------------------------------------------------------------- */
 
 /*
- * $Header: /p/shore/shore_cvs/src/util/mount/generic/Imakefile,v 1.4 1995/09/11 22:40:43 zwilling Exp $
+ * $Header: /p/shore/shore_cvs/src/util/mount/generic/Imakefile,v 1.5 1997/06/13 22:33:53 solomon Exp $
  */
 
-SYMLINKS=
+CPPFLAGS = -Wall -Wtraditional -Wshadow -Wpointer-arith -Wstrict-prototypes
 
-default: all
+all_local:: smount sumount
 
-install_copy(bin, smount sumount)
-install::
-	-chmod +x $(INSTALL_DIR)/bin/smount
-	-$(RM) -f $(INSTALL_DIR)/bin/mnt
-	cp ./mnt.install $(INSTALL_DIR)/bin/mnt
-	chmod +x $(INSTALL_DIR)/bin/mnt
+SRC = smount.c sumount.c mount_tab.c
+HDR = platform.h globals.h
 
-CFLAGS = -Wall -Wtraditional -Wshadow -Wpointer-arith -Wstrict-prototypes
-INCLUDES = -I.
-CC = gcc
-LIB = @LIB@
+%GEN c_program(smount, smount.o mount_tab.o, $(LIB))
+%GEN c_program(sumount, sumount.o mount_tab.o, $(LIB))
+%GEN install(bin, smount sumount mnt)
 
-all:: check_configure smount sumount
-
-SRC.depend = smount.c sumount.c mount_tab.c
-HFILES = config.h globals.h
-
-OBJ.umount = sumount.o mount_tab.o
-OBJ.mount = smount.o mount_tab.o
-
-c_program(sumount, $(OBJ.umount), $(LIB))
-c_program(smount, $(OBJ.mount), $(LIB))
-
-automatic:: check_configure 
-
-check_configure:  Makefile configure
-	@echo "Re-configure. Expect an error such as:"
-	@echo "    make: *** No rule to make target \`@LIB@'.  Stop."
-	@echo "If you get this error, re-run make."
-	./configure
-	touch check_configure
-
-depend_target($(SRC.depend))
-	$(MAKE) check_configure
+%GEN tags($(SRC) $(HDR))
+%GEN depend_target($(SRC))

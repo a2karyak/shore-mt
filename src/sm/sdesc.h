@@ -25,13 +25,14 @@
 
 
 struct sinfo_s {
+public:
     typedef smlevel_0::store_t store_t;
 
     snum_t	store;		// store id
     u_char	stype;		// store_t
     u_char	ntype;		// ndx_t
+    u_char	cc;	 	// concurrency_t on index
 
-    //
     // The following holds special properties (such as whether logging
     // should be done.  Note that for "real" (multi-page) stores,
     // this is duplicated in the store map structure at the beginning
@@ -39,10 +40,11 @@ struct sinfo_s {
     // only place to put it.  If the 1-page store grows then
     // it is needed in creating the new store.
     //
-    sm_store_property_t property;
 
     // fill factors
-    u_char	pff;		// page fill factor in %
+    // u_char	pff;		// page fill factor in %
+    //  removed to make room for cc, above
+
     u_char	eff;		// extent fill factor in %	
 				// unused an maybe will never be
 				// used
@@ -64,13 +66,13 @@ struct sinfo_s {
     key_type_s	kc[smlevel_0::max_keycomp];
 
     sinfo_s()	{};
-    sinfo_s(snum_t store_, store_t stype_, u_char pff_, u_char eff_, 
-	    smlevel_0::ndx_t ntype_, sm_store_property_t property_,
-	    const shpid_t& root_, const serial_t& lid_, 
-	    uint4 nkc_, const key_type_s* kc_) 
+    sinfo_s(snum_t store_, store_t stype_, 
+	    u_char eff_, 
+	    smlevel_0::ndx_t ntype_, u_char cc_, 
+	    const shpid_t& root_,
+	    const serial_t& lid_, uint4 nkc_, const key_type_s* kc_) 
     :   store(store_), stype(stype_), ntype(ntype_),
-	property(property_),
-	pff(pff_), eff(eff_),
+	cc(cc_), eff(eff_),
 	large_store(0),
 	root(root_),
 	logical_id(lid_), nkc(nkc_)
@@ -84,8 +86,9 @@ struct sinfo_s {
 
     sinfo_s& operator=(const sinfo_s& other) {
 	store = other.store; stype = other.stype; ntype = other.ntype;
-	property = other.property;
-	pff = other.pff; eff = other.eff; 
+	// pff = other.pff; 
+	eff = other.eff; 
+	cc = other.cc;
 	root = other.root; logical_id = other.logical_id;
 	nkc = other.nkc;
 	memcpy(kc, other.kc, sizeof(kc));
@@ -100,17 +103,19 @@ class sdesc_t {
 public:
     typedef smlevel_0::store_t store_t;
 
-    sdesc_t() : _last_pid_approx(0), _store_flags(0) {};
+    sdesc_t() : _last_pid_approx(0) {};
 
     void		init(const stpgid_t& stpg, const sinfo_s& s)
 			    {   _stpgid = stpg;
 				_sinfo = s; 
 				_last_pid_approx = 0;
-				_store_flags = 0;
-				}
+			    }
 
     inline
     const stpgid_t	stpgid() const {return _stpgid;}
+
+    inline
+    void		invalidate() {_stpgid = lpid_t::null;}
 
     inline
     const lpid_t	root() const {
@@ -129,21 +134,17 @@ public:
 
     inline
     void 		set_last_pid(const shpid_t& new_last)
-			  {_last_pid_approx = new_last;}
+			  {	
+			    // TODO grab 1thread mutex
+				_last_pid_approx = new_last;
+			    // TODO free 1thread mutex
+			  }
 
     inline
     shpid_t		last_pid_approx() const {
 			    return _last_pid_approx;
 			}
 
-    inline
-    uint4	  	store_flags() const {
-			    return _store_flags;
-			}
-    inline
-    void	  	set_store_flags(uint4 f) {
-			    _store_flags = f;
-			}
 private:
     // _sinfo is a cache of persistent info stored in directory index
     sinfo_s		_sinfo;
@@ -154,7 +155,6 @@ private:
     stpgid_t		_stpgid; // identifies stores and 1 page stores
     // approximate last page in file
     shpid_t		_last_pid_approx;
-    uint4		_store_flags;
 };
 
 class sdesc_cache_t {
@@ -167,7 +167,10 @@ public:
     // NEH: changed this from a constant to an exponentially
     // increasing per-cache number.
     //
-    enum {min_sdesc = 4};
+    enum {
+		min_sdesc = 4,
+		min_num_buckets = 8
+    };
 
     		sdesc_cache_t(); 
     		~sdesc_cache_t(); 
@@ -175,45 +178,24 @@ public:
     void	remove(const stpgid_t& stpgid);
     void	remove_all(); // clear all entries from cache
     sdesc_t*	add(const stpgid_t& stpgid, const sinfo_s& sinfo);
-    int		cache_size() const { return _cache_size; }
-
 
 private:
-    // sdesc_t	_sdescs[min_sdesc];	// array of cached sdesc_t
-    // bool	_free[min_sdesc];	// which _sdescs are free
+    uint4	num_buckets() const { return _numValidBuckets; }
+    uint4	num_allocated_buckets() const { return _bucketArraySize; }
+    uint4	elems_in_bucket(int i) const { return min_sdesc << i; }
+    void	AllocateBucket(int i);
+    void	AllocateBucketArray(int newSize);
+    void	DoubleBucketArray();
 
-    sdesc_t	*_sdescs;		// array of cached sdesc_t
-    bool	*_free;			// which _sdescs are free
-    int         _cache_size;		// # entries in the malloced arrays
+    sdesc_t**	_sdescsBuckets;		// array of cached sdesc_t
+    uint2	_bucketArraySize;	// # entries in the malloced array
+    uint2	_numValidBuckets;	// # valid entries
+    uint2	_minFreeBucket;
+    uint2	_minFreeBucketIndex;
 
-    int		_last_access;		// last sdesc accessed;
-    int		_last_alloc; 		// last sdesc allocated
-
+    uint2	_lastAccessBucket;	// last sdesc allocated
+    uint2	_lastAccessBucketIndex;	// last sdesc allocated
 };
 
-
-class pid_cache_t {
-public:
-    NORET	pid_cache_t(int sz, const stid_t& id);
-    NORET	~pid_cache_t()	{ if (_pids) delete [] _pids; }
-
-    shpid_t	first_page()	{ return (_num > 0 ? _pids[0] : 0); }
-    shpid_t	last_page()	{ return (_num > 0 ? _pids[_num - 1] : 0); }
-
-    shpid_t	next_page(const lpid_t& pid);
-
-    shpid_t*	pids()		{ return _pids; }
-    int		num()		{ return _num; }
-    int		size()		{ return _size; }
-    void	reset(uint4 n)	{ w_assert3(n <= _size); _num = n; _curr = 0; }
-
-private:
-    stid_t	_stid;
-    uint4	_num;	// # pids currently cached
-    uint4	_curr;	// index into the _pids array: next pid to be returned
-
-    uint4	_size;	// size of the _pids array
-    shpid_t*	_pids;	// pid cache
-};
 
 #endif /* SDESC_H */

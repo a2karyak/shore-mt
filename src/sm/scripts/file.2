@@ -10,70 +10,74 @@
 #
 source $script_dir/vol.init
 
-echo gathering volume stats
+if { $logging==0 } {
+    echo "Logging off: script not run. "
+} else {
+
+verbose gathering volume stats
 dstats $volid
 sm begin_xct
 set f1 [sm create_file $volid]
-echo f1 = $f1
+verbose f1 = $f1
 
-echo after create
+verbose after create
 dstats $f1
 
 set r1 [sm create_rec $f1 hdr1 11 mike]
-echo r1 = $r1
+verbose r1 = $r1
 set read_result [sm read_rec $r1 0 0]
-echo read of $r1: $read_result
+verbose read of $r1: $read_result
 
 set r2 [sm create_rec $f1 hdr12345 11 abcdefghijklmnopqrstuvwxyz]
-echo r2 = $r2
+verbose r2 = $r2
 set read_result [sm read_rec $r2 0 0]
-echo read of $r2: $read_result
+verbose read of $r2: $read_result
 
 set r3 [sm create_rec $f1 hdr12345 11 1234]
-echo r3 = $r3
+verbose r3 = $r3
 set read_result [sm read_rec $r3 0 0]
-echo read of $r3: $read_result
+verbose read of $r3: $read_result
 
 sm update_rec $r2 3 DEFG
 set read_result [sm read_rec $r2 0 0]
-echo read of $r2: $read_result
+verbose read of $r2: $read_result
 
 sm update_rec_hdr $r2 3 WXYZ
-echo check of update_rec_hdr $r2: [sm read_rec $r2 0 0]
+verbose check of update_rec_hdr $r2: [sm read_rec $r2 0 0]
 
 sm append_rec $r2 123456
-echo check of append $r2: [sm read_rec $r2 0 0]
+verbose check of append $r2: [sm read_rec $r2 0 0]
 
 sm append_rec $r2 7890
-echo check of append $r2: [sm read_rec $r2 0 0]
+verbose check of append $r2: [sm read_rec $r2 0 0]
 
 sm truncate_rec $r2 3 
-echo check of truncate $r2: [sm read_rec $r2 0 0]
+verbose check of truncate $r2: [sm read_rec $r2 0 0]
 
 sm truncate_rec $r2 20 
-echo check of truncate $r2: [sm read_rec $r2 0 0]
+verbose check of truncate $r2: [sm read_rec $r2 0 0]
 
 sm truncate_rec $r3 4
-echo check of truncate $r3: [sm read_rec $r3 0 0]
+verbose check of truncate $r3: [sm read_rec $r3 0 0]
 
 sm append_rec $r3 abcd
-echo check of append $r3: [sm read_rec $r3 0 0]
+verbose check of append $r3: [sm read_rec $r3 0 0]
 
-echo Attempting scans ...
-echo [sm scan_recs $f1]
-echo [sm scan_recs $f1 $r2]
+verbose Attempting scans ...
+sm scan_recs $f1
+sm scan_recs $f1 $r2
 
-echo Attempting scans ...
+verbose Attempting scans ...
 set scan [sm scan_file_create $f1 t_cc_record]
 set pin [sm scan_file_next $scan 0]
 while {$pin != "NULL"} {
-    echo found record [sm pin_rid $pin]
+    verbose found record [sm pin_rid $pin]
     set pin [sm scan_file_next $scan 0]
 }
 sm scan_file_destroy $scan
 
 
-echo BEFORE commit
+verbose BEFORE commit
 dstats $f1
 sm commit_xct
 
@@ -85,7 +89,7 @@ sm commit_xct
 
 sm begin_xct
 
-echo destroying all records ...
+verbose destroying all records ...
 set scan [sm scan_file_create $f1 t_cc_record]
 set pin [sm scan_file_next $scan 0]
 while {$pin != "NULL"} {
@@ -95,42 +99,41 @@ while {$pin != "NULL"} {
 sm scan_file_destroy $scan
 
 sm destroy_file $f1
-echo Verifying file destroy -- THIS SHOULD GENERATE 2 ERRORS
+verbose Verifying file destroy -- THIS SHOULD GENERATE 2 ERRORS
 
 catch {sm scan_recs $f1} catcherr
-echo scan_recs error: $catcherr
+verbose (EXPECTED) scan_recs error: $catcherr
 catch {sm read_rec $r2 0 0} catcherr
-echo read_rec error: $catcherr
+verbose (EXPECTED) read_rec error: $catcherr
 
-echo aborting file destroy
+verbose aborting file destroy
 sm abort_xct
 
-echo "re-scanning file"
+verbose "re-scanning file"
 
 sm begin_xct
 catch {sm scan_recs $f1} catcherr
 sm destroy_file $f1
-echo committing file destroy
+verbose committing file destroy
 sm commit_xct
 
 sm begin_xct
-echo Verifying file destroy -- THIS SHOULD GENERATE 2 ERRORS
+verbose Verifying file destroy -- THIS SHOULD GENERATE 2 ERRORS
 
 catch {sm scan_recs $f1} catcherr
-echo scan_recs error: $catcherr
-
+verbose (EXPECTED) scan_recs error: $catcherr
 catch {sm read_rec $r2 0 0} catcherr
-echo read_rec error: $catcherr
+verbose (EXPECTED) read_rec error: $catcherr
 
 sm commit_xct
-echo committed last xct
+verbose committed last xct
 
 
 #
 # The purpose of the follow code is to test scanning a file
 # a page at a time
 #
-echo testing file scan, 1 page at a time...
+verbose testing file scan, 1 page at a time...
 
 catch {unset r}
 
@@ -144,12 +147,12 @@ for {set i 1} {$i <= 3} {incr i} {
     sm create_rec $f10 "" 11 "dummy record"
 }
 
-echo testing scan_next_page
+verbose testing scan_next_page
 set scan [sm scan_file_create $f10 t_cc_page]
 set pin [sm scan_file_next_page $scan 0]
 set i 1
 while {$pin != "NULL"} {
-    echo [sm pin_rid $pin] == $r($i)
+    verbose [sm pin_rid $pin] == $r($i)
     assert {expr [string compare [sm pin_rid $pin] $r($i)] == 0}
     set pin [sm scan_file_next_page $scan 0]
     incr i
@@ -187,3 +190,4 @@ unset rec_size read_result
 unset hdr8 d4 pin d36 scan
 unset f f10 f1
 unset catcherr
+}

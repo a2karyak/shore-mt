@@ -6,7 +6,7 @@
 /* --------------------------------------------------------------- */
 
 /*
- *   $Header: /p/shore/shore_cvs/src/vas/server/signals.C,v 1.21 1996/05/03 04:15:32 kupsch Exp $
+ *   $Header: /p/shore/shore_cvs/src/vas/server/signals.C,v 1.22 1997/01/24 16:48:14 nhall Exp $
  */ 
 #include <copyright.h>
 #include <w_workaround.h>
@@ -111,7 +111,7 @@ isbg()
 	bool result;
 
 	if(background)  /* pretend we are */
-		return TRUE;
+		return true;
 
 	dassert(devttyfd != -1);
 #ifdef HPUX8
@@ -122,7 +122,7 @@ isbg()
 			/* since we have no controlling terminal, I guess
 			 * we had better say that we're in the background!
 			 */
-			return TRUE;
+			return true;
 		} else { 
 			perror("tcgetpgrp");
 			exit(2);
@@ -135,7 +135,7 @@ isbg()
 			/* since we have no controlling terminal, I guess
 			 * we had better say that we're in the background!
 			 */
-			return TRUE;
+			return true;
 		} else { 
 			perror("TIOCGPGRP");
 			exit(2);
@@ -238,10 +238,10 @@ sigcont(int sig)
 
 #ifdef notdef
 	if( isbg() ) {
-		dobg(FALSE); /* already detached */
+		dobg(false); /* already detached */
 	} else {
 		countTTIN = 0;
-		dofg(TRUE, FALSE);
+		dofg(true, false);
 	}
 	if(++countTTIN > 4) {
 		exit(4);

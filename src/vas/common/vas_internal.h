@@ -25,12 +25,14 @@
 #include <string.h>
 #include <limits.h>
 #include <sys/stat.h>
+/*
 #ifdef MAX
 #undef MAX
 #endif
 #ifdef MIN
 #undef MIN
 #endif
+*/
 #include <sys/param.h>
 #include <stddef.h>
 #include <errno.h>

@@ -6,7 +6,7 @@
 /* --------------------------------------------------------------- */
 
 /*
- *  $Id: logrec.h,v 1.35 1996/07/01 22:07:28 nhall Exp $
+ *  $Id: logrec.h,v 1.43 1997/04/22 15:00:06 nhall Exp $
  */
 #ifndef LOGREC_H
 #define LOGREC_H
@@ -14,7 +14,8 @@
 struct nbox_t;
 struct rangeset_t;
 
-#include <logfunc.i>
+#include "logfunc.i"
+#include "xct.h"
 
 #ifdef __GNUG__
 #pragma interface
@@ -22,7 +23,8 @@ struct rangeset_t;
 
 class logrec_t {
 public:
-    friend void xct_t::give_logbuf(logrec_t*);
+    friend void xct_t::give_logbuf(logrec_t*, const page_p *);
+
 #include <logtype.i>
     void 			fill(
 	const lpid_t*		    pid,
@@ -35,7 +37,6 @@ public:
     bool 			is_redo() const;
     bool 			is_skip() const;
     bool 			is_undo() const;
-    bool 			is_format() const;
     bool 			is_cpsn() const;
     bool 			is_undoable_clr() const;
     bool 			is_logical() const;
@@ -53,7 +54,8 @@ public:
 		sizeof(uint2) + 	// _page_tag
 		sizeof(lpid_t) + 	// _pid
 		sizeof(tid_t) + 	// _tid
-		2 * sizeof(lsn_t)	// _prev, _undo_nxt
+		// 2 * 
+			sizeof(lsn_t)	// _prev, _undo_nxt(not used)
 		) 
 	};
     enum {
@@ -92,8 +94,7 @@ protected:
 	    // (ie. they compensate around themselves as well)
 	    // So far this limitation has been fine.
 	// old: t_cpsn = 020 | t_redo,
-	t_cpsn = 020,
-	t_format = 040 | t_redo
+	t_cpsn = 020
     };
     uint2			_len;  // length of the log record
     u_char			_type; // kind_t (included from logtype.i)
@@ -104,7 +105,15 @@ protected:
     lpid_t			_pid;      // page on which action is performed
     tid_t			_tid;      // (xct)tid of this xct
     lsn_t			_prev;     // (xct)previous logrec of this xct
-    lsn_t			_undo_nxt; // (xct) used in CLR only
+    // lsn_t			_undo_nxt; // (xct) used in CLR only
+    /*
+     * NB: you might think it would be nice to use one lsn_t for _prev and
+     * for _undo_lsn, but for the moment we need both because
+     * at the last minute, fill_xct_attr() is called and that fills in 
+     * _prev, clobbering its value with the prior generated log record's lsn.
+     * It so happens that set_clr() is called prior to fill_xct_attr().
+     * It might do to set _prev iff it's not already set, in fill_xct_attr().
+     */
     char			_data[data_sz + sizeof(lsn_t)];
 
     // The last sizeof(lsn_t) bytes of data are used for
@@ -115,7 +124,6 @@ protected:
     	return *(lsn_t*)(_data+lo_offset);
     }
 };
-typedef u_char   Pmap[smlevel_0::ext_map_sz_in_bytes];
 
 /* for logging,  recovering and undoing extent alloc/dealloc:  */
 class      ext_log_info_t {
@@ -124,13 +132,11 @@ public:
     extnum_t next;  // order info
 
     extnum_t ext; // 2 bytes
-    Pmap     pmap; // 1 byte
-    fill1    filler1; // 1 byte for purify
+    Pmap_Align2	pmap;	// 2 bytes
     NORET ext_log_info_t() : 
 	prev(0), 
 	next(0),
 	ext(0) {
-	memset(&pmap, '\0', sizeof(Pmap));
     }
 };
 
@@ -153,6 +159,22 @@ struct chkpt_bf_tab_t {
 	const lsn_t* 		    l);
 	
     int				size();
+};
+
+struct prepare_stores_to_free_t  {
+    enum { max = (logrec_t::data_sz - sizeof(uint4)) / sizeof(stid_t) };
+    uint4			num;
+    stid_t			stids[max];
+
+    prepare_stores_to_free_t(uint4 theNum, const stid_t* theStids)
+	: num(theNum)
+	{
+	    w_assert3(theNum <= max);
+	    for (uint4 i = 0; i < num; i++)
+		stids[i] = theStids[i];
+	};
+    
+    int size()  { return sizeof(uint4) + num * sizeof(stid_t); };
 };
 
 struct chkpt_xct_tab_t {
@@ -213,20 +235,22 @@ struct prepare_lock_totals_t {
 	int	num_SIX;
 	int	num_extents;
 	fill4   filler; //for 8-byte alignment
-	prepare_lock_totals_t(int a, int b, int c, int d) :
-		num_EX(a), num_IX(b), num_SIX(c), num_extents(d) { }
+	lsn_t	first_lsn;
+	prepare_lock_totals_t(int a, int b, int c, int d, const lsn_t &l) :
+		num_EX(a), num_IX(b), num_SIX(c), num_extents(d),
+		first_lsn(l){ }
 	int size() const 	// in bytes
-	    { return 4 * sizeof(int); }
+	    { return 4 * sizeof(int) + sizeof(lsn_t) + sizeof(fill4); }
 };
 struct prepare_info_t {
 	// don't use bool - its size changes with compilers
 	char			   is_external;
 	fill1			   dummy1;
 	fill2			   dummy2;
-	smlevel_0::coord_handle_t  h;
+	server_handle_t  	   h;
 	gtid_t		   	   g;
 	prepare_info_t(const gtid_t *_g, 
-		const smlevel_0::coord_handle_t &_h) 
+		const server_handle_t &_h) 
 	{ 
 	    if(_g) {
 		is_external = 1; g = *_g;
@@ -236,7 +260,7 @@ struct prepare_info_t {
 	int size() const { 
 		return sizeof(is_external) + 
 		sizeof(dummy1) + sizeof(dummy2) +
-		sizeof(smlevel_0::coord_handle_t) +
+		sizeof(server_handle_t) +
 		(is_external? sizeof(gtid_t) :0);
 	    }
 };
@@ -246,16 +270,16 @@ struct prepare_lock_t {
 	// -all locks are long-term
 
 	lock_mode_t		mode; // for this group of locks
-	int 			num_locks; // in the array below
-	enum 	        { max_locks_logged = 61 }; // let's keep the size <= 1024 overall...
+	uint4 			num_locks; // in the array below
+	enum            { max_locks_logged = (logrec_t::data_sz - sizeof(lock_mode_t) - sizeof(uint4)) / sizeof(lockid_t) };
 
 	lockid_t	name[max_locks_logged];
 
-	prepare_lock_t(int num, lock_base_t::mode_t _mode, 
+	prepare_lock_t(uint4 num, lock_base_t::mode_t _mode, 
 		lockid_t *locks){
 		num_locks = num;
 		mode =  _mode;
-		int i;
+		uint4 i;
 		for(i=0; i<num; i++) { name[i]=locks[i]; }
 	}
 	int size() const 	// in bytes
@@ -267,22 +291,23 @@ struct prepare_all_lock_t {
 	// -tid is stored in the log rec hdr
 	// -all locks are long-term
 	// 
-
-	int 			num_locks; // in the array below
-	enum 	        { max_locks_logged = 49 }; // let's keep the size <= 1024 overall...
-
-	struct {
+	struct LockAndModePair {
 	    lockid_t	name;
 	    lock_mode_t	mode; // for this lock
-	} pair[max_locks_logged];
+	};
+
+	uint4 			num_locks; // in the array below
+	enum            { max_locks_logged = (logrec_t::data_sz - sizeof(uint4)) / sizeof(LockAndModePair) };
+
+	LockAndModePair pair[max_locks_logged];
 
 
-	prepare_all_lock_t(int num, 
+	prepare_all_lock_t(uint4 num, 
 		lockid_t *locks,
 		lock_mode_t *modes
 		){
 		num_locks = num;
-		int i;
+		uint4 i;
 		for(i=0; i<num; i++) { pair[i].name=locks[i]; pair[i].mode = modes[i]; }
 	}
 	int size() const 	// in bytes
@@ -322,7 +347,11 @@ logrec_t::length() const
 inline const lsn_t&
 logrec_t::undo_nxt() const
 {
-    return _undo_nxt;
+    // To shrink log records,
+    // we've taken out _undo_nxt and 
+    // overloaded _prev.
+    // return _undo_nxt;
+    return _prev;
 }
 
 inline const lsn_t&
@@ -350,22 +379,41 @@ logrec_t::set_clr(const lsn_t& c)
 		     // log records, whatever kind they might be
 		     // except for special case below
     _cat |= t_cpsn;
-    _undo_nxt = c;
+
+    // To shrink log records,
+    // we've taken out _undo_nxt and 
+    // overloaded _prev.
+    // _undo_nxt = c;
+    _prev = c;
 }
 
 inline bool 
 logrec_t::is_undoable_clr() const
 {
-    return (_cat & (t_cpsn|t_undo)) == (t_cpsn|t_undo);
+    return false;
+    // DISABLED -- see comment below
+    // return (_cat & (t_cpsn|t_undo)) == (t_cpsn|t_undo);
 }
 
+/* 
+ * NB: In order to allow piggybacking of compensations onto log records,
+ * while avoiding keeping _last_log buffered in the xct_t, and
+ * therefore keeping _last_modified_page latched, we disabled
+ * undoable_clr records. At the time we did this, noone needed
+ * undoable clrs anyway.  It was needed by a now-obsolete implementation
+ * of the volume layer.
+ */
 inline void 
-logrec_t::set_undoable_clr(const lsn_t& c)
+logrec_t::set_undoable_clr(const lsn_t& ) // arg was named c for _undo_nxt
 {
+    // DISABLED! 
+    w_assert3(0);
+    /*
     // special case!!!!!!!!!!! for logical extent logging recs
     w_assert3(_cat & t_logical);
     _cat |= t_cpsn;
     _undo_nxt = c;
+    */
 }
 
 inline bool 
@@ -387,11 +435,6 @@ logrec_t::is_undo() const
     return _cat & t_undo;
 }
 
-inline bool
-logrec_t::is_format() const
-{
-    return _cat == t_format;
-}
 
 inline bool 
 logrec_t::is_cpsn() const

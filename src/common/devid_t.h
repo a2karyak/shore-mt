@@ -6,10 +6,10 @@
 /* --------------------------------------------------------------- */
 
 /*
- *  $Header: /p/shore/shore_cvs/src/common/devid_t.h,v 1.6 1996/07/09 21:36:39 nhall Exp $
+ *  $Header: /p/shore/shore_cvs/src/common/devid_t.h,v 1.8 1997/05/19 19:40:59 nhall Exp $
  */
-#ifndef __DEVID_T_H__
-#define __DEVID_T_H__
+#ifndef DEVID_T_H
+#define DEVID_T_H
 
 #ifdef __GNUG__
 #pragma interface
@@ -18,7 +18,6 @@
 struct devid_t {
     ino_t id;  /* device IDs are inodes + device */
     dev_t dev; 
-    fill2 filler; /* for purify */
 
 #ifdef __cplusplus
     devid_t() : id(0), dev(0) {};
@@ -33,4 +32,4 @@ struct devid_t {
     static const devid_t null;
 #endif
 };
-#endif /*__DEVID_T_H__*/
+#endif /*DEVID_T_H*/

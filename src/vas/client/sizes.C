@@ -52,7 +52,7 @@ main()
 	S(FSDATA);
 	S(opaque_t);
 	S(gtid_t);
-	S(CoordHandle);
+//	S(CoordHandle);
 	S(POID);
 	S(Cookie);
 	S(tid_t);
@@ -99,7 +99,7 @@ SR(c_gid_t_reply);
 SR(IndexId_reply);
 SR(tid_t_reply);
 SR(Vote_reply);
-SR(CoordHandle_reply);
+//SR(CoordHandle_reply);
 SR(statfs1_reply);
 SR(diskusage_reply);
 SR(getvol_reply);

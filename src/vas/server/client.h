@@ -8,7 +8,7 @@
 #ifndef __CLIENT_H__
 #define __CLIENT_H__
 /*
- *  $Header: /p/shore/shore_cvs/src/vas/server/client.h,v 1.20 1996/03/26 17:10:07 nhall Exp $
+ *  $Header: /p/shore/shore_cvs/src/vas/server/client.h,v 1.21 1997/01/24 16:47:45 nhall Exp $
  */
 #include <copyright.h>
 #include <vas_internal.h>
@@ -75,11 +75,11 @@ public:
 	int					_fd;
     w_link_t			hash_link; // key is socket
 
-	// void				is_active() const { _ready?TRUE:FALSE; }
+	// void				is_active() const { _ready?true:false; }
 	void				shutdown();
 	void				abort();
 	bool				is_down() const { return 
-							_ready?_ready->is_down():TRUE; }
+							_ready?_ready->is_down():true; }
 	svas_server			*server() const { return _server; }
 
 	// constructor

@@ -8,17 +8,6 @@
 /*
  * Imakefile for utilities.
  *
- * $Header: /p/shore/shore_cvs/src/util/Imakefile,v 1.12 1995/04/24 19:42:56 zwilling Exp $
+ * $Header: /p/shore/shore_cvs/src/util/Imakefile,v 1.13 1997/06/13 22:33:37 solomon Exp $
  */
-
-SRC = 
-HFILES =
-SYMLINKS =
-SRC.cvs = $(SRC)
-
-SUBDIR =	mount
-EXEC =
-DISPOSABLE =
-ALLTARGETS=
-
-clean_files($(DISPOSABLE))
+#define Subdirs mount

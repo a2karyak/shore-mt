@@ -37,6 +37,7 @@ const char true = '\1';
 
 #ifndef RPCGEN
 
+#ifdef BOOL_COMPAT
 #ifdef TRUE
 #undef TRUE
 #endif
@@ -46,6 +47,7 @@ const char true = '\1';
 
 #define TRUE true
 #define FALSE false
+#endif	/* BOOL_COMPAT */
 /*
 // our modified rpcgen recognizes bool_t
 // unfortunately, conventional <rpc/types.h>

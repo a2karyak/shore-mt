@@ -1,9 +1,9 @@
 /*
- * $Header: /p/shore/shore_cvs/src/rpc4.0/Imakefile,v 1.14 1995/01/30 19:41:10 zwilling Exp $
+ * $Header: /p/shore/shore_cvs/src/rpc4.0/Imakefile,v 1.15 1997/06/13 22:32:43 solomon Exp $
  */
 
-# SUBDIR= rpc rpcgen rpcsvc etc
-SUBDIR= rpc rpcgen rpcsvc
-
-ALLTARGETS = 
-
+#if defined(IS_SOLARIS2)
+#define Subdirs rpcgen rpcsvc
+#else
+#define Subdirs rpc rpcgen rpcsvc
+#endif

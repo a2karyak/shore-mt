@@ -8,7 +8,7 @@
 #ifndef __VAS_H__
 #define __VAS_H__
 /*
- * $Header: /p/shore/shore_cvs/src/vas/include/svas_base.h,v 1.50 1995/10/10 22:23:01 schuh Exp $
+ * $Header: /p/shore/shore_cvs/src/vas/include/svas_base.h,v 1.51 1997/01/24 16:38:01 nhall Exp $
  */
 
 #include <copyright.h>
@@ -199,7 +199,7 @@ protected:
 #endif /* !DEBUG */
 
 private:
-	VIRTUAL(VASResult 		tx_required(bool clearstatus=TRUE))
+	VIRTUAL(VASResult 		tx_required(bool clearstatus=true))
 	VIRTUAL(VASResult 		tx_not_allowed())
 
 	VIRTUAL(VASResult enter(bool tx_active))
@@ -342,7 +342,7 @@ public:
 					// all versions of perr()
 					// print an contents of this->status
 
-					// if this->printusererrors == FALSE,
+					// if this->printusererrors == false,
 					// errors of type ET_USER are not printed.
 
 					//  let logging determine where info gets written:
@@ -676,7 +676,7 @@ public:
 						OUT(bool)	found, // cannot be null
 						// it's NEVER an error if not found
 						PermOp		perm = Permissions::op_read,
-						bool		followLinks=TRUE // if true, 
+						bool		followLinks=true // if true, 
 							// and the last path component is 
 							// an xref or symlink, it follows the
 							// link/xref
@@ -824,7 +824,7 @@ public:
 	VIRTUAL( VASResult		sysprops(
 						IN(lrid_t)	 		loid, 	
 						OUT(SysProps)		sysprops,
-						bool				wholepage=FALSE, // if TRUE,
+						bool				wholepage=false, // if true,
 											// the VAS will ship a 
 											// whole page to the client
 											// if appropriate.
@@ -832,7 +832,7 @@ public:
 						LockMode			lock=SH, 	// lock to acquire
 						OUT(bool)			is_unix_file=NULL,
 									// out default = NULL (don't care)
-									// if TRUE returned, object is
+									// if true returned, object is
 									// an object with TEXT portion
 									// (could be reg or anonymous -- could
 									// open an anonymous object through xref)
@@ -1267,16 +1267,16 @@ public:
 	private:
 	VIRTUAL( VASResult		_nextPoolScan(
 						INOUT(Cookie)		cookie,	
-						OUT(bool)			eof,	// TRUE if no result
-											// if FALSE, result is legit
+						OUT(bool)			eof,	// true if no result
+											// if false, result is legit
 						OUT(lrid_t)			result,
 						bool				nextpage=false
 					))
 	public:
 	VIRTUAL( VASResult		nextPoolScan(
 						INOUT(Cookie)		cookie,	
-						OUT(bool)			eof,	// TRUE if no result
-											// if FALSE, result is legit
+						OUT(bool)			eof,	// true if no result
+											// if false, result is legit
 						OUT(lrid_t)			result
 					))
 
@@ -1291,8 +1291,8 @@ public:
 	private:
 	VIRTUAL( VASResult		_nextPoolScan(
 						INOUT(Cookie)		cookie,	
-						OUT(bool)			eof,	// TRUE if no result
-											// if FALSE, result is legit
+						OUT(bool)			eof,	// true if no result
+											// if false, result is legit
 						OUT(lrid_t)			result, 	// snapped ref
 						ObjectOffset		offset,
 						ObjectSize			requested,	// -- could be WholeObject
@@ -1308,8 +1308,8 @@ public:
 	public:
 	VIRTUAL( VASResult		nextPoolScan(
 						INOUT(Cookie)		cookie,	
-						OUT(bool)			eof,	// TRUE if no result
-											// if FALSE, result is legit
+						OUT(bool)			eof,	// true if no result
+											// if false, result is legit
 						OUT(lrid_t)			result, 	// snapped ref
 						ObjectOffset		offset,
 						ObjectSize			requested,	// -- could be WholeObject
@@ -1369,8 +1369,8 @@ public:
 						OUT(ObjectSize)		keylen, // - bytes of vec used
 						IN(vec_t)			value,	
 						OUT(ObjectSize)		vallen, //  bytes of vec used
-						INOUT(bool)		eof=0	// TRUE if no result
-											// if FALSE, result is legit
+						INOUT(bool)		eof=0	// true if no result
+											// if false, result is legit
 					))
 	VIRTUAL( VASResult		closeIndexScan(
 						IN(Cookie)			cookie	

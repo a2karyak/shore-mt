@@ -13,15 +13,15 @@
 
 sm begin_xct
 
-echo creating file
+verbose creating file
 set f1 [sm create_file $volid ]
 
-echo [format $id_body_width 1]
+verbose [format $id_body_width 1]
 
-echo creating r1 and r2
+verbose creating r1 and r2
 set r1 [ sm create_rec $f1 "" 11 [format $id_body_width 1] ]
 set r2 [ sm create_rec $f1 "" 11 [format $id_body_width 2] ]
-echo $r1 $r2
+verbose $r1 $r2
 
 sm commit_xct
 
@@ -37,14 +37,14 @@ proc thr2 { dummy } {
 	global r1 r2 f1
 	sm begin_xct
 	set r3 [sm create_rec $f1 "hdr" 0 "body"]
-	echo thread2 created $r3
+	verbose thread2 created $r3
 	sync
 	sm commit_xct
 }
 
-echo forking 1
+verbose forking 1
 set t1 [ fork_thread thr1 "dummy"]
-echo forking 2
+verbose forking 2
 set t2 [ fork_thread thr2 "dummy"]
 
 sync_thread $t1
@@ -52,7 +52,7 @@ sync_thread $t2
 join_thread $t1 $t2
 
 sm begin_xct
-echo destroying file
+verbose destroying file
 sm destroy_file $f1
 sm commit_xct
 

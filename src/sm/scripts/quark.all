@@ -9,8 +9,15 @@ source $script_dir/vol.init
 
 set scripts [list quark.1]
 
+echo CLEANUP BEFORE quark.all :
+cleanup stdout
+addcleanupvars {script}
+
 foreach script $scripts {
     echo
     echo RUNNING: $script 
     source $script_dir/$script
+    checkstats  $script
+    puts stdout [concat CLEANUP AFTER  $script  : ]
+    cleanup stdout
 }

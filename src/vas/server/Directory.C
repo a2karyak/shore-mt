@@ -6,7 +6,7 @@
 /* --------------------------------------------------------------- */
 
 /*
- *  $Header: /p/shore/shore_cvs/src/vas/server/Directory.C,v 1.55 1995/08/29 21:55:33 nhall Exp $
+ *  $Header: /p/shore/shore_cvs/src/vas/server/Directory.C,v 1.56 1997/01/24 16:47:25 nhall Exp $
  */
 #include <copyright.h>
 
@@ -16,8 +16,8 @@
 
 #include "Directory.h"
 
-serial_t Directory::DirMagicUsed((0x5c002f>>1) , TRUE); 
-serial_t Directory::DirMagicNotUsed((0x5c2f00>>1) , FALSE); 
+serial_t Directory::DirMagicUsed((0x5c002f>>1) , true); 
+serial_t Directory::DirMagicNotUsed((0x5c2f00>>1) , false); 
 
 
 VASResult
@@ -68,7 +68,7 @@ FSTART
 
 	if( this->createRegistered( lvid, pfid,
 		allocated, ReservedSerial::_Directory,
-		TRUE, 0, 0,
+		true, 0, 0,
 		diskcore, no_heap, NoText, 0/*no indexes*/,
 		mode | S_IFDIR, 
 		group,
@@ -257,7 +257,7 @@ Directory::replaceDotDot(
 		// it must have committed.
 		//
 		if(search("..", (Permissions::op_exec | Permissions::op_write),
-			 &cookie, &curparent, &snapped, TRUE, &prior_cookie) != SVAS_OK) {
+			 &cookie, &curparent, &snapped, true, &prior_cookie) != SVAS_OK) {
 			 // error if not found
 			 FAIL;
 		}

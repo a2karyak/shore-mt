@@ -6,7 +6,7 @@
 /* --------------------------------------------------------------- */
 
 /*
- *  $Id: stcore.c,v 1.20 1996/03/08 20:58:20 bolo Exp $
+ *  $Id: stcore.c,v 1.22 1996/08/29 21:14:06 bolo Exp $
  */
 
 #include "stcore.h"
@@ -197,24 +197,25 @@
 #define	OURFRAME	((WENEED + STACK_ALIGN-1) & ~(STACK_ALIGN-1))	
 #endif /* Rs6000 */
 
-/*****************************************************************************
+/*
+ *  sthread_core_switch()
  *
- *  hand off the CPU to another thread
+ *  Hand off the CPU to another thread
  *
  *  don't mess with this code unless you know what you're doing!
  */
 
 void sthread_core_switch(sthread_core_t* old, sthread_core_t* new)
 {
-    static sthread_core_t* old_core;
-    static sthread_core_t* new_core;
+	static sthread_core_t *old_core;
+	static sthread_core_t *new_core;
 
-    old_core = old, new_core = new;
+	old_core = old, new_core = new;
 
   /* save registers */
 #ifdef Mips
-  asm volatile("subu  $sp, 128");
-  asm volatile("sw $17,4($sp);
+	asm volatile("subu  $sp, 128");
+	asm volatile("sw $17,4($sp);
                 sw $18,8($sp);
                 sw $19,12($sp);
                 sw $20,16($sp);
@@ -223,20 +224,21 @@ void sthread_core_switch(sthread_core_t* old, sthread_core_t* new)
                 sw $23,28($sp);
                 sw $fp,32($sp);
                 sw $16,36($sp)");
-  if(old_core->use_float){
-    asm volatile("s.d $f20, 44($sp)");
-    asm volatile("s.d $f22, 52($sp)");
-    asm volatile("s.d $f24, 60($sp)");
-    asm volatile("s.d $f26, 68($sp)");
-    asm volatile("s.d $f28, 76($sp)");
-    asm volatile("s.d $f30, 84($sp)");
-    asm volatile("s.d $f4,  92($sp)");
-  }
-#endif  
+	if (old_core->use_float) {
+		asm volatile("s.d $f20, 44($sp)");
+		asm volatile("s.d $f22, 52($sp)");
+		asm volatile("s.d $f24, 60($sp)");
+		asm volatile("s.d $f26, 68($sp)");
+		asm volatile("s.d $f28, 76($sp)");
+		asm volatile("s.d $f30, 84($sp)");
+		asm volatile("s.d $f4,  92($sp)");
+	}
+#endif  /* Mips */
+
 #ifdef I860
-  asm volatile("addu -128,sp,sp");	/* save space on stack */
+	asm volatile("addu -128,sp,sp");	/* save space on stack */
 	/* offsets left over from non-interrupt safe version */
-  asm volatile("st.l r1, 4(sp);
+	asm volatile("st.l r1, 4(sp);
                 st.l r3, 8(sp);
                 st.l r4, 12(sp);
                 st.l r5, 16(sp);
@@ -250,22 +252,23 @@ void sthread_core_switch(sthread_core_t* old, sthread_core_t* new)
                 st.l r13, 48(sp);
                 st.l r14, 52(sp);
                 st.l r15, 56(sp)");
-  if(old_core->use_float){
-    asm volatile("fst.d f2, 64(sp);
+	if (old_core->use_float) {
+		asm volatile("fst.d f2, 64(sp);
                   fst.d f4, 72(sp);
                   fst.d f6, 80(sp)");
-  }
-#endif
+	}
+#endif /* I860 */
+
 #ifdef I386
-  asm volatile ("pushl %ebp
+	asm volatile ("pushl %ebp
                  pushl %ebx
                  pushl %edi
                  pushl %esi
                  leal  -108(%esp), %esp");
-  if(old_core->use_float){
-    asm volatile("fsave (%esp)");
-  }
-#endif
+	if (old_core->use_float) {
+		asm volatile("fsave (%esp)");
+	}
+#endif /* I386 */
 
 #ifdef Hppa
 	/* build a new stackframe */
@@ -328,48 +331,49 @@ void sthread_core_switch(sthread_core_t* old, sthread_core_t* new)
 #endif /* Hppa */
 
 #ifdef Sparc
-  /* most of the context is saved courtesy of the reg. windows */
+	/* most of the context is saved courtesy of the reg. windows */
 
-  /*
-   * the floating point registers are caller-save, so we ignore them
-   * However, we want to terminate all fp. activity, so the trap
-   * doesn't occur in the wrong process.  We do this by storing
-   * the floating point status register to memory (I use
-   * the arg passing area of the save area for this scratch)
-   */
-  if (old_core->use_float) {
-	  asm volatile("st %%fsr, [%%sp + %0]" : : "i" (SA(WINDOWSIZE)));
-  }
+	/*
+	 * the floating point registers are caller-save, so we ignore them
+	 * However, we want to terminate all fp. activity, so the trap
+	 * doesn't occur in the wrong thread.  We do this by storing
+	 * the floating point status register to memory (I use
+	 * the arg passing area of the save area for this scratch)
+	 */
+	if (old_core->use_float) {
+		asm volatile("st %%fsr, [%%sp + %0]" : : "i" (SA(WINDOWSIZE)));
+	}
 
-   /*
-    * on the sparcs, the current "register window save area", pointed
-    * to by the SP, can pretty much be over-written ANYTIME by
-    * traps, interrupts, etc
-    *
-    * When we start to restore the new thread's context, if we setup
-    * SP immediately, the machine could wipe out any saved values
-    * before we have a chance to restore them.
-    * And, if we left it pointed at the old area, the activity
-    * would wipe out the context we had just saved.
-    *
-    * So,... we create a new register save area 
-    * on the old thread's stack to use in the interim.
-    *
-    * (we use o7 because the compiler doesn't; a better solution
-    * would be to use a register variable)
-    */
-   asm volatile (" mov %%sp, %0;" : "=r" (old_core->save_sp));
+	/*
+	 * on the sparcs, the current "register window save area", pointed
+	 * to by the SP, can pretty much be over-written ANYTIME by
+	 * traps, interrupts, etc
+	 *
+	 * When we start to restore the new thread's context, if we setup
+	 * SP immediately, the machine could wipe out any saved values
+	 * before we have a chance to restore them.
+	 * And, if we left it pointed at the old area, the activity
+	 * would wipe out the context we had just saved.
+	 *
+	 * So,... we create a new register save area 
+	 * on the old thread's stack to use in the interim.
+	 *
+	 * (we use o7 because the compiler doesn't; a better solution
+	 * would be to use a register variable)
+	 */
+	asm volatile (" mov %%sp, %0;" : "=r" (old_core->save_sp));
+	
+	/* Flush register windows to the thread stack */
+	asm volatile ("
+		t %0 ; 
+		nop ;
+		sub %%sp, %1, %%sp;
+		mov %2, %%o7"
+			: :	"i" (ST_FLUSH_WINDOWS), 
+				"i" (SA(WINDOWSIZE)),
+				"r" (new_core->save_sp));
+#endif /* Sparc */
 
-   /* Flush register windows to the thread stack */
-   asm volatile ("
-	t %0 ; 
-	nop ;
-	sub %%sp, %1, %%sp;
-	mov %2, %%o7"
-		: :	"i" (ST_FLUSH_WINDOWS), 
-			"i" (SA(WINDOWSIZE)),
-			"r" (new_core->save_sp));
-#endif
 #ifdef Rs6000
 	/* Make a new stack frame w/ space for save area + crud */
 	asm volatile("stu 1, %0(1)" : :  "i" (-OURFRAME));
@@ -406,126 +410,142 @@ void sthread_core_switch(sthread_core_t* old, sthread_core_t* new)
   	asm volatile("mfcr 12; st 12, %0(1)" : :
 		     "i" (MINFRAME + INTREGS + FPREGS));
 
-    if(new_core->use_float){
-	    asm volatile("ai 5, 1, %0" : : "i" (MINFRAME + INTREGS));
-	    asm volatile("
-		stfd 14, 0(5);
-		stfd 15, 8(5);
-		stfd 16, 0x10(5);
-		stfd 17, 0x18(5);
-		stfd 18, 0x20(5);
-		stfd 19, 0x28(5);
-		stfd 20, 0x30(5);
-		stfd 21, 0x38(5);
-		stfd 22, 0x40(5);
-		stfd 23, 0x48(5);
-		stfd 24, 0x50(5);
-		stfd 25, 0x58(5);
-		stfd 26, 0x60(5);
-		stfd 27, 0x68(5);
-		stfd 28, 0x70(5);
-		stfd 29, 0x78(5);
-		stfd 30, 0x80(5);
-		stfd 31, 0x88(5);
-		");
-    }
+	if (old_core->use_float) {
+		asm volatile("ai 5, 1, %0" : : "i" (MINFRAME + INTREGS));
+		asm volatile("
+			stfd 14, 0(5);
+			stfd 15, 8(5);
+			stfd 16, 0x10(5);
+			stfd 17, 0x18(5);
+			stfd 18, 0x20(5);
+			stfd 19, 0x28(5);
+			stfd 20, 0x30(5);
+			stfd 21, 0x38(5);
+			stfd 22, 0x40(5);
+			stfd 23, 0x48(5);
+			stfd 24, 0x50(5);
+			stfd 25, 0x58(5);
+			stfd 26, 0x60(5);
+			stfd 27, 0x68(5);
+			stfd 28, 0x70(5);
+			stfd 29, 0x78(5);
+			stfd 30, 0x80(5);
+			stfd 31, 0x88(5);
+			");
+	}
+#endif /* Rs6000 */
+
+	/* switch stack-pointers */
+#ifdef Mips
+	asm volatile("add %0, $sp, $0"
+		     : "=r" (old_core->save_sp));
+	asm volatile("add $sp, %0, $0" 
+		     : : "r" (new_core->save_sp));
 #endif
 
-  /* switch stack-pointers */
-#ifdef Mips
-  asm volatile("add %0, $sp, $0"
-		   : "=r" (old_core->save_sp));
-  asm volatile("add $sp, %0, $0" 
-		   : : "r" (new_core->save_sp));
-#endif
 #ifdef I860
-  asm volatile("addu sp, r0, %0"
-		   : "=r" (old_core->save_sp));
-  asm volatile("addu r0, %0, sp" 
-		   : : "r" (new_core->save_sp));
+	asm volatile("addu sp, r0, %0"
+		     : "=r" (old_core->save_sp));
+	asm volatile("addu r0, %0, sp" 
+		     : : "r" (new_core->save_sp));
 #endif
+
 #ifdef I386
-  asm volatile("movl %%esp, %0;
+	asm volatile("movl %%esp, %0;
                 movl %1, %%esp" 
-	           : "=&r" (old_core->save_sp)
-			   : "r" (new_core->save_sp));
+		     : "=&r" (old_core->save_sp)
+		     : "r" (new_core->save_sp));
 #endif
+
 #ifdef Hppa
-   asm volatile("copy  %%r30, %0;" : "=r" (old_core->save_sp));
-   asm volatile("copy  %0, %%r30;" : : "r" (new_core->save_sp));
+	asm volatile("copy  %%r30, %0;" : "=r" (old_core->save_sp));
+	asm volatile("copy  %0, %%r30;" : : "r" (new_core->save_sp));
 #endif
+
 #ifdef Sparc
   /* done above */
 #endif 
+
 #ifdef Rs6000
-   asm volatile("oril %0, 1, 0;" : "=r" (old_core->save_sp));
-   asm volatile("oril 1, %0, 0;" : : "r" (new_core->save_sp));
+	asm volatile("oril %0, 1, 0;" : "=r" (old_core->save_sp));
+	asm volatile("oril 1, %0, 0;" : : "r" (new_core->save_sp));
 #endif
 
-  if(new_core->is_virgin){
-      new_core->is_virgin = 0;
-	/* first time --- call procedure directly */
+	if (new_core->is_virgin) {
+		/* first time --- call procedure directly */
+		new_core->is_virgin = 0;
 #ifdef Mips
-	  /* create a "mips" stackframe (room for arg regs) */
-	  asm volatile("subu $sp, 32");
+		/* create a "mips" stackframe (room for arg regs) */
+		asm volatile("subu $sp, 32");
 #endif
+
+#ifdef I386
+		/* try to "end" the chain of stack frames for debuggers */
+		asm volatile("mov %esp, %ebp");
+#endif
+
 #ifdef I860
 		/* align the stack pointer to multiple of 16 */
-	  asm volatile("andnot 15,sp,sp");
+		asm volatile("andnot 15,sp,sp");
 		/* fake frame */
-	  asm volatile("mov sp,fp");
-	  asm volatile("addu -128,sp,sp");
+		asm volatile("mov sp,fp");
+		asm volatile("addu -128,sp,sp");
 		/* new frame pointer */
-	  asm volatile("st.l fp, 0(fp)");
-	  asm volatile("addu 0,sp,fp");
+		asm volatile("st.l fp, 0(fp)");
+		asm volatile("addu 0,sp,fp");
 	
 #endif
+
 #ifdef Sparc
-	/*
-	 * Ok, so we don't restore anything -- just setup the SP,
-	 * which needs to have a register save  + args area!
-	 * Also, set the FP for the new stack
-	 * The 'nand' is to guarantee the stack pointer is 8 aligned!
-	 */
-	asm volatile("
-		andn %%o7, %0, %%o7;
-		sub %%o7, %1, %%sp;
-		mov %%o7, %%fp"
-		: : 	"i" (STACK_ALIGN-1),
-			"i" (SA(MINFRAME)));
-#endif
-#ifdef Hppa
-        /* Align the stack pointer */
-        asm volatile("
-              ldo %0(%%r30), %%r20;
-              ldi %1, %%r1;
-              and %%r1, %%r20, %%r20;
-              copy %%r20, %%r30"
-                     : : "i" (STACK_ALIGN-1), "i" (-STACK_ALIGN)
-                     : "r20", "r1");
-        /* provide a frame marker */
-        asm volatile("ldo %0(%%r30), %%r30"
-                     : : "i" (MINFRAME));
-        /* and no previous frame */
-        asm volatile("stw %r0, -4(%r30)");
-#endif /* Hppa */
-#ifdef Rs6000
-	/*
-	 * Create the "standard" stack frame, and setup sp and ap
-	 * for it
-	 */
-	asm volatile ("
-		stu 1, %0(1);
-		oril 31,1, 0;"
-		      : : "i" (-MINFRAME)
-	      );
+		/*
+		 * Ok, so we don't restore anything -- just setup the SP,
+		 * which needs to have a register save  + args area!
+		 * Also, set the FP for the new stack
+		 * The 'nand' is to guarantee the stack pointer is 8 aligned!
+		 */
+		asm volatile("
+			andn %%o7, %0, %%o7;
+			sub %%o7, %1, %%sp;
+			mov %%o7, %%fp"
+			: : 	"i" (STACK_ALIGN-1),
+				"i" (SA(MINFRAME)));
 #endif
 
-      ((void(*)())new_core->start_proc)(new_core->start_arg);
-  }else{
-	/* restore registers */
+#ifdef Hppa
+		/* Align the stack pointer */
+		asm volatile("
+	              ldo %0(%%r30), %%r20;
+	              ldi %1, %%r1;
+		      and %%r1, %%r20, %%r20;
+	              copy %%r20, %%r30"
+	                     : : "i" (STACK_ALIGN-1), "i" (-STACK_ALIGN)
+			     : "r20", "r1");
+		/* provide a frame marker */
+		asm volatile("ldo %0(%%r30), %%r30"
+			     : : "i" (MINFRAME));
+		/* and no previous frame */
+		asm volatile("stw %r0, -4(%r30)");
+#endif /* Hppa */
+
+#ifdef Rs6000
+		/*
+		 * Create the "standard" stack frame, and setup sp and ap
+		 * for it
+		 */
+		asm volatile ("
+			stu 1, %0(1);
+			oril 31,1, 0;"
+			      : : "i" (-MINFRAME) );
+#endif
+
+		(new_core->start_proc)(new_core->start_arg);
+		/* this should never be reached */
+		sthread_core_fatal();
+	}
+
+	/* restore the registers of the new thread */
 #ifdef Mips
-    asm volatile("lw $17,4($sp);
+	asm volatile("lw $17,4($sp);
                   lw $18,8($sp);
                   lw $19,12($sp);
                   lw $20,16($sp);
@@ -534,19 +554,20 @@ void sthread_core_switch(sthread_core_t* old, sthread_core_t* new)
                   lw $23,28($sp);
                   lw $fp,32($sp);
                   lw $16,36($sp)");
-    if(new_core->use_float){
-      asm volatile("l.d $f20, 44($sp)");
-      asm volatile("l.d $f22, 52($sp)");
-      asm volatile("l.d $f24, 60($sp)");
-      asm volatile("l.d $f26, 68($sp)");
-      asm volatile("l.d $f28, 76($sp)");
-      asm volatile("l.d $f30, 84($sp)");
-      asm volatile("l.d $f4, 92($sp)");
-    }
-    asm volatile("addu $sp, 128");
-#endif
+	if (new_core->use_float) {
+		asm volatile("l.d $f20, 44($sp)");
+		asm volatile("l.d $f22, 52($sp)");
+		asm volatile("l.d $f24, 60($sp)");
+		asm volatile("l.d $f26, 68($sp)");
+		asm volatile("l.d $f28, 76($sp)");
+		asm volatile("l.d $f30, 84($sp)");
+		asm volatile("l.d $f4, 92($sp)");
+	}
+	asm volatile("addu $sp, 128");
+#endif /* Mips */
+
 #ifdef I860
-  asm volatile("ld.l 4(sp), r1;
+	asm volatile("ld.l 4(sp), r1;
                 ld.l 8(sp), r3;
                 ld.l 12(sp), r4;
                 ld.l 16(sp), r5;
@@ -560,28 +581,30 @@ void sthread_core_switch(sthread_core_t* old, sthread_core_t* new)
                 ld.l 48(sp), r13;
                 ld.l 52(sp), r14;
                 ld.l 56(sp), r15");
-  if(new_core->use_float){
-    asm volatile("fld.d 64(sp), f2;
+	if (new_core->use_float) {
+		asm volatile("fld.d 64(sp), f2;
                   fld.d 72(sp), f4;
                   fld.d 80(sp), f6");
-  }
+	}
 	asm volatile("addu 128,sp,sp");	/* restore stack */
-#endif
+#endif /* I860 */
+
 #ifdef I386
-    if(new_core->use_float){
-      asm volatile ("frstor (%esp)");
-    }
-    asm volatile("leal 108(%esp), %esp
+	if (new_core->use_float) {
+		asm volatile ("frstor (%esp)");
+	}
+	asm volatile("leal 108(%esp), %esp
                   popl %esi
                   popl %edi
                   popl %ebx
                   popl %ebp");
-#endif
-#ifdef Hppa
-	    asm volatile ("
-		ldo %0(%%r30), %%r31" : : "i" (-(MARKER+INTREGS)));
+#endif /* I386 */
 
-	    asm volatile ("
+#ifdef Hppa
+	asm volatile ("
+		ldo %0(%%r30), %%r31" : : "i" (-(MARKER+INTREGS)));
+	
+	asm volatile ("
 		ldw 0(%r31), %r3
 		ldw 4(%r31), %r4
 		ldw 8(%r31), %r5
@@ -599,9 +622,9 @@ void sthread_core_switch(sthread_core_t* old, sthread_core_t* new)
 		ldw 0x38(%r31), %r17
 		ldw 0x3c(%r31), %r18
 	     ");
-
-	    if(new_core->use_float){
-		    /* r31 already points at the correct place! */
+	
+	if (new_core->use_float) {
+		/* r31 already points at the correct place! */
 #ifdef spectrum
 		/* Later edition PA chips have more regs! */
 		asm volatile ("
@@ -623,62 +646,61 @@ void sthread_core_switch(sthread_core_t* old, sthread_core_t* new)
 		asm volatile ("
 			fldds,mb -8(%r31), %fr0;
 		");
-	    }
-	    /* restore to the old stack marker */
-	    asm volatile ("ldo %0(%%r30), %%r30" : : "i" (-OURFRAME));
-	    
+	}
+	/* restore to the old stack marker */
+	asm volatile ("ldo %0(%%r30), %%r30" : : "i" (-OURFRAME));
+	
 #endif /* Hppa */
 #ifdef Sparc
-  /*
-   * Ok, %o7 == &register save area, %sp==old threads save area
-   *
-   * Now, restore all registers (except the SP)
-   * from the new thread's save area
-   */
- asm volatile("
-	ldd [%o7],%l0;
-	ldd [%o7 +  0x8],%l2;
-	ldd [%o7 + 0x10],%l4;
-	ldd [%o7 + 0x18],%l6;
+	/*
+	 * Ok, %o7 == &register save area, %sp==old threads save area
+	 *
+	 * Now, restore all registers (except the SP)
+	 * from the new thread's save area
+	 */
+	asm volatile("
+		ldd [%o7],%l0;
+		ldd [%o7 +  0x8],%l2;
+		ldd [%o7 + 0x10],%l4;
+		ldd [%o7 + 0x18],%l6;
 
-	ldd [%o7 + 0x20],%i0;
-	ldd [%o7 + 0x28],%i2;
-	ldd [%o7 + 0x30],%i4;
-	ldd [%o7 + 0x38],%i6;
-  "); 
-
-  /* The registers are all valid, so traps won't wipe out info
-	NOW, we can set the new sp */
-  asm volatile("nop; mov %o7, %sp; nop");
-
-  /* floating point registers are caller-save, so we ignore them */
-
+		ldd [%o7 + 0x20],%i0;
+		ldd [%o7 + 0x28],%i2;
+		ldd [%o7 + 0x30],%i4;
+		ldd [%o7 + 0x38],%i6;
+  	"); 
+	
+	/* The registers are all valid, so traps won't wipe out info.
+	   NOW, we can set the new sp */
+	asm volatile("nop; mov %o7, %sp; nop");
+	
+	/* The floating point registers are caller-save. */
 #endif /* Sparc */
 
 #ifdef Rs6000
-    if(new_core->use_float){
-	    asm volatile("ai 5, 1, %0" : : "i" (MINFRAME + INTREGS));
-	    asm volatile("
-		lfd 14, 0(5);
-		lfd 15, 8(5);
-		lfd 16, 0x10(5);
-		lfd 17, 0x18(5);
-		lfd 18, 0x20(5);
-		lfd 19, 0x28(5);
-		lfd 20, 0x30(5);
-		lfd 21, 0x38(5);
-		lfd 22, 0x40(5);
-		lfd 23, 0x48(5);
-		lfd 24, 0x50(5);
-		lfd 25, 0x58(5);
-		lfd 26, 0x60(5);
-		lfd 27, 0x68(5);
-		lfd 28, 0x70(5);
-		lfd 29, 0x78(5);
-		lfd 30, 0x80(5);
-		lfd 31, 0x88(5);
-		");
-    }
+	if (new_core->use_float) {
+		asm volatile("ai 5, 1, %0" : : "i" (MINFRAME + INTREGS));
+		asm volatile("
+			lfd 14, 0(5);
+			lfd 15, 8(5);
+			lfd 16, 0x10(5);
+			lfd 17, 0x18(5);
+			lfd 18, 0x20(5);
+			lfd 19, 0x28(5);
+			lfd 20, 0x30(5);
+			lfd 21, 0x38(5);
+			lfd 22, 0x40(5);
+			lfd 23, 0x48(5);
+			lfd 24, 0x50(5);
+			lfd 25, 0x58(5);
+			lfd 26, 0x60(5);
+			lfd 27, 0x68(5);
+			lfd 28, 0x70(5);
+			lfd 29, 0x78(5);
+			lfd 30, 0x80(5);
+			lfd 31, 0x88(5);
+			");
+	}
 	/* r5 (caller saved) == &save area */
         asm volatile("ai 5, 1, %0" : : "i" (MINFRAME));
 
@@ -708,7 +730,7 @@ void sthread_core_switch(sthread_core_t* old, sthread_core_t* new)
 		l 31, 0x48(5);");
 #endif
 
-  /* restore only the ccrs that we need (2,3,4) */
+	/* restore only the ccrs that we need (2,3,4) */
   	asm volatile("l 12, %0(1); mtcrf %1,12" : :
 		     "i" (MINFRAME + INTREGS + FPREGS),
 		     "i" (CCMASK));
@@ -716,7 +738,7 @@ void sthread_core_switch(sthread_core_t* old, sthread_core_t* new)
 	/* restore the old stack pointer */
 	asm volatile("l 1, 0(1)");
 #endif /* Rs6000 */
-  }
+
 }
 
 int stack_grows_up = StackGrowsUp;

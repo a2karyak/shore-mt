@@ -97,7 +97,8 @@ sm begin_xct
 	set i 0
 	while {$pin != "NULL"} {
 	    set r($i) [sm pin_rid $pin]
-	    sm pin_unpin $pin
+	    # don't mess up the scan context
+	    # sm pin_unpin $pin
 	    set pin [sm scan_file_next $scan 0]
 	    set i [expr {$i+1} ]
 	}

@@ -1055,9 +1055,9 @@ attr_dcl(short index_n,type_pt spec,decl_pt decls)
 	boolean indexable;
 	//if (index_n==INDEXABLE)
 	if (index_n!=0)
-		indexable = TRUE;
+		indexable = true;
 	else
-		indexable = FALSE;
+		indexable = false;
 	Ref<Declaration> dpt;
 	for (dpt = decls; dpt!=0; dpt = dpt->next)
 	{
@@ -1084,7 +1084,7 @@ op_dcl(type_pt type,node *id,decl_pt parms,node *exception,short context)
 	else
 		opt->parameters = 0;
 	// note: need to handle something other than const here.
-	opt->isConst = context?TRUE:FALSE;
+	opt->isConst = context?true:false;
 	return (opt);
 }
 
@@ -1267,7 +1267,7 @@ relationship_dcl(type_pt spec,decl_pt dpt,node_pt inverse_name, node_pt ordered_
 	RelDecl * atp = NEW_T RelDecl;
 	set_decl(atp,(dpt)->name,spec,Relationship,(dpt)->lineno,(dpt)->zone);
 	atp->lineno = (dpt)->lineno;
-	atp->readOnly = FALSE;
+	atp->readOnly = false;
 	if (inverse_name)
 	{
 		RelDecl * rtp2 = NEW_T RelDecl;

@@ -6,7 +6,7 @@
 /* --------------------------------------------------------------- */
 
 /*
- *  $Id: lock_s.h,v 1.49 1996/06/27 17:23:03 kupsch Exp $
+ *  $Id: lock_s.h,v 1.53 1997/04/22 14:59:55 nhall Exp $
  */
 #ifndef LOCK_S_H
 #define LOCK_S_H
@@ -65,107 +65,16 @@ typedef lock_base_t::status_t status_t;
 */
 #endif
 
-struct kvl_t {
-    stid_t			stid;
-    uint4			h;
-    uint4			g;
-
-    static const cvec_t eof;
-    static const cvec_t bof;
-
-    NORET			kvl_t();
-    NORET			kvl_t(stid_t id, const cvec_t& v);
-    NORET			kvl_t(
-	stid_t			    _stid,
-	const cvec_t& 		    v1, 
-	const cvec_t& 		    v2);
-    NORET			~kvl_t();
-    NORET			kvl_t(const kvl_t& k);
-    kvl_t& 			operator=(const kvl_t& k);
-
-    kvl_t& 			set(stid_t s, const cvec_t& v);
-    kvl_t& 			set(
-	stid_t 			    s,
-	const cvec_t& 		    v1,
-	const cvec_t& 		    v2);
-    bool operator==(const kvl_t& k) const;
-    bool operator!=(const kvl_t& k) const;
-    friend ostream& operator<<(ostream&, const kvl_t& k);
-    friend istream& operator>>(istream&, kvl_t& k);
-};
-
-inline NORET
-kvl_t::kvl_t()
-    : stid(stid_t::null), h(0), g(0)
-{
-}
-
-inline NORET
-kvl_t::kvl_t(stid_t id, const cvec_t& v)
-    : stid(id)
-{
-    v.calc_kvl(h), g = 0;
-}
-
-inline NORET
-kvl_t::kvl_t(stid_t id, const cvec_t& v1, const cvec_t& v2)
-    : stid(id)  
-{
-    v1.calc_kvl(h); v2.calc_kvl(g);
-}
-
-inline NORET
-kvl_t::~kvl_t()
-{
-}
-
-inline NORET
-kvl_t::kvl_t(const kvl_t& k)
-    : stid(k.stid), h(k.h), g(k.g)
-{
-}
-
-inline kvl_t& 
-kvl_t::operator=(const kvl_t& k)
-{
-    stid = k.stid;
-    h = k.h, g = k.g;
-    return *this;
-}
-    
-
-inline kvl_t&
-kvl_t::set(stid_t s, const cvec_t& v)
-{
-    stid = s, v.calc_kvl(h), g = 0;
-    return *this;
-}
-
-inline kvl_t& 
-kvl_t::set(stid_t s, const cvec_t& v1, const cvec_t& v2)
-{
-    stid = s, v1.calc_kvl(h), v2.calc_kvl(g);
-    return *this;
-}
-
-inline bool
-kvl_t::operator==(const kvl_t& k) const
-{
-    return h == k.h && g == k.g;
-}
-
-inline bool
-kvl_t::operator!=(const kvl_t& k) const
-{
-    return ! (*this == k);
-}
-
 struct lockid_t {
     union {
 	uint4 w[4];
 	uint2 s[8];
 	char  c[16];
     };
+
+    // The lock type (name_space_t, lspace) is stored in s[0].
+    // s[1] contains a word which is only used in extent locks
+    // and is set if the extent is not freeable.
 
     void 			zero();
     u_long 			hash() const;
@@ -175,8 +84,8 @@ struct lockid_t {
     friend ostream& operator<<(ostream& o, const lockid_t& i);
 
     //
-    // The lock graph cinstists of 6 node: volumes, stores, pages, key values,
-    // records, and extents. The first 5 of these form a tree os 4 levels.
+    // The lock graph consists of 6 node: volumes, stores, pages, key values,
+    // records, and extents. The first 5 of these form a tree of 4 levels.
     // The node for extents is not connected to the rest. The node_space_t
     // enumerator maps node types to integers. These numbers are used for
     // indexing into arrays containing node type specific info per entry (e.g
@@ -197,8 +106,10 @@ struct lockid_t {
 
     char*			name();
     const char* 		name() const;
-    name_space_t& 		lspace();
-    const name_space_t& 	lspace() const;
+    void	 		set_lspace(lockid_t::name_space_t value);
+    name_space_t	 	lspace() const;
+    bool			ext_has_page_alloc() const;
+    void			set_ext_has_page_alloc(bool value);
 
     NORET			lockid_t() ;    
     NORET			lockid_t(const vid_t& vid);
@@ -221,15 +132,20 @@ struct lockid_t {
     int                         page() const;
 
     lockid_t& 			operator=(const lockid_t& i);
+
 };
 
 
 inline bool
 lockid_t::operator==(const lockid_t& l) const
 {
-    return !((w[0] ^ l.w[0]) | (w[1] ^ l.w[1]) | (w[2] ^ l.w[2]) | (w[3] ^ l.w[3]));
-//    return (w[0] == l.w[0]) && (w[1] == l.w[1]) &&
-//	   (w[2] == l.w[2]) && (w[3] == l.w[3]);
+    // the lock type (lspace) is stored in s[0], s[1] is true if extent has pages allocated
+    // s[1] does not participate in testing for equality
+    return !((s[0] ^ l.s[0]) | (w[1] ^ l.w[1]) | (w[2] ^ l.w[2]) | (w[3] ^ l.w[3]));
+
+    // the above is the same as this but runs faster since it doesn't have conditions on the &&
+    //    return (s[0] == l.s[0]) && (w[1] == l.w[1]) &&
+    //	   (w[2] == l.w[2]) && (w[3] == l.w[3]);
 }
 
 inline bool
@@ -254,7 +170,7 @@ lockid_t::zero()
 inline u_long
 lockid_t::hash() const
 {
-    return w[0] ^ w[1] ^ w[2] ^w[3];
+    return s[0] ^ w[1] ^ w[2] ^ w[3];
 }
 #endif
 
@@ -301,30 +217,44 @@ lockid_t::name() const
     return (char*) &w[1];
 }
 
-inline lockid_t::name_space_t&
-lockid_t::lspace()
+inline void
+lockid_t::set_lspace(lockid_t::name_space_t value)
 {
-    return * (name_space_t*) &w[0];
+    s[0] = value;
 }
 
-inline const lockid_t::name_space_t&
+inline lockid_t::name_space_t
 lockid_t::lspace() const
 {
-    return * (name_space_t*) &w[0];
+    return  (name_space_t) s[0];
+}
+
+inline bool
+lockid_t::ext_has_page_alloc() const
+{
+    w_assert3(lspace() == t_extent);
+    return s[1];
+}
+
+inline void
+lockid_t::set_ext_has_page_alloc(bool value)
+{
+    w_assert3(lspace() == t_extent);
+    s[1] = value;
 }
 
 inline NORET
 lockid_t::lockid_t()
 {
     zero(); 
-    lspace() = t_bad;
+    set_lspace(t_bad);
 }
 
 inline NORET
 lockid_t::lockid_t(const vid_t& vid)
 {
     zero();
-    lspace() = t_vol;
+    set_lspace(t_vol);
     s[2] = vid;
 }
 
@@ -332,7 +262,7 @@ inline NORET
 lockid_t::lockid_t(const extid_t& extid)
 {
     zero();
-    lspace() = t_extent;
+    set_lspace(t_extent);
     s[2] = extid.vol;
     s[3] = extid.ext;
 }
@@ -341,7 +271,7 @@ inline NORET
 lockid_t::lockid_t(const stid_t& stid)
 {
     zero();
-    lspace() = t_store;
+    set_lspace(t_store);
     s[2] = stid.vol;
     s[3] = stid.store;
 }
@@ -351,11 +281,11 @@ lockid_t::lockid_t(const stpgid_t& stpgid)
 {
     zero();
     if (stpgid.is_stid()) {
-	lspace() = t_store;
+	set_lspace(t_store);
 	s[2] = stpgid.vol();
 	s[3] = stpgid.store();
     } else {
-	lspace() = t_page;
+	set_lspace(t_page);
 	s[2] = stpgid.lpid.vol();
 	s[3] = stpgid.lpid.store();
 	w[2] = stpgid.lpid.page;
@@ -366,7 +296,7 @@ inline NORET
 lockid_t::lockid_t(const lpid_t& lpid)
 {
     zero();
-    lspace() = t_page;
+    set_lspace(t_page);
     s[2] = lpid.vol();
     s[3] = lpid.store();
     w[2] = lpid.page;
@@ -376,7 +306,7 @@ inline NORET
 lockid_t::lockid_t(const rid_t& rid)
 {
     zero();
-    lspace() = t_record;
+    set_lspace(t_record);
     // w[1-3] is assumed (elsewher) to
     // look just like the following sequence
     // (which is the beginning of a rid_t-- see sm_s.h):
@@ -393,7 +323,7 @@ inline NORET
 lockid_t::lockid_t(const kvl_t& kvl)
 {
     zero();
-    lspace() = t_kvl;
+    set_lspace(t_kvl);
     memcpy(name(), &kvl, sizeof(kvl));
 }
 
@@ -450,28 +380,6 @@ lockid_t::vid()
 {
    w_assert3(lspace() != t_bad);
    return *(vid_t*)&w[1];
-}
-
-inline void
-lockid_t::truncate(name_space_t space)
-{
-    w_assert3(lspace() >= space && lspace() != t_kvl);
-
-    switch (space) {
-    case t_vol:
-	s[3] = 0;
-	w[2] = w[3] = 0;
-	break;
-    case t_store:
-	w[2] = w[3] = 0;
-        break;
-    case t_page:
-	w[3] = 0;
-        break;
-    default:
-	W_FATAL(eINTERNAL);
-    }
-    lspace() = space;
 }
 
 inline int

@@ -6,7 +6,7 @@
 /* --------------------------------------------------------------- */
 
 /*
- *  $Id: file.h,v 1.82 1996/05/06 20:10:42 nhall Exp $
+ *  $Id: file.h,v 1.85 1997/05/27 13:09:29 kupsch Exp $
  */
 #ifndef FILE_H
 #define FILE_H
@@ -17,7 +17,9 @@
 
 class sdesc_t; // forward
 
+#ifndef FILE_S_H
 #include "file_s.h"
+#endif
 
 struct file_stats_t;
 struct file_pg_stats_t;
@@ -40,7 +42,7 @@ public:
     rc_t		fix_record(
 	const rid_t&	    rid,
 	latch_mode_t	    m,
-	bool		    ignore_store_id = FALSE);
+	bool		    ignore_store_id = false);
 
     int			num_slots()  	{ return page_p::nslots(); }
 
@@ -53,36 +55,36 @@ public:
 
     rc_t		find_and_lock_free_slot(
 	uint4		    space_needed,
-	int&		    idx);
+	slotid_t&	    idx);
     rc_t 		fill_slot(
-	int		    idx,
+	slotid_t	    idx,
 	const rectag_t&	    tag,
 	const vec_t& 	    hdr,
 	const vec_t& 	    data,
 	int		    pff);
 
-    rc_t		destroy_rec(int idx);
-    rc_t		append_rec(int idx, const vec_t& data);
-    rc_t		truncate_rec(int idx, uint4 amount);
-    rc_t		set_rec_len(int idx, uint4 new_len);
-    rc_t		set_rec_flags(int idx, uint2 new_flags);
+    rc_t		destroy_rec(slotid_t idx);
+    rc_t		append_rec(slotid_t idx, const vec_t& data);
+    rc_t		truncate_rec(slotid_t idx, uint4 amount);
+    rc_t		set_rec_len(slotid_t idx, uint4 new_len);
+    rc_t		set_rec_flags(slotid_t idx, uint2 new_flags);
 
     rc_t		splice_data(
-	int		    idx,
+	slotid_t	    idx,
 	smsize_t	    start,
 	smsize_t	    len,
 	const vec_t&	    data);
     rc_t		splice_hdr(
-	int		    idx,
+	slotid_t	    idx,
 	smsize_t	    start,
 	smsize_t	    len,
 	const vec_t&	    data); 
 
-    rc_t		get_rec(int idx, record_t*& rec);
-    rc_t		get_rec(int idx, const record_t*& rec)  {
+    rc_t		get_rec(slotid_t idx, record_t*& rec);
+    rc_t		get_rec(slotid_t idx, const record_t*& rec)  {
 	return get_rec(idx, (record_t*&) rec);
     }
-    bool              is_rec_valid(int idx) { return is_tuple_valid(idx); }
+    bool              is_rec_valid(slotid_t idx) { return is_tuple_valid(idx); }
 
     slotid_t		serial_slot(const serial_t& s); // find slot with serial
 
@@ -129,7 +131,7 @@ public:
     static rc_t create_rec( stid_t fid, const vec_t& hdr, uint4 len_hint,
 		    	const vec_t& data, const serial_t& serial_no,
 		    	sdesc_t& sd, rid_t& rid,
-			bool forward_alloc = FALSE);
+			bool forward_alloc = false);
     static rc_t create_rec_at_end( stid_t fid, const vec_t& hdr, uint4 len_hint,
 		    	const vec_t& data, const serial_t& serial_no,
 		    	sdesc_t& sd, file_p &page, rid_t& rid
@@ -158,21 +160,15 @@ public:
     static rc_t		first_page(
 	const stid_t&	    fid,
 	lpid_t&		    pid,
-	bool*		    allocated = NULL,
-	bool		    lock = FALSE,
-	pid_cache_t*	    cache = NULL);
+	bool*		    allocated = NULL);
     static rc_t		next_page(
 	lpid_t&		    pid,
 	bool&		    eof,
-	bool*		    allocated = NULL,
-	bool		    lock = FALSE,
-	pid_cache_t*	    cache = NULL);
+	bool*		    allocated = NULL);
     static rc_t		last_page(
 	const stid_t&	    fid,
 	lpid_t&		    pid,
-	bool*		    allocated = NULL,
-	bool		    lock = FALSE,
-	pid_cache_t*	    cache = NULL);
+	bool*		    allocated = NULL);
 
     static rc_t locate_page(const rid_t& rid, file_p& page,
 			   latch_mode_t mode)
@@ -190,8 +186,8 @@ protected:
 		   	 const lpid_t& near, lpid_t& pid,
 			 lock_mode_t lmode,
 			 file_p &page,
-		  	 bool forward_alloc = FALSE,
-		  	 bool last_page = FALSE,
+		  	 bool forward_alloc = false,
+		  	 bool last_page = false,
 			 sdesc_t* sd = 0
 			 );
     
@@ -223,7 +219,7 @@ inline bool file_p::is_file_p() const
 
 inline rc_t
 file_p::fill_slot(
-    int 		idx,
+    slotid_t 		idx,
     const rectag_t& 	tag, 
     const vec_t& 	hdr,
     const vec_t& 	data, 
@@ -273,13 +269,13 @@ file_p::fill_slot(
 }
 
 inline rc_t
-file_p::destroy_rec(int idx)
+file_p::destroy_rec(slotid_t idx)
 {
     return page_p::mark_free(idx);
 }
 
 inline rc_t
-file_p::splice_hdr(int idx, smsize_t start, smsize_t len, const vec_t& data)
+file_p::splice_hdr(slotid_t idx, smsize_t start, smsize_t len, const vec_t& data)
 {
     record_t* rec;
     rc_t rc = get_rec(idx, rec);

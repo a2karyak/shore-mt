@@ -199,8 +199,20 @@ void pys_scan(const serial_t& fid, int num_rec)
     
 }
 
-int
-main(int argc, char* argv[])
+/* create an smthread based class for all sm-related work */
+class smthread_user_t : public smthread_t {
+	int	argc;
+	char	**argv;
+public:
+	int	retval;
+
+	smthread_user_t(int ac, char **av) 
+		: argc(ac), argv(av), retval(0) { }
+	void run();
+};
+
+
+void smthread_user_t::run()
 {
     rc_t rc;
 
@@ -239,7 +251,8 @@ main(int argc, char* argv[])
 
     if (init_config_options(options, "server", argc, argv)) {
 	usage(options);
-	exit(1);
+	retval = 1;
+	return;
     }
 
 
@@ -258,7 +271,8 @@ main(int argc, char* argv[])
 		if (init_device) {
 		    cerr << "Error only one -i parameter allowed" << endl;
 		    usage(options);
-		    exit(1);
+		    retval = 1;
+		    return;
 		}
 
 		init_device = true;
@@ -270,7 +284,8 @@ main(int argc, char* argv[])
 		scan_type[0] != 'l' &&
 		scan_type[0] != 'p') {
 		cerr << "scan type option (-s) must be one of s,p,l" << endl;
-		exit(1);
+		retval = 1;
+		return;
 	    }
 
 	    break;
@@ -279,13 +294,15 @@ main(int argc, char* argv[])
 	    if (lock_gran[0] != 'r' &&
 		lock_gran[0] != 'f' ) {
 		cerr << "lock granularity option (-l) must be one of s,p,l" << endl;
-		exit(1);
+		retval = 1;
+		return;
 	    }
 
 	    break;
 	default:
 	    usage(options);
-	    exit(1);
+	    retval = 1;
+	    return;
 	    break;
 	}
     }
@@ -294,7 +311,8 @@ main(int argc, char* argv[])
     ssm = new ss_m();
     if (!ssm) {
 	cerr << "Error: Out of memory for ss_m" << endl;
-	exit(1);
+	retval = 1;
+	return;
     }
 
     lvid_t lvid;  // ID of volume for storing grid
@@ -312,20 +330,22 @@ main(int argc, char* argv[])
 	delete ssm;
 	rc = RCOK;   // force deletion of w_error_t info hanging off rc
 	             // otherwise a leak for w_error_t will be reported
-	exit(1);
+	retval = 1;
+	return;
     }
 
     if (scan_type) {
 	cout << "lock granularity = " << lock_gran << endl;
 	W_COERCE(ssm->begin_xct());
 	switch (scan_type[0]) {
-	case 's':
+	case 's': {
 	    ss_m::concurrency_t cc = ss_m::t_cc_file;
 	    if (lock_gran[0] == 'r') {
 		cc = ss_m::t_cc_record;
 	    }
 	    scan_i_scan(lvid, fid, num_rec, cc);
 	    break;
+	}
 	case 'l':
 	    if (lock_gran[0] == 'f') {
 		ssm->lock(lvid, fid, SH);
@@ -343,5 +363,24 @@ main(int argc, char* argv[])
     delete ssm;
 
     cout << "Finished!" << endl;
-    return 0;
+
+    return;
+}
+
+int
+main(int argc, char* argv[])
+{
+	smthread_user_t *smtu;
+	int	rv;
+
+	smtu = new smthread_user_t(argc, argv);
+	if (!smtu)
+		W_FATAL(fcOUTOFMEMORY);
+	W_COERCE(smtu->fork());
+	W_COERCE(smtu->wait());
+
+	rv = smtu->retval;
+	delete smtu;
+
+	return rv;
 }

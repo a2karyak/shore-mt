@@ -61,7 +61,7 @@ init_config_options(option_group_t& options,
     // read the .examplerc file to set options
     {
 	ostrstream      err_stream;
-	const char* opt_file = "/tmp/exampleconfig"; 	// option config file
+	const char* opt_file = "exampleconfig"; 	// option config file
 	option_file_scan_t opt_scan(opt_file, &options);
 
 	// scan the file and override any current option settings

@@ -6,7 +6,7 @@
 /* --------------------------------------------------------------- */
 
 /*
- *  $Header: /p/shore/shore_cvs/src/vas/server/directory.C,v 1.60 1995/10/03 16:26:15 nhall Exp $
+ *  $Header: /p/shore/shore_cvs/src/vas/server/directory.C,v 1.61 1997/01/24 16:47:50 nhall Exp $
  */
 #include <copyright.h>
 
@@ -31,7 +31,7 @@ svas_server::lookup(
 	OUT(lrid_t)	result,
 	OUT(bool)	found,
 	PermOp		perm,		//  final perm
-	bool		follow		//  default = TRUE
+	bool		follow		//  default = true
 )
 {
 	VFPROLOGUE(svas_server::lookup); 
@@ -195,7 +195,7 @@ svas_server::_lookup2(
 	ENTER_DIR_CONTEXT_IF_NECESSARY; 
 FSTART
 
-	*found = FALSE;
+	*found = false;
 	{
 		Directory	direct(this); // re-used below
 		Registered	obj(this); // re-used below
@@ -287,7 +287,7 @@ FSTART
 					<< " dot= " <<  dot
 				);
 
-				direct.reuse(dot.lvid, dot.serial, FALSE); // don't pin yet
+				direct.reuse(dot.lvid, dot.serial, false); // don't pin yet
 
 				DBG(
 					<< "loid= " << loid
@@ -311,7 +311,7 @@ FSTART
 					// If it's a dir but the filename isn't found, 
 					// we'll get NotFound.
 
-					*found = FALSE;
+					*found = false;
 					// nullify the (returned) loid
 					*result = lid_t::null;
 
@@ -496,7 +496,7 @@ FSTART
 // ok, found:
 		*result = loid;
 
-		*found = TRUE;
+		*found = true;
 		if( reg_file!=0 ) {
 			if(file == serial_t::null) {
 				// If we get here, in our search we never did get 
@@ -885,7 +885,7 @@ VASResult
 svas_server::_rmDir(
 	IN(lrid_t) 	dir,
 	const Path name,
-	bool		checkaccess // = TRUE
+	bool		checkaccess // = true
 )
 {
 	VFPROLOGUE(svas_server::_rmDir); 
@@ -1110,7 +1110,7 @@ svas_server::pathSplitAndLookup(
 	PermOp			perm // = Permissions::op_write 
 ) 
 {
-	RETURN _pathSplitAndLookup(path,dir,reg_file,fn,TRUE, perm);
+	RETURN _pathSplitAndLookup(path,dir,reg_file,fn,true, perm);
 }
 
 // NB: THIS ASSUMES YOU ARE GOING TO WANT WRITE PERM ON THE DIR
@@ -1133,7 +1133,7 @@ svas_server::_pathSplitAndLookup(
 {
 	DBG(<<"");
 	char 		*prefix=0;
-	bool		freeit=FALSE;
+	bool		freeit=false;
 
 	VFPROLOGUE(svas_server::_pathSplitAndLookup); 
 
@@ -1180,7 +1180,7 @@ svas_server::_pathSplitAndLookup(
 	prefixlen = (int)((*fn) - p);
 
 	prefix	= new char[ prefixlen+1 ]; // overwrite the last "/" with a null
-	freeit = TRUE;
+	freeit = true;
 	strncpy(prefix, p, prefixlen);
 	prefix[prefixlen] = '\0';
 
@@ -1192,7 +1192,7 @@ svas_server::_pathSplitAndLookup(
 
 	_DO_( _lookup2(startingPt, prefix, Permissions::op_search, \
 			perm, &found, dir, reg_file,\
-			TRUE,  \
+			true,  \
 			followlinks ));
 
 	dassert(found); 
@@ -1365,7 +1365,7 @@ VASResult
 svas_server::_in_path_of(
 	IN(lrid_t)	obj,
 	IN(lrid_t)	dir,
-	OUT(bool) result)	// set to TRUE iff obj is in the path from dir to root 
+	OUT(bool) result)	// set to true iff obj is in the path from dir to root 
 {
 	VFPROLOGUE(svas_server::_in_path_of); 
 
@@ -1403,8 +1403,8 @@ svas_server::_in_path_of(
 		loid.lvid = s.volume;
 		loid.serial = s.ref;
 	}
-	if(loid==obj) *result = TRUE;
-	else *result = FALSE;
+	if(loid==obj) *result = true;
+	else *result = false;
 
 FOK:
 	_cwd = _cwd_save;
@@ -1413,7 +1413,7 @@ FOK:
 
 FFAILURE:
 	_cwd = _cwd_save;
-	*result = FALSE;
+	*result = false;
 	RESTORE_CLIENT_CONTEXT_IF_NECESSARY;
 	RETURN SVAS_FAILURE;
 }
@@ -1439,7 +1439,7 @@ FSTART
 	_DO_(pathSplitAndLookup(oldpath, &olddir, &reg_file, &oldfile) );
 	// make sure object of that name exists in the dir
 	_DO_(_lookup2(olddir, oldfile, Permissions::op_search,\
-		Permissions::op_write, &found, &oldobj, &reg_file, TRUE, TRUE));
+		Permissions::op_write, &found, &oldobj, &reg_file, true, true));
 	// see if 2nd dir exists
 	_DO_(pathSplitAndLookup(newpath, &newdir, &reg_file, &newfile) );
 	_DO_(_reName(olddir, oldfile, oldobj, newdir, newfile));
@@ -1481,7 +1481,7 @@ FSTART
 	// see if 2nd object exists
 	_DO_(_lookup2(newdir, newfile, 
 		Permissions::op_search, Permissions::op_write, 
-		&found, &newobj, &reg_file, FALSE, TRUE));
+		&found, &newobj, &reg_file, false, true));
 
 	if(olddir.lvid != newdir.lvid) {
 		VERR(OS_CrossDeviceRef);
@@ -1537,17 +1537,17 @@ FSTART
 				FAIL;
 			}
 
-			_DO_( _rmDir(newdir, newfile, FALSE ));
-				// FALSE-> don't re-check legitAccess
+			_DO_( _rmDir(newdir, newfile, false ));
+				// false-> don't re-check legitAccess
 
 		} else {
 			// new is not a directory
 
 			lrid_t	dummy;
-			bool  lastcopy = FALSE;
+			bool  lastcopy = false;
 
-			_DO_( _rmLink1(newdir, newfile, &dummy, &lastcopy, FALSE));
-						// FALSE-> don't re-check legitAccess
+			_DO_( _rmLink1(newdir, newfile, &dummy, &lastcopy, false));
+						// false-> don't re-check legitAccess
 
 			dassert(dummy == newobj);
 			if(lastcopy) {
@@ -1557,7 +1557,7 @@ FSTART
 	}
 	// All checks have been made.
 	{
-		bool must_remove=FALSE;
+		bool must_remove=false;
 		lrid_t target = oldobj;
 		// Both are directories or both are not directories
 

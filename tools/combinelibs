@@ -62,7 +62,7 @@ done
 
 echo
 echo "The following .o files will be in"  $dest":"
-ls $t
+(cd $t; echo *)
 echo
 
 if [ -f $dest ]

@@ -32,6 +32,7 @@ typedef w_auto_delete_array_t<char> gcc_kludge_1;
 typedef w_list_i<option_t> 			gcc_kludge_0;
 #endif /* __GNUC__*/
 
+
 void
 statstest()
 {
@@ -68,19 +69,19 @@ statstest()
 		 * the string name.
 		 */
 		cout << "My own pretty formatting for module : " << ST.module(TEST_i) << endl;
-		cout <<  ::form("\t%-30.30s %10.10d", 
+		W_FORM(cout)("\t%-30.30s %10.10d", 
 				ST.string(TEST_i), ST.int_val(TEST_i)) 
 			<< endl;
-		cout <<  ::form("\t%-30.30s %10.10d", 
+		W_FORM(cout)("\t%-30.30s %10.10d", 
 				ST.string(TEST_j), ST.uint_val(TEST_j)) 
 			<< endl;
-		cout <<  ::form("\t%-30.30s %10.6f", 
+		W_FORM(cout)("\t%-30.30s %10.6f", 
 				ST.string(TEST_k), ST.float_val(TEST_k)) 
 			<< endl;
-		cout <<  ::form("\t%-30.30s %10.10d", 
+		W_FORM(cout)("\t%-30.30s %10.10d", 
 				ST.string(TEST_l), ST.float_val(TEST_l)) 
 			<< endl;
-		cout <<  ::form("\t%-30.30s %10.10d", 
+		W_FORM(cout)("\t%-30.30s %10.10d", 
 				ST.string(TEST_v), ST.float_val(TEST_v)) 
 			<< endl;
 		cout << endl;

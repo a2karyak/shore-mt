@@ -6,7 +6,7 @@
 /* --------------------------------------------------------------- */
 
 /*
- *  $Header: /p/shore/shore_cvs/src/vas/server/Symlink.C,v 1.13 1995/07/14 22:39:07 nhall Exp $
+ *  $Header: /p/shore/shore_cvs/src/vas/server/Symlink.C,v 1.14 1997/01/24 16:47:42 nhall Exp $
  */
 #include <copyright.h>
 
@@ -40,7 +40,7 @@ FSTART
 
 	res =  this->createRegistered( lvid, pfid,
 		allocated, ReservedSerial::_Symlink,
-		TRUE, 0, 0, core, none, NoText, 0/*no indexes*/,
+		true, 0, 0, core, none, NoText, 0/*no indexes*/,
 		mode | S_IFLNK,
 		group, &result
 	);

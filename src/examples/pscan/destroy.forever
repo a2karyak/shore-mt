@@ -1,6 +1,0 @@
-#/bin/csh -f
-while 1
-	echo destroy 
-	destroy 
-	sleep 1
-end

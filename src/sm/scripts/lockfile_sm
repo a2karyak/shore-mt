@@ -85,17 +85,17 @@ proc holder { fid rid type op me } {
     global verbose_flag
     sync
 
-    echo "$me: $type ($op) requesting lock on $fid"
+    verbose "$me: $type ($op) requesting lock on $fid"
     req_lock $fid $rid $type $op
-    echo "$me: $type ($op) lock on $fid granted"
+    verbose "$me: $type ($op) lock on $fid granted"
 #    if { $verbose_flag } { sm dump_locks }
 
     sync
     sync
 
-    echo "$me: $type ($op) releasing lock on $fid"
+    verbose "$me: $type ($op) releasing lock on $fid"
     rel_lock
-#    echo "$me: $type ($op) lock on $fid released"
+#    verbose "$me: $type ($op) lock on $fid released"
 }
 
 proc requester { fid rid type op me } {
@@ -103,16 +103,16 @@ proc requester { fid rid type op me } {
     sync
     sync
 
-    echo "$me: $type ($op) requesting lock on $fid"
+    verbose "$me: $type ($op) requesting lock on $fid"
     req_lock $fid $rid $type $op
-    echo "$me: $type ($op) lock on $fid granted"
+    verbose "$me: $type ($op) lock on $fid granted"
 #    if { $verbose_flag } { sm dump_locks }
 
     sync
 
-    echo "$me: $type ($op) releasing lock on $fid"
+    verbose "$me: $type ($op) releasing lock on $fid"
     rel_lock
-#    echo "$me: $type ($op) lock on $fid released"
+#    verbose "$me: $type ($op) lock on $fid released"
 }
 
 proc testit { fid r1 r2 lock1 lock2 } {
@@ -126,7 +126,7 @@ proc testit { fid r1 r2 lock1 lock2 } {
 	    sync_thread $x $y
 	    sync_thread $x $y
 	    join_thread $x $y
-	    echo "----------------"
+	    verbose "----------------"
 	}
     }
 }
@@ -150,17 +150,17 @@ set r1 [ sm create_rec $fid "hdr1" 0 "body1" ]
 set r2 [ sm create_rec $fid "hdr2" 0 "body2" ]
 sm commit_xct
 
-echo volid = $volid
-echo fid = $fid
-echo r1 = $r1
-echo r2 = $r2
+verbose volid = $volid
+verbose fid = $fid
+verbose r1 = $r1
+verbose r2 = $r2
 
-echo "TEST:\tFile Locking with SM Rec/File Operations"
+verbose "TEST:\tFile Locking with SM Rec/File Operations"
 
 foreach i { IS IX SH SIX } {
     foreach j { IS IX SH SIX } {
 
-	echo "==================   $i  $j  ====================="
+	verbose "==================   $i  $j  ====================="
 	testit $fid $r1 $r2 $i $j
     }
 }

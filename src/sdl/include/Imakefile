@@ -6,11 +6,11 @@
 /* --------------------------------------------------------------- */
 
 /*
- *  $Id: Imakefile,v 1.12 1996/07/19 16:07:30 nhall Exp $
+ *  $Id: Imakefile,v 1.13 1997/06/13 22:33:08 solomon Exp $
  */
 
-HFILES = Any.h Pool.h ShoreApp.h sdl_lookup.h sdl_string.h \
+#define Hdr Any.h Pool.h ShoreApp.h sdl_lookup.h sdl_string.h \
 	 PoolScan.h DirScan.h sdl_set.h sdl_templates.h \
 	 sdl_index.h sdl_UnixFile.h 
 
-install_copy(include, $(HFILES))
+%GEN install(include, Hdr)

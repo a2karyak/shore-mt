@@ -6,7 +6,7 @@
 /* --------------------------------------------------------------- */
 
 /*
- * $Id: rdtree.h,v 1.15 1995/10/31 19:53:58 nhall Exp $
+ * $Id: rdtree.h,v 1.16 1996/12/05 20:38:28 bolo Exp $
  */
 
 #ifndef RDTREE_H
@@ -71,7 +71,7 @@ public:
 		      smsize_t& elen, bool& eof, bool skip);
 
     static rc_t print(const lpid_t& root);
-//    static rc_t draw(const lpid_t& root, bool skip = FALSE);
+//    static rc_t draw(const lpid_t& root, bool skip = false);
 
 /*  NOT YET IMPLEMENTED
     static bulk_load(const lpid_t& root, const stid_t& src, 
@@ -132,10 +132,10 @@ private:
 		     int2 level);
 
     static rc_t __propagate_insert(xct_t *xd, rtstk_t& pl);
-    static rc_t _propagate_insert(rtstk_t& pl, bool compensate = TRUE);
+    static rc_t _propagate_insert(rtstk_t& pl, bool compensate = true);
     
     static rc_t __propagate_remove(xct_t *xd, rtstk_t& pl);
-    static rc_t _propagate_remove(rtstk_t& pl, bool compensate = TRUE);
+    static rc_t _propagate_remove(rtstk_t& pl, bool compensate = true);
 
 //    static rc_t _draw(const lpid_t& pid, bool skip);
 };

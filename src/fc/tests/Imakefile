@@ -6,38 +6,35 @@
 /* --------------------------------------------------------------- */
 
 /*
- *  $Id: Imakefile,v 1.16 1996/07/17 17:21:33 bolo Exp $
+ *  $Id: Imakefile,v 1.20 1997/07/01 20:50:23 solomon Exp $
  */
 
-SRC = rc.c list1.c list2.c list3.c fastnew.c \
-	hash1.c hash2.c cq1.c cq2.c bit.c \
-	timer.c tt.o nt.o
+SRC = rc.cc list1.cc list2.cc list3.cc fastnew.cc \
+	hash1.cc hash2.cc cq1.cc cq2.cc bit.cc \
+	timer.cc ntime.cc
+CPPFLAGS = -I..
 
-OBJ = $(SRC:.c=.o)
-EXEC = rc list1 list2 list3 fastnew hash1 hash2 cq1 cq2 bit timer
-INCLUDE += $(FC_INCL)
-LIB = $(FC_LIB)
+all_local:: rc list1 list2 list3 fastnew hash1 hash2 cq1 cq2 bit timer %
+	ntime vector
 
-$(LIB): ALWAYS
-	(cd ..; $(MAKE) $(OPTIONS))
-
-c_plus_program(rc, rc.o, $(LIB))
-c_plus_program(list1, list1.o, $(LIB))
-c_plus_program(list2, list2.o, $(LIB))
-c_plus_program(fastnew, fastnew.o, $(LIB))
-c_plus_program(hash1, hash1.o, $(LIB))
-c_plus_program(hash2, hash2.o, $(LIB))
-c_plus_program(list3, list3.o, $(LIB))
-c_plus_program(cq1, cq1.o, $(LIB))
-c_plus_program(cq2, cq2.o, $(LIB))
-c_plus_program(bit, bit.o, $(LIB))
-c_plus_program(timer, timer.o, $(LIB))
-c_plus_program(ntime, ntime.o, $(LIB))
+%GEN c_plus_program(rc, rc.o, ../libfc.a)
+%GEN c_plus_program(list1, list1.o, ../libfc.a)
+%GEN c_plus_program(list2, list2.o, ../libfc.a)
+%GEN c_plus_program(list3, list3.o, ../libfc.a)
+%GEN c_plus_program(fastnew, fastnew.o, ../libfc.a)
+%GEN c_plus_program(hash1, hash1.o, ../libfc.a)
+%GEN c_plus_program(hash2, hash2.o, ../libfc.a)
+%GEN c_plus_program(cq1, cq1.o, ../libfc.a)
+%GEN c_plus_program(cq2, cq2.o, ../libfc.a)
+%GEN c_plus_program(bit, bit.o, ../libfc.a)
+%GEN c_plus_program(timer, timer.o, ../libfc.a)
+%GEN c_plus_program(ntime, ntime.o, ../libfc.a)
+%GEN c_plus_program(vector, vector.o, ../libfc.a)
 
 pure_execs: rc.pure timer.pure
 
-purify_c_plus_program(rc, rc.o, $(LIB), $(PURE_OPTIONS))
-purify_c_plus_program(timer, timer.o, $(LIB), $(PURE_OPTIONS))
+%GEN purify_c_plus_program(rc, rc.o, ../libfc.a, $(PURE_OPTIONS))
+%GEN purify_c_plus_program(timer, timer.o, ../libfc.a, $(PURE_OPTIONS))
 
-depend_target($(SRC))
-
+%GEN depend_target($(SRC))
+%GEN tags($(SRC))

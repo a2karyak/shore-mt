@@ -6,7 +6,7 @@
 /* --------------------------------------------------------------- */
 
 /*
- *  $Id: w_list.h,v 1.33 1995/09/22 16:19:33 markos Exp $
+ *  $Id: w_list.h,v 1.35 1997/06/16 21:35:55 solomon Exp $
  */
 #ifndef W_LIST_H
 #define W_LIST_H
@@ -265,14 +265,14 @@ public:
     NORET			w_list_i()
 	: _list(0), _next(0), _curr(0)		{};
 
-    NORET			w_list_i(w_list_t<T>& l, bool backwards = FALSE)
+    NORET			w_list_i(w_list_t<T>& l, bool backwards = false)
 	: _list(&l), _curr(0), _backwards(backwards) {
 	_next = (backwards ? l._tail.prev() : l._tail.next());
     }
 
     NORET			~w_list_i()	{};
 
-    void			reset(w_list_t<T>& l, bool backwards = FALSE)  {
+    void			reset(w_list_t<T>& l, bool backwards = false)  {
 	_list = &l;
 	_curr = 0;
 	_backwards = backwards;
@@ -404,7 +404,7 @@ private:
 
 #ifdef __GNUC__
 #if defined(IMPLEMENTATION_W_LIST_H) || !defined(EXTERNAL_TEMPLATES)
-#include <w_list.c>
+#include <w_list.cc>
 #endif
 #endif
 

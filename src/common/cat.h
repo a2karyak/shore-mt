@@ -6,10 +6,10 @@
 /* --------------------------------------------------------------- */
 
 /*
- *  $Header: /p/shore/shore_cvs/src/common/cat.h,v 1.8 1995/04/24 19:27:32 zwilling Exp $
+ *  $Header: /p/shore/shore_cvs/src/common/cat.h,v 1.9 1997/05/19 19:40:56 nhall Exp $
  */
-#ifndef __CAT_H__
-#define __CAT_H__
+#ifndef CAT_H
+#define CAT_H
 
 /*
  * NB -- THIS FILE MUST BE LEGITIMATE INPUT TO cc and RPCGEN !!!!
@@ -45,4 +45,4 @@ b
 
 #endif
 
-#endif
+#endif /*CAT_H*/

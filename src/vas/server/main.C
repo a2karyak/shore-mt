@@ -6,7 +6,7 @@
 /* --------------------------------------------------------------- */
 
 /*
- *  $Header: /p/shore/shore_cvs/src/vas/server/main.C,v 1.66 1996/04/09 20:50:47 nhall Exp $
+ *  $Header: /p/shore/shore_cvs/src/vas/server/main.C,v 1.67 1997/01/24 16:48:01 nhall Exp $
  */
 #include <copyright.h>
 
@@ -49,10 +49,10 @@ void usage(ostream& err_stream, const char* prog_name,
 		 const char	*usage_string)
 {
     if (!long_form) {
-		options->print_usage(FALSE, err_stream);
+		options->print_usage(false, err_stream);
     } else {
 		err_stream << "Usage: " << prog_name << " " << usage_string << endl;
-		options->print_usage(TRUE, err_stream);
+		options->print_usage(true, err_stream);
     }
     return;
 }

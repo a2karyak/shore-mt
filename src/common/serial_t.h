@@ -6,7 +6,7 @@
 /* --------------------------------------------------------------- */
 
 /*
- *  $Header: /p/shore/shore_cvs/src/common/serial_t.h,v 1.45 1995/09/25 17:24:06 nhall Exp $
+ *  $Header: /p/shore/shore_cvs/src/common/serial_t.h,v 1.46 1997/05/19 19:41:07 nhall Exp $
  */
 #ifndef SERIAL_T_H
 #define SERIAL_T_H
@@ -22,8 +22,12 @@
  * b) If you put something c++-specific make sure it's 
  * 	  got ifdefs around it
  */
+#ifndef DUAL_ASSERT_H
 #include "dual_assert.h"
+#endif
+#ifndef SERIAL_T_DATA_H
 #include "serial_t_data.h"
+#endif
 
 /*
 //short logical record ID (serial number)

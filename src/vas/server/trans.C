@@ -6,7 +6,7 @@
 /* --------------------------------------------------------------- */
 
 /*
- *  $Header: /p/shore/shore_cvs/src/vas/server/trans.C,v 1.55 1995/10/03 16:26:24 nhall Exp $
+ *  $Header: /p/shore/shore_cvs/src/vas/server/trans.C,v 1.56 1997/06/13 21:43:34 solomon Exp $
  */
 #include <copyright.h>
 
@@ -619,7 +619,7 @@ svas_server::suspendTrans(
 //
 
 VASResult
-svas_server::commit_parallel(bool release)
+svas_server::commit_parallel(bool /* release */)
 {
 	VFPROLOGUE(svas_server::commit_parallel);
 	// commit it, wipe out xct ptr
@@ -628,9 +628,9 @@ svas_server::commit_parallel(bool release)
 	//
 	res = SVAS_OK;
 
-	DBG(<<"closing, release=" << release);
+	DBG(<<"closing");
 	if( in_quark() )  {
-		if CALL( _dirxct->close(release) ) {
+		if CALL( _dirxct->close(true) ) {
 			VERR(SVAS_SmFailure);
 			res = SVAS_FAILURE;
 			// this is really a catastrophic error

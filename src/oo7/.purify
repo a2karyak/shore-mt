@@ -1,3 +1,0 @@
-
-suppress umc sdl_heap_base::init(); 
-suppress abr memcpy; cvec_t::copy_to(void*,unsigned long)const; shm_batch::push( shmdata&,const vec_t&); batcher::push(shmdata&,const vec_t&); svas_client::mkAnonymous(const lid_t&,const lid_t&,const vec_t&,const vec_t&,unsigned long,int,con st lid_t&

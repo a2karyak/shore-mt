@@ -9,8 +9,8 @@
 #define __STATS_H__
 /*
  *   $RCSfile: unix_stats.h,v $  
- *   $Revision: 1.9 $  
- *   $Date: 1996/07/17 22:49:55 $      
+ *   $Revision: 1.10 $  
+ *   $Date: 1996/10/28 17:51:53 $      
  */ 
 /*
  * stats.h
@@ -113,8 +113,9 @@ public:
     int    msgrecv() const;			/* socket messages recvd */
     int    signals() const;			/* signals dispatched */
 
-    friend ostream& operator<<(ostream&, const unix_stats &s);
+    ostream &print(ostream &) const;
 };
+extern ostream& operator<<(ostream&, const unix_stats &s);
 #endif
 
 #ifndef getrusage

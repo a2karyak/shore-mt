@@ -6,7 +6,7 @@
 /* --------------------------------------------------------------- */
 
 /*
- *  $Id: ssh.h,v 1.11 1996/03/18 17:22:15 bolo Exp $
+ *  $Id: ssh.h,v 1.14 1997/05/02 22:23:46 nhall Exp $
  */
 #ifndef SSH_H
 #define SSH_H
@@ -38,16 +38,27 @@
 extern rc_t stop_comm();
 extern rc_t start_comm();
 
-#if !defined(Linux) && !defined(AIX41)
+struct linked_vars {
+    int sm_page_sz;
+    int sm_max_exts;
+    int sm_max_vols;
+    int sm_max_xcts;
+    int sm_max_servers;
+    int sm_max_keycomp;
+    int sm_max_dir_cache;
+    int sm_max_rec_len;
+    int sm_srvid_map_sz;
+    int verbose_flag;
+} ;
+extern linked_vars linked;
+
+
+#ifdef USE_SSMTEST
+/* defined in bf.c */
 extern "C" {
-	long random();
-	int  srandom(int);
-	char *initstate(unsigned long, char *,int);
-	char *setstate(char *);
+    void simulate_preemption(bool);
+    bool preemption_simulated();
 }
 #endif
-
-extern int rseed;
-extern char rstate[32];
 
 #endif /* SSH_H */

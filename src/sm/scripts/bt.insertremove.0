@@ -30,7 +30,7 @@ proc mkval { i e } {
 #
 sm begin_xct
 set ndx [sm create_index $volid uni_btree]
-echo created index $ndx
+verbose created index $ndx
 sm commit_xct
 
 
@@ -39,7 +39,7 @@ sm commit_xct
 #
 set nrec [llength $keylist]
 
-echo $nrec records: $keylist
+verbose $nrec records: $keylist
 
 proc random_restart { a } {
     set j [random 3]
@@ -53,43 +53,48 @@ proc runtest { term op } {
     global ndx
     global nrec
 
-    echo RUNTEST $term
+    verbose RUNTEST $term
 	
     set key 1
     set value 1
     sm begin_xct
     for {set i 0} {$i < $nrec} {incr i} {
-	echo inserting $i
+	verbose inserting $i
 	set key [lindex $keylist $i] 
 	set value [mkval $i $key]
 
-	echo sm $op $ndx $key <elem $key length>
+	verbose sm $op $ndx $key <elem $key length>
 	sm $op $ndx $key $value
 
 	if [expr $key == 394 ] {
 		if [expr [string compare $op "destroy_assoc" ] == 0] {
-		    echo random_restart
+		    verbose random_restart
 		    random_restart false
 		    return
 		}
 	}
 
-	# echo sm find_assoc $ndx $key
+	# verbose sm find_assoc $ndx $key
 	# set res [sm find_assoc $ndx $key]
 	# assert {[expr [string compare $value $res] == 0]}
-	# echo FOUND
+	# verbose FOUND
     }
     switch $term {
        abort { 
-	    echo sm abort_xct 
-	    sm abort_xct 
+	    if {$logging==0} {
+		verbose "Logging off: sm abort_xct not done.  Committing instead."
+		sm commit_xct 
+	    } else {
+		verbose sm abort_xct 
+		sm abort_xct 
+	    }
 	}
        commit { 
-	    echo sm commit_xct 
+	    verbose sm commit_xct 
 	    sm commit_xct 
 	}
        restart { 
-	    echo random_restart
+	    verbose random_restart
 	    random_restart false
 	}
     }

@@ -19,9 +19,9 @@ proc t1 {} {
     sm begin_xct
     sm lock $o1 SH LONG
     sm lock $o2 EX LONG
-    echo "t1: acquired SH on o1, EX on o2"
+    verbose "t1: acquired SH on o1, EX on o2"
     sync
-    echo "t1: attempting to acquire EX on o1"
+    verbose "t1: attempting to acquire EX on o1"
     sm lock $o1 EX LONG
     sm commit_xct
 }
@@ -29,17 +29,17 @@ proc t1 {} {
 proc t2 {} {
     global o1 o2
     sm begin_xct
-    echo "t2: attempting to acquire SH on o1"
+    verbose "t2: attempting to acquire SH on o1"
     sm lock $o1 SH LONG
-    echo "t2: acquired SH on o1"
+    verbose "t2: acquired SH on o1"
     sync
     sync
-    echo "t2: attempting to acquire SH on o2"
+    verbose "t2: attempting to acquire SH on o2"
 
     # catch deadlock
-    echo catch deadlock:
+    verbose catch deadlock:
     catch {sm lock $o2 SH LONG} errorno
-    echo "error is $errorno"
+    verbose "(EXPECTED E_DEADLOCK) error is $errorno"
     assert {error_is $errorno E_DEADLOCK}
 
     sm commit_xct
@@ -50,12 +50,12 @@ proc tt1 {o1 o2} {
     sm begin_xct
 
 # SH on o1
-    echo [sm read_rec $o1 0 0]
+    verbose [sm read_rec $o1 0 0]
 # EX on o2
     sm append_rec $o2 zzz
-    echo "t1: acquired SH on o1, EX on o2"
+    verbose "t1: acquired SH on o1, EX on o2"
     sync
-    echo "t1: attempting to acquire EX on o1"
+    verbose "t1: attempting to acquire EX on o1"
 # EX on o1
     sm append_rec $o1 zzz
     sm commit_xct
@@ -64,21 +64,21 @@ proc tt1 {o1 o2} {
 # same as t2, but use record stuff instead.
 proc tt2 {o1 o2} {
     sm begin_xct
-    echo "t2: attempting to acquire SH on o1"
+    verbose "t2: attempting to acquire SH on o1"
 
 # SH on o1
-    echo [sm read_rec $o1 0 0]
-    echo "t2: acquired SH on o1"
+    verbose [sm read_rec $o1 0 0]
+    verbose "t2: acquired SH on o1"
     sync
     sync
-    echo "t2: attempting to acquire SH on o2 with read"
+    verbose "t2: attempting to acquire SH on o2 with read"
 
     # catch deadlock
 # SH on o2
     set errorno 0
-    echo catch deadlock:
-    catch {echo [sm read_rec $o2 0 0]} errorno
-    echo "error is $errorno"
+    verbose catch deadlock:
+    catch {verbose [sm read_rec $o2 0 0]} errorno
+    verbose "(EXPECTED E_DEADLOCK) error is $errorno"
     assert {error_is $errorno E_DEADLOCK}
     sm commit_xct
 }
@@ -87,42 +87,42 @@ proc tt2 {o1 o2} {
 
 source $script_dir/vol.init
 
-echo main
+verbose main
 
 set x [fork_thread t1 {}]
-echo x $x
+verbose x $x
 set y [fork_thread t2 {}]
-echo y $y
+verbose y $y
 
-echo sync
+verbose sync
 sync_thread $x $y
-echo sync
+verbose sync
 sync_thread $y
-echo join
+verbose join
 join_thread $x $y
 
-echo new tx
+verbose new tx
 sm begin_xct
 set f [ sm create_file $volid ]
-echo $f
+verbose $f
 set r1 [ sm create_rec $f hdr12345 11 abcdefghijklmnopqrstuvwxyz ]
-echo $r1
+verbose $r1
 set r2 [ sm create_rec $f hdr 8 ABCDEF ]
-echo $r2
+verbose $r2
 sm commit_xct
 
 set x [fork_thread tt1 $r1 $r2]
-echo forked $x
+verbose forked $x
 set y [fork_thread tt2 $r1 $r2]
-echo forked $y
+verbose forked $y
 
-echo sync
+verbose sync
 sync_thread $x $y
-echo sync
+verbose sync
 sync_thread $y
-echo join
+verbose join
 join_thread $x $y
 
-echo end
+verbose end
 
 unset o1 o2 f r1 r2 x y

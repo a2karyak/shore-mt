@@ -6,7 +6,7 @@
 /* --------------------------------------------------------------- */
 
 /*
- *  $Id: page_s.h,v 1.12 1996/04/09 20:44:33 nhall Exp $
+ *  $Id: page_s.h,v 1.14 1997/05/19 19:47:39 nhall Exp $
  */
 #ifndef PAGE_S_H
 #define PAGE_S_H
@@ -21,6 +21,7 @@
  * Basic page structure for all pages.
  */
 class xct_t;
+
 struct page_s {
     struct slot_t {
 	int2 offset;		// -1 if vacant
@@ -44,7 +45,8 @@ struct page_s {
 	
 	int			usable(xct_t* xd);
 				// slot_bytes means bytes for new slots
-	rc_t			acquire(int amt, int slot_bytes, xct_t* xd);
+	rc_t			acquire(int amt, int slot_bytes, xct_t* xd,
+					bool do_it=true);
 	void 			release(int amt, xct_t* xd);
 	void 			undo_acquire(int amt, xct_t* xd);
 	void 			undo_release(int amt, xct_t* xd);

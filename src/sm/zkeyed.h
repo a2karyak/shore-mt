@@ -6,7 +6,7 @@
 /* --------------------------------------------------------------- */
 
 /*
- *  $Id: zkeyed.h,v 1.16 1996/04/09 20:45:31 nhall Exp $
+ *  $Id: zkeyed.h,v 1.22 1997/05/19 19:48:38 nhall Exp $
  */
 #ifndef ZKEYED_H
 #define ZKEYED_H
@@ -34,9 +34,11 @@ public:
     rc_t			insert(
 	const cvec_t& 		    key, 
 	const cvec_t& 		    aux, 
-	int 			    slot);
-    rc_t			remove(int slot);
-    rc_t			shift(int snum, zkeyed_p* rsib);
+	slotid_t 		    slot,
+	bool			    do_it=true
+	);
+    rc_t			remove(slotid_t slot);
+    rc_t			shift(slotid_t snum, zkeyed_p* rsib);
 
 #ifdef __GNUC__
     /* gnu has a bug */
@@ -110,6 +112,12 @@ zkeyed_p::rec(
 {
     const char* base = (char*) page_p::tuple_addr(idx + 1);
     const char* p = base;
+    /* 
+     * a record is:
+     * -length (int4) of key
+     * -key
+     * -value
+     */
     int l = (int) * (int4*) p;
     p += sizeof(int4);
     key.put(p, l);

@@ -19,7 +19,6 @@ if {$volid == 0} {
 set num_rec 50 
 
 set s [format data 1]
-echo $s
 
 ###############################################
 #   insert num_rec records
@@ -27,15 +26,15 @@ echo $s
 sm begin_xct
 set fid [sm create_file $volid regular]
 set rid(0) $null_rid
-echo creating $num_rec 
+verbose creating $num_rec 
 set pattern 123456789.123456789.123456789.123456
 for {set i 1} {$i <= $num_rec} {incr i} {
-    echo $i
+    verbose $i
     set rid($i) [
 	sm create_rec $fid "hdr" 10 $pattern
     ]
 }
-echo done creating $num_rec records
+verbose done creating $num_rec records
 sm commit_xct
 
 ###############################################
@@ -47,7 +46,7 @@ sm begin_xct
 for {set i 1} {$i <= $num_rec} {incr i} {
     set r [sm read_rec $rid($i) 0 0]
     set id [format $id_width $i]
-    echo $i $id $r
+    verbose $i $id $r
     set hdr [lindex $r 2]
     set body [lindex $r 4]
     assert {expr [string compare $body $pattern] == 0}
@@ -57,4 +56,4 @@ sm commit_xct
 
 unset id fid hdr num_rec
 unset rid i body r s id_width
-
+unset pattern

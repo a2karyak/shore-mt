@@ -20,13 +20,15 @@ struct S {
 	int writes;
 	int bwritten;
 	int reads;
+	int skipreads;
 	int bread;
 	int fsyncs;
 	int ftruncs;
+	int discards;
 
 	S(): writes(0), bwritten(0),
 		reads(0), bread(0),
-		fsyncs(0) {}
+		fsyncs(0), discards(0) {}
 };
 
 class U : public unix_stats {

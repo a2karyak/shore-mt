@@ -9,8 +9,12 @@
 #define CIRQUEUE_H
 
 #ifndef SM_SOURCE
+#ifndef BASICS_H
 #include <basics.h>
+#endif
+#ifndef SM_S_H
 #include <sm_s.h>
+#endif
 #endif /* SM_SOURCE*/
 
 template <class T> class cirqueue_i;

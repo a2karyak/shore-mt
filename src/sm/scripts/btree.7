@@ -21,7 +21,7 @@ set nrec 120
 #
 sm begin_xct
 set ndx [sm create_index $volid btree]
-echo created index $ndx
+verbose created index $ndx
 sm commit_xct
 
 dstats $ndx

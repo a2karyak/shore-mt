@@ -9,7 +9,7 @@
 // VolumeTable.h
 //
 
-/* $Header: /p/shore/shore_cvs/src/lil/oc/VolumeTable.h,v 1.11 1995/07/14 23:05:49 nhall Exp $ */
+/* $Header: /p/shore/shore_cvs/src/lil/oc/VolumeTable.h,v 1.12 1997/01/24 20:14:11 solomon Exp $ */
 
 #ifndef _VOLUMETABLE_H_
 #define _VOLUMETABLE_H_
@@ -47,9 +47,9 @@ class VolumeTable
     { return next; }
 
     int add(const VolId &volid)
-    { return lookup(volid, TRUE); }
+    { return lookup(volid, true); }
  
-    int lookup(const VolId &volid, bool create = FALSE);
+    int lookup(const VolId &volid, bool create = false);
 
     const VolId &get(int i)
     { return table[i].volid; }

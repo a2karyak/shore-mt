@@ -6,7 +6,7 @@
 /* --------------------------------------------------------------- */
 
 /*
- *  $Header: /p/shore/shore_cvs/src/vas/server/xref.C,v 1.25 1995/07/14 22:40:31 nhall Exp $
+ *  $Header: /p/shore/shore_cvs/src/vas/server/xref.C,v 1.26 1997/01/24 16:48:26 nhall Exp $
  */
 #include <copyright.h>
 
@@ -166,7 +166,7 @@ FSTART
 	assert(*fn != '/');
 	_DO_( _lookup2(dir, fn,\
 		Permissions::op_search, Permissions::op_read,  &found,\
-		&target, &dummy, TRUE, FALSE) );
+		&target, &dummy, true, false) );
 	_DO_( _readRef(target,  contents));
 
 FOK:

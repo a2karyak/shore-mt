@@ -6,7 +6,7 @@
 /* --------------------------------------------------------------- */
 
 /*
- *  $Header: /p/shore/shore_cvs/src/vas/server/index.C,v 1.45 1995/09/01 21:15:52 nhall Exp $
+ *  $Header: /p/shore/shore_cvs/src/vas/server/index.C,v 1.46 1997/01/24 16:47:58 nhall Exp $
  */
 #include <copyright.h>
 
@@ -218,15 +218,15 @@ svas_server::nextIndexScan(
 	OUT(ObjectSize)		keylen,
 	IN(vec_t)			value, // INOUT
 	OUT(ObjectSize)		valuelen,
-	INOUT(bool)		eof	// TRUE if no result
-						// if FALSE, result is legit
+	INOUT(bool)		eof	// true if no result
+						// if false, result is legit
 )
 {
 	VFPROLOGUE(svas_server::nextIndexScan);
 	errlog->log(log_info, "NEXT(I) 0x%x", cookie);
 
 	TX_REQUIRED;
-	bool  freethem=FALSE;
+	bool  freethem=false;
 	char	*kbuf=0;
 	char	*vbuf=0;
 
@@ -255,7 +255,7 @@ FSTART
 		kvec.put(kbuf, klen);
 		vec_t		vvec;
 		vvec.put(vbuf, vlen);
-		freethem = TRUE;
+		freethem = true;
 
 		scan_index_i *scandesc;
 		if(!(scandesc = check_index_cookie(*cookie))) {
@@ -383,7 +383,7 @@ svas_server::removeIndexElem(
 		idx.i);
 
 	TX_REQUIRED; 
-	bool		freethem = FALSE;
+	bool		freethem = false;
 	char		*kbuf=0;
 	char		*vbuf=0;
 FSTART
@@ -413,7 +413,7 @@ FSTART
 		smsize_t		vlen = ss_m::page_sz;
 		kbuf = new char[klen];
 		vbuf = new char[vlen];
-		freethem = TRUE;
+		freethem = true;
 
 		{
 			lvid_t 		idxlvid;
@@ -533,7 +533,7 @@ svas_server::findIndexElem(
 		idx.obj.serial.data._low,
 		idx.i);
 
-	bool		freethem = FALSE;
+	bool		freethem = false;
 	char		*vbuf=0;
 
 	lfid_t		index_file;
@@ -563,7 +563,7 @@ FSTART
 			VERR(SVAS_MallocFailure);
 			FAIL;
 		}
-		freethem =  TRUE;
+		freethem =  true;
 
 		DBG(<<"find assoc " << idxlvid << "." << idxserial
 			<< " key=" << key.ptr(0) );

@@ -7,11 +7,18 @@
 
 source $script_dir/vol.init
 
-set scripts [list free_ext free_page]
+set scripts [list free_ext free_page freepage.bug]
+
+echo CLEANUP BEFORE free.all :
+cleanup stdout
+addcleanupvars {script}
 
 foreach script $scripts {
     echo
     echo RUNNING: $script
     source $script_dir/$script
+    checkstats  $script
+    puts stdout [concat CLEANUP AFTER  $script  : ]
+    cleanup stdout
 }
 

@@ -19,9 +19,17 @@ diskrw Diskrw/Server communications  = 0x00040000  shmc_stats {
 
 
 sthread Threads = 0x00050000 sthread_stats {
+	// NB: keep floating point stuff at the top for
+	// alignment reasons
+	float   idle_time	total time the sm process remains idle
+	float   io_time		total time threads wait for io.
 	int        namemallocs	Mallocs for sthread_name_t
 	int        ctxsw	Thread context switches
 	int        spins	Busy waits on spin lock
+
+	int        fastpath	Times diskrw was bypassed
+	int	   nofastwrite	Slow Fastpath writes
+	int	   local_io	Local I/O
 
 	// _io() calls can return in error
 	int        io		Calls to _io()
@@ -32,8 +40,6 @@ sthread Threads = 0x00050000 sthread_stats {
 	int     selfound	select() calls that returned before timeout
 	int     eintrs		Times select() was interrupted by EINTR
 	int     idle		Times select() timed out
-	float   idle_time	total time the sm process remains idle
-	float   io_time		total time threads wait for io.
 	int     idle_yield_return  Times idle thread returned from yield()
 	int     latch_wait  	Times a thread awaited a latch
 	int     latch_time  	Time waiting for latches

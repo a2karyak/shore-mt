@@ -6,13 +6,14 @@
 /* --------------------------------------------------------------- */
 
 /*
- *  $Id: log.h,v 1.47 1996/07/18 14:43:03 kupsch Exp $
+ *  $Id: log.h,v 1.55 1997/06/13 19:30:14 solomon Exp $
  */
 #ifndef LOG_H
 #define LOG_H
 
-#include <w_shmem.h>
+#ifndef SPIN_H
 #include <spin.h>
+#endif
 #undef ACQUIRE
 
 #ifdef __GNUG__
@@ -34,66 +35,36 @@ class log_buf;
  */
 
 
-class log_base : public smlevel_1 {
+class log_base : public smlevel_0 {
     friend 	class log_i;
 
-
-protected:
-
-    NORET			log_base(
-	int rdbufsize,
-	int wrbufsize,
-	char *shmbase
-	);
 public:
+    const int XFERSIZE =	8192;
     virtual void                check_wal(const lsn_t &ll) ;
-    log_buf *			writebuf() { return _writebuf; }
-    int				writebufsize() const { return _wrbufsize; }
-    char *			readbuf() { return _readbuf; }
-    int 			readbufsize() const { return _rdbufsize; }
-
+    virtual void                compute_space() ;
     virtual
     NORET			~log_base();
-
+protected:
+    NORET			log_base(char *shmbase);
 private:
     // disabled
     NORET			log_base(const log_base&);
-    // log_base& 			operator=(const log_base&);
+    // log_base& 		operator=(const log_base&);
+
 
 public:
-    const			max_open_log = smlevel_0::max_openlog;
-
-    static rc_t			check_raw_device(
-				    const char* devname,
-				    bool&	raw
-				    );
-
-    lsn_t 			master_lsn()	{ return _shared->_master_lsn; }
-    lsn_t			old_master_lsn(){ return _shared->_old_master_lsn; }
-    lsn_t			min_chkpt_rec_lsn() { return _shared->_min_chkpt_rec_lsn; }
-    const lsn_t& 		curr_lsn() const	{ return _shared->_curr_lsn; }
-    const lsn_t& 		durable_lsn() const	{ return _shared->_durable_lsn; }
-    const lsn_t 		global_min_lsn() const;
-    const lsn_t 		global_min_lsn(const lsn_t&) const;
-    const lsn_t 		global_min_lsn(const lsn_t&, const lsn_t&) const;
-
-    rc_t		        flush_all() { return flush(curr_lsn()); }
-
-    void			start_log_corruption() {
-					_log_corruption_on = true;
-				}
-
-
     //////////////////////////////////////////////////////////////////////
     // This is an abstract class; represents interface common to client
     // and server sides
     //////////////////////////////////////////////////////////////////////
+#undef VIRTUAL
 #define VIRTUAL(x) virtual x = 0;
 #define NULLARG = 0
 
 
 #define COMMON_INTERFACE\
     VIRTUAL(rc_t		insert(logrec_t& r, lsn_t* ret))\
+    VIRTUAL(rc_t		compensate(const lsn_t &r, const lsn_t &u))\
     VIRTUAL(rc_t		fetch(                  \
 	lsn_t& 		    	    lsn,                \
 	logrec_t*& 		    rec,                \
@@ -114,21 +85,19 @@ public:
 #undef VIRTUAL
 #undef NULLARG
 
-protected:
-    int 			_rdbufsize;
-    int 			_wrbufsize;
-    char*   			_readbuf;  
-    log_buf*   			_writebuf;  
-    bool			_log_corruption_on;
 
     //////////////////////////////////////////////////////////////////////
-    // All data members are
-    // shared between client(sm) and server(diskrw) side
+    // SHARED DATA:
+    // All data members are shared between log processes. 
+    // This was supposed to be put in shared memory and it 
+    // was supposed to support a multi-process log manager.
     //////////////////////////////////////////////////////////////////////
+protected:
     //w_shmem_t			_shmem_seg;
     // TODO: remove
 
     struct _shared_log_info {
+	bool			_log_corruption_on;
 	uint4			_max_logsz;	// input param from cli -- partition size
 	uint4			_maxLogDataSize;// _max_logsz - sizeof(skiplog record)
 
@@ -153,6 +122,60 @@ protected:
 
     };
     struct _shared_log_info  *	_shared;
+public:
+    void			start_log_corruption() { _shared->_log_corruption_on = true; }
+    lsn_t 			master_lsn()	{ return _shared->_master_lsn; }
+    lsn_t			old_master_lsn(){ return _shared->_old_master_lsn; }
+    lsn_t			min_chkpt_rec_lsn() { return _shared->_min_chkpt_rec_lsn; }
+    const lsn_t& 		curr_lsn() const	{ return _shared->_curr_lsn; }
+    const lsn_t& 		durable_lsn() const	{ return _shared->_durable_lsn; }
+
+
+    /*********************************************************************
+     *
+     *  log_base::global_min_lsn()
+     *  log_base::global_min_lsn(a)
+     *  log_base::global_min_lsn(a,b)
+     *
+     *  Returns the lowest lsn of a log record that's still needed for
+     *  any reason, namely the smallest of the arguments (if present) and
+     *  the  _master_lsn and  _min_chkpt_rec_lsn.  
+     *  Used to scavenge log space, among other things. 
+     *
+     *********************************************************************/
+    const lsn_t 		global_min_lsn() const {
+				    lsn_t lsn = 
+				    MIN(_shared->_master_lsn, _shared->_min_chkpt_rec_lsn);
+				    return lsn;
+				}
+
+    const lsn_t 		global_min_lsn(const lsn_t& a) const {
+				    lsn_t lsn = global_min_lsn(); 
+				    lsn = MIN(lsn, a);
+				    return lsn;
+				}
+
+    const lsn_t 		global_min_lsn(const lsn_t& min_rec_lsn, 
+						const lsn_t& min_xct_lsn) const {
+				    lsn_t lsn =  global_min_lsn();
+				    lsn = MIN(lsn, min_rec_lsn);
+				    lsn = MIN(lsn, min_xct_lsn);
+				    return lsn;
+				}
+public:
+    ////////////////////////////////////////////////////////////////////////
+    // MISC:
+    ////////////////////////////////////////////////////////////////////////
+    const			max_open_log = smlevel_0::max_openlog;
+
+    ////////////////////////////////////////////////////////////////////////
+    // check_raw_device: static and used elsewhere in sm. Should really
+    // be a stand-alone function in fc/
+    ////////////////////////////////////////////////////////////////////////
+    static rc_t			check_raw_device(
+				    const char* devname,
+				    bool&	raw
+				    );
 };
 
 
@@ -160,9 +183,11 @@ protected:
 class log_m : public log_base {
 
 public:
-           void check_wal(const lsn_t &) ;
+    void 	check_wal(const lsn_t &) ;
+    void 	compute_space() ;
+    rc_t   	flush_all() { return flush(curr_lsn()); }
     static void reset_stats();
-    static int shm_needed(int n);
+    static int  shm_needed(int n);
 	
     NORET log_m(const char *path, 
 	uint4 max_logsz, 
@@ -205,19 +230,15 @@ public:
     void 		release(); // release mutex acquired by fetch()
     w_rc_t 		acquire(); // reacquire mutex acquired by fetch()
 
-    void		SetInRecovery(bool b)  {
-			    _in_recovery = b;
-			};
-    bool		IsInRecovery()  {
-			    return _in_recovery;
-			};
-
 private:
     rc_t		_update_shared();
 
+    void		acquire_var_mutex();
+    void		release_var_mutex();
+    smutex_t		_var_mutex;
+    void		acquire_mutex();
     smutex_t		_mutex;
     log_base*           _peer; // srv_log *
-    bool		_in_recovery;	// true if in recovery phase
 	
     ///////////////////////////////////////////////////////////////////////
     // Kept entirely on client side:
@@ -226,63 +247,6 @@ private:
     sevsem_t*		_countdown_expired;
 };
 
-
-class log_buf {
-
-private:
-    char 	*buf;
-    const int   Nblocks  = 8;
-
-    lsn_t 	_lsn_firstbyte; // of first byte in the buffer(not necessarily
-			     // the beginning of a log record)
-    lsn_t 	_lsn_flushed; // we've written to disk up to (but not including) 
-			    // this lsn  -- lies between lsn_firstbyte and
-			    // lsn_next 
-    lsn_t 	_lsn_nextrec; // of next record to be buffered
-    lsn_t 	_lsn_lastrec; // last record inserted 
-    bool        _durable;     // true iff everything buffered has been
-			     // flushed to disk
-    bool        _written;     // true iff everything buffered has been
-			     // written to disk (for debugging)
-
-    uint4	_len; // logical end of buffer
-    uint4	_bufsize; // physical end of buffer
-
-    /* NB: the skip_log is not defined in the class because it would
-     necessitate #include-ing all the logrec_t definitions and we
-     don't want to do that, sigh.  */
-
-    char	*___skip_log;	// memory for the skip_log
-    char	*__skip_log;	// properly aligned skip_log
-
-    void		init(const lsn_t &f, const lsn_t &n, bool, bool); 
-
-public:
-
-    const int XFERSIZE =	8192;
-
-    			log_buf(char *, int sz);
-    			~log_buf();
-
-    const lsn_t	&	firstbyte() const { return _lsn_firstbyte; }
-    const lsn_t	&	flushed() const { return _lsn_flushed; }
-    const lsn_t	&	nextrec() const { return _lsn_nextrec; }
-    const lsn_t	&	lastrec() const { return _lsn_lastrec; }
-    bool        	durable() const { return _durable; }
-    bool        	written() const { return _written; }
-    uint4         	len() const { return _len; }
-    uint4 		bufsize() const { return _bufsize; }
-
-    bool		fits(const logrec_t &l) const;
-    void 		prime(int, off_t, const lsn_t &);
-    void 		insert(const logrec_t &r);
-    void 		insertskip();
-    void 		mark_durable() { _durable = true; }
-
-    void 		write_to(int fd);
-
-    friend ostream&     operator<<(ostream &, const log_buf &);
-};
 
 
 class log_i {

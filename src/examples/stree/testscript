@@ -1,3 +1,0 @@
-#!/bin/csh -f
-run_tests.sh
-cat runtest.log

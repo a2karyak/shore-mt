@@ -6,7 +6,7 @@
 /* --------------------------------------------------------------- */
 
 /*
- *  $Id: prologue.h,v 1.28 1996/06/25 14:52:18 nhall Exp $
+ *  $Id: prologue.h,v 1.32 1997/05/19 19:47:46 nhall Exp $
  */
 #ifndef PROLOGUE_H
 #define PROLOGUE_H
@@ -50,6 +50,7 @@ private:
     xct_state_t  _xct_state;
     int     _pin_cnt_change;
     rc_t    _rc;
+    xct_log_switch_t*    _toggle;
 };
 
 /*
@@ -58,7 +59,8 @@ private:
 #ifdef SM_C
 
 prologue_rc_t::prologue_rc_t(xct_state_t is_in_xct, int pin_cnt_change) :
-		_xct_state(is_in_xct), _pin_cnt_change(pin_cnt_change)
+		_xct_state(is_in_xct), _pin_cnt_change(pin_cnt_change),
+		_toggle(0)
 {
     w_assert3(!me()->is_in_sm());
     xct_t *x = xct();
@@ -117,14 +119,17 @@ prologue_rc_t::prologue_rc_t(xct_state_t is_in_xct, int pin_cnt_change) :
 	break;
 
     default:
-	W_FATAL(eINTERNAL);
+	W_FATAL(smlevel_0::eINTERNAL);
 	break;
     }
 #ifdef DEBUG
     me()->mark_pin_count();
-    me()->in_sm(TRUE);
+    me()->in_sm(true);
 #endif /* DEBUG */
 
+    if(_xct_state != not_in_xct) {
+	_toggle = new xct_log_switch_t(smlevel_0::ON);
+    }
 }
 
 
@@ -133,13 +138,13 @@ prologue_rc_t::~prologue_rc_t()
 {
     if (_xct_state == in_xct || _xct_state == abortable_xct) {
 	xct_t& x = *xct();
-	x.flush_logbuf();
-	x.assert_1thread_mutex_free();
+	x.flush_logbuf(); // NEEDED?
     }
 #ifdef DEBUG
     me()->check_pin_count(_pin_cnt_change);
-    me()->in_sm(FALSE);
+    me()->in_sm(false);
 #endif /* DEBUG */
+    if(_toggle) { delete _toggle; }
 }
 
 inline void

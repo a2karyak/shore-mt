@@ -8,11 +8,10 @@
 /*
  * Imakefile for sdl_example SDL program
  *
- * $Header: /p/shore/shore_cvs/src/sdl/tests/Imakefile,v 1.4 1995/09/07 18:04:58 nhall Exp $
+ * $Header: /p/shore/shore_cvs/src/sdl/tests/Imakefile,v 1.5 1997/06/13 22:33:11 solomon Exp $
  *
- * This Imakefile follows the conventions in ../README.makefiles
+ * This Imakefile follows the conventions in ../../examples/README.makefiles
  */
-
 
 INSTALL_STUFF = $(SRCS) $(SDLFILES) Makefile.template README 
 SRC.cvs = $(INSTALL_STUFF) Imakefile
@@ -52,4 +51,4 @@ clean::
 	rm *.log *.h *.o
 	$(MAKE) -f Makefile.template clean
 
-install_copy(examples/sdl_example, $(INSTALL_STUFF))
+%GEN install(examples/sdl_example, $(INSTALL_STUFF))

@@ -6,7 +6,7 @@
 /* --------------------------------------------------------------- */
 
 /*
- *  $Header: /p/shore/shore_cvs/src/vas/server/svas_nfs.C,v 1.9 1995/07/14 22:40:02 nhall Exp $
+ *  $Header: /p/shore/shore_cvs/src/vas/server/svas_nfs.C,v 1.10 1997/01/24 16:48:17 nhall Exp $
  */
 #include <copyright.h>
 
@@ -112,7 +112,7 @@ FSTART
 	dassert(result); // nfsd had better give us a place to put the result
 
 	_DO_(_mkRegistered(dir, reg_file, fn, mode, ReservedOid::_UnixFile,
-		FALSE, 0, 0, none, none, 0 /*start of TEXT*/, 0/*no indexes*/,result));
+		false, 0, 0, none, none, 0 /*start of TEXT*/, 0/*no indexes*/,result));
 
     _uid = save_uid;
     _gid = save_gid;
@@ -142,7 +142,7 @@ svas_nfs::rmUnixFile(
 
 FSTART
 	lrid_t obj;
-	bool must_remove = FALSE;
+	bool must_remove = false;
 
 	// no integrity maintenance required
 	// ONLY EFSD should be calling this;
@@ -161,7 +161,7 @@ FSTART
 
 		dassert(_lookup2(dir, name, Permissions::op_exec,
 				Permissions::op_write, &found, &target,
-				&reg_file, TRUE, FALSE)==SVAS_OK);
+				&reg_file, true, false)==SVAS_OK);
 
 		dassert(found);
 		dassert(_sysprops(target, &s, false, ::EX,  &is_unix_file) == SVAS_OK);

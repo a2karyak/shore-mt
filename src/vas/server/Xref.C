@@ -6,7 +6,7 @@
 /* --------------------------------------------------------------- */
 
 /*
- *  $Header: /p/shore/shore_cvs/src/vas/server/Xref.C,v 1.13 1995/04/24 19:46:27 zwilling Exp $
+ *  $Header: /p/shore/shore_cvs/src/vas/server/Xref.C,v 1.14 1997/01/24 16:47:43 nhall Exp $
  */
 #include <copyright.h>
 
@@ -45,7 +45,7 @@ FSTART
 	} 
 	res =  this->createRegistered( lvid, pfid, 
 		allocated, ReservedSerial::_Xref, 
-		TRUE, 0, 0, diskcore, none, NoText, 0/*no indexes*/,
+		true, 0, 0, diskcore, none, NoText, 0/*no indexes*/,
 		mode | S_IFXREF, 
 		group, &result
 	);

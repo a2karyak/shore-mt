@@ -8,7 +8,7 @@
 #ifndef __SVAS_H__
 #define __SVAS_H__
 /*
- * $Header: /p/shore/shore_cvs/src/vas/include/svas_client.h,v 1.33 1995/09/01 21:15:35 nhall Exp $
+ * $Header: /p/shore/shore_cvs/src/vas/include/svas_client.h,v 1.34 1997/01/24 16:38:03 nhall Exp $
  */
 
 #include <copyright.h>
@@ -97,11 +97,11 @@ private:
 	);
 	VASResult invalidateobj(
 		IN(lrid_t) 		obj,
-		bool			remove=FALSE
+		bool			remove=false
 	);
 	VASResult invalidatepage(
 		IN(lrid_t) 		obj,
-		bool			remove=FALSE
+		bool			remove=false
 	);
 	VASResult installpage(
 		IN(lrid_t) 		obj,
@@ -338,7 +338,7 @@ public:
 						OUT(lrid_t)	result,
 						OUT(bool)	found,
 						PermOp		perm = Permissions::op_read,
-						bool		followLinks=TRUE // if true, 
+						bool		followLinks=true // if true, 
 							// follow xrefs and symlinks
 							// if false, stop when you reach a symlink or
 							// xref and return its oid
@@ -403,7 +403,7 @@ public:
 	V_IMPL( VASResult		sysprops(
 						IN(lrid_t)	 		loid, 	
 						OUT(SysProps)		sysprops,
-						bool				wholepage=FALSE, // if TRUE,
+						bool				wholepage=false, // if true,
 											// the VAS will ship a 
 											// whole page to the client
 											// if appropriate.
@@ -411,7 +411,7 @@ public:
 						LockMode			lock=SH, 	// lock to acquire
 						OUT(bool)			is_unix_file=NULL,
 									// out default = NULL (don't care)
-									// if TRUE returned, object is
+									// if true returned, object is
 									// an object with TEXT portion
 									// (could be reg or anonymous -- could
 									// open an anonymous object through xref)
@@ -718,21 +718,21 @@ public:
 
 	V_IMPL( VASResult		_nextPoolScan(
 						INOUT(Cookie)		cookie,	
-						OUT(bool)			eof,	// TRUE if no result
-											// if FALSE, result is legit
+						OUT(bool)			eof,	// true if no result
+											// if false, result is legit
 						OUT(lrid_t)			result,
 						bool				nextpage=false
 					))
 	V_IMPL( VASResult		nextPoolScan(
 						INOUT(Cookie)		cookie,	
-						OUT(bool)			eof,	// TRUE if no result
-											// if FALSE, result is legit
+						OUT(bool)			eof,	// true if no result
+											// if false, result is legit
 						OUT(lrid_t)			result
 					))
 	V_IMPL( VASResult		_nextPoolScan(
 						INOUT(Cookie)		cookie,	
-						OUT(bool)			eof,	// TRUE if no result
-											// if FALSE, result is legit
+						OUT(bool)			eof,	// true if no result
+											// if false, result is legit
 						OUT(lrid_t)			result, 	// snapped ref
 						ObjectOffset		offset,
 						ObjectSize			requested,	// -- could be WholeObject
@@ -746,8 +746,8 @@ public:
 					))
 	V_IMPL( VASResult		nextPoolScan(
 						INOUT(Cookie)		cookie,	
-						OUT(bool)			eof,	// TRUE if no result
-											// if FALSE, result is legit
+						OUT(bool)			eof,	// true if no result
+											// if false, result is legit
 						OUT(lrid_t)			result, 	// snapped ref
 						ObjectOffset		offset,
 						ObjectSize			requested,	// -- could be WholeObject
@@ -800,8 +800,8 @@ public:
 						OUT(ObjectSize)		keylen, // - bytes of vec used
 						IN(vec_t)			value,	
 						OUT(ObjectSize)		vallen, //  bytes of vec used
-						INOUT(bool)		eof=0	// TRUE if no result
-											// if FALSE, result is legit
+						INOUT(bool)		eof=0	// true if no result
+											// if false, result is legit
 					))
 	V_IMPL( VASResult		closeIndexScan(
 						IN(Cookie)			cookie	

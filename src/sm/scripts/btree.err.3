@@ -14,7 +14,8 @@
 #
 source $script_dir/vol.init
 
-set keydesc b*100
+set keydesc b*1000
+set old_short_form $short_form
 set short_form %d
 
 set nrec 9
@@ -22,8 +23,9 @@ set nrec 9
 # create index 
 #
 sm begin_xct
+verbose creating index index  $keydesc
 set ndx [sm create_index $volid uni_btree regular $keydesc small]
-echo created index $ndx
+verbose created index $ndx
 sm commit_xct
 
 
@@ -34,7 +36,7 @@ set keylist {}
 sm begin_xct
 for {set i 1} {$i <= $nrec} {incr i} {
     set key $i
-    echo inserting $i: $key -> [format $short_form $i]
+    verbose inserting $i: $key -> [format $short_form $i]
     lappend keylist $key
     sm create_assoc $ndx $key [format $short_form $i] $keydesc
 }
@@ -46,8 +48,8 @@ proc testscan { name c1 low c2 high nrec } {
     set el 0
     set key 0
     global keydesc ndx
-    echo
-    echo SCAN $name: $ndx $c1 $low $c2 $high  -- expect $nrec record
+    verbose
+    verbose SCAN $name: $ndx $c1 $low $c2 $high  -- expect $nrec record
     set scan [sm create_scan $ndx $c1 $low $c2 $high t_cc_kvl $keydesc]
     # set max high just to be sure that the scan reaches eof
     # at the right time
@@ -55,13 +57,13 @@ proc testscan { name c1 low c2 high nrec } {
     set j 0
     for {set j 1} {$j <= $max} {incr j} {
 	set r [sm scan_next $scan $keydesc]
-    echo $j: $r
+    verbose $j: $r
 	if {$r == "eof"} then { break }
 	set key [string trimleft [lindex $r 0] 0]
 	verbose "scanned ($key, $el)"
     }
     assert {expr {$j == [expr $nrec+1]} }
-    echo scanned [expr $j-1] records
+    verbose scanned [expr $j-1] records
     sm destroy_scan $scan
 }
 
@@ -83,31 +85,31 @@ set highest [lindex $keylist [expr { $nrec - 1 }]]
 
 testscan B >= $lowest <= $highest $nrec
 
-echo
-echo SCAN C: $ndx <= $highest >= $lowest  -- should get error: E_BADCMPOP
+verbose
+verbose SCAN C: $ndx <= $highest >= $lowest  -- should get error: E_BADCMPOP
 set scan [sm create_scan $ndx <= $highest >= $lowest t_cc_kvl $keydesc]
 set j 0
 for {set j 1} {$j <= $nrec} {incr j} {
     catch {sm scan_next $scan $keydesc} r
-echo $j: $r
+verbose $j: $r
     if [error_is $r E_BADCMPOP] then { break }
     assert {[expr 0 == 1]}
 }
-echo scanned [expr $j-1] records
+verbose scanned [expr $j-1] records
 sm destroy_scan $scan
 
-echo
-echo SCAN D: $ndx <= neg_inf >= pos_inf -- should get error: E_BADCMPOP
+verbose
+verbose SCAN D: $ndx <= neg_inf >= pos_inf -- should get error: E_BADCMPOP
 catch {set scan [sm create_scan $ndx <= neg_inf >= pos_inf t_cc_kvl $keydesc]} err
 catch {sm scan_next $scan $keydesc} r
-echo $r
+verbose $r
 sm destroy_scan $scan
 
-echo
-echo SCAN E: $ndx == 20 == 30 -- should get error: E_BADCMPOP
+verbose
+verbose SCAN E: $ndx == 20 == 30 -- should get error: E_BADCMPOP
 catch {set scan [sm create_scan $ndx == 20 == 30 t_cc_kvl $keydesc]} err
 catch {sm scan_next $scan $keydesc} r
-echo $r
+verbose $r
 sm destroy_scan $scan
 
 
@@ -124,5 +126,7 @@ testscan O  >= 6 < 8 2
 
 sm commit_xct
 
-unset r scan el key keylist
-unset ndx nrec i j
+unset r scan el key keylist keydesc
+unset ndx nrec i j highest lowest err
+set short_form $old_short_form
+unset old_short_form

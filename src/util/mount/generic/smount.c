@@ -4,10 +4,13 @@
 /* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
 /* -- Reserved.                                                 -- */
 /* --------------------------------------------------------------- */
-static char *rcsid = "$Header: /p/shore/shore_cvs/src/util/mount/generic/smount.c,v 1.12 1995/09/08 16:36:03 nhall Exp $";
-static void *const use_rcsid = (&use_rcsid, &rcsid, 0);
+#ifndef __GNUC__
+#define __attribute__(x)
+#endif
+static char *rcsid  __attribute__((unused)) =
+"$Header: /p/shore/shore_cvs/src/util/mount/generic/smount.c,v 1.13 1997/06/13 22:33:56 solomon Exp $";
 
-#include "config.h"
+#include "platform.h"
 
 #define NFSCLIENT
 /*

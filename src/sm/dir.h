@@ -6,7 +6,7 @@
 /* --------------------------------------------------------------- */
 
 /*
- *  $Id: dir.h,v 1.29 1996/05/06 20:10:33 nhall Exp $
+ *  $Id: dir.h,v 1.34 1997/05/27 13:09:26 kupsch Exp $
  */
 #ifndef DIR_H
 #define DIR_H
@@ -48,9 +48,8 @@ public:
 
     rc_t		create_dir(vid_t vid);
     rc_t		mount(const char* const devname, vid_t vid);
-    rc_t		mount_remote(vid_t vid, const lpid_t& dir_root);
-    rc_t		dismount(vid_t vid, bool flush = true);
-    rc_t		dismount_all(bool flush = true);
+    rc_t		dismount(vid_t vid, bool flush = true, bool dismount_if_locked = true);
+    rc_t		dismount_all(bool flush = true, bool dismount_if_locked = true);
 
     rc_t		insert(const stpgid_t& stpgid, const sinfo_s& si);
     rc_t		remove(const stpgid_t& stpgid);
@@ -65,21 +64,22 @@ public:
 private:
     int 		_cnt;
     lpid_t 		_root[max];
-    // allow only only thread access to _root
+    // allow only one thread access to _root
     // this is ok, since dir_m caches stuff
     smutex_t 		_mutex; 
 
     rc_t		_create_dir(vid_t vid);
     rc_t		_mount(const char* const devname, vid_t vid);
-    rc_t		_mount_remote(vid_t vid, const lpid_t& dir_root);
-    rc_t		_dismount(vid_t vid, bool flush);
-    rc_t		_dismount_all(bool flush);
+    rc_t		_dismount(vid_t vid, bool flush, bool dismount_if_locked);
+    rc_t		_dismount_all(bool flush, bool dismount_if_locked);
+    rc_t		_destroy_temps(vid_t vid);
 
     rc_t		_insert(const stpgid_t& stpgid, const sinfo_s& sd);
     rc_t		_remove(const stpgid_t& stpgid);
     rc_t		_access(const stpgid_t& stpgid, sinfo_s& sd);
     // return i in _root[i], -1 == not found
     int 		_find_root(vid_t vid);
+    static sm_store_property_t	_make_store_property(store_flag_t flag);
 
     // disabled
     NORET		dir_vol_m(const dir_vol_m&);
@@ -103,9 +103,8 @@ public:
     rc_t		mount(
 	const char* const 	    devname,
 	vid_t			    vid);
-    rc_t		mount_remote(vid_t vid, const lpid_t& dir_root);
-    rc_t		dismount(vid_t vid, bool flush = true);
-    rc_t		dismount_all(bool flush = true);
+    rc_t		dismount(vid_t vid, bool flush = true, bool dismount_if_locked = true);
+    rc_t		dismount_all(bool flush = true, bool dismount_if_locked = true);
 
     rc_t		insert(const stpgid_t& stpgid, const sinfo_s& sinfo);
     rc_t		remove(const stpgid_t& stpgid);
@@ -135,32 +134,20 @@ dir_vol_m::mount(const char* const devname, vid_t vid)
     return r;
 }
 
-#ifdef MULTI_SERVER
-
 inline rc_t
-dir_vol_m::mount_remote(vid_t vid, const lpid_t& dir_root)
+dir_vol_m::dismount(vid_t vid, bool flush, bool dismount_if_locked)
 {
     W_COERCE( _mutex.acquire() );
-    rc_t r = _mount_remote(vid, dir_root);
-    _mutex.release();
-    return r;
-}
-#endif /* MULTI_SERVER */
-
-inline rc_t
-dir_vol_m::dismount(vid_t vid, bool flush)
-{
-    W_COERCE( _mutex.acquire() );
-    rc_t r = _dismount(vid, flush);
+    rc_t r = _dismount(vid, flush, dismount_if_locked);
     _mutex.release();
     return r;
 }
 
 inline rc_t
-dir_vol_m::dismount_all(bool flush)
+dir_vol_m::dismount_all(bool flush, bool dismount_if_locked)
 {
     W_COERCE( _mutex.acquire() );
-    rc_t r = _dismount_all(flush);
+    rc_t r = _dismount_all(flush, dismount_if_locked);
     _mutex.release();
     return r;
 }
@@ -213,25 +200,16 @@ dir_m::mount(const char* const devname, vid_t vid)
     return _dir.mount(devname, vid);
 }
 
-#ifdef MULTI_SERVER
-
 inline rc_t
-dir_m::mount_remote(vid_t vid, const lpid_t& dir_root)
+dir_m::dismount(vid_t vid, bool flush, bool dismount_if_locked)
 {
-    return _dir.mount_remote(vid, dir_root);
-}
-#endif /* MULTI_SERVER */
-
-inline rc_t
-dir_m::dismount(vid_t vid, bool flush)
-{
-    return _dir.dismount(vid, flush);
+    return _dir.dismount(vid, flush, dismount_if_locked);
 }
 
 inline rc_t
-dir_m::dismount_all(bool flush)
+dir_m::dismount_all(bool flush, bool dismount_if_locked)
 {
-    return _dir.dismount_all(flush);
+    return _dir.dismount_all(flush, dismount_if_locked);
 }
 
 inline NORET

@@ -6,7 +6,7 @@
 /* --------------------------------------------------------------- */
 
 /*
- *  $Id: page.h,v 1.82 1996/06/07 22:21:32 nhall Exp $
+ *  $Id: page.h,v 1.96 1997/05/19 19:47:38 nhall Exp $
  */
 #ifndef PAGE_H
 #define PAGE_H
@@ -38,6 +38,14 @@ public:
 	data_sz = page_s::data_sz,
 	max_slot = data_sz / sizeof(slot_t) + 2
     };
+    enum logical_operation {
+	l_none=0,
+	l_set, // same as a 1-byte splice
+	l_or,
+	l_and,
+	l_xor,
+	l_not
+    };
     enum tag_t {
 	t_bad_p 	= 0,	// not used
 	t_extlink_p 	= 1,	// extent link page 
@@ -53,13 +61,6 @@ public:
 	t_lgindex_p 	= 11,	// large record index page
 	t_store_p	= 12,	// small (1-page) store page
 	t_any_p		= 13	// indifferent
-    };
-    enum store_flag_t  {
-	st_regular	= 0x01,
-	st_no_log	= 0x02,
-	st_tmp		= 0x04 | st_no_log,
-	// no longer needed
-	//st_rsvd		= 0x08,	// need space reservation
     };
     enum page_flag_t {
 	t_virgin	= 0x02,	// newly allocated page
@@ -86,11 +87,12 @@ public:
     smsize_t			contig_space();
     
     rc_t			check();
+    bool			pinned_by_me() const;
 
-    int                         nslots() const;
-    smsize_t 			tuple_size(int idx) const;
-    void* 			tuple_addr(int idx) const;
-    bool 			is_tuple_valid(int idx) const;
+    slotid_t                    nslots() const;
+    smsize_t 			tuple_size(slotid_t idx) const;
+    void* 			tuple_addr(slotid_t idx) const;
+    bool 			is_tuple_valid(slotid_t idx) const;
 
     uint4_t			page_flags() const;
     uint4_t			store_flags() const;
@@ -111,14 +113,34 @@ public:
     virtual NORET		~page_p();
     void			destructor();
     page_p& 			operator=(const page_p& p);
+    rc_t 			conditional_fix(
+	const lpid_t&		    pid, 
+	tag_t			    tag,
+	latch_mode_t		    mode, 
+	uint4_t			    page_flags,
+	store_flag_t&	            store_flags, // only used if virgin
+	bool			    ignore_store_id = false,
+	int			    refbit = 1);
     rc_t 			fix(
 	const lpid_t&		    pid, 
 	tag_t			    tag,
 	latch_mode_t		    mode, 
 	uint4_t			    page_flags,
+	store_flag_t&	            store_flags, // only used if virgin
+	bool			    ignore_store_id = false,
+	int			    refbit = 1) ;
+    rc_t 			_fix(
+	bool                        conditional,
+	const lpid_t&		    pid, 
+	tag_t			    tag,
+	latch_mode_t		    mode, 
+	uint4_t			    page_flags,
+	store_flag_t&	            store_flags, // only used if virgin
 	bool			    ignore_store_id = false,
 	int			    refbit = 1);
+    rc_t 			refix(latch_mode_t	mode);
     void 			unfix();
+    void 			discard();
     void 			unfix_dirty();
     // set_ref_bit sets the value to use for the buffer page reference
     // bit when the page is unfixed. 
@@ -126,13 +148,15 @@ public:
 
     // get EX latch if acquiring it will not block (otherwise set
     // would_block to true.
+    void 			upgrade_latch(latch_mode_t m);
+
     rc_t 			upgrade_latch_if_not_block(
 	bool&			    would_block); 
 
     // WARNING: the clear_page_p function should only be used if
     // 		a page_p was initialized with page_p(page_s* s).
     void 			clear_page_p() {_pp = 0;}
-    latch_mode_t 		latch_mode();
+    latch_mode_t 		latch_mode() const;
     void 			ntoh()		{};
 
     static const smsize_t       _hdr_size = (page_sz - data_sz - 2 * sizeof (slot_t ));
@@ -147,7 +171,7 @@ public:
 	int&			    unused,
 	int& 			    alignmt,
 	tag_t& 			    t,
-	int& 			    no_used_slots);
+	slotid_t& 		    no_used_slots);
 
     tag_t                       tag() const;
 
@@ -165,40 +189,47 @@ protected:
     rc_t 			format(
 	const lpid_t& 		    pid,
 	tag_t 			    tag,
-	uint4_t			    page_flags);
+	uint4_t			    page_flags,
+	bool 			    log_it = true);
     rc_t			link_up(shpid_t prev, shpid_t next);
     
     rc_t			find_slot(
 	uint4 			    space_needed, 
-	int& 			    idx,
+	slotid_t& 		    idx,
 	slotid_t		    start_search = 0);
     rc_t			insert_expand(
-	int 			    idx,
+	slotid_t 		    idx,
 	int 			    cnt, 
-	const cvec_t 		    tp[]);
+	const cvec_t 		    tp[], 
+	bool                        log_it = true,
+	bool                        do_it = true
+    );
     
-    rc_t			remove_compress(int idx, int cnt);
-    rc_t			mark_free(int idx);
+    rc_t			remove_compress(slotid_t idx, int cnt);
+    rc_t			mark_free(slotid_t idx);
     // reclaim a slot
-    rc_t			reclaim(int idx, const cvec_t& vec);
+    rc_t			reclaim(slotid_t idx, const cvec_t& vec, 
+	bool                        log_it = true);
 
-    rc_t			set_bit(int idx, int bit);
-    rc_t			clr_bit(int idx, int bit);
+    rc_t			set_byte(slotid_t idx, u_char bits,
+					logical_operation op);
+    rc_t			set_bit(slotid_t idx, int bit);
+    rc_t			clr_bit(slotid_t idx, int bit);
     
-    rc_t 			splice(int idx, int cnt, splice_info_t sp[]);
+    rc_t 			splice(slotid_t idx, int cnt, splice_info_t sp[]);
     rc_t			splice(
-	int 			    idx,
+	slotid_t 		    idx,
 	int 			    start,
 	int 			    len, 
 	const cvec_t& 		    data);
 
     rc_t			overwrite(
-	int 			    idx,
+	slotid_t		    idx,
 	int 			    start,
 	const cvec_t& 		    data);
 
-    rc_t			paste(int idx, int start, const cvec_t& data);
-    rc_t			cut(int idx, int start, int len);
+    rc_t			paste(slotid_t idx, int start, const cvec_t& data);
+    rc_t			cut(slotid_t idx, int start, int len);
 
     bool 			fits() const;
 
@@ -208,18 +239,22 @@ protected:
 
 private:
 
-    void			_compress(int idx = -1);
+    void			_compress(slotid_t idx = -1);
 
     friend class page_link_log;
     friend class page_insert_log;
     friend class page_remove_log;
     friend class page_splice_log;
     friend class page_splicez_log;
+    friend class page_set_byte_log;
     friend class page_set_bit_log;
     friend class page_clr_bit_log;
     friend class page_reclaim_log;
     friend class page_mark_log;
     friend class page_init_log;
+    friend class page_mark_t;
+    friend class page_init_t;
+    friend class page_insert_t;
     friend class page_image_top_log;
     friend class page_image_bottom_log;
 
@@ -235,28 +270,58 @@ x(page_s* s, uint4_t store_flags) : base(s, store_flags)		      \
 									      \
 ~x()  {};								      \
 x& operator=(const x& p)    { base::operator=(p); return *this; }	      \
-rc_t fix(const lpid_t& pid, latch_mode_t mode, 				      \
-	uint4_t page_flags = 0, bool ignore_store_id = false,                 \
-	int                      refbit = _refbit_);	                              \
+rc_t _fix(bool conditional, const lpid_t& pid, latch_mode_t mode,	      \
+	uint4_t page_flags,                                                   \
+	store_flag_t store_flags,                                             \
+	bool ignore_store_id,                                                 \
+	int                      refbit);	                              \
+rc_t fix(const lpid_t& pid, latch_mode_t mode,	                              \
+	uint4_t page_flags = 0,                                               \
+	store_flag_t store_flags = st_bad,                                    \
+	bool ignore_store_id = false,                                         \
+	int                      refbit = _refbit_);	                      \
+rc_t conditional_fix(const lpid_t& pid, latch_mode_t mode,                    \
+	uint4_t page_flags = 0,                                               \
+	store_flag_t store_flags = st_bad,                                    \
+	bool ignore_store_id = false,                                         \
+	int                      refbit = _refbit_);	                      \
 void destructor()  {base::destructor();}				      \
-rc_t format(const lpid_t& pid, tag_t tag, uint4_t page_flags);		      \
+rc_t format(const lpid_t& pid, tag_t tag, uint4_t page_flags); \
 x(const x& p) : base(p)							      \
 {									      \
     /*assert3(tag() == t_ ## x)*/					      \
 }
 
 #define MAKEPAGECODE(x, base)						      \
-rc_t x::fix(const lpid_t& pid, latch_mode_t mode, 			      \
-     	    uint4_t page_flags, bool ignore_store_id,		  	      \
+rc_t x::fix(const lpid_t& pid, latch_mode_t mode,                             \
+	uint4_t page_flags,                                                   \
+	store_flag_t store_flags ,                                            \
+	bool ignore_store_id ,                                                \
+	int           refbit ){	                                              \
+	    return _fix(false, pid, mode, page_flags, store_flags,        \
+		    ignore_store_id, refbit);                                 \
+	}								      \
+rc_t x::conditional_fix(const lpid_t& pid, latch_mode_t mode,                 \
+	uint4_t page_flags,                                               \
+	store_flag_t store_flags ,                                    \
+	bool ignore_store_id ,                                         \
+	int                      refbit ){	                      \
+	    return _fix(true, pid, mode, page_flags, store_flags,       \
+		    ignore_store_id, refbit); 			 	      \
+	}								      \
+rc_t x::_fix(bool condl, const lpid_t& pid, latch_mode_t mode,		      \
+     	    uint4_t page_flags,                                               \
+     	    store_flag_t store_flags,                                         \
+	    bool ignore_store_id,		  	                      \
 	    int refbit)                                                       \
 {									      \
     w_assert3((page_flags & ~t_virgin) == 0);				      \
-    W_DO( page_p::fix(pid, t_ ## x, mode, page_flags, ignore_store_id,refbit))\
+    W_DO( page_p::_fix(condl, pid, t_ ## x, mode, page_flags, store_flags, ignore_store_id,refbit))\
     if (page_flags & t_virgin)   W_DO(format(pid, t_ ## x, page_flags));      \
     if (page_flags & t_remote)   ntoh();				      \
     w_assert3(tag() == t_ ## x);					      \
     return RCOK;							      \
-}				
+} 
 
 inline shpid_t
 page_p::next() const 
@@ -295,21 +360,21 @@ page_p::usable_space()
 }
 
 inline smsize_t
-page_p::tuple_size(int idx) const
+page_p::tuple_size(slotid_t idx) const
 {
     w_assert3(idx >= 0 && idx < _pp->nslots);
     return _pp->slot[-idx].length;
 }
 
 inline void*
-page_p::tuple_addr(int idx) const
+page_p::tuple_addr(slotid_t idx) const
 {
     w_assert3(idx >= 0 && idx < _pp->nslots);
     return (void*) (_pp->data + _pp->slot[-idx].offset);
 }
 
 inline bool
-page_p::is_tuple_valid(int idx) const
+page_p::is_tuple_valid(slotid_t idx) const
 {
     return idx >= 0 && idx < _pp->nslots && _pp->slot[-idx].offset >=0;
 }
@@ -351,7 +416,7 @@ page_p::operator const void*() const
 }
 
 inline latch_mode_t
-page_p::latch_mode()
+page_p::latch_mode() const
 {
     return _pp ? _mode : LATCH_NL;
 }
@@ -365,7 +430,7 @@ page_p::tag() const
 /*--------------------------------------------------------------*
  *  page_p::nslots()						*
  *--------------------------------------------------------------*/
-inline int
+inline slotid_t
 page_p::nslots() const
 {
     return _pp->nslots;
@@ -403,7 +468,7 @@ page_p::contig_space()
  *  page_p::paste()						*
  *--------------------------------------------------------------*/
 inline rc_t
-page_p::paste(int idx, int start, const cvec_t& data)
+page_p::paste(slotid_t idx, int start, const cvec_t& data)
 {
     return splice(idx, start, 0, data);
 }
@@ -412,19 +477,22 @@ page_p::paste(int idx, int start, const cvec_t& data)
  *  page_p::cut()						*
  *--------------------------------------------------------------*/
 inline rc_t
-page_p::cut(int idx, int start, int len)
+page_p::cut(slotid_t idx, int start, int len)
 {
     cvec_t v;
     return splice(idx, start, len, v);
 }
 
+
 /*--------------------------------------------------------------*
- *  page_p::overwrite()						*
+ *  page_p::discard()						*
  *--------------------------------------------------------------*/
-inline rc_t
-page_p::overwrite(int idx, int start, const cvec_t& data)
+inline void 
+page_p::discard()
 {
-    return splice(idx, start, data.size(), data);
+    w_assert3(!_pp || bf->is_bf_page(_pp));
+    if (_pp)  bf->discard_pinned_page(_pp);
+    _pp = 0;
 }
 
 /*--------------------------------------------------------------*
@@ -445,7 +513,7 @@ inline void
 page_p::unfix_dirty()
 {
     w_assert3(!_pp || bf->is_bf_page(_pp));
-    if (_pp)  bf->unfix(_pp, TRUE, _refbit);
+    if (_pp)  bf->unfix(_pp, true, _refbit);
     _pp = 0;
 }
 
@@ -470,6 +538,15 @@ page_p::is_dirty() const
 }
 
 /*--------------------------------------------------------------*
+ *  page_p::overwrite()						*
+ *--------------------------------------------------------------*/
+inline rc_t
+page_p::overwrite(slotid_t idx, int start, const cvec_t& data)
+{
+    return splice(idx, start, data.size(), data);
+}
+
+/*--------------------------------------------------------------*
  *  page_p::destructor()					*
  *--------------------------------------------------------------*/
 inline void
@@ -487,7 +564,9 @@ inline NORET
 page_p::page_p(const page_p& p)
     : _pp(p._pp), _mode(p._mode), _refbit(p._refbit)
 {
-    if (bf->is_bf_page(_pp))  bf->refix(_pp, _mode);
+    // W_COERCE the following because we have no way to deal
+    // with an error in a constructor.
+    if (bf->is_bf_page(_pp))  W_COERCE(bf->refix(_pp, _mode));
 }
 
 #endif /* PAGE_H */

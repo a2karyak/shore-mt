@@ -6,19 +6,14 @@
 /* --------------------------------------------------------------- */
 
 /*
- *  $Id: w_error.h,v 1.38 1996/06/07 22:18:40 nhall Exp $
+ *  $Id: w_error.h,v 1.41 1997/05/19 19:39:26 nhall Exp $
  */
 #ifndef W_ERROR_H
 #define W_ERROR_H
 
-#include <errno.h>
-#include "unix_error.h"
-
 #ifdef __GNUG__
 #pragma interface
 #endif
-
-extern int errno;
 
 struct w_error_info_t {
     unsigned int	err_num;
@@ -29,7 +24,10 @@ class w_error_t : public w_base_t {
 public:
     typedef w_error_info_t info_t;
 
+#ifndef __fc_error_h__
 #include "fc_error.h"
+#endif
+
     // kludge: make err_num come first:
     const uint4_t		err_num;
 
@@ -43,17 +41,18 @@ public:
 	const char* const 	    filename,
 	uint4_t			    line_num);
 
-    /*
-     *  streams
-     */
-    friend ostream&		operator<<(
-	ostream&		    o,
-	const w_error_t&	    obj);
+    ostream			&print_error(ostream &o) const;
 
     static w_error_t*		make(
 	const char* const 	    filename,
 	uint4_t			    line_num,
 	uint4_t			    err_num,
+	w_error_t*		    list = 0);
+    static w_error_t*		make(
+	const char* const 	    filename,
+	uint4_t			    line_num,
+	uint4_t			    err_num,
+	uint4_t			    sys_err,
 	w_error_t*		    list = 0);
     static bool			insert(
 	const char		    *modulename,
@@ -95,6 +94,12 @@ private:
 	uint4_t			    line_num,
 	uint4_t			    err_num,
 	w_error_t*		    list);
+    NORET			w_error_t(
+	const char* const 	    filename,
+	uint4_t			    line_num,
+	uint4_t			    err_num,
+	uint4_t			    sys_err,
+	w_error_t*		    list);
     NORET			w_error_t(const w_error_t&);
     w_error_t&			operator=(const w_error_t&);
 
@@ -102,6 +107,8 @@ private:
     static uint4_t		_range_cnt[max_range];
     static const char *		_range_name[max_range];
     static uint4_t		_nreg;
+
+    static inline uint4_t	classify(int err_num);
 public:
 	// make public so it  can be exported to client side
     static const info_t		error_info[];
@@ -110,6 +117,8 @@ private:
 	// disabled
 	static void init_errorcodes(); 
 };
+
+extern ostream  &operator<<(ostream &o, const w_error_t &obj);
 
 inline void
 w_error_t::_incr_ref()

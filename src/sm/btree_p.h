@@ -6,7 +6,7 @@
 /* --------------------------------------------------------------- */
 
 /*
- *  $Id: btree_p.h,v 1.16 1996/04/12 01:04:25 nhall Exp $
+ *  $Id: btree_p.h,v 1.20 1997/05/19 19:46:56 nhall Exp $
  */
 #ifndef BTREE_P_H
 #define BTREE_P_H
@@ -15,7 +15,7 @@
 #pragma interface
 #endif
 
-#ifndef ZKEYED_P_H
+#ifndef ZKEYED_H
 #include <zkeyed.h>
 #endif
 
@@ -26,10 +26,10 @@ struct btree_int_stats_t;
 class btrec_t {
 public:
     NORET			btrec_t()		{};
-    NORET			btrec_t(const btree_p& page, int slot);
+    NORET			btrec_t(const btree_p& page, slotid_t slot);
     NORET			~btrec_t()		{};
 
-    btrec_t&			set(const btree_p& page, int slot);
+    btrec_t&			set(const btree_p& page, slotid_t slot);
     
     smsize_t			klen() const	{ return _key.size(); }
     smsize_t			elen() const	{ return _elem.size(); }
@@ -53,7 +53,7 @@ private:
 };
 
 inline NORET
-btrec_t::btrec_t(const btree_p& page, int slot)  
+btrec_t::btrec_t(const btree_p& page, slotid_t slot)  
 {
     set(page, slot);
 }
@@ -63,15 +63,16 @@ public:
     friend class btrec_t;
 
     struct btctrl_t {
-	shpid_t	root;		
+	shpid_t	root; 		// root page
 	shpid_t	pid0;		// first ptr in non-leaf nodes
 	int2	level;		// leaf if 1, non-leaf if > 1
 	int2	flags;
     };
 
     enum flag_t{
+	t_none 		= 0x0,
 	t_smo 		= 0x01,
-	t_phantom	= 0x02,
+	t_delete	= 0x02
     };
 
     MAKEPAGE(btree_p, zkeyed_p, 1);
@@ -82,9 +83,11 @@ public:
     lpid_t 			root() const;
     shpid_t 			root_shpid() const;
     bool 			is_leaf() const;
+    bool 			is_leaf_parent() const;
     bool 			is_node() const;
+
     bool 			is_smo() const;
-    bool 			is_phantom() const;
+    bool 			is_delete() const;
     
     rc_t			set_hdr(
 	shpid_t			    root, 
@@ -92,64 +95,71 @@ public:
 	shpid_t 		    pid0,
 	uint2 			    flags);
     rc_t			set_pid0(shpid_t pid);
-    rc_t			set_smo();
-    rc_t			set_phantom();
-    rc_t			clr_smo();
-    // UNUSED rc_t			clr_phantom();
-    rc_t			unlink();
+
+    rc_t 			set_delete();
+    rc_t 			set_smo(bool compensate=false) {
+				    return _set_flag(t_smo, compensate); 
+				}
+
+    rc_t 			clr_smo(bool compensate=false) { 
+					return _clr_flag(t_smo, compensate); }
+    rc_t 			clr_delete();
+
+    rc_t 			unlink_and_propagate(
+				    const cvec_t& 	key,
+				    const cvec_t& 	elem,
+				    btree_p&		rsib,
+				    lpid_t&		parent_pid,
+				    btree_p&		root
+				);
+    rc_t 			cut_page(lpid_t &child, slotid_t slot);
     
     rc_t			distribute(
 	btree_p& 		    rsib,
 	bool& 		            left_heavy,
-	int& 			    snum,
+	slotid_t& 		    snum,
 	smsize_t		    addition, 
 	int 			    factor);
-    void print_key_str();	// print_elem = false  -- for debugging
-    void _print_key_str(bool print_elem = true);
-    void print_key_uint4();
-    void print_key_uint2();
+
+    void 			print(sortorder::keytype kt = sortorder::kt_b,
+				    bool print_elem=false);
     
     rc_t			shift(
-	int 			    snum,
+	slotid_t 		    snum,
 	btree_p& 		    rsib);
 
     rc_t			copy_to_new_page(btree_p& new_page);
 
-    shpid_t 			child(int idx) const;
-    int 			rec_size(int idx) const;
+    shpid_t 			child(slotid_t idx) const;
+    int 			rec_size(slotid_t idx) const;
     int 			nrecs() const;
-    
+
     rc_t			search(
 	const cvec_t& 		    k,
 	const cvec_t& 		    e,
-	bool& 		    found,
-	int& 			    ret_slot) const;
+	bool& 		    	    found_key,
+	bool& 		    	    found_key_elem,
+	slotid_t& 		    ret_slot) const;
     rc_t			insert(
 	const cvec_t& 		    key,
 	const cvec_t& 		    el,
-	int			    slot, 
-	shpid_t 		    child = 0);
+	slotid_t		    slot, 
+	shpid_t 		    child = 0,
+	bool			    do_it = true
+	);
 
 	// stats for leaf nodes
     rc_t 			leaf_stats(btree_lf_stats_t& btree_lf);
 	// stats for interior nodes
     rc_t 			int_stats(btree_int_stats_t& btree_int);
 
-    static const smsize_t 		max_entry_size =
-				// must be able to fit 2 entries to a page
-				(
-					((smlevel_0::page_sz - 
-						(page_p::_hdr_size +
-						sizeof(page_p::slot_t) +
-						align(sizeof(btree_p::btctrl_t)))) >> 1
-					) 
-				) 
-				// round down to aligned size
-				& ~ALIGNON1 
-				;
 
+    static smsize_t 		max_entry_size;
 
 private:
+    rc_t			_unlink(btree_p &);
+    rc_t 			_clr_flag(flag_t, bool compensate=false);
+    rc_t 			_set_flag(flag_t, bool compensate=false);
     rc_t			_set_hdr(const btctrl_t& new_hdr);
     const btctrl_t& 		_hdr() const ;
 
@@ -162,7 +172,8 @@ btree_p::_hdr() const
 }
 
 /*--------------------------------------------------------------*
- *    btree_p::root()						*
+ *    btree_p::root()						* 
+ *    Needed for logging/recovery                               *
  *--------------------------------------------------------------*/
 inline lpid_t btree_p::root() const
 {
@@ -193,6 +204,14 @@ inline shpid_t btree_p::pid0() const
 }
 
 /*--------------------------------------------------------------*
+ *    btree_p::is_delete()					*
+ *--------------------------------------------------------------*/
+inline bool btree_p::is_delete() const
+{
+    return _hdr().flags & t_delete;
+}
+
+/*--------------------------------------------------------------*
  *    btree_p::is_smo()						*
  *--------------------------------------------------------------*/
 inline bool btree_p::is_smo() const
@@ -201,19 +220,22 @@ inline bool btree_p::is_smo() const
 }
 
 /*--------------------------------------------------------------*
- *    btree_p::is_phantom()					*
- *--------------------------------------------------------------*/
-inline bool btree_p::is_phantom() const
-{
-    return _hdr().flags & t_phantom;
-}
-
-/*--------------------------------------------------------------*
  *    btree_p::is_leaf()					*
  *--------------------------------------------------------------*/
 inline bool btree_p::is_leaf() const
 {
     return level() == 1;
+}
+
+/*--------------------------------------------------------------*
+ *    btree_p::is_leaf_parent()					*
+ *    return true if this node is the lowest interior node,     *
+ *    i.e., the parent of a leaf.  Used to tell how we should   *
+ *    latch a child page : EX or SH                             *
+ *--------------------------------------------------------------*/
+inline bool btree_p::is_leaf_parent() const
+{
+    return level() == 2;
 }
 
 /*--------------------------------------------------------------*
@@ -226,7 +248,7 @@ inline bool btree_p::is_node() const
 
 inline rc_t
 btree_p::shift(
-    int 		snum,
+    slotid_t 		snum,
     btree_p& 		rsib)  
 {
     w_assert3(level() == rsib.level());
@@ -234,7 +256,7 @@ btree_p::shift(
 }
 
 inline int
-btree_p::rec_size(int idx) const
+btree_p::rec_size(slotid_t idx) const
 {
     return zkeyed_p::rec_size(idx);
 }

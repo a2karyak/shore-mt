@@ -6,7 +6,7 @@
 # --------------------------------------------------------------- #
 
 #
-#  $Header: /p/shore/shore_cvs/src/sm/lib/ssh.tcl,v 1.28 1996/07/09 20:41:59 nhall Exp $
+#  $Header: /p/shore/shore_cvs/src/sm/lib/ssh.tcl,v 1.38 1997/04/22 15:02:17 nhall Exp $
 #
 
 set null_fid 0.0
@@ -31,7 +31,7 @@ proc assert {x} {
         if [string length [info script]]  {
             set scriptName "script '[info script]'"
         }  else  {
-            set scriptName "no script"
+            set scriptName "<no script>"
         }
   
         echo
@@ -64,12 +64,16 @@ proc is_set variable {
 }
 
 proc set_config_info {} {
-    global page_size max_small_rec lg_rec_page_space buffer_pool_size lid_cache_size max_btree_entry_size object_cc multi_server serial_bits64 preemptive multi_threaded_xct
+    global page_size max_small_rec lg_rec_page_space buffer_pool_size lid_cache_size max_btree_entry_size exts_on_page pages_per_ext object_cc multi_server serial_bits64 preemptive multi_threaded_xct logging
     set config [sm config_info]
 
-    foreach i { page_size max_small_rec lg_rec_page_space buffer_pool_size lid_cache_size max_btree_entry_size object_cc multi_server serial_bits64 preemptive multi_threaded_xct } {
+    foreach i { page_size max_small_rec lg_rec_page_space buffer_pool_size lid_cache_size max_btree_entry_size exts_on_page pages_per_ext object_cc multi_server serial_bits64 preemptive multi_threaded_xct logging } {
     	set $i [lindex $config [expr {[lsearch $config $i] + 1}] ]
     }
+
+    addcleanupvars {page_size max_small_rec lg_rec_page_space buffer_pool_size lid_cache_size
+				max_btree_entry_size exts_on_page pages_per_ext object_cc
+				multi_server serial_bits64 preemptive multi_threaded_xct logging}
 }
 
 proc _restart { a } {
@@ -77,7 +81,7 @@ proc _restart { a } {
     global Use_logical_id
     sm restart $a
     foreach i $ssh_device_list {
-	echo remounting [lindex $i 0]
+	verbose remounting [lindex $i 0]
 	if {$Use_logical_id} {
 	    sm mount_dev [lindex $i 0]
 	} else {
@@ -188,25 +192,37 @@ set in_st_trans 0
 
 # proc for printing only the non-zero stats
 proc dstats {volid} {
+    global verbose_flag
     set x [sm xct]
     if {$x == 0} {
 	sm begin_xct
     }
-    set n [sm get_du_statistics $volid]
-    set l [llength $n]
-    set l [expr $l/2]
-    for {set i 0} { $i <= $l} {incr i} {
-	set j [expr {$i * 2 + 1}]
-	if {[lindex $n $j] != 0} {
-	    echo [lindex $n [expr {$j-1}]] [lindex $n $j]
+    if { [catch {sm get_du_statistics $volid nopretty audit} n] != 0} {
+	if {$x == 0} {
+	    sm commit_xct
+	}
+	verbose " got error in get_du_statistics: " $n
+	return 1
+    } else {
+	set l [llength $n]
+	set l [expr $l/2]
+	for {set i 0} { $i <= $l} {incr i} {
+	    set j [expr {$i * 2 + 1}]
+	    if {[lindex $n $j] != 0} {
+		if {$verbose_flag == 1} {
+		    echo [lindex $n [expr {$j-1}]] [lindex $n $j]
+		}
+	    }
 	}
     }
     if {$x == 0} {
 	sm commit_xct
     }
+    return 0
 }
 # proc for printing stats w/o auditing
 proc dstatsnoaudit {volid} {
+    global verbose_flag
     set x [sm xct]
     if {$x == 0} {
 	sm begin_xct
@@ -217,7 +233,9 @@ proc dstatsnoaudit {volid} {
     for {set i 0} { $i <= $l} {incr i} {
 	set j [expr {$i * 2 + 1}]
 	if {[lindex $n $j] != 0} {
-	    echo [lindex $n [expr {$j-1}]] [lindex $n $j]
+	    if {$verbose_flag == 1} {
+		echo [lindex $n [expr {$j-1}]] [lindex $n $j]
+	    }
 	}
     }
     if {$x == 0} {
@@ -225,6 +243,7 @@ proc dstatsnoaudit {volid} {
     }
 }
 proc pstats {} {
+    global verbose_flag
     set x [sm xct]
     if {$x == 0} {
 	sm begin_xct
@@ -235,7 +254,9 @@ proc pstats {} {
     for {set i 0} { $i <= $l} {incr i} {
 	set j [expr {$i * 2 + 1}]
 	if {[lindex $n $j] != 0} {
-	    echo [lindex $n [expr {$j-1}]] [lindex $n $j]
+	    if {$verbose_flag == 1} {
+		echo [lindex $n [expr {$j-1}]] [lindex $n $j]
+	    }
 	}
     }
     if {$x == 0} {
@@ -255,6 +276,71 @@ proc select_stat {n whichstat} {
     return [list $whichstat 0]
 }
 
+proc _checkstats {n string} {
+    verbose checking stats ... $string
+    set rec_pin_cnt [lindex [select_stat $n rec_pin_cnt] 1]
+    set rec_unpin_cnt [lindex [select_stat $n rec_unpin_cnt] 1]
+    set page_fix_cnt [lindex [select_stat $n page_fix_cnt] 1]
+    set page_refix_cnt [lindex [select_stat $n page_refix_cnt] 1]
+    set page_unfix_cnt [lindex [select_stat $n page_unfix_cnt] 1]
+
+    # permit excess unpins and unfixes
+
+    assert {expr $rec_pin_cnt <= $rec_unpin_cnt}
+    assert {expr $page_fix_cnt + $page_refix_cnt <= $page_unfix_cnt}
+}
+proc checkstats {string} {
+    set x [sm xct]
+    if {$x == 0} {
+	sm begin_xct
+    }
+    set n [sm gather_stats]
+    if {$x == 0} {
+	sm commit_xct
+    }
+    _checkstats $n $string
+}
+
+proc clearstats {} {
+    set x [sm xct]
+    if {$x == 0} {
+	sm begin_xct
+    }
+    set n [sm gather_stats reset]
+    if {$x == 0} {
+	sm commit_xct
+    }
+    verbose checking stats ... clearstats
+    _checkstats $n "clearstats"
+
+    return $n
+}
+
+proc addcleanupvars { theVars } {
+# add the list of variables in the theVars to "ok" variables
+# only add things if variables is set since cleanup will not gripe if it's not
+   global variables
+
+   if [is_set variables]  {
+       set variables [concat $variables $theVars]
+   }
+}
+
+proc deletecleanupvars { theVars } {
+# delete the list of variables in theVars if they exist in "ok" variables
+   global variables
+
+   foreach var $theVars  {
+      while {1} {
+         set i [lsearch $variables $var]
+         if { $i != -1 } {
+            set variables [lreplace $variables $i $i]
+         } else {
+	    break
+	 }
+      }
+   }
+}
 
 proc cleanup { fileid } {
    global variables
@@ -265,7 +351,7 @@ proc cleanup { fileid } {
       set variables [info globals]
       # do a second time in order to have it include "variables"
       set variables [info globals]
-      return
+      return 0
    }
    foreach j [info globals] {
 	set found 0
@@ -293,6 +379,7 @@ proc cleanup { fileid } {
 	}
    }
   set variables [info globals]
+  return 0
 }
 
 proc error_is { e y } {
@@ -305,4 +392,14 @@ proc error_is { e y } {
 	}
     }
     return 0
+}
+
+proc get_key_type { st } {
+    set list [sm get_store_info $st]
+    return [ lindex $list 2 ]
+}
+
+proc get_cc_mode { st } {
+    set list [sm get_store_info $st]
+    return [ lindex $list 3 ]
 }

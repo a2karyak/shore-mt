@@ -9,7 +9,7 @@
 // OCRef.h
 //
 
-/* $Header: /p/shore/shore_cvs/src/lil/oc/OCRef.h,v 1.44 1996/07/16 17:36:46 schuh Exp $ */
+/* $Header: /p/shore/shore_cvs/src/lil/oc/OCRef.h,v 1.45 1997/01/24 20:14:07 solomon Exp $ */
 
 #ifndef _OCREF_H_
 #define _OCREF_H_
@@ -255,7 +255,7 @@ class OCRef
     // is allowed to see it; otherwise, a fault will occur when an
     // attempt is made to dereference the ref.
 
-    shrc swizzle(int vindex, bool primary = FALSE);
+    shrc swizzle(int vindex, bool primary = false);
 
     // Changes the representation of the OCRef from an otentry pointer
     // to a volref (a serial number).  `Vindex' indicates the volume

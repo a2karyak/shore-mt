@@ -6,7 +6,7 @@
 /* --------------------------------------------------------------- */
 
 /*
- * $Header: /p/shore/shore_cvs/src/vas/client/sm_app.C,v 1.51 1995/10/03 16:25:21 nhall Exp $
+ * $Header: /p/shore/shore_cvs/src/vas/client/sm_app.C,v 1.52 1997/01/24 16:49:17 nhall Exp $
  */
 #include <copyright.h>
 
@@ -205,9 +205,9 @@ public:
 #else
 			for(int i = 0; i < howmany(FD_SETSIZE, NFDBITS); i++) {
 				if(invalid_pages.fds_bits[i] != installed_pages.fds_bits[i])
-					return FALSE;
+					return false;
 			}
-			return TRUE;
+			return true;
 #endif
 	}
 	inline bool	none_installed() const { 
@@ -245,7 +245,7 @@ public:
 	int		replace_page(); // choose a page to throw away
 	void 	invalidate(); 	// whole table; remove entries
 	void 	invalidate_page(IN(lrid_t) obj, bool remove); 
-	void 	invalidate_page(int offset, bool remove = TRUE);
+	void 	invalidate_page(int offset, bool remove = true);
 	void 	invalidate_obj(htentry *, bool remove);
 	void 	invalidate_obj(IN(lrid_t) obj, bool  remove);
 	htentry *find(const lrid_t &o) const {
@@ -373,7 +373,7 @@ _ht::invalidate()
 	// invalidate & remove all the objects & pages 
 
 	for(int i=0; i<npgs; i++) {
-		invalidate_page(i, TRUE);
+		invalidate_page(i, true);
 	}
 	assert(none_valid());
 	// would like to assert that the _ht is empty
@@ -477,7 +477,7 @@ _ht::invalidate_obj(htentry *hte, bool remove)
 		serial_t_data pool;
 		audit_hdr(__LINE__,hte->hdr, pool, false); 
 #endif
-		hte->valid = FALSE;
+		hte->valid = false;
 		DBG( << "Invalidating object " << hte->obj
 			<< " on pagebuf " <<  hte->pgoffset
 			<< " hte=" << hex((u_long)hte)
@@ -525,7 +525,7 @@ _ht::insert(const char *b, smsize_t blen, const char *h, smsize_t hlen,
 	}
 	hte = new htentry(b, blen, h, hlen,  obj, pgo);
 	assert(hte != NULL);
-	hte->valid = TRUE;
+	hte->valid = true;
 #ifdef DEBUG
 	serial_t_data pool;
 	audit_hdr(__LINE__,h, pool, false); 
@@ -565,7 +565,7 @@ _ht::install_page(
 	// First, find out if there are any *other* copies
 	// of this page around, and if so, invalidate them.
 #ifdef DEBUG
-	bool found=FALSE;
+	bool found=false;
 #endif
 	for( int j=0; j<npgs; j++) {
 		if(j==i) continue;
@@ -590,11 +590,11 @@ _ht::install_page(
 			if(is_valid(j)) {
 				DBG( << " ... needs invalidating... " );
 				assert(!found);
-				found = TRUE; // can be only one
+				found = true; // can be only one
 			}
 #endif
 			if(is_valid(j)) {
-				invalidate_page(j,TRUE);
+				invalidate_page(j,true);
 #ifndef DEBUG
 				// can happen to only one page,
 				// so no need to continue the loop.
@@ -1072,14 +1072,14 @@ svas_client::_locate_object(
 	DBG(<<"_locate_object " << obj << (char *)((which==OBJ)?"BODY":"HDR") );
 
 	if(ht==NULL) {
-		*found = FALSE;
+		*found = false;
 		RETURN SVAS_OK;
 	}
 
 	assert(ht!=NULL);
 	if(ht->none_valid()) {
 		DBG(<< "none valid for ht");
-		*found = FALSE;
+		*found = false;
 		RETURN SVAS_OK;
 	}
 
@@ -1102,15 +1102,15 @@ svas_client::_locate_object(
 			_stats.page_hits++;
 			if(hte->lockmode < lockmode)
 				hte->lockmode = lockmode;
-			*found = TRUE;
+			*found = true;
 		} else {
 			DBG(<< "not valid, therefore not found");
-			*found = FALSE;
+			*found = false;
 			_stats.page_invalid_hits++;
 		}
 	} else {
 		DBG(<< "not found");
-		*found = FALSE;
+		*found = false;
 		_stats.page_misses++;
 	}
 	RETURN SVAS_OK;
@@ -1158,7 +1158,7 @@ svas_client::audit(const char *msg) // == internal
 	if(!ShoreVasLayer.do_audit) return SVAS_OK;
 	if(ht) {
 		if(!over_the_wire()) assert(ht->npgs!=0);
-		ht->audit(FALSE);
+		ht->audit(false);
 	}
 	RETURN SVAS_OK;
 }
@@ -1170,7 +1170,7 @@ svas_client::auditempty()
 	if(!ShoreVasLayer.do_audit) return SVAS_OK;
 	if(ht) {
 		if(!over_the_wire()) assert(ht->npgs!=0);
-		ht->audit(TRUE);
+		ht->audit(true);
 	}
 	RETURN SVAS_OK;
 }
@@ -1195,7 +1195,7 @@ svas_client:: putpage(
 	// by replace_page()
 
 	assert(over_the_wire());
-	ht->invalidate_page(pgoffset,TRUE);
+	ht->invalidate_page(pgoffset,true);
 	_stats.page_invalidates++;
 
 	//assert that len is a multiple of page size

@@ -6,7 +6,7 @@
 /* --------------------------------------------------------------- */
 
 /*
- *  $Id: lock_x.h,v 1.30 1996/06/27 17:23:04 kupsch Exp $
+ *  $Id: lock_x.h,v 1.41 1997/05/27 13:41:00 kupsch Exp $
  */
 #ifndef LOCK_X_H
 #define LOCK_X_H
@@ -18,7 +18,7 @@
 This file contains declarations for classes used in implementing
 the association between locks and transactions.  The important
 classes are:
-	lock_request_t: a transaction's request for a lock.
+	lock_request_t: a transaction's request for a lock. 
 	lock_cache_t: cache of transactions recent requests
 	xct_lock_info_t: lock information associated with a transaction 
 
@@ -52,15 +52,17 @@ and null otherwise.
  *
  */
 
+#ifndef W_CIRQUEUE_H
 #include <w_cirqueue.h>
+#endif
 
 #ifdef __GNUG__
 #pragma interface
-/* implementation is in lock_core.c */
 #endif
 
 
 struct lock_head_t;
+class xct_impl; // forward
 
 struct lock_request_t {
     typedef lock_base_t::mode_t mode_t;
@@ -76,24 +78,16 @@ struct lock_request_t {
     smthread_t*		thread;		// thread to wakeup when serviced 
     xct_t* const	xd;		// ptr to transaction record
     w_link_t		xlink;		// link for xd->_lock.list 
+    int4		numChildren;	// number of child objects obtained
+					// under same criteria as xct cache
 
-#if defined(OBJECT_CC) && defined(MULTI_SERVER)
-    status_t	status() const	{ return (status_t)(state & 0x7fffffff); }
-    void	status(status_t s) { state = (state & 0x80000000) | s; }
-
-    bool	pending() const	{ return state & 0x80000000; }
-    void	set_pending()	{ state = state | 0x80000000; }
-    void	reset_pending()	{ state = state & 0x7fffffff; }
-#else
     status_t    status() const       { return (status_t) state; }
     void        status(status_t s) { state = s; }
-#endif /* OBJECT_CC && MULTI_SERVER */
 
     NORET		lock_request_t(
 				xct_t*		x,
 				mode_t		m,
-				duration_t	d,
-				bool		remote);
+				duration_t	d);
 
     NORET		lock_request_t(
 				xct_t*		x,
@@ -113,6 +107,7 @@ struct lock_request_t {
 struct lock_cache_elem_t {
     lockid_t			lock_id;
     lock_base_t::mode_t		mode;
+    lock_request_t*		req;
 };
     
 
@@ -127,18 +122,21 @@ public:
 
     void reset()  { q.reset(); }
 
-    lock_base_t::mode_t* search(const lockid_t& id)  {
+    lock_cache_elem_t* search(const lockid_t& id)  {
 	queue_i i(q);
 	lock_cache_elem_t* p;
 	while ((p = i.next()))  {
 	    if (p->lock_id == id) break;
 	}
-	return p ? &p->mode : 0;
+	return p;
     }
 
-    void put(const lockid_t& id, lock_base_t::mode_t m)  {
+    void put(const lockid_t& id, lock_base_t::mode_t m, lock_request_t* req)  
+    {
 	lock_cache_elem_t e;
-	e.lock_id = id, e.mode = m;
+	e.lock_id = id;
+	e.mode = m;
+	e.req = req;
 	if (q.put(e))  {
 	    W_COERCE(q.get());
 	    W_COERCE(q.put(e));
@@ -146,27 +144,14 @@ public:
     }
 };
 
-
-class adaptive_lock_t {
-public:
-    NORET	adaptive_lock_t(const lpid_t& p) : pid(p) {
-	bm_zero(recs, smlevel_0::max_recs);
-    }
-    NORET	~adaptive_lock_t() { link.detach(); }
-
-    w_link_t	link;
-    lpid_t	pid;
-    u_char	recs[smlevel_0::recmap_sz];
-};
-
-
 class xct_lock_info_t : private lock_base_t {
     friend class lock_request_t;
     friend class lock_m;
     friend class lock_core_m;
-    friend class remote_lock_m;
     friend class callback_m;
-    friend class remote_m;
+    friend class xct_impl;
+    friend class CentralizedGlobalDeadlockClient;
+
 public:
     NORET			xct_lock_info_t(uint2 type);
     NORET			~xct_lock_info_t();
@@ -184,34 +169,20 @@ public:
     rc_t			get_lock_totals( int & total_EX, int	& total_IX,
 				    int	& total_SIX, int & total_extent ) const;
     enum {			lock_cache_size = 5};
+    void			clear_last_deadlock_check_id();
 
 private:
     smutex_t			mutex;		// serialize access to lock_info_t
     lock_cache_t<lock_cache_size>	cache[lockid_t::NUMLEVELS-1];
 
     /*
-     * Locks acquired, except EX locks on remote data
+     * Locks acquired
      */
     w_list_t<lock_request_t>	list[NUM_DURATIONS];
 
-#ifdef MULTI_SERVER
-    /*
-     * EX locks acquired on remote data.
-     * This seperation is used in favor of the redo-at-server algorithm
-     */
-    w_list_t<lock_request_t>    EX_list[NUM_DURATIONS];
-
-    /*
-     * Cache of remote object EX locks that have not been acquired at
-     * the server due to an adaptive page EX lock.
-     * Note: assume only one duration.
-     */
-    w_hash_t<adaptive_lock_t, lpid_t>*	adaptive_locks;
-
-#endif /* MULTI_SERVER */
-
     lock_request_t*		wait;	// lock waited for by this xct/thread
     xct_t*			cycle;	// used by deadlock detector
+    uint4			last_deadlock_check_id;	// used by deadlock detector
 
     // now this is in the thread :
     // lockid_t			hierarchy[lockid_t::NUMLEVELS];
@@ -219,10 +190,19 @@ private:
     // for implementing quarks
     bool			in_quark_scope() const {return quark_marker != 0;}
     lock_request_t*		quark_marker;
+    lockid_t::name_space_t	lock_level;
+
     
 private:
      xct_lock_info_t(xct_lock_info_t&); // disabled
 };
+
+
+inline void
+xct_lock_info_t::clear_last_deadlock_check_id()
+{
+    last_deadlock_check_id = 0;
+}
 
     
 class lock_head_t {
@@ -250,32 +230,11 @@ public:
     mode_t			granted_mode;	// the mode of the granted group
     bool			waiting;	// flag indicates
 						// nonempty wait group
-#ifdef MULTI_SERVER
-    uint2			flags;
-#endif
-
     NORET			lock_head_t(
 	const lockid_t& 	    name, 
 	mode_t		 	    mode);
 
     NORET			~lock_head_t()   { chain.detach(); }
-
-#ifdef MULTI_SERVER
-    bool			purged()	{ return flags & t_purged; }
-    void			set_purged()	{ flags |= t_purged; }
-    void			reset_purged()	{ flags &= ~t_purged; }
-    bool			pending()	{ return flags & t_pending; }
-    void			set_pending()	{ flags |= t_pending; }
-    void                        reset_pending() { flags &= ~t_pending; }
-    bool			repeat_cb()	{ return flags & t_repeat_cb; }
-    void			set_repeat_cb()	{ flags |= t_repeat_cb; }
-    void			reset_repeat_cb() { flags &= ~t_repeat_cb; }
-
-    bool                        adaptive();
-    void                        set_adaptive();
-    void                        reset_adaptive();
-    srvid_t			adaptive_owner(lock_request_t* except = 0);
-#endif
 
     mode_t 			granted_mode_other(
 					const lock_request_t* exclude);
@@ -309,11 +268,8 @@ lock_head_t::lock_head_t( const lockid_t& n, mode_t m)
 #endif
 	  name(n),
 	  queue(offsetof(lock_request_t, rlink)), granted_mode(m),
-	  waiting(FALSE)
+	  waiting(false)
 {
-#ifdef MULTI_SERVER
-    flags = 0;
-#endif
     smlevel_0::stats.lock_head_t_cnt++;
 }
 

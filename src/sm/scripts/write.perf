@@ -25,16 +25,18 @@
 # set STARTOVER 1
 
 if [is_set STARTOVER] {
-	set fid 0
+    set fid 0
 } else {
     set dont_force_reformat 1
     set fid s(1.4)
+    set volid 1
 }
 
 source $script_dir/vol.init
 
 
-set objsize [expr {8192 * 5}]
+# set objsize [expr {8192 * 5}]
+set objsize 7000
 
 #ignored for now
 set logging 0
@@ -107,24 +109,27 @@ sm begin_xct
 	    incr total
 	}
 	echo done creating...
-    } else {
+    } else { 
+	# have to scan to set up r($i)
 	echo scanning $fid ....
 	set scan [sm scan_file_create $fid t_cc_record]
 	set pin [sm scan_file_next $scan 0]
 	set i 0
 	while {$pin != "NULL"} {
 	    set r($i) [sm pin_rid $pin]
-	    sm pin_unpin $pin
+	    # don't ruin scan context
+	    # sm pin_unpin $pin
 	    set pin [sm scan_file_next $scan 0]
 	    set i [expr {$i+1} ]
 	}
 	sm scan_file_destroy $scan
+	echo file $fid contains $i objects
     }
 #   clear the buffer pool, invalidate 
     sm force_buffers true
 sm commit_xct
 
-set nobjs 200
+set nobjs 5000
 set hot   [expr $nobjs / 10]
 set tbytes 0
 
@@ -144,6 +149,9 @@ proc dohot { i } {
 
 echo "doing wtime..."
 
+#   clear the buffer pool, invalidate 
+sm force_buffers true
+
 set dummy [sm gather_stats reset]
 set wtime [ time {
         set niterations 20
@@ -155,18 +163,14 @@ set wtime [ time {
 			    dohot $i
 		    }
 		}
+	sm force_buffers true
 	sm commit_xct
 } 1 ]
 echo
 
-sm force_buffers false
-echo WRITES $nobjs RECS, $hot HOT RECS: 
+echo WROTE $nobjs RECS, $hot HOT RECS, forced buffers: 
 pstats
 set dummy [sm gather_stats reset]
-
-sm begin_xct
-sm force_buffers true
-sm commit_xct
 
 echo 
 echo total write time = $wtime

@@ -21,27 +21,27 @@ sm commit_xct
 #
 sm begin_xct
 set ndx [sm create_md_index $volid 2 rtree]
-echo created rtree $ndx
+verbose created rtree $ndx
 for {set i 1} {$i <= $nrec} {incr i} {
     set box($i) [sm next_box $u]
-#    echo inserting $box($i) $i
+#    verbose inserting $box($i) $i
     sm create_md_assoc $ndx $box($i) $i
 }
-echo inserted $nrec entries
+verbose inserted $nrec entries
 sm rtree_stats $ndx
 #sm draw_rtree $ndx
 #sm print_md_index $ndx
 sm commit_xct
 
 sm begin_xct
-echo probe:
+verbose probe:
 for {set i 1} {$i <= $nrec} {incr i} {
-#    echo $i $box($i)
+#    verbose $i $box($i)
     set r [sm find_md_assoc $ndx $box($i)]
     set el [lindex $r 0]
     assert {expr $i == $el}
 }
-echo "---- successful"
+verbose "---- successful"
 
 sm commit_xct
 
@@ -57,16 +57,16 @@ sm rtree_query $ndx << $q
 sm commit_xct
 
 sm begin_xct
-echo empty the tree:
+verbose empty the tree:
 for {set i 1} {$i <= $nrec} {incr i} {
-#    echo $i $box($i)
+#    verbose $i $box($i)
     sm destroy_md_assoc $ndx $box($i) $i 
 }
 sm commit_xct
 
 sm begin_xct
 
-echo result should be empty.
+verbose result should be empty.
 
 sm rtree_query $ndx / $q
 sm rtree_query $ndx || $q

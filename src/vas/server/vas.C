@@ -6,7 +6,7 @@
 /* --------------------------------------------------------------- */
 
 /*
- *  $Header: /p/shore/shore_cvs/src/vas/server/vas.C,v 1.75 1996/07/01 15:46:02 kupsch Exp $
+ *  $Header: /p/shore/shore_cvs/src/vas/server/vas.C,v 1.76 1997/01/24 16:48:22 nhall Exp $
  */
 #include <copyright.h>
 
@@ -241,10 +241,10 @@ svas_server::_init(
 
 	_page_size = ss_m::page_sz;
 
-	bool redo=TRUE;
+	bool redo=true;
 // redo:
 	while(redo) {
-		redo = FALSE;
+		redo = false;
 		if(over_the_wire()) {
 			DBG(<<"over-the-wire-- no shm");
 			_lg_buf = _page_buf = NULL;
@@ -355,11 +355,11 @@ svas_server::_init(
 				DBG(<<"converting to over-the-wire");
 				clrflags(vf_shm);
 				setflags(vf_wire);
-				redo = TRUE;
+				redo = true;
 			}
 		}
 	}
-	checkflags(FALSE); // not yet xfer time
+	checkflags(false); // not yet xfer time
 	return  SVAS_OK;
 }
 
@@ -487,11 +487,11 @@ svas_server::startSession(
 		default:
 			assert(0);
 	}
-	checkflags(FALSE); // not yet xfer time
+	checkflags(false); // not yet xfer time
 	return SVAS_OK;
 }
 
-// TRUE if this vas's group includes the given group id (argument)
+// true if this vas's group includes the given group id (argument)
 bool  
 svas_server::isInGroup(gid_t g) const
 {
@@ -499,9 +499,9 @@ svas_server::isInGroup(gid_t g) const
 	int n = ngroups;
 
 	for(n=0; n<ngroups; n++) {
-		if(groups[n] == g) return TRUE;
+		if(groups[n] == g) return true;
 	}
-	return FALSE;
+	return false;
 }
 VASResult 
 svas_server::use_page(int i) 
@@ -568,7 +568,7 @@ svas_server::getUmask(
 ostream &
 operator<<(ostream &o, const svas_server& v)
 {
-	v.dump(FALSE, o);
+	v.dump(false, o);
 	return o;
 }
 
@@ -665,8 +665,8 @@ svas_server::sockbufsize()
 VASResult		
 svas_server::nextPoolScan(
 	INOUT(Cookie)		cookie,	
-	OUT(bool)			eof,	// TRUE if no result
-						// if FALSE, result is legit
+	OUT(bool)			eof,	// true if no result
+						// if false, result is legit
 	OUT(lrid_t)			result
 )
 {
@@ -676,8 +676,8 @@ svas_server::nextPoolScan(
 VASResult		
 svas_server::nextPoolScan(
 	INOUT(Cookie)		cookie,	
-	OUT(bool)			eof,	// TRUE if no result
-						// if FALSE, result is legit
+	OUT(bool)			eof,	// true if no result
+						// if false, result is legit
 	OUT(lrid_t)			result, 	// snapped ref
 	ObjectOffset		offset,
 	ObjectSize			requested,	// -- could be WholeObject
@@ -729,7 +729,7 @@ svas_server::_cstats(
 		SthreadStats.clear();
 		ShmcStats.clear();
 
-		// TRUE here clears the stats
+		// true here clears the stats
 
 		if(ShoreVasLayer.Sm->gather_stats(smstats, true)) {
 			DBG(<<"Failure in gather_stats.");

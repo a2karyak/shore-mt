@@ -7,50 +7,28 @@
 
 /*
  *      $RCSfile: Imakefile,v $
- *      $Revision: 1.28 $
- *      $Date: 1995/10/23 22:54:53 $
- *      $Author: nhall $
+ *      $Revision: 1.29 $
+ *      $Date: 1997/06/13 22:34:17 $
+ *      $Author: solomon $
  */
+CPPFLAGS = -I../common -I../../common -I../../fc -I ../../rpc4.0 -I../../sm %
+	Include(TclInclude)
 
-SYMLINKS  = 
-HFILES =\
-	bzero.h process_options.h svas_client.h\
-	default_port.h reserved_oids.h \
-	externc.h shore_vas.h \
+HFILES = bzero.h process_options.h svas_client.h %
+	default_port.h reserved_oids.h %
+	externc.h shore_vas.h %
 	permissions.h svas_base.h vas_types.h clientstats.h
+#define Installed \
+	externc.h svas_error_def.h vas_types.h process_options.h reserved_oids.h
+INSTALLED = Installed
 
-STAT_FILES =\
-	clientstats_msg.i clientstats_op.i clientstats_struct.i
+tests_local:: app_test
 
-STAT_DEF_FILES =\
-	clientstats_def.i 
+%GEN error_def(svas_error.dat, svas os)
+%GEN stats(svas_client.dat, clientstats)
+%GEN c_plus_program(app_test, app_test.o, ../client/libvas.a ../common/libcommon.a)
 
-ERRORFILES = svas_error_def.h svas_error.i svas_einfo.i os_error.i os_einfo.i
-AUTOMATIC = $(ERRORFILES) $(STAT_FILES) $(STAT_DEF_FILES)
+%GEN install(include, Installed clientstats_def.i)
 
-AUXFLAGS = $(VASAUXFLAGS)
-
-SRC = app_test.C
-SRC.cvs =$(SRC) $(HFILES)
-
-OBJ= $(SRC:.C=.o)
-INCLUDE += $(COMMON_INCLUDE) $(TCL_INCL) $(VERIFY_INCL) $(GDBM_INCL)	
-
-CMNT removed app_test from default target list 
-
-automatic:: $(AUTOMATIC)
-
-install_copy(include, externc.h svas_error_def.h vas_types.h process_options.h reserved_oids.h $(STAT_DEF_FILES))
-
-error_codes(svas_error.dat,-d,$(ERRORFILES))
-statistics(svas_client.dat,,$(STAT_FILES) $(STAT_DEF_FILES))
-
-VAS = $(TOP)/src/vas
-
-LIB.clnt =\
-	$(VAS_APPLIBS)\
-	$(RPCLIB) $(TCL_LIB) $(VERIFY_LIB) $(GDBM_LIB) $(KRBLIB) 
-
-c_plus_program(app_test, $(OBJ), $(LIB.clnt))
-
-depend_target($(SRC))
+%GEN tags(app_test.C $(HFILES) $(INSTALLED_FILES))
+%GEN depend_target(app_test.C)

@@ -89,7 +89,7 @@ class rtree_p : public rtree_base_p {
 
     bool exact_match(const nbox_t& key, u_char smap[], const cvec_t& el,
 		       const shpid_t child = 0);
-    bool spatial_srch(const nbox_t& key, sob_cmp_t ctype, u_char smap[],
+    bool spatial_srch(const nbox_t& key, nbox_t::sob_cmp_t ctype, u_char smap[],
 			int2& numSlot);
 
 public:
@@ -114,14 +114,14 @@ public:
 	const nbox_t& 		    bound);
     bool 			search(
 	const nbox_t& 		    key,
-	sob_cmp_t 		    ctype,
+	nbox_t::sob_cmp_t 		    ctype,
 	u_char 			    smap[],
 	int2& 			    num_slot, 
 	const cvec_t* 		    el = 0, 
 	const shpid_t 		    child = 0);
     bool 			query(
 	const nbox_t& 		    key, 
-	sob_cmp_t 		    ctype,
+	nbox_t::sob_cmp_t 		    ctype,
 	u_char 			    smap[], 
 	int2&			    num_slot);
 
@@ -218,7 +218,7 @@ class ftstk_t {
 };
 
 struct rt_cursor_t {
-    sob_cmp_t   cond;
+    nbox_t::sob_cmp_t   cond;
     nbox_t	qbox;
     ftstk_t     fl;
 

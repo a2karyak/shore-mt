@@ -9,13 +9,13 @@
 
 # set the location of the diskrw program
 # NOTE: This must be changed to point to your installed bin directory
-?.server.*.sm_diskrw: /p/shore/installed/nodebug/bin/diskrw
+?.server.*.sm_diskrw: ../../sthread/diskrw
 
 # set the buffer pool size and log directory for all example servers
 ?.server.*.sm_bufpoolsize: 100
-?.server.*.sm_logdir: /u2/tmp/zwilling/shore_log
+?.server.*.sm_logdir: /tmp/shore/log
 
-perf.server.*.device_name: /local.caseus/zwilling/shore_vol/dev1
+perf.server.*.device_name: /tmp/shore/volume/dev1
 perf.server.*.device_quota: 6000
 perf.server.*.num_rec: 10000
 perf.server.*.rec_size: 100

@@ -6,44 +6,26 @@
 /* --------------------------------------------------------------- */
 
 /*
- * $Header: /p/shore/shore_cvs/src/util/mount/Imakefile,v 1.15 1995/09/07 16:12:59 nhall Exp $
+ * $Header: /p/shore/shore_cvs/src/util/mount/Imakefile,v 1.16 1997/06/13 22:33:40 solomon Exp $
  */
-
-SYMLINKS=
 
 #if IS_I386_LINUX
 #    undef linux
-#    define subdirs linux  
+#    define Subdirs linux  
 #else
-#    define subdirs generic
+#    define Subdirs generic
 #endif
-
-SUBDIR= subdirs
-
-$(SUBDIRCOMMANDS):: 
-	@echo making TARGET $@ 
-	@for i in `echo  $(SUBDIR)`; do \
-	(cd $$i; set +e; $(MAKE) $@; j=$$?; \
-	if(test $$j -ne 0) then \
-		echo Make returned $$j -- remaking $@; \
-		$(MAKE) $@; fi;\
-	); done
-CMNT  rule for all has to $(MAKE) twice!! See the 
-CMNT configure stuff in generic/ for reasons.
-
-SUBDIRCOMMANDS=
 
 linux: all
 generic: all
 
 #if IS_I386_LINUX
-CMNT Because the linux/ subdir is generic linux
-CMNT distribution code with a bug fix, and it doesn't
-CMNT use our Imake scheme, we special-case the
-CMNT installation rules here.
-install_copy(bin, mnt.linux)
-install_copy(bin, linux/mount linux/umount)
+%# Because the linux/ subdir is generic linux
+%# distribution code with a bug fix, and it does not
+%# use our Imake scheme, we special-case the
+%# installation rules here.
+%GEN install(bin, mnt.linux)
+%GEN install(bin, linux/mount linux/umount)
 #else
-CMNT nothing needed here; it automatically descends
-CMNT and does $(MAKE) install.
+/* nothing needed here; it automatically descends and does $(MAKE) install */
 #endif

@@ -51,12 +51,13 @@ set scripts [list \
      prepare.1 \
     ]
 
-echo $scripts
+echo scripts = $scripts
 source $script_dir/vol.init
 
 set garbage [open garbage_variables w]
 
 cleanup $garbage
+addcleanupvars {script}
 
 foreach script $scripts {
     echo
@@ -68,3 +69,5 @@ foreach script $scripts {
     cleanup $garbage
     flush $garbage
 }
+
+unset garbage

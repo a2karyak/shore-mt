@@ -6,68 +6,28 @@
 /* --------------------------------------------------------------- */
 
 /*
- * $Id: Imakefile,v 1.8 1995/11/17 22:16:40 bolo Exp $
+ * $Id: Imakefile,v 1.13 1997/06/13 22:31:12 solomon Exp $
  */
-EXEC = testserial stats errcodes errlogtest vectors
 
-SRC.c =
+SRC = testserial.C  stats.C test_stat.C  errcodes.C errlogtest.C kvl.C %
+	vectors.C opaque.C
+OBJ= $(SRC.C:.C=.o)
 
-SRC.C = testserial.C  stats.C test_stat.C  errcodes.C errlogtest.C vectors.C
+all_local:: testserial stats errcodes errlogtest vectors
 
-SRC = $(SRC.c) $(SRC.C)
-OBJ= $(SRC.c:.c=.o) $(SRC.C:.C=.o) 
+CPPFLAGS = -I.. -I../../fc -I../../sthread -I../../sm
+LIBS = ../libcommon.a ../../fc/libfc.a
 
-STAT_FILES_T =\
-	test_stat_def.i test_stat_msg.i test_stat_op.i test_stat_struct.i 
+%GEN depend_target($(SRC))
+%GEN tags($(SRC) $(HDR))
 
-CMNT Allow separate sets for different stats
-STAT_FILES = $(STAT_FILES_T) 
+%GEN stats(test_stat.dat,test_stat)
 
-AUTOMATIC= $(STAT_FILES)
-
-INCLUDE += -I.. $(FC_INCL) $(STHREAD_INCL)
-LIBS = $(COMMON_LIB) $(FC_LIB)
-
-ALLTARGETS = setup_ptrep 
-
-CMNT for tags:
-SRCS = $(SRC)
-HFILES = $(HDR)
-SRC.cvs = $(SRC) $(HDR)
-
-depend:: $(STAT_FILES)
-
-statistics(test_stat.dat,,$(STAT_FILES_T))
-
-#ifdef USE_CC
-setup_ptrep:
-	-@mkdir $(PTREPOSITORY)
-	-@cp nmap001 $(PTREPOSITORY)/nmap001
-#else
-setup_ptrep:
-#endif
-
-PURE_OPT += -best-effort
-QUANT_OPT=
-PURECOV_OPT = 
-
-c_plus_program(t, t.o, $(LIBS)) 
-
-c_plus_program(testserial, testserial.o, $(LIBS)) 
-pureboth_c_plus_program(testserial, testserial.o, $(LIBS), $(PURE_OPT)) 
-
-c_plus_program(stats, stats.o test_stat.o, $(LIBS))
-purify_c_plus_program(stats, stats.o test_stats.o, $(LIBS), $(PURE_OPT)) 
-quantify_c_plus_program(stats, stats.o, $(LIBS), $(QUANT_OPT)) 
-purecov_c_plus_program(stats, stats.o test_stat.o, $(LIBS), $(PURECOV_OPT))
-pureboth_c_plus_program(stats, stats.o test_stat.o, $(LIBS), $(PURE_OPT)) 
-
-purify_c_plus_program(errcodes, errcodes.o, $(LIBS), $(PURE_OPT)) 
-c_plus_program(errcodes, errcodes.o, $(LIBS))
-
-purify_c_plus_program(vectors, vectors.o, $(LIBS), $(PURE_OPT)) 
-c_plus_program(vectors, vectors.o, $(LIBS))
-
-
-CMNT depend is last!
-depend_target($(SRC))
+%GEN c_plus_program(testserial, testserial.o, $(LIBS))
+%GEN c_plus_program(stats, stats.o test_stat.o, $(LIBS))
+%GEN c_plus_program(errcodes, errcodes.o, $(LIBS))
+%GEN c_plus_program(kvl, kvl.o, $(LIBS))
+%GEN c_plus_program(errlogtest, errlogtest.o, $(LIBS))
+%GEN c_plus_program(opaque, opaque.o, $(LIBS))
+%GEN c_plus_program(bitmap, bitmap.o, $(LIBS))
+%GEN c_plus_program(vectors, vectors.o, $(LIBS))

@@ -17,7 +17,7 @@ set nrec 25
 #
 sm begin_xct
 set ndx [sm create_index $volid btree]
-echo created index $ndx
+verbose created index $ndx
 sm commit_xct
 
 
@@ -37,13 +37,17 @@ sm commit_xct
 #
 # remove all odd keys, and scan to confirm result
 #
+verbose remove odd keys
 sm begin_xct
+# sm print_index $ndx
 for {set i 1} {$i <= $nrec} {incr i; incr i}  {
     set key [format $short_form $i]
-    set n [sm destroy_all_assoc $ndx $key]
-    verbose "destroyed $i"
+    catch {sm destroy_all_assoc $ndx $key} n
+    verbose "destroyed $i : $n"
     assert {expr $n == $nrec}
 }
+verbose after odd keys removed
+# sm print_index $ndx
 sm commit_xct
 
 sm begin_xct

@@ -6,7 +6,7 @@
 /* --------------------------------------------------------------- */
 
 /*
- *  $Id: sysdefs.h,v 1.22 1996/02/28 22:15:11 nhall Exp $
+ *  $Id: sysdefs.h,v 1.23 1997/04/21 20:42:22 bolo Exp $
  */
 #ifndef SYSDEFS_H
 #define SYSDEFS_H
@@ -14,7 +14,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <fcntl.h>
 #include <unistd.h>
 #include <limits.h>
 #ifdef Decstation
@@ -44,16 +43,5 @@
 #define bcopy(a, b, c)   memcpy(b,a,c)
 #define bzero(a, b)      memset(a,'\0',b)
 #define bcmp(a, b, c)    memcmp(a,b,c)
-
-#ifdef __GNUG__
-    extern "C" {
-	extern char *strerror (int);
-	extern int fsync(int);
-#if !defined(Linux) && !defined(AIX32) && !defined(AIX41)
-	extern int truncate(const char *, off_t);
-#endif
-	extern int ftruncate(int, off_t);
-    }
-#endif
 
 #endif /* SYSDEFS_H */

@@ -17,10 +17,20 @@ set RESTART 1
 
 set scripts [ list append.st truncate.st update.st ]
 
-foreach x $scripts {
-    echo "================================================================="
-    echo "================================================================="
-    echo "RUNNING:  $x"
-    source $script_dir/$x
+verbose CLEANUP BEFORE rec.all :
+cleanup stdout
+addcleanupvars {script RESTART}
+
+foreach script $scripts {
+    verbose
+    verbose "RUNNING:  $script"
+    source $script_dir/$script
+    checkstats  $script
+    puts stdout [concat CLEANUP AFTER  $script  : ]
+    cleanup stdout
 }
-echo "rec.all STATUS: ok"
+verbose "rec.all STATUS: ok"
+if {[is_set RESTART]} {
+	unset RESTART
+    deletecleanupvars {RESTART}
+}

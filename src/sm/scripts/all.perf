@@ -5,6 +5,9 @@
 source $script_dir/vol.init
 set fid (1.4)
 
+echo RUNNING file.perf
+source $script_dir/file.perf
+
 echo RUNNING write.perf
 source $script_dir/write.perf
 

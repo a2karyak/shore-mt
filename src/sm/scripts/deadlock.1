@@ -23,9 +23,9 @@ proc t1 {} {
     verbose "t1: IS granted on o1"
 sync
 sync
-    echo "t1: IS requested on o2"
+    verbose "t1: IS requested on o2"
     sm lock $o2 IS LONG
-    echo "t1: IS granted on o2"
+    verbose "t1: IS granted on o2"
     sm commit_xct
 }
 
@@ -33,24 +33,24 @@ proc t2 {} {
     global o1 o2
     sm begin_xct
     sm lock $o1 IX LONG
-    echo "t2: IX granted on o1"
+    verbose "t2: IX granted on o1"
 sync
 sync
 sync
     sm commit_xct
-    echo "t2: commit, release IX lock on o1"
+    verbose "t2: commit, release IX lock on o1"
 }
 
 proc t3 {} {
     global o1 o2
     sm begin_xct
     sm lock $o2 EX LONG
-    echo "t3: EX granted on o2"
+    verbose "t3: EX granted on o2"
 sync
 sync
-    echo "t3: SH requested on o1"
+    verbose "t3: SH requested on o1"
     sm lock $o1 SH LONG
-    echo "t3: SH granted on o1"
+    verbose "t3: SH granted on o1"
     sm commit_xct
 }
 
@@ -61,14 +61,16 @@ sync
     set z [fork_thread t3 {}]
 
     sync_thread $x $y $z
-    echo "setup completed --- {1IS, 2IX},  {3X}"
+    verbose "setup completed --- {1IS, 2IX},  {3X}"
+    if {$verbose_flag}  {
 	sm dump_locks
+    }
     sync_thread $z 
     sync_thread $x
     sync_thread $y
     sync_thread $y
     join_thread $x $y $z
-echo "SUCCESS"
+verbose "SUCCESS"
 
 unset o1 o2
 unset x y z

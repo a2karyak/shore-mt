@@ -6,13 +6,15 @@
 /* --------------------------------------------------------------- */
 
 /*
- *  $Id: rtree.h,v 1.59 1995/10/31 19:54:12 nhall Exp $
+ *  $Id: rtree.h,v 1.61 1997/05/19 19:47:52 nhall Exp $
  */
 
 #ifndef RTREE_H
 #define RTREE_H
 
+#ifndef NBOX_H
 #include <nbox.h>
+#endif
 
 #ifdef __GNUG__
 #pragma interface
@@ -152,8 +154,8 @@ private:
     static rc_t			_dfs_search(
 	const lpid_t& 		    root,
 	const nbox_t& 		    key, 
-	bool&		    	found,
-	sob_cmp_t 		    ctype, 
+	bool&		    	    found,
+	nbox_t::sob_cmp_t 	    ctype, 
 	ftstk_t& 		    fl);
 
     static rc_t			_pick_branch(

@@ -6,7 +6,7 @@
 /* --------------------------------------------------------------- */
 
 /*
- *  $Header: /p/shore/shore_cvs/src/vas/server/symlink.C,v 1.26 1995/07/14 22:40:09 nhall Exp $
+ *  $Header: /p/shore/shore_cvs/src/vas/server/symlink.C,v 1.27 1997/01/24 16:48:21 nhall Exp $
  */
 #include <copyright.h>
 
@@ -129,7 +129,7 @@ FSTART
 	assert(*fn != '/');
 	_DO_( _lookup2(dir, fn,\
 		Permissions::op_exec, Permissions::op_read,  &found,\
-		&target, &dummy, TRUE, FALSE) );
+		&target, &dummy, true, false) );
 	_DO_(_readLink(target, result, resultlen));
 FOK:
 	RETURN SVAS_OK;

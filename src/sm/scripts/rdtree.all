@@ -14,8 +14,15 @@ source $script_dir/vol.init
 
 set scripts [list rdtree.1 rdtree.2 ]
 
+echo CLEANUP BEFORE rdtree.all :
+cleanup stdout
+addcleanupvars {script}
+
 foreach script $scripts {
     echo
     echo RUNNING: $script 
     source $script_dir/$script
+    checkstats  $script
+    puts stdout [concat CLEANUP AFTER  $script  : ]
+    cleanup stdout
 }

@@ -6,7 +6,7 @@
 /* --------------------------------------------------------------- */
 
 /*
- *  $Id: sm_vas.h,v 1.17 1995/10/06 03:40:17 zwilling Exp $
+ *  $Id: sm_vas.h,v 1.19 1997/05/19 19:41:08 nhall Exp $
  */
 #ifndef SM_VAS_H
 #define SM_VAS_H
@@ -30,13 +30,18 @@
 #endif 	/* RPC_HDR */
 
 #include "sm_s.h"
-#include "sm_base.h"
+#undef SM_SOURCE
+#include "sm_int_4.h"
 #include "smthread.h"
-#include "file_s.h"
 #include "sm.h"
+#include "file_s.h"
 #include "pin.h"
+#include "xct_dependent.h"
 #include "scan.h"
 #include "sort.h"
 #include "nbox.h"
+
+#include "lock.h"
+#include "deadlock_events.h"
 
 #endif /* SM_VAS_H */

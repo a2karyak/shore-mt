@@ -12,95 +12,99 @@
 #
 source $script_dir/vol.init
 
+verbose LOGGING = $logging
+if { $logging == 1 } {
+
+
 sm begin_xct
-echo tid [sm xct_to_tid [sm xct]]
+verbose tid [sm xct_to_tid [sm xct]]
 # create index and put enough things in it to require >1 page
 set ndx [sm create_index $volid btree]
-echo created index $ndx
+verbose created index $ndx
 set nrec 10;
 for {set i 1} {$i <= $nrec} {incr i} {
     verbose inserting $i
     sm create_assoc $ndx [format $short_form $i] [format %01000d $i]
 }
-echo index id: $ndx
+verbose index id: $ndx
 sm commit_xct
 
-echo forcing buffers...
+verbose forcing buffers...
 sm force_buffers
 
 sm begin_xct
-echo tid [sm xct_to_tid [sm xct]]
-echo destroyng $ndx
+verbose tid [sm xct_to_tid [sm xct]]
+verbose destroyng $ndx
 sm destroy_index $ndx
 sm commit_xct
-echo forcing buffers...
+verbose forcing buffers...
 sm force_buffers
 
 sm begin_xct
-echo tid [sm xct_to_tid [sm xct]]
+verbose tid [sm xct_to_tid [sm xct]]
 
-echo creating file
+verbose creating file
 set f1 [sm create_file $volid ]
-echo file id: $f1
+verbose file id: $f1
 
 #change body width
 set id_body_width %0100d
 
-echo creating r1 and r2
+verbose creating r1 and r2
 set r1 [ sm create_rec $f1 "" 11 [format $id_body_width 1] ]
 #set r2 [ sm create_rec $f1 "" 11 [format $id_body_width 2] ]
 #set r3 [ sm create_rec $f1 "" 11 [format $id_body_width 2] ]
 #set r4 [ sm create_rec $f1 "" 11 [format $id_body_width 2] ]
-echo $r1 
+verbose $r1 
 
 sm commit_xct
 
-echo forcing buffers...
+verbose forcing buffers...
 sm force_buffers
 
 #sm dismount_dev /local.caseus/zwilling/shore_vol/dev1
-echo restarting
+verbose restarting
 restart
 
 sm begin_xct
-echo tid [sm xct_to_tid [sm xct]]
-echo destroying file
+verbose tid [sm xct_to_tid [sm xct]]
+verbose destroying file
 sm destroy_file $f1
 sm commit_xct
 
 sm begin_xct
-echo tid [sm xct_to_tid [sm xct]]
+verbose tid [sm xct_to_tid [sm xct]]
 
-echo creating file
+verbose creating file
 set f1 [sm create_file $volid ]
-echo file id: $f1
+verbose file id: $f1
 set id_body_width %0100d
 
-echo creating r1 and r2
+verbose creating r1 and r2
 set r1 [ sm create_rec $f1 "" 11 [format $id_body_width 1] ]
-echo $r1 
+verbose $r1 
 
 sm commit_xct
 
 sm force_buffers
 
 sm begin_xct
-echo tid [sm xct_to_tid [sm xct]]
+verbose tid [sm xct_to_tid [sm xct]]
 sm destroy_file $f1
 sm commit_xct
 sm force_buffers
 
 sm begin_xct
-echo tid [sm xct_to_tid [sm xct]]
+verbose tid [sm xct_to_tid [sm xct]]
 # create index and put enough things in it to require >1 page
 set ndx [sm create_index $volid btree]
-echo created index $ndx
+verbose created index $ndx
 set nrec 10;
 for {set i 1} {$i <= $nrec} {incr i} {
     verbose inserting $i
     sm create_assoc $ndx [format $short_form $i] [format %01000d $i]
 }
-echo index id: $ndx
+verbose index id: $ndx
 sm commit_xct
 
 sm force_buffers
@@ -108,12 +112,15 @@ sm force_buffers
 #sm dismount_dev /local.caseus/zwilling/shore_vol/dev1
 restart
 
-echo recovering
+verbose recovering
 sm begin_xct
-echo tid [sm xct_to_tid [sm xct]]
-echo destroying file
+verbose tid [sm xct_to_tid [sm xct]]
+verbose destroying file
 sm destroy_index $ndx
 sm commit_xct
 
-unset nrec f1 ndx r1
+unset nrec f1 ndx r1 i
 
+} else {
+    echo "Script not run: logging is off."
+}

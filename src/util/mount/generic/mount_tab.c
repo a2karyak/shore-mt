@@ -7,10 +7,13 @@
 /* Routines to handle /etc/mtab (or whatever it's called on a particular
  * platform) in a platform-independent manner.
  */
-static char *rcsid = "$Header: /p/shore/shore_cvs/src/util/mount/generic/mount_tab.c,v 1.7 1995/09/08 16:36:01 nhall Exp $";
-static void *const use_rcsid = (&use_rcsid, &rcsid, 0);
+#ifndef __GNUC__
+#define __attribute__(x)
+#endif
+static char *rcsid  __attribute__((unused)) =
+"$Header: /p/shore/shore_cvs/src/util/mount/generic/mount_tab.c,v 1.8 1997/06/13 22:33:55 solomon Exp $";
 
-#include "config.h"
+#include "platform.h"
 
 #include <stdio.h>
 #include <stdlib.h>

@@ -1,5 +1,5 @@
 #
-#  $Header: /p/shore/shore_cvs/tools/stats.pl,v 1.11 1995/09/08 16:05:29 nhall Exp $
+#  $Header: /p/shore/shore_cvs/tools/stats.pl,v 1.12 1997/06/13 22:22:17 solomon Exp $
 #
 # *************************************************************
 #
@@ -47,7 +47,7 @@
 # OUTPUT:
 #  for each class  this script creates:
 #	MSG:  <class>_msg.i		-- the strings
-#	DEFF: <class>_def.h 	-- #defined manifest constants
+#	DEFF: <class>_def.i 	-- #defined manifest constants
 #	STRUCT: <class>_struct.i -- the statistics variables
 #	CODE: <class>_op.i 		-- the operator<< 
 #

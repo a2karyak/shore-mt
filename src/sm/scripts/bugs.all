@@ -17,10 +17,17 @@ set scripts [list  \
     sync.bug \
     ]
 
+echo CLEANUP BEFORE bugs.all :
+cleanup stdout
+addcleanupvars {script}
+
 foreach script $scripts {
     echo
     echo RUNNING: $script (no checkpoint)
     source $script_dir/bugs.fixed/$script
+    checkstats  $script
+    puts stdout [concat CLEANUP AFTER  $script  : ]
+    cleanup stdout
 }
 
 set scripts [list  \
@@ -33,5 +40,8 @@ foreach script $scripts {
     echo
     echo RUNNING: $script (with checkpoint)
     source $script_dir/bugs/$script
+    checkstats  $script
+    puts stdout [concat CLEANUP AFTER  $script  : ]
+    cleanup stdout
 }
 

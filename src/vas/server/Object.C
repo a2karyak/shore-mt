@@ -6,7 +6,7 @@
 /* --------------------------------------------------------------- */
 
 /*
- *  $Header: /p/shore/shore_cvs/src/vas/server/Object.C,v 1.92 1995/10/06 16:46:20 nhall Exp $
+ *  $Header: /p/shore/shore_cvs/src/vas/server/Object.C,v 1.93 1997/01/24 16:47:30 nhall Exp $
  */
 #include <copyright.h>
 
@@ -650,7 +650,7 @@ Object::pin(
 	}
 	// part only-- must be a large object
 	// ASSUMES that if an object is small and pinned,
-	// pinned_all()==TRUE 
+	// pinned_all()==true 
 	// regardless of what starting point you pinned with.
 
 	//
@@ -844,7 +844,7 @@ Object::reuse(
 	// don't unpin if it's the same object!!!
 	if( _lrid.serial != s || _lrid.lvid != lv ) {
 		if(this->is_pinned()) {
-			this->unpin(TRUE);
+			this->unpin(true);
 		}
 		delswap();
 #ifdef DEBUG
@@ -945,7 +945,7 @@ Object::destroyObject()
 
 	// first of all, unpin it completely.
 	if(is_pinned()) {
-		unpin(TRUE);
+		unpin(true);
 	}
 
 	check_lsn();
@@ -1123,9 +1123,9 @@ Object::typeInfo(
 		ptag2kind(_sys->common.tag) == KindAnonymous);
 	}
 	if(isDirectory) {
-		*isDirectory = FALSE;
+		*isDirectory = false;
 		if(_sys->common.type == ReservedSerial::_Directory) {
-			*isDirectory = TRUE;
+			*isDirectory = true;
 		}
 	}
 	if(isProtected) {
@@ -1590,7 +1590,7 @@ Object::changeHeapSize(
 		|| (swapped && is_swapped(hdr_state)));
 	OBJECT_ACTION;
 
-	// TRUE: about to update; don't unpin
+	// true: about to update; don't unpin
 	// *could* be from cached sysprops, so 
 	// handle is not necessarily pinned.
 
@@ -1677,7 +1677,7 @@ Object::write(
 	}
 	if(!isAnonymous) {
 		// registered 
-		_DO_(((Registered *)this)->chmod(obj_write, 0, FALSE));
+		_DO_(((Registered *)this)->chmod(obj_write, 0, false));
 	}
 	check_lsn();
 	assert(handle.pinned());
@@ -1715,7 +1715,7 @@ Object::truncate(
 	if(!isAnonymous) {
 		// registered 
 		// have to turn off some mode bits on trunc & write
-		_DO_(((Registered *)this)->chmod(obj_trunc, 0, FALSE));
+		_DO_(((Registered *)this)->chmod(obj_trunc, 0, false));
 	}
 	check_lsn();
 	// cursize is current object length
@@ -1804,7 +1804,7 @@ Object::append(
 	}
 	if(!isAnonymous) {
 		// registered 
-		_DO_(((Registered *)this)->chmod(obj_append, 0, FALSE));
+		_DO_(((Registered *)this)->chmod(obj_append, 0, false));
 	}
 	HANDLECALL(append_rec(newdata));
 	_DO_(changeHeapSize(increment, newdata.size(), ctstart, tstart));
@@ -2081,7 +2081,7 @@ Object::changeIndex(
 	);
 	OBJECT_ACTION;
 
-	// TRUE: about to update; don't unpin
+	// true: about to update; don't unpin
 	// *could* be from cached sysprops, so 
 	// handle is not necessarily pinned.
 	if(get_sysprops(&s)!=SVAS_OK) {

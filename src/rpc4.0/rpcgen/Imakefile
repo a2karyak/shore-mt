@@ -1,39 +1,32 @@
 #
 # $RCSfile: Imakefile,v $
-# $Revision: 1.11 $
-# $Date: 1996/07/10 21:23:43 $
-# $Author: nhall $
+# $Revision: 1.14 $
+# $Date: 1997/06/17 16:10:44 $
+# $Author: solomon $
 #
 #
-DESTDIR=.
 
+#if defined(IS_SOLARIS2)
+CPPFLAGS = -I.. -I/usr/ucbinclude -traditional
+#define Lib /* nothing */
+#else
 CPPFLAGS = -I.. 
-#if defined(IS_SPARC_SOLARIS2) || defined(IS_I386_SOLARIS)
-CPPFLAGS += -I/usr/ucbinclude
+#define Lib ../rpc/librpclib.a
 #endif
 
-AUXFLAGS = -I.. -DUW
-LIB = ../rpc/librpclib.a
-
-SRC= rpc_main.c rpc_hout.c rpc_cout.c rpc_parse.c rpc_scan.c rpc_util.c \
+SRC= rpc_main.c rpc_hout.c rpc_cout.c rpc_parse.c rpc_scan.c rpc_util.c %
 	rpc_svcout.c rpc_clntout.c
 
 HFILES= rpc_util.h rpc_parse.h rpc_scan.h
-
-SRC.cvs = $(SRC) $(HFILES)
+PURE_OPT=-inuse_at_exit
 
 OBJ = $(SRC:.c=.o)
 
-DISPOSABLE=
+all_local:: rpcgen
 
-EXEC=rpcgen
+%GEN c_program(rpcgen, $(OBJ), Lib)
 
-depend_target($(SRC) $(HFILES))
-c_plus_program(rpcgen, $(OBJ), $(LIB))
+%GEN install(bin, rpcgen)
 
-PURE_OPT=-inuse_at_exit
-purify_c_plus_program(rpcgen, $(OBJ), $(LIB), $(PURE_OPT))
-
-clean_files($(DISPOSABLE))
-
-install_copy(bin, rpcgen)
+%GEN depend_target($(SRC))
+%GEN tags($(SRC) $(HFILES))

@@ -10,6 +10,10 @@
 #
 source $script_dir/vol.init
 
+if { $logging == 0 } {
+    echo "No logging: script not run."
+} else {
+
 set nrec 150
 set u "2.-1500.-1500.1500.1500"
 
@@ -18,7 +22,7 @@ set u "2.-1500.-1500.1500.1500"
 #
 sm begin_xct
 set ndx [sm create_md_index $volid 2 rtree]
-echo created rtree $ndx
+verbose created rtree $ndx
 sm commit_xct
 
 #
@@ -27,10 +31,10 @@ sm commit_xct
 sm begin_xct
 for {set i 1} {$i <= $nrec} {incr i} {
     set box($i) [sm next_box $u]
-#    echo inserting $box($i) $i
+#    verbose inserting $box($i) $i
     sm create_md_assoc $ndx $box($i) $i
 }
-echo inserted $nrec entries
+verbose inserted $nrec entries
 sm rtree_stats $ndx
 #sm draw_rtree $ndx
 #sm print_md_index $ndx
@@ -41,22 +45,22 @@ sm abort_xct
 #
 sm begin_xct
 for {set i 1} {$i <= $nrec} {incr i} {
-#    echo inserting $box($i) $i
+#    verbose inserting $box($i) $i
     sm create_md_assoc $ndx $box($i) $i
 }
-echo inserted $nrec entries
+verbose inserted $nrec entries
 #sm draw_rtree $ndx
 #sm print_md_index $ndx
 sm commit_xct
 
 sm begin_xct
-echo probe:
+verbose probe:
 for {set i 1} {$i <= $nrec} {incr i} {
-#    echo $i $box($i)
+#    verbose $i $box($i)
     set el [sm find_md_assoc $ndx $box($i)]
     assert {expr $i == $el}
 }
-echo "---- successful"
+verbose "---- successful"
 
 sm commit_xct
 
@@ -72,3 +76,4 @@ sm rtree_query $ndx << $q
 sm commit_xct
 
 unset nrec ndx box q u el i
+}

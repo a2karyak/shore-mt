@@ -6,7 +6,7 @@
 /* --------------------------------------------------------------- */
 
 /*
- *  $Id: scan.h,v 1.63 1996/06/07 22:21:53 nhall Exp $
+ *  $Id: scan.h,v 1.72 1997/05/27 13:09:51 kupsch Exp $
  */
 #ifndef SCAN_H
 #define SCAN_H
@@ -102,9 +102,7 @@ public:
     void			finish();
     
     bool			eof()	{ return _eof; }
-    rc_t			error_code() { 
-	return _error_occurred;
-    }
+    rc_t			error_code() { return _error_occurred; }
     tid_t			xid() const { return tid; }
     ndx_t			ndx() const { return ntype; }
 
@@ -131,10 +129,10 @@ private:
 	bool 			    skip);
 
     void 			_init(
-	cmp_t 			cond,
-	const cvec_t& 		bound,
-	cmp_t 			c2,
-	const cvec_t& 		b2);
+	cmp_t 			    cond,
+	const cvec_t& 		    bound,
+	cmp_t 			    c2,
+	const cvec_t& 		    b2);
 
     void			xct_state_changed(
 	xct_state_t		    old_state,
@@ -159,13 +157,13 @@ public:
     
     NORET			scan_rt_i(
 	const stid_t& 		    stid, 
-	sob_cmp_t 		    c,
+	nbox_t::sob_cmp_t 	    c,
 	const nbox_t& 		    box,
 	concurrency_t		    cc = t_cc_page);
     NORET			scan_rt_i(
 	const lvid_t& 		    lvid, 
 	const serial_t& 	    stid,
-	sob_cmp_t 		    c,
+	nbox_t::sob_cmp_t 	    c,
 	const nbox_t& 		    box,
 	concurrency_t		    cc = t_cc_page);
     NORET			~scan_rt_i() { finish(); }
@@ -186,9 +184,7 @@ public:
     void	finish();
     
     bool			eof()	{ return _eof; }
-    bool			error_code() {
-	return _error_occurred.is_error(); 
-    }
+    w_rc_t			error_code(){ return _error_occurred; }
 private:
     bool			_eof;
     rc_t			_error_occurred;
@@ -203,7 +199,7 @@ private:
 	bool& 		    eof, 
 	bool 			    skip);
     void 			_init(
-	sob_cmp_t 		    c, 
+	nbox_t::sob_cmp_t 	    c, 
 	const nbox_t& 		    qbox);
 
     void			xct_state_changed(
@@ -229,13 +225,13 @@ public:
     
     NORET			scan_rdt_i(
 	const stid_t& 		    stid, 
-	sob_cmp_t 		    c,
+	nbox_t::sob_cmp_t 	    c,
 	const rangeset_t& 	    set,
 	concurrency_t		    cc = t_cc_page);
     NORET			scan_rdt_i(
 	const lvid_t& 		    lvid,
 	const serial_t& 	    stid,
-	sob_cmp_t 		    c,
+	nbox_t::sob_cmp_t 	    c,
 	const rangeset_t& 	    set,
 	concurrency_t		    cc = t_cc_page);
 
@@ -258,9 +254,7 @@ public:
     void			finish();
     
     bool			eof()	{ return _eof; }
-    bool			error_code() { 
-	return _error_occurred.is_error(); 
-    }
+    w_rc_t			error_code(){ return _error_occurred; }
 private:
     bool			_eof;
     rc_t			_error_occurred;
@@ -275,7 +269,7 @@ private:
 	bool& 		    eof,
 	bool 			    skip);
     void 			_init(
-	sob_cmp_t 		    c,
+	nbox_t::sob_cmp_t 	    c,
 	const rangeset_t& 	    qset);
 
     void			xct_state_changed(
@@ -289,8 +283,6 @@ private:
 #endif /* USE_RDTREE */
 
 
-class pid_cache_t;
-
 /*
  * Scanning a File
  * 
@@ -299,6 +291,7 @@ class pid_cache_t;
  * in the file.  The start_offset argument to next() indicates the first
  * byte in the record to pin.
  */
+class bf_prefetch_thread_t;
 class scan_file_i : public smlevel_top, public xct_dependent_t {
 public:
     stid_t    			stid;
@@ -307,19 +300,23 @@ public:
     NORET			scan_file_i(
 	const stid_t& 		    stid, 
 	const rid_t& 		    start,
-	concurrency_t		    cc = t_cc_file);
+	concurrency_t		    cc = t_cc_file,
+	bool			    prefetch=false);
     NORET			scan_file_i(
 	const stid_t& 		    stid,
-	concurrency_t		    cc = t_cc_file);
+	concurrency_t		    cc = t_cc_file,
+	bool			    prefetch=false);
     NORET			scan_file_i(
 	const lvid_t&		    lvid, 
 	const serial_t& 	    fid,
-	concurrency_t		    cc = t_cc_file);
+	concurrency_t		    cc = t_cc_file,
+	bool			    prefetch=false);
     NORET			scan_file_i(
 	const lvid_t&		    lvid,
 	const serial_t& 	    fid,
 	const serial_t& 	    start_rid,
-	concurrency_t		    cc = t_cc_file);
+	concurrency_t		    cc = t_cc_file,
+	bool			    prefetch=false);
     NORET			~scan_file_i() { finish(); }
     
     /* needed for tcl scripts */
@@ -352,9 +349,7 @@ public:
     void			finish();
     bool			eof()		{ return _eof; }
     bool			is_logical() const{ return _lfid!=serial_t::null; }
-    bool			error_code(){ 
-	return _error_occurred.is_error(); 
-    }
+    w_rc_t			error_code(){ return _error_occurred; }
     tid_t			xid() const { return tid; }
 
 protected:
@@ -368,11 +363,6 @@ protected:
     concurrency_t		_cc;  // concurrency control
     lock_mode_t			_page_lock_mode;
     lock_mode_t			_rec_lock_mode;
-    bool			_srv_pglock; // should the pages be locked (in
-					     // IS mode) when collecting their
-					     // pids at the server? (for remote
-					     // scans only)
-    pid_cache_t*		_pids;	// pid cache (for remote scans only)
 
     rc_t 			_init(bool for_append=false);
     // this calls _init() with logical IDs
@@ -390,10 +380,18 @@ protected:
 	xct_state_t		    new_state);
 
 private:
+    bool 	 		_do_prefetch;
+    bf_prefetch_thread_t*	_prefetch;
+
     // disabled
     NORET			scan_file_i(const scan_file_i&);
     scan_file_i&		operator=(const scan_file_i&);
 };
+
+#include <memory.h>
+#ifndef SDESC_H
+#include "sdesc.h"
+#endif
 
 class append_file_i : public scan_file_i {
 public:
@@ -427,9 +425,7 @@ private:
     inline 
     file_p&     		_page() { return *(file_p*) _page_alias;}
     char        		_page_alias[20];
-
-
-	
+    sdesc_t			_cached_sdesc;
 };
 
 #endif /*SCAN_H*/

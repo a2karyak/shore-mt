@@ -6,7 +6,7 @@
 /* --------------------------------------------------------------- */
 
 /*
- *  $Header: /p/shore/shore_cvs/src/common/pqueue.h,v 1.8 1995/04/24 19:28:19 zwilling Exp $
+ *  $Header: /p/shore/shore_cvs/src/common/pqueue.h,v 1.9 1997/06/16 21:35:48 solomon Exp $
  */
 #ifndef __PQUEUE_H__
 #define __PQUEUE_H__
@@ -58,7 +58,7 @@ private:
 };
 
 #ifdef __GNUC__
-#include <pqueue.c>
+#include <pqueue.cc>
 #endif /*__GNUC__*/
 
 #endif /* __PQUEUE_H__ */

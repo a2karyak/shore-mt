@@ -7,136 +7,48 @@
 
 /*
  *      $RCSfile: Imakefile,v $
- *      $Revision: 1.51 $
- *      $Date: 1995/08/28 17:33:57 $
- *      $Author: nhall $
+ *      $Revision: 1.54 $
+ *      $Date: 1997/06/17 16:10:48 $
+ *      $Author: solomon $
  */
+CPPFLAGS = -I../include -I../common -I../../common -I../../fc -I../../sm %
+	Include(TclInclude) -DCLIENT_ONLY
 
-VASCOMMON = $(VAS_DIR)/common
-SYMLINKS = $(VASCOMMON)/msg_clnt.c 
+all_local:: libvas.a sshutdown sizes
 
-STAT_FILES =\
-	batchstats_msg.i batchstats_op.i batchstats_struct.i \
-	shmbatchstats_msg.i shmbatchstats_op.i shmbatchstats_struct.i
+SRC = %
+	vas.C sm_app.C in.C stubs.C newvas.C svas_layer.C %
+	batch.C batcher.C clientstats.C sizes.C sshutdown.C do_shutdown.c
 
-STAT_DEF_FILES =\
-	batchstats_def.i shmbatchstats_def.i
+HFILES = vaserr.h svas_layer.h batch.h chng.h
 
-GENERATED = msg_clnt.c 
-SRC.clnt =\
-	vas.C sm_app.C in.C stubs.C newvas.C svas_layer.C \
-	batch.C batcher.C clientstats.C
-
-SRC=$(SRC.clnt) $(GENERATED)
-HFILES = vaserr.h svas_layer.h batch.h
-OBJ.clnt.tmp=$(SRC.clnt:.C=.o) $(GENERATED:.c=.o)
-OBJ.clnt = $(OBJ.clnt.tmp)
-OBJ.borrowed = $(SM_DIR)/sm_du_stats.o
-
-SRC.sizes = sizes.C 
-OBJ.sizes.tmp = $(SRC.sizes:.C=.o)
-OBJ.sizes = $(OBJ.sizes.tmp:.c=.o)
-
-SRC.shut = sshutdown.C do_shutdown.c
-OBJ.shut = sshutdown.o do_shutdown.o
-
-DISPOSABLE=\
-	made junk a.out libvas.a $(OBJ.sizes) $(OBJ.clnt) *_pure_* sizes
-SRC.cvs = $(SRC.clnt) $(HFILES) $(SRC.sizes) $(SRC.shut) batch.dat
-SRCS = $(SRC.cvs)
-
-
-/*
- * GAK: have to link an executable with HP CC so that the
- * template's .o file is put into the ptrepository for 
- * applications to use.
- */
-#ifdef USE_CC
-PTLIB =  $(PTREPOSITORY)/libpt.a
+OBJ.clnt = vas.o sm_app.o in.o stubs.o newvas.o svas_layer.o %
+	batch.o batcher.o clientstats.o msg_clnt.o sm_du_stats.o
+LIBS = libvas.a ../common/libcommon.a
+#if defined(IS_SOLARIS2)
+/* Solaris does not require librpc.a, since it's in the default libraries */
+IMPORTS = ../common/libcommon.a ../../common/libcommon.a ../../fc/libfc.a
 #else
-PTLIB =
+IMPORTS = ../common/libcommon.a ../../common/libcommon.a ../../fc/libfc.a %
+	../../rpc4.0/rpc/librpclib.a
 #endif
 
-/* COMMON_INCLUDE is defined in local.tmpl */
-INCLUDE += $(COMMON_INCLUDE) $(KRBINCL)  $(TCL_INCL)
-LDFLAGS = 
-EXEC = sshutdown
 
-AUXFLAGS=  $(VASAUXFLAGS) -DCLIENT_ONLY  $(KRBFLAGS) 
-AUTOMATIC = $(STAT_FILES) $(STAT_DEF_FILES)
+%GEN stats(batch.dat,batchstats shmbatchstats)
 
-all:: libvas.a 
+%GEN c_plus_program(sshutdown, sshutdown.o do_shutdown.o, $(LIBS))
+%GEN c_plus_program(sizes, sizes.o, $(LIBS))
 
-statistics(batch.dat,,$(STAT_FILES) $(STAT_DEF_FILES))
+%GEN merge_library(libvas.a, $(OBJ.clnt), $(IMPORTS))
 
-#ifdef notdef
-c_plus_program(sshutdown, $(OBJ.shut), $(VAS_APP_LIB) $(COMMON_LIB) $(FC_LIB) $(RPC_SVC_LIB) $(VAS_APP_LIB) $(RCP_LIB)) 
-purify_c_plus_program(sshutdown, $(OBJ.shut), $(VAS_APP_LIB) $(COMMON_LIB) $(FC_LIB) $(RPC_SVC_LIB) $(VAS_APP_LIB), $(PURE_OPTS))
+%GEN install(include, batchstats_def.i shmbatchstats_def.i)
+%GEN install(bin, sshutdown)
 
-#else
-c_plus_program(sshutdown, $(OBJ.shut), $(VAS_APP_LIB)) 
-purify_c_plus_program(sshutdown, $(OBJ.shut), $(VAS_APP_LIB), $(PURE_OPTS))
-#endif
-#ifdef USE_CC
+msg_clnt.o:	../common/msg_clnt.c ../common/msg.h
+	$(COMPILE.c) -o $*.o -DSYSCALLCONST $<
 
-$(PTLIB):  sm_app.o
-    @echo "making " $(PTLIB)
-    $(RM)  -f  $(PTLIB)
-    @(cd $(PTREPOSITORY);\
-    if i=`ls *.o`; then \
-    $(AR) qv $(PTLIB) $$i; \
-    fi)
-    @$(RANLIB_IFNEEDED) $(PTLIB)
-    @echo $(PTLIB) "is made; back to " `pwd`
+sm_du_stats.o:	../../sm/sm_du_stats.cc
+	$(COMPILE.cc) -o $*.o $<
 
-#endif
-
-#ifdef USE_CC
-/* 
- * this grunge is to get the pt repository to be made
- * so we can combine put it in the final library
- */
-libvas.a:: libvas.temp.a sizes 
-	$(TOP)/tools/combinelibs libvas.a  libvas.temp.a $(PTLIB)
-	
-# build_library(libvas.temp.a, $(OBJ.clnt) $(OBJ.borrowed))
-build_joint_library(libvas.temp.a, $(OBJ.clnt) $(OBJ.borrowed), $(VASCOMMON)/libcommon.a, $(COMMON_LIB) $(FC_LIB) $(RPC_LIB))
-
-c_plus_program(sizes, $(OBJ.sizes), ./libvas.temp.a)
-
-#else
-
-#ifdef notdef
-build_library(libvas.a, $(OBJ.clnt) $(OBJ.borrowed))
-
-#else
-CMNT  build_joint_library(libvas.a, $(OBJ.clnt) $(OBJ.borrowed), $(VASCOMMON)/libcommon.a $(COMMON_LIB) $(FC_LIB) $(RPC_LIB))
-#endif
-
-c_plus_program(sizes, $(OBJ.sizes), ./libvas.a $(VASCOMMON)/libcommon.a $(COMMON_LIB) $(FC_LIB) $(RPC_LIB))
-#endif
-
-automatic:: symlinks
-
-
-install_copy(include, $(STAT_DEF_FILES))
-
-install_copy(bin, sshutdown);
-/*
-* install_copy(lib, libvas.a);
-* 	ranlib $(INSTALL_DIR)/lib/libvas.a
-*/
-
-msg_clnt.c:
-	(cd ../common; $(MAKE) $@)
-
-msg_clnt.o:	msg_clnt.c ../common/msg.h
-	$(COMPILE.c) -DSYSCALLCONST $< 
-
-#ifdef COMMENT
-	$(PROTOIZE_IFNEEDED) $< 
-#endif
-
-clean_files($(DISPOSABLE))
-
-depend_target($(SRC) $(HFILES))
+%GEN depend_target($(SRC))
+%GEN tags($(SRC) $(HFILES))

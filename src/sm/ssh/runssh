@@ -44,7 +44,7 @@ if test -x ./ssh ;  then
 	trap  "if test $first -ne 1; then echo ignored TIMEOUT; fi" $TIMEOUT
 	first=2
 
-	./ssh -f ../scripts/$scriptname
+	./ssh -t volid=1 -f ../scripts/$scriptname
 	status=$?
 
 	if test $status -ne 0; then

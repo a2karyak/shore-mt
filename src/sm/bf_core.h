@@ -6,7 +6,7 @@
 /* --------------------------------------------------------------- */
 
 /*
- *  $Id: bf_core.h,v 1.7 1996/05/03 04:07:17 kupsch Exp $
+ *  $Id: bf_core.h,v 1.14 1997/05/19 19:46:36 nhall Exp $
  */
 #ifndef BF_CORE_H
 #define BF_CORE_H
@@ -15,16 +15,16 @@
 #pragma interface
 #endif
 
-#include <sm_int.h>
+#ifndef SM_INT_0_H
+#include <sm_int_0.h>
+#endif
 
 class page_s;
-class bf_core_i;
 
 
 class bf_core_m : public smlevel_0 {
     friend class bf_m;
     friend class bf_cleaner_thread_t;
-    friend class bf_core_i;
 public:
     NORET			bf_core_m(
 	uint4 			    n, 
@@ -47,17 +47,20 @@ public:
 	bfcb_t*&		    ret,
 	const bfpid_t& 		    p, 
 	latch_mode_t 		    mode = LATCH_EX,
-	uint4 			    ref_bit = 0,
-	int 			    timeout = sthread_base_t::WAIT_FOREVER);
+	int 			    timeout = sthread_base_t::WAIT_FOREVER,
+	int4 			    ref_bit = 0
+	);
 
     void			publish_partial(bfcb_t* p);
+    bool			latched_by_me(bfcb_t* p) const;
     void			publish(
 	bfcb_t* 		    p,
 	bool			    error_occured = false);
     
     bool 			is_mine(const bfcb_t* p);
+    latch_mode_t 		latch_mode(const bfcb_t* p);
 
-    void 			pin(
+    w_rc_t 			pin(
 	bfcb_t* 		    p,
 	latch_mode_t		    mode = LATCH_EX);
 
@@ -67,8 +70,8 @@ public:
 
     void			unpin(
 	bfcb_t*& 		    p,
-	uint			    ref_bit = 0,
-	bool			    in_htab = TRUE);
+	int 			    ref_bit = 0,
+	bool			    in_htab = true);
     // number of times pinned
     int				pin_cnt(const bfcb_t* p);
     w_rc_t			remove(bfcb_t*& p) { 
@@ -84,6 +87,7 @@ public:
     int				audit() const;
 
     void			snapshot(u_int& npinned, u_int& nfree);
+    void			snapshot_me(u_int& sh, u_int& ex, u_int& nd);
 
     static unsigned long 	ref_cnt, hit_cnt;
 
@@ -119,29 +123,5 @@ private:
 extern ostream& 	operator<<(ostream& out, const bf_core_m& mgr);
 
 
-class bf_core_i {
-public:
-    NORET		bf_core_i(
-	bf_core_m&	    r,
-	latch_mode_t	    m = LATCH_EX,
-	int		    start = 0) :
-			    _mode(m), _idx(start), _curr(0), _r(r) {};
-
-    NORET		~bf_core_i();
-    
-    bfcb_t* 		next();
-    bfcb_t* 		curr() 	{ return _curr; }
-    w_rc_t		discard_curr();
-
-private:
-    latch_mode_t	_mode;
-    int 		_idx;
-    bfcb_t*		_curr;
-    bf_core_m&		_r;
-
-    // disabled
-    NORET		bf_core_i(const bf_core_i&);
-    bf_core_i&		operator=(const bf_core_i&);
-};
 
 #endif /*BF_CORE_H*/

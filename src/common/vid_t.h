@@ -6,10 +6,10 @@
 /* --------------------------------------------------------------- */
 
 /*
- *  $Header: /p/shore/shore_cvs/src/common/vid_t.h,v 1.13 1995/07/14 21:33:14 nhall Exp $
+ *  $Header: /p/shore/shore_cvs/src/common/vid_t.h,v 1.16 1997/05/19 19:41:16 nhall Exp $
  */
-#ifndef __VID_T_H__
-#define __VID_T_H__
+#ifndef VID_T_H
+#define VID_T_H
 
 #ifdef __GNUG__
 // implementation is in lid_t.c
@@ -64,8 +64,8 @@ struct vid_t {
 
 #ifdef __cplusplus
     static const vid_t null;
-    friend ostream& operator<<(ostream&, const vid_t& v);
-    friend istream& operator>>(istream&, vid_t& v);
+    friend inline ostream& operator<<(ostream&, const vid_t& v);
+    friend inline istream& operator>>(istream&, vid_t& v);
     friend bool operator==(const vid_t& v1, const vid_t& v2)  {
 	return v1.vol == v2.vol;
     }
@@ -74,4 +74,16 @@ struct vid_t {
     }
 #endif /* __cplusplus */
 };
-#endif /*__VID_T_H__*/
+
+#ifdef __cplusplus
+inline ostream& operator<<(ostream& o, const vid_t& v)
+{
+    return o << v.vol;
+}
+ 
+inline istream& operator>>(istream& i, vid_t& v)
+{
+    return i >> v.vol;
+}
+#endif /*__cplusplus*/
+#endif /*VID_T_H*/

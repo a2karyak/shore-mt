@@ -7,15 +7,8 @@
 
 source $script_dir/vol.init
 
-# add these after volume mounting is logged:
-# set scripts { btree.convert.1 btree.err.1 btree.err.2 btree.err.3 }
 
-set scripts { btree.convert.1 btree_split.1 }
-
-foreach i {1 2 3 4 5 6 7 8 9 10 30} {
-    # set scripts [concat $scripts btree.$i]
-    lappend scripts btree.$i
-}
+set scripts { }
 
 #
 # bt.insert.0 is called by bt.insert.[1-4]
@@ -33,7 +26,6 @@ foreach j { insert } {
 
 lappend scripts bt.insert.5
 
-
 foreach j { remove } {
     foreach i {1 2 3 4 } {
 	# set scripts [concat $scripts bt.$j.$i]
@@ -41,10 +33,31 @@ foreach j { remove } {
     }
 }
 
-echo scripts = $scripts
+foreach i { btree.load.multi btree.convert.1 btree_split.1 } {
+    lappend scripts $i
+}
+
+foreach i { 1 2 3 4 } {
+    lappend scripts btree.err.$i
+}
+
+foreach i {1 2 2all 3 4 5 6 7 8 10 30 31 32} {
+    # set scripts [concat $scripts btree.$i]
+    lappend scripts btree.$i
+}
+
+unset i j
+verbose scripts = $scripts
+
+echo CLEANUP BEFORE btree.all :
+cleanup stdout
+addcleanupvars {script}
 
 foreach script $scripts {
     echo
     echo RUNNING: $script 
     source $script_dir/$script
+    checkstats  $script
+    puts stdout [concat CLEANUP AFTER  $script  : ]
+    cleanup stdout
 }

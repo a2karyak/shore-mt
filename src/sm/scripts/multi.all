@@ -9,9 +9,15 @@ set scripts [ list	multi.1 multi.2 ]
 
 echo $scripts
 
-foreach x $scripts {
-    echo "================================================================="
-    echo "================================================================="
-    echo "RUNNING:  $x"
-    source $script_dir/$x
+echo CLEANUP BEFORE multi.all :
+cleanup stdout
+addcleanupvars {script}
+
+foreach script $scripts {
+    echo
+    echo "RUNNING:  $script"
+    source $script_dir/$script
+    checkstats  $script
+    puts stdout [concat CLEANUP AFTER  $script  : ]
+    cleanup stdout
 }

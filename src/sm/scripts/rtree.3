@@ -18,11 +18,11 @@ set u "2.-1500.-1500.1500.1500"
 #
 sm begin_xct
 set f1 [sm create_file $volid]
-echo f1 = $f1
+verbose f1 = $f1
 for {set i 0} {$i < $nrec} {incr i} {
     set box($i) [sm next_box $u]
-#    echo $r
-    sm create_sort_rec $f1 $box($i) 4 $i spatial
+#    verbose $r
+    sm create_typed_rec $f1 $box($i) 4 $i spatial
 }
 sm commit_xct
 
@@ -31,11 +31,11 @@ sm commit_xct
 #
 sm begin_xct
 set ndx [sm create_md_index $volid 2 rtree]
-echo created rtree $ndx
+verbose created rtree $ndx
 
 set stat [sm blkld_md_ndx $ndx $f1 70 110 $u]
-echo created and loaded rtree $ndx
-echo stat: $stat
+verbose created and loaded rtree $ndx
+verbose stat: $stat
 
 #sm draw_rtree $ndx
 #sm print_md_index $ndx
@@ -43,14 +43,14 @@ echo stat: $stat
 sm commit_xct
 
 sm begin_xct
-echo probe:
+verbose probe:
 for {set i 1} {$i < $nrec} {incr i} {
     set r [sm find_md_assoc $ndx $box($i)]
     set el [lindex $r 0]
-#    echo $i $box($i) $el
+#    verbose $i $box($i) $el
     assert {expr $i == $el}
 }
-echo "---- successful"
+verbose "---- successful"
 
 sm commit_xct
 

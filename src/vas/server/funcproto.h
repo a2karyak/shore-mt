@@ -8,14 +8,14 @@
 #ifndef __FUNCPROTO_H__
 #define __FUNCPROTO_H__
 /*
- *  $Header: /p/shore/shore_cvs/src/vas/server/funcproto.h,v 1.23 1995/04/24 19:46:54 zwilling Exp $
+ *  $Header: /p/shore/shore_cvs/src/vas/server/funcproto.h,v 1.24 1997/01/24 16:47:56 nhall Exp $
  */
 #include <copyright.h>
 
 #include <msg_stats.h>
 
 #ifdef DEBUG
-#define __CHECKS__ vas->checkflags(FALSE);\
+#define __CHECKS__ vas->checkflags(false);\
 	if(vas->status.vasresult!= SVAS_OK){assert(vas->status.vasreason != 0);}\
 	else { assert(vas->status.vasreason ==0); }
 #else

@@ -6,7 +6,7 @@
 /* --------------------------------------------------------------- */
 
 /*
- *  $Header: /p/shore/shore_cvs/src/vas/server/Registered.C,v 1.45 1995/09/15 03:45:24 zwilling Exp $
+ *  $Header: /p/shore/shore_cvs/src/vas/server/Registered.C,v 1.46 1997/01/24 16:47:38 nhall Exp $
  */
 #include <copyright.h>
 
@@ -208,7 +208,7 @@ Registered::testperm(const RegProps &regprops,
 			" mode= " << ::oct((unsigned int)regprops.mode)  <<
 			" want= " << ::oct((unsigned int)pperm)
 		);
-		RETURN TRUE;
+		RETURN true;
 	}
 
 	if(owner->euid == regprops.uid) {
@@ -217,7 +217,7 @@ Registered::testperm(const RegProps &regprops,
 				" mode= " << ::oct((unsigned int)regprops.mode)  <<
 				" want= " << ::oct((unsigned int)pperm)
 			);
-			RETURN TRUE;
+			RETURN true;
 		}
         // Kludge for nfs so that an nfs client can create non-empty
         // files with read-only permissions:
@@ -225,7 +225,7 @@ Registered::testperm(const RegProps &regprops,
         // if the client is NFSD.
         if(owner->is_nfsd()) {
 			DBG(<<"nfsd kludge permission");
-            RETURN TRUE;
+            RETURN true;
         }
 	} 
 
@@ -239,7 +239,7 @@ Registered::testperm(const RegProps &regprops,
 				" mode= " << ::oct((unsigned int)regprops.mode)  <<
 				" want= " << ::oct((unsigned int)pperm)
 			);
-			RETURN TRUE;
+			RETURN true;
 		}
 	}
 	DBG(<<"no permission" << 
@@ -249,7 +249,7 @@ Registered::testperm(const RegProps &regprops,
 		" or  " << ::oct((unsigned int)pperm)
 	);
 	// too bad
-	RETURN FALSE;
+	RETURN false;
 }
 
 VASResult	
@@ -258,7 +258,7 @@ Registered::permission(PermOp	op, RegProps *r)
 	// pass in a struct sysprops * if the caller
 	// already has it pinned
 {
-	bool  	granted_so_far = TRUE;
+	bool  	granted_so_far = true;
 	OFPROLOGUE(Registered::permission);
 
 	DBG(<<"permission() op=" << op << " obj=" << lrid() );
@@ -373,7 +373,7 @@ VASResult
 Registered::chmod( 
 	objAccess			ackind,
 	mode_t				newmode, // = 0
-	bool				writeback // =FALSE (write back to disk)
+	bool				writeback // =false (write back to disk)
 )
 {
 	bool 			hdr_updated=false;
@@ -469,7 +469,7 @@ Registered::chown(
 	objAccess			ackind,
 	uid_t				uid, // = 0
 	gid_t				gid, // = 0
-	bool				writeback // =FALSE (write back to disk)
+	bool				writeback // =false (write back to disk)
 )
 {
 	bool 			hdr_updated=false;
@@ -541,7 +541,7 @@ FFAILURE:
 VASResult	
 Registered::modifytimes( 
 	unsigned int 		which,
-	bool				writeback,// =FALSE (write back to disk)
+	bool				writeback,// =false (write back to disk)
 	time_t				*clock // = NULL (use Now())
 )
 {

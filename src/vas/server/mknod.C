@@ -6,7 +6,7 @@
 /* --------------------------------------------------------------- */
 
 /*
- *  $Header: /p/shore/shore_cvs/src/vas/server/mknod.C,v 1.50 1996/04/09 20:50:51 nhall Exp $
+ *  $Header: /p/shore/shore_cvs/src/vas/server/mknod.C,v 1.51 1997/01/24 16:48:04 nhall Exp $
  */
 #include <copyright.h>
 
@@ -30,7 +30,7 @@ svas_server::rooti_err_if_found(
 )
 {
 	VFPROLOGUE(rooti_err_if_found);
-	bool	found 	= FALSE;
+	bool	found 	= false;
 	smsize_t	vlen 	= 0;
 
 	// using root index,  look up "/"
@@ -42,7 +42,7 @@ svas_server::rooti_err_if_found(
 		VERR(SVAS_SmFailure);
 		RETURN SVAS_FAILURE;
 	}
-	if(found == TRUE) {
+	if(found == true) {
 		// key is already there -- cannot mknod 
 		//
 		VERR(SVAS_Already);
@@ -265,7 +265,7 @@ svas_server::rooti_find(
 )
 {
 	VFPROLOGUE(rooti_find);
-	bool	found = FALSE;
+	bool	found = false;
 	bool  was_suppressed = suppress_p_user_errors();
 
 FSTART
@@ -280,7 +280,7 @@ FSTART
 		VERR(SVAS_SmFailure);
 		FAIL;
 	}
-	if(found == FALSE) {
+	if(found == false) {
 		// key is not there
 		// silent error:
 		VERR(OS_Missing);
@@ -722,7 +722,7 @@ FSTART
 		// and get the oid from there.
 		// Begin a transaction for the rest of this stuff.
 
-		found = FALSE;
+		found = false;
 		if(_lookup1(mountpoint,&found,&mnt,true)!=SVAS_OK){
 			BAD(true); // abort
 		}

@@ -33,14 +33,14 @@ proc truncate_rec { fid rec_size tr_size } {
 	st truncate_rec $r2 $tr_size			
 	puts stdout "."	nonewline
     }
-    echo ""
+    verbose ""
 }
 
 source $script_dir/vol.init
 
 st begin_xct
 set f [sm create_file $volid]
-echo "\nCreate File $f\n"
+verbose "\nCreate File $f\n"
 st commit_xct
 
 #
@@ -72,13 +72,13 @@ foreach rec_sz { 0.1 0.9 0.99 1.0 2.0 10.0 50.0 100.0 } {
     st commit_xct
 }
 
-echo "\n====================================="
-echo "Permovt Info"
-echo "-------------------------------------"
+verbose "\n====================================="
+verbose "Permovt Info"
+verbose "-------------------------------------"
 st show_permovt $f
-echo "=====================================\n"
+verbose "=====================================\n"
 
-echo "\nFinal File Validation"
+verbose "\nFinal File Validation"
 st begin_xct
 st validate_file $f
 st commit_xct

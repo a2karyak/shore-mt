@@ -6,7 +6,7 @@
 /* --------------------------------------------------------------- */
 
 /*
- * $Header: /p/shore/shore_cvs/src/vas/common/uname.C,v 1.16 1995/08/14 22:50:51 nhall Exp $
+ * $Header: /p/shore/shore_cvs/src/vas/common/uname.C,v 1.17 1997/01/23 22:37:24 nhall Exp $
  */
 
 
@@ -47,7 +47,7 @@ char *uid2uname(
 	uid_t	uid = (uid_t)(cuid);
 	
 	DBG( <<"uid2uname for uid " << uid );
-#ifdef SOLARIS2
+#ifdef OBSOLETE
 	struct passwd _p, *p = getpwuid_r(uid, &_p, space, spacesize);
 #else
 	struct passwd *p = getpwuid(uid);
@@ -70,7 +70,7 @@ char *gid2gname(
 {
 	gid_t	gid = (gid_t)(cgid);
 	DBG( <<"gid2gname for gid " << gid );
-#ifdef SOLARIS2
+#ifdef OBSOLETE
 	struct group _g, *g = getgrgid_r(gid, &_g, space, spacesize);
 #else
 	struct group *g = getgrgid(gid);
@@ -92,7 +92,7 @@ uid_t uname2uid( char *name,
 {
 	uid_t	result = (uid_t)BAD_UID;
 
-#ifdef SOLARIS2
+#ifdef OBSOLETE
 	struct passwd _pwent, *pwent = getpwnam_r(name, &_pwent, 
 		space, spacesize);
 #else
@@ -111,7 +111,7 @@ uid_t uname2uid( char *name,
 
 gid_t gname2gid(char *name)
 {
-#ifdef SOLARIS2
+#ifdef OBSOLETE
 	struct group _g, *g = getgrnam_r(name, &_g, space, spacesize);
 #else
 	struct group *g = getgrnam(name);
@@ -126,7 +126,7 @@ gid_t gname2gid(char *name)
 
 void cleanup_pwstuff()
 {
-#ifndef SOLARIS2
+#ifndef OBSOLETE
 	endgrent();
 	endpwent();
 #endif
@@ -134,7 +134,7 @@ void cleanup_pwstuff()
 
 void cleanup_netdb()
 {
-#ifndef SOLARIS2
+#ifndef OBSOLETE
 	endhostent();
 #endif
 }
@@ -145,7 +145,7 @@ canon_hostname(
 )
 {
 	// cannonicalize the host name
-#ifdef SOLARIS2
+#ifdef OBSOLETE
 	int		_errno;
 	struct hostent _h, *h = gethostbyname_r(host, &_h, space, spacesize, &_errno);
 	if(!h) errno = _errno;

@@ -6,7 +6,7 @@
 /* --------------------------------------------------------------- */
 
 /*
- * $Id: diskrw.h,v 1.36 1996/05/03 04:13:12 kupsch Exp $
+ * $Id: diskrw.h,v 1.38 1996/08/30 21:16:13 bolo Exp $
  */
 #ifndef DISKRW_H
 
@@ -32,9 +32,9 @@ extern "C" void perror(const char *);
  * any change to the size or shape of any of the data structures:
  */
 #ifdef PIPE_NOTIFY
-    enum { diskrw_magic = 0x7adada03 };
+    enum { diskrw_magic = 0x7adbda03 };
 #else
-    enum { diskrw_magic = 0x7edede03 };
+    enum { diskrw_magic = 0x7edbde03 };
 #endif /* PIPE_NOTIFY */
 
 class sthread_t;
@@ -248,7 +248,8 @@ public:
     int		sv_chan[2];	/* channel to notify server on 		*/
 #endif /* PIPE_NOTIFY */
     const int	_magic; /* magic should be last so that data structure
-				           size differences are detected 	*/
+				   size differences are detected 	*/
+    int	        _fd;    /* for server's fastpath                        */
 
     diskport_t() : sleep(0), pos(0), pid(0), _magic(magic) {};
     ~diskport_t()	{
@@ -420,4 +421,10 @@ void diskport_t::recv(diskmsg_t& m)
 const char *shmc_stats::stat_names[1]; // not used by diskrw
 #endif
 
+#if !(defined(HPUX8) && defined(_INCLUDE_XOPEN_SOURCE))
+extern "C" {
+	int fsync(int);
+	int ftruncate(int, off_t);
+}
+#endif
 #endif /*DISKRW_H*/

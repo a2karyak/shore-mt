@@ -6,7 +6,7 @@
 /* --------------------------------------------------------------- */
 
 /*
- *  $Id: sthread_stats.h,v 1.6 1996/04/09 20:37:57 nhall Exp $
+ *  $Id: sthread_stats.h,v 1.9 1996/11/20 23:40:46 bolo Exp $
  */
 #ifndef STHREAD_STATS_H
 #define STHREAD_STATS_H
@@ -41,29 +41,33 @@ operator <<(ostream &o, const sthread_stats &s) {
 	o << "Spins: " << s.spins << endl;
 
 	o << "Latches, mutexes, semaphores: "  << endl
- 	  << "\t latch waits:        " << s.latch_wait << endl
- 	  << "\t latch wait time:    " << s.latch_time << endl
- 	  << "\t mutex waits:        " << s.mutex_wait << endl
- 	  << "\t condition waits:    " << s.scond_wait << endl
- 	  << "\t event sem waits:    " << s.sevsem_wait << endl
+ 	  << "\tlatch waits:        " << s.latch_wait << endl
+ 	  << "\tlatch wait time:    " << s.latch_time << endl
+ 	  << "\tmutex waits:        " << s.mutex_wait << endl
+ 	  << "\tcondition waits:    " << s.scond_wait << endl
+ 	  << "\tevent sem waits:    " << s.sevsem_wait << endl
 	  ;
 
 	o << "Selects:" << endl 
- 	  << "\t select():           " << s.selects << endl
-	  << "\t timed out:          " << s.idle << endl
-	  << "\t interrupted:        " << s.eintrs << endl
-	  << "\t found something:    " << s.selfound << endl
-	  << "\t idle time in select:" << s.idle_time << endl
+ 	  << "\tselect():           " << s.selects << endl
+	  << "\ttimed out:          " << s.idle << endl
+	  << "\tinterrupted:        " << s.eintrs << endl
+	  << "\tfound something:    " << s.selfound << endl
+	  << "\tidle time in select:" << s.idle_time << endl
 	  << endl << endl;
 
-	o << "I/O :" << endl 
-	    << "\t io_time: " << s.io_time
+	o << "I/O:" << endl 
+	    << "\tio_time: " << s.io_time
 	    << "   ios: " << s.io 
 	    << "   cc_io: " << s.ccio 
 	    << "   iowaits: " << s.iowaits
-	    <<endl;
+	    << endl;
+        o <<   "\tfastpath I/O: " << s.fastpath
+            << "   slow writes: " << s.nofastwrite 
+	    << endl;
+        o <<   "\tlocal I/O: " << s.local_io << endl;
 
-	o << "\t I/Os waiting the given #selects:\n\t";
+	o << "\tI/Os waiting the given #selects:\n\t";
 	    if(s.zero>0) o << " zero: " << s.zero;
 	    if(s.one>0)  o << " one: " << s.one ;
 	    if(s.two>0)  o << " two: " << s.two ;

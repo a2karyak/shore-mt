@@ -6,7 +6,7 @@
 /* --------------------------------------------------------------- */
 
 /*
- *  $Header: /p/shore/shore_cvs/src/vas/server/registered.C,v 1.42 1995/08/25 21:03:53 nhall Exp $
+ *  $Header: /p/shore/shore_cvs/src/vas/server/registered.C,v 1.43 1997/01/24 16:48:13 nhall Exp $
  */
 #include <copyright.h>
 
@@ -47,7 +47,7 @@ FSTART
 
 	_DO_(pathSplitAndLookup(name, &dir, &reg_file, &fn) );
 	_DO_(_mkRegistered(dir, reg_file, fn, mode, typeobj, \
-		FALSE, csize, hsize, none, none, tstart, nindexes, result));
+		false, csize, hsize, none, none, tstart, nindexes, result));
 FOK:
 	LEAVE;
 	RETURN SVAS_OK;
@@ -84,7 +84,7 @@ FSTART
 
 	_DO_(pathSplitAndLookup(name, &dir, &reg_file, &fn) );
 	_DO_( _mkRegistered(dir, reg_file, fn, mode, typeobj, \
-		TRUE, 0, 0, core, heap, tstart, nindexes, result));
+		true, 0, 0, core, heap, tstart, nindexes, result));
 
 FOK:
 	LEAVE;
@@ -254,7 +254,7 @@ svas_server::_rmLink1(
 		// user-defined type, and you must
 		// call rmLink2 after doing
 		// integrity maintenance)
-	bool				checkaccess // = TRUE
+	bool				checkaccess // = true
 )
 {
 	LOGVFPROLOGUE(svas_server::_rmLink1); 
@@ -317,16 +317,16 @@ FSTART
 				} else {
 					_DO_(obj.rmLink2());
 				}
-				*must_remove = FALSE;
+				*must_remove = false;
 			} else {
 				objects_destroyed++;
-				*must_remove = TRUE;
+				*must_remove = true;
 			}
 		} else { 
 			// invalidate it here since caller won't 
 			// have to call rmLink2
 			sysp_cache->uncache(obj.lrid());
-			*must_remove = FALSE;
+			*must_remove = false;
 		}
 	} 
 FOK:
@@ -404,7 +404,7 @@ FSTART
 
 		DBG(<<"chmod to " << ::oct((unsigned int)mode));
 
-		_DO_(obj.chmod(obj_chmod, mode, TRUE));
+		_DO_(obj.chmod(obj_chmod, mode, true));
 	}
 FOK:
 	LEAVE;
@@ -432,7 +432,7 @@ svas_server::_chMod(
 
 		DBG(<<"chmod to " << mode);
 
-		_DO_(obj.chmod(obj_chmod, mode, TRUE));
+		_DO_(obj.chmod(obj_chmod, mode, true));
 	}
 	RETURN SVAS_OK;
 FFAILURE:
@@ -469,7 +469,7 @@ FSTART
 	{
 		Registered  obj(this, target.lvid, target.serial);
 		_DO_(obj.legitAccess(obj_chown));
-		_DO_(obj.chown(obj_chown, uid, (gid_t)-1,  TRUE) );
+		_DO_(obj.chown(obj_chown, uid, (gid_t)-1,  true) );
 	}
 FOK:
 	LEAVE;
@@ -494,7 +494,7 @@ svas_server::_chOwn(
 	{
 		Registered  obj(this, target.lvid, target.serial);
 		_DO_(obj.legitAccess(obj_chown));
-		_DO_(obj.chown(obj_chown, uid, (gid_t)-1,  TRUE) );
+		_DO_(obj.chown(obj_chown, uid, (gid_t)-1,  true) );
 	}
 	RETURN SVAS_OK;
 FFAILURE:
@@ -540,7 +540,7 @@ FSTART
 		}
 
 		// yes, call obj.chown-- it changes groups too
-		_DO_(obj.chown(obj_chgrp, (uid_t)-1, gid,  TRUE) );
+		_DO_(obj.chown(obj_chgrp, (uid_t)-1, gid,  true) );
 	}
 FOK:
 	LEAVE;
@@ -564,7 +564,7 @@ svas_server::_chGrp(
 		Registered  obj(this, target.lvid, target.serial);
 
 		_DO_(obj.legitAccess(obj_chgrp));
-		_DO_(obj.chown(obj_chgrp, (uid_t)-1, gid,  TRUE) );
+		_DO_(obj.chown(obj_chgrp, (uid_t)-1, gid,  true) );
 	}
 	RETURN SVAS_OK;
 FFAILURE:

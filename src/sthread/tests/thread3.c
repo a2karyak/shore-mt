@@ -6,105 +6,164 @@
 /* --------------------------------------------------------------- */
 
 /*
- *  $Id: thread3.c,v 1.13 1996/03/13 20:23:52 bolo Exp $
+ *  $Id: thread3.c,v 1.15 1996/08/21 22:11:14 bolo Exp $
  */
-/* be sure to compile this _without_ optimization, so the 
-register variables are really put in registers, if possible:
-*/
+
+/*
+ * If possible compile this _without_ optimization; so the 
+ * register variables are really put in registers.
+ */
+
 #include <iostream.h>
 #include <iomanip.h>
 #include <assert.h>
 #include <strstream.h>
 #include <memory.h>
+#include <minmax.h>
+#include <getopt.h>
 
 #include <w.h>
 #include <sthread.h>
 
 class float_thread_t : public sthread_t {
 public:
-    float_thread_t(int fid);
+	float_thread_t(int fid);
 protected:
-    virtual void run();
+	virtual void run();
 private:
-    int id;
+	int id;
 };
 
 class int_thread_t : public sthread_t {
 public:
-    int_thread_t(int fid);
+	int_thread_t(int fid);
 protected:
-    virtual void run();
+	virtual void run();
 private:
-    int id;
+	int id;
 };
 
 float_thread_t::float_thread_t(int fid)
-    : id(fid)
+: id(fid)
 {
-    char buf[40];
-    ostrstream s(buf, sizeof(buf));
-    s << "float[" << id << "]" << ends;
-    rename(buf);
+	char buf[40];
+
+	ostrstream s(buf, sizeof(buf));
+	s << "float[" << id << "]" << ends;
+	rename(buf);
 }
     
 
 int_thread_t::int_thread_t(int fid)
-    : id(fid)
+: id(fid)
 {
-    char buf[40];
-    ostrstream s(buf, sizeof(buf));
-    s << "int[" << id << "]" << ends;
-    rename(buf);
+	char buf[40];
+
+	ostrstream s(buf, sizeof(buf));
+	s << "int[" << id << "]" << ends;
+	rename(buf);
+
+	W_COERCE(set_use_float(false));
 }
 
-#define NumThreads 5
 
-int ack[NumThreads];
-char names[NumThreads][40];
-float_thread_t* float_worker[NumThreads];
-int_thread_t* int_worker[NumThreads];
+int	NumFloatThreads = 4;
+int	NumIntThreads = 4;
+int	mix_it_up = false;
 
-main()
+int	parse_args(int, char **);
+
+int	*ack;
+sthread_t **worker;
+
+void harvest(int threads)
 {
-    int i;
-    void integerFunc(void*);
-    void floatFunc(void*);
+	int	i;
 
-    /* print out the arguments */
-#if 0
-    printf("%d: %d args\n", MyNodeNum, argc);
-    for(i=0; i<argc; ++i){
-        printf("%d: arg[%d] = %s\n", MyNodeNum, i, argv[i]);
-    }
-#endif
-
-    /* print some stuff */
-    for(i=0; i<NumThreads; ++i){
-	ack[i] = 0;
-	int_worker[i] = new int_thread_t(i);
-	w_assert1(int_worker[i]);
-	W_COERCE( int_worker[i]->fork() );
-    }
-    for(i=0; i<NumThreads; ++i){
-	W_COERCE( int_worker[i]->wait() );
-	w_assert1(ack[i]);
-	delete int_worker[i];
-    }
-
-    for(i=0; i<NumThreads; ++i){
-	ack[i] = 0;
-	float_worker[i] = new float_thread_t(i);
-	w_assert1(float_worker[i]);
-	W_COERCE( float_worker[i]->fork() );
-    }
-    for(i=0; i<NumThreads; ++i){
-	W_COERCE( float_worker[i]->wait() );
-	w_assert1(ack[i]);
-	delete float_worker[i];
-    }
-
-    return 0;
+	for(i=0; i < threads; ++i){
+		W_COERCE( worker[i]->wait() );
+		w_assert1(ack[i]);
+		delete worker[i];
+	}
 }
+
+main(int argc, char **argv)
+{
+	int i;
+	int	threads;
+
+	if (parse_args(argc, argv) == -1)
+		return 1;
+
+	if (mix_it_up)
+		threads = NumFloatThreads + NumIntThreads;
+	else
+		threads = max(NumFloatThreads, NumIntThreads);
+
+	ack = new int[threads];
+	if (!ack)
+		W_FATAL(fcOUTOFMEMORY);
+	worker = new sthread_t *[threads];
+	if (!worker)
+		W_FATAL(fcOUTOFMEMORY);
+
+	for (i=0; i<NumIntThreads; ++i) {
+		ack[i] = 0;
+		worker[i] = new int_thread_t(i);
+		w_assert1(worker[i]);
+		W_COERCE( worker[i]->fork() );
+	}
+
+	if (!mix_it_up)
+		harvest(NumIntThreads);
+
+	int	base = mix_it_up ? NumIntThreads : 0;
+	
+	for(i=base ; i < base + NumFloatThreads; ++i){
+		ack[i] = 0;
+		worker[i] = new float_thread_t(i);
+		w_assert1(worker[i]);
+		W_COERCE( worker[i]->fork() );
+	}
+	harvest(mix_it_up ? threads : NumFloatThreads);
+
+	delete [] worker;
+	delete [] ack;
+
+	return 0;
+}
+
+
+int	parse_args(int argc, char **argv)
+{
+	int	c;
+	int	errors = 0;
+
+	while ((c = getopt(argc, argv, "i:f:m")) != EOF) {
+		switch (c) {
+		case 'i':
+			NumIntThreads = atoi(optarg);
+			break;
+		case 'f':
+			NumFloatThreads = atoi(optarg);
+			break;
+		case 'm':
+			mix_it_up = true;
+			break;
+		default:
+			errors++;
+			break;
+		}
+	}
+	if (errors) {
+		cerr << "usage: " << argv[0]
+			<< " [-i int_threads]"
+			<< " [-f float_threads]"
+			<< " [-m]" << endl;
+	}
+	return errors ? -1 : optind;
+}
+
 
 void float_thread_t::run()
 {
@@ -167,7 +226,6 @@ void float_thread_t::run()
 
     sthread_t::yield();
     ack[id] = 1;
-//  sthread_t::end();
 }
 
 void int_thread_t::run()
@@ -226,6 +284,5 @@ void int_thread_t::run()
 	 << ", check = " << 31 * id << endl;
     sthread_t::yield();
     ack[id] = 1;
-//  sthread_t::end();
 }
 

@@ -6,7 +6,7 @@
 /* --------------------------------------------------------------- */
 
 /*
- *  $Header: /p/shore/shore_cvs/src/vas/server/object.C,v 1.68 1996/06/25 14:38:24 nhall Exp $
+ *  $Header: /p/shore/shore_cvs/src/vas/server/object.C,v 1.69 1997/01/24 16:48:08 nhall Exp $
  */
 #include <copyright.h>
 
@@ -193,7 +193,7 @@ FSTART
 				<< " offset" << (int)offset
 			);
 		}
-		checkflags(FALSE); // not yet xfer time
+		checkflags(false); // not yet xfer time
 		{
 			// ok-- do the grunge
 			// requested could be WholeObject
@@ -409,7 +409,7 @@ FSTART
 			if(snapped) *snapped = object.snap();
 
 		}
-		checkflags(TRUE); // now it's xfer time
+		checkflags(true); // now it's xfer time
 
 		if(pseudo_client()) {
 			clrflags(vf_obj_follows);
@@ -928,7 +928,7 @@ VASResult
 svas_server::_sysprops(
 	IN(lrid_t)	target, // for any kind of object
 	OUT(SysProps) sys,
-	bool		copypage, // in default = FALSE
+	bool		copypage, // in default = false
 	LockMode	lock,	// in default = SH
 	OUT(bool)	is_unix_file,	// default = NULL (don't care)
 	OUT(int)	size_of_sysp,	// default = NULL (don't care)
@@ -949,7 +949,7 @@ FSTART
 			// FAIL;
 	}
 
-	if(is_unix_file) *is_unix_file = FALSE;
+	if(is_unix_file) *is_unix_file = false;
 
 	DBG(<<"sysprops for obj " << target);
 	{
@@ -964,7 +964,7 @@ FSTART
 		Object	obj(this, target.lvid, target.serial);
 		union _sysprops	*h;
 
-		checkflags(FALSE); // not yet xfer time
+		checkflags(false); // not yet xfer time
 
 		if(target.serial == ReservedSerial::_RootDir) {
 			lrid_t temp;
@@ -997,12 +997,12 @@ FSTART
 
 			dassert(h->common.csize + h->common.hsize == obj.body_size());
 
-			checkflags(FALSE); 
+			checkflags(false); 
 			if(copypage) {
 				smsize_t	cursize;
 				bool		isAnonymous ;
 
-				checkflags(FALSE); // not yet xfer time
+				checkflags(false); // not yet xfer time
 
 				_DO_(obj.legitAccess(obj_stat, lock, \
 						&cursize, 0, WholeObject, &isAnonymous) );
@@ -1033,12 +1033,12 @@ FSTART
 #ifdef DEBUG
 					audit_pg(p);
 #endif
-					checkflags(TRUE); 
+					checkflags(true); 
 				} else {
-					checkflags(FALSE); 
+					checkflags(false); 
 				}
 			} else{
-				checkflags(FALSE); 
+				checkflags(false); 
 			}
 		}
 
@@ -1087,7 +1087,7 @@ VASResult
 svas_server::sysprops(
 	IN(lrid_t)	target, // for any kind of object
 	OUT(SysProps) sys,
-	bool		copypage, // in default = FALSE
+	bool		copypage, // in default = false
 	LockMode	lock,	// in default = SH
 	OUT(bool)	is_unix_file,	// default = NULL (don't care)
 	OUT(int)	size_of_sysp,	// default = NULL (don't care)

@@ -25,34 +25,33 @@ proc checkrec {i bodycontent} {
     set r [sm read_rec $rid($i) 0 0]
     set id [format $id_width $i]
     # check body and hdr
-    # echo rid=[lindex $r 0]
+    # verbose rid=[lindex $r 0]
     set sizes [lindex $r 1]
     set hdr [lindex $r 2]
-    echo assert {expr [string compare $hdr $id] == 0}
+    verbose assert {expr [string compare $hdr $id] == 0}
     assert {expr [string compare $hdr $id] == 0}
     set body [lindex $r 4]
     set blength [string length $body]
     scan [lindex $r 3] "Bytes:%d-%d" first last
-    echo $blength == $last?
+    verbose $blength == $last?
     assert {expr {$blength == $last}}
     set cmp [string range $pattern 0 [expr {$last - 1}]]
 
     if [expr {$bodycontent == 1}] {
 	set plength [string length $pattern]
 	scan $sizes "size(h.b)=%d.%d" first last
-	echo $plength == $last?
+	verbose $plength == $last?
 	assert {expr {$plength == $last}}
 
-	echo $body == $cmp?
+	verbose $body == $cmp?
 	assert {expr [string compare $body $cmp] == 0}
     }
-    echo "check completed"
+    verbose "check completed"
 }
 
 set id_width %08d
 
 set s [format data 1]
-echo $s
 
 set_config_info
 
@@ -66,7 +65,7 @@ set pattern_block ".123456789"
 set pattern ""
 for {set i 0} {$i < $pattern_cnt} {incr i} {
     set pattern $pattern$pattern_block
-    #echo $pattern
+    #verbose $pattern
 }
 
 ###############################################
@@ -75,18 +74,18 @@ for {set i 0} {$i < $pattern_cnt} {incr i} {
 sm begin_xct
 set fid [sm create_file $volid ]
 set rid(0) $null_rid
-echo creating $num_rec 
+verbose creating $num_rec 
 for {set i 1} {$i <= $num_rec} {incr i} {
     set rid($i) [
 	sm create_rec $fid [format $id_width $i] 2000 $pattern
     ]
-    echo created $i
+    verbose created $i
 }
-echo done creating $num_rec records
+verbose done creating $num_rec records
 sm commit_xct
 
 sm begin_xct
-echo checking all recs
+verbose checking all recs
 for {set i 2} {$i <= $num_rec} {incr i} {
     checkrec $i 1
 }
@@ -101,14 +100,14 @@ sm begin_xct
 for {set i 1} {$i <= $num_rec} {incr i} {
     set r [sm read_rec $rid($i) 0 0]
     set id [format $id_width $i]
-    #echo $i $id $r
+    #verbose $i $id $r
     set hdr [lindex $r 2]
     assert {expr {[string compare $hdr $id] == 0}}
     verbose [sm read_rec $rid($i) 0 0 ]
 }
 
-echo scanning after separate scan using pin
-verbose [sm scan_recs $fid]
+verbose scanning after separate scan using pin
+sm scan_recs $fid
 
 sm commit_xct
 
@@ -116,34 +115,34 @@ sm begin_xct
 ###############################################
 #   append to the records
 #
-echo APPEND hello ...
+verbose APPEND hello ...
 for {set i 1} {$i <= $num_rec} {incr i} {
     sm append_rec $rid($i) "hello"
     verbose [sm read_rec $rid($i) 0 0 ]
 }
-echo APPEND AAApattern ...
+verbose APPEND AAApattern ...
 for {set i 1} {$i <= $num_rec} {incr i} {
     sm append_rec $rid($i) AAA$pattern
     verbose [sm read_rec $rid($i) 0 0 ]
 }
 
-echo scanning after separate scan using pin
-verbose [sm scan_recs $fid]
+verbose scanning after separate scan using pin
+sm scan_recs $fid
 
 ###############################################
 #   update the records
 #
-echo UPDATE 970 hello ...
+verbose UPDATE 970 hello ...
 for {set i 1} {$i <= $num_rec} {incr i} {
     sm update_rec $rid($i) 970 hello 
     verbose [sm read_rec $rid($i) 0 0 ]
 }
-echo UPDATE 1910 hello_this_is_a_long_update ...
+verbose UPDATE 1910 hello_this_is_a_long_update ...
 for {set i 1} {$i <= $num_rec} {incr i} {
     sm update_rec $rid($i) 1910 hello_this_is_a_long_update 
     verbose [sm read_rec $rid($i) 0 0 ]
 }
-echo UPDATE 1964 aaapattern ...
+verbose UPDATE 1964 aaapattern ...
 for {set i 1} {$i <= $num_rec} {incr i} {
     sm update_rec $rid($i) 1944 aaapatternzzz
     verbose [sm read_rec $rid($i) 0 0 ]
@@ -152,18 +151,18 @@ for {set i 1} {$i <= $num_rec} {incr i} {
 ###############################################
 #   truncate the records
 #
-echo TRUNCATE 2 ...
+verbose TRUNCATE 2 ...
 for {set i 1} {$i <= $num_rec} {incr i} {
     sm truncate_rec $rid($i) 2 
     verbose [sm read_rec $rid($i) 0 0 ]
 }
-echo TRUNCATE 2000 ...
+verbose TRUNCATE 2000 ...
 for {set i 1} {$i <= $num_rec} {incr i} {
     sm truncate_rec $rid($i) 2000
     verbose [sm read_rec $rid($i) 0 0 ]
 }
 
-echo TRUNCATE (to cause forwarding with logical IDs) ...
+verbose TRUNCATE (to cause forwarding with logical IDs) ...
 for {set i 1} {$i <= $num_rec} {incr i} {
     sm truncate_rec $rid($i) 5541
     verbose [sm read_rec $rid($i) 0 0 ]
@@ -173,9 +172,9 @@ sm commit_xct
 
 ###############################################
 #   delete all odd records
-echo DESTROY all odd records
+verbose DESTROY all odd records
 sm begin_xct
-echo destroying [expr $num_rec/2]
+verbose destroying [expr $num_rec/2]
 for {set i 1} {$i <= $num_rec} {incr i; incr i} {
     sm destroy_rec $rid($i)
 }
@@ -184,16 +183,16 @@ sm commit_xct
 ###############################################
 #   re-read even records
 #
-echo checking even records
+verbose checking even records
 sm begin_xct
 for {set i 2} {$i <= $num_rec} {incr i; incr i} {
     checkrec $i 0
 }
-echo trying an odd record -- THIS SHOULD GENERATE AN ERROR
+verbose trying an odd record -- THIS SHOULD GENERATE AN ERROR
 catch {[sm read_rec $rid(1) 0 0]} result
 verbose $result
 
-echo trying an even record
+verbose trying an even record
 verbose [sm read_rec $rid(2) 0 0]
 
 sm commit_xct

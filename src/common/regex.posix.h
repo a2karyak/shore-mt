@@ -6,7 +6,7 @@
 /* --------------------------------------------------------------- */
 
 /*
- *  $Id: regex.posix.h,v 1.3 1995/04/24 19:28:27 zwilling Exp $
+ *  $Id: regex.posix.h,v 1.4 1997/01/24 16:31:27 nhall Exp $
  */
 #ifndef _REGEX_POSIX_H_
 #define _REGEX_POSIX_H_
@@ -24,9 +24,13 @@
 #    define re_comp re_comp_posix
 #    define re_exec re_exec_posix
 
+#ifdef __cplusplus
 extern "C" {
+#endif
 	char* re_comp_posix(const char* pattern);
 	int	re_exec_posix(const char* string);
+#ifdef __cplusplus
 }
+#endif
 
 #endif/* _REGEX_POSIX_H_ */

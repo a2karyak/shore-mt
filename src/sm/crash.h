@@ -4,19 +4,26 @@
 /* -- and conditions given in the file COPYRIGHT.  All Rights   -- */
 /* -- Reserved.                                                 -- */
 /* --------------------------------------------------------------- */
-#ifndef _CRASH_H_
-#define _CRASH_H_
-#ifdef DEBUG
-extern "C" {
-    void crashtest(log_m *, const char *c, const char *file, int line) ;
-};
+#ifndef CRASH_H
+#define CRASH_H
 
-#define CRASHTEST(x) crashtest(log,x,__FILE__,__LINE__)
+enum debuginfo_enum { debug_none, debug_delay, debug_crash, debug_abort, debug_yield };
 
 
-#else /* DEBUG */
+    extern "C" {
+	w_rc_t ssmtest(log_m *, const char *c, const char *file, int line) ;
+	void setdebuginfo(debuginfo_enum, const char *, int );
+    };
+#if defined(DEBUG) || defined(USE_SSMTEST)
 
-#define CRASHTEST(x)
+#   define SSMTEST(x) W_DO(ssmtest(smlevel_0::log,x,__FILE__,__LINE__));
+#   define VOIDSSMTEST(x) W_IGNORE(ssmtest(smlevel_0::log,x,__FILE__,__LINE__));
 
-#endif /*DEBUG*/
-#endif /*_CRASH_H_*/
+#else 
+
+#   define SSMTEST(x) 
+#   define VOIDSSMTEST(x)
+
+#endif /* DEBUG */
+
+#endif /*CRASH_H*/

@@ -1,9 +1,0 @@
-# --------------------------------------------------------------- #
-# -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- #
-# -- University of Wisconsin-Madison, subject to the terms     -- #
-# -- and conditions given in the file COPYRIGHT.  All Rights   -- #
-# -- Reserved.                                                 -- #
-# --------------------------------------------------------------- #
-
-# OK: these, we can't get around:
-suppress umr write;writetcp

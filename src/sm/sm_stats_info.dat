@@ -15,22 +15,30 @@ SM Storage manager = 0x00060000 sm_stats_info_t {
     u_long bt_find_cnt		Btree lookups (find_assoc())
     u_long bt_insert_cnt	Btree inserts (create_assoc())
     u_long bt_remove_cnt	Btree removes (destroy_assoc())
+    u_long bt_traverse_cnt	Btree traversals
+    u_long bt_partial_traverse_cnt	Btree traversals starting below root
+    u_long bt_restart_traverse_cnt	Restarted traversals
+    u_long bt_posc		POSCs established
     u_long bt_scan_cnt		Btree scans started
     u_long bt_splits		Btree pages split (interior and leaf)
     u_long bt_cuts		Btree pages removed (interior and leaf)
     u_long bt_grows		Btree grew a level
     u_long bt_shrinks		Btree shrunk a level
     u_long bt_links		Btree links followed
+    u_long bt_upgrade_fail_retry	Failure to upgrade a latch forced a retry
+    u_long bt_clr_smo_traverse	Cleared SMO bits on traverse
 
     // Logical ID lookups:
     u_long lid_lookups		Logical ID look-ups
     u_long lid_remote_lookups	Extra index lookups for remote refs
     u_long lid_inserts		Logical IDs inserted
     u_long lid_removes		Logical IDs removed
+    u_long lid_replace		Times max-logical entry replaced (on remove)
     u_long lid_cache_hits 	Hits in cache of recent lookups
 
     // Page operation counts
     u_long page_fix_cnt		Times pages were fixed in the buffer pool
+    u_long page_refix_cnt	Times pages were refixed (cheaper than fix)
     u_long page_unfix_cnt	Times pages were unfixed
     u_long page_alloc_cnt	Pages allocated
     u_long page_dealloc_cnt	Pages deallocated
@@ -50,8 +58,21 @@ SM Storage manager = 0x00060000 sm_stats_info_t {
     u_long begin_xct_cnt	Transactions started
     u_long commit_xct_cnt	Transactions committed
     u_long abort_xct_cnt	Transactions aborted
+    u_long prepare_xct_cnt	Transactions prepared
     u_long rollback_savept_cnt	Rollbacks to savepoints (not incl aborts)
     u_long mpl_attach_cnt	Times a thread was not the only one attaching to a transaction
+    u_long anchors		Log Anchors grabbed
+    u_long compensate_in_log	Compensations written in log buffer
+    u_long compensate_in_xct	Compensations written in xct log buffer
+    u_long compensate_records	Compensations written as own log record 
+    u_long log_switches		Times log turned off
+    u_long await_1thread_log	Times blocked on 1thread mutex for xct-log
+    u_long acquire_1thread_log	Times acquired 1thread mutex for xct-log
+    u_long get_logbuf	        Times acquired log buf for xct
+    u_long flush_logbuf	        Times acquired log for xct_t::flush_logbuf
+    u_long await_1thread_xct	Times blocked on 1thread mutex for xct
+    u_long await_io_monitor	Times couldn't enter I/O monitor immediately
+    u_long await_vol_monitor	Times couldn't grab volume mutex immediately
 
     // Lock table related stats
     u_long lock_query_cnt       High-level query for lock information
@@ -76,11 +97,16 @@ SM Storage manager = 0x00060000 sm_stats_info_t {
     u_long lock_max_bucket_len	Maximum bucket length
     u_long lock_min_bucket_len	Minimum bucket length
     u_long lock_mode_bucket_len	Mode bucket length
+    // NB: floats must be 8-byte aligned, so take care where you put them!
     float  lock_mean_bucket_len	Mean bucket length
     float  lock_var_bucket_len	Variance of  bucket length
     float  lock_std_bucket_len	Standard deviation of bucket length
 
-    u_long lock_conflict_cnt		lock conflict cnt
+    u_long lock_deadlock_cnt	Deadlocks detected
+
+    u_long lock_esc_to_page	Number of escalations to page level
+    u_long lock_esc_to_store	Number of escalations to store level
+    u_long lock_esc_to_volume	Number of escalations to volume level
 
 #ifdef MULTI_SERVER
     // callback related (from callback.c)
@@ -162,6 +188,12 @@ SM Storage manager = 0x00060000 sm_stats_info_t {
     u_long bf_seven_page_write 	Seven-page writes to volume
     u_long bf_eight_page_write 	Eight-page writes to volume
     u_long bf_cleaner_sweeps    Number of sweeps of the bf_cleaner thread
+    u_long bf_cleaner_signalled Number of sweeps initiated by a kick
+    u_long bf_kick_full 	Kicks because pool is full of dirty pages
+    u_long bf_kick_replacement 	Kicks because doing page replacement
+    u_long bf_kick_threshhold 	Kicks because dirty page threshold met
+    u_long bf_kick_almost_full 	Kicks because page almost full -- for creations
+    u_long bf_sweep_page_hot 	Page swept was not flushed because it was hot 
     u_long bf_log_flush_all    	Number of whole-log flushes by bf_cleaner
     u_long bf_log_flush_lsn    	Number of partial log flushes by bf_cleaner
     u_long bf_write_out    	Pages written out in background or forced
@@ -169,19 +201,54 @@ SM Storage manager = 0x00060000 sm_stats_info_t {
     u_long bf_replaced_dirty 	Victim for page replacement is dirty
     u_long bf_replaced_clean 	Victim for page replacement is clean
     u_long bf_await_clean 	Times awaited a clean page for fix()
+    u_long bf_prefetch_requests Requests to prefetch a page 
+    u_long bf_prefetches  	Prefetches performed
 
     // Log operations
+    u_long await_log_monitor	Possible long wait for log monitor 
+    u_long await_log_monitor_var Short wait for log monitor 
     u_long log_records_generated Log records written
     u_long log_bytes_generated	Bytes written to the log
-    u_long log_sync_nrec_one	Times log synced with 1 rec buffered
-    u_long log_sync_nrec_more	Times log synced with >1 rec buffered
-    u_long log_sync_nrec_not    Total records not synced immediately
     u_long log_sync_nrec_max	Max # log records buffered between syncs
     u_long log_sync_nbytes_max    Max # log bytes buffered between syncs
     u_long log_dup_sync_cnt	Times the log was flushed superfluously
     u_long log_sync_cnt		Times the log was flushed (and was needed)
     u_long log_fsync_cnt	Times the fsync system call was used
+    u_long log_chkpt_cnt	Checkpoints taken
 
     u_long idle_yield_return	Times idle thread returned from yield()
     u_long idle_wait_return	Times idle thread returned from wait()
+    u_long fastpath		Times diskrw was bypassed
+
+    // 2PC operations --subordinate
+    u_long s_prepared		Externally coordinated prepares
+    u_long s_committed		Externally coordinated commits
+    u_long s_aborted		Externally coordinated aborts
+    u_long s_no_such		Messages for unknown gtid
+    u_long s_prepare_recd	Total prepare msgs received
+    u_long s_commit_recd	Total commit msgs received
+    u_long s_abort_recd		Total abort msgs received
+    u_long s_errors_recd	Total messages received with error indication 
+    u_long s_acks_sent		Total acks sent for commit/abort
+    u_long s_votes_sent		Total votes sent for prepare
+    u_long s_status_sent	Total recovery status messages sent
+    u_long s_errors_sent	Total messages sent with error indication 
+
+    // 2PC operations --coordinator
+    // unresolved == d_coordinated - (d_resolved_commit + d_resolved_abort) 
+    u_long c_coordinated	Distrib tx initially requesting 2P commit 
+    u_long c_resolved		Distrib tx resolved (includes recovery)
+    u_long c_resolved_commit	Resolved transactions that committed
+    u_long c_resolved_abort	Resolved transactions that aborted
+    u_long c_replies_dropped	Replies dropped
+    u_long c_retrans		Retransmitted messages
+    u_long c_acks_recd		Total acks received for commit/abort
+    u_long c_votes_recd		Total votes received 
+    u_long c_status_recd	Total status requests received
+    u_long c_errors_recd	Total messages received with error indication 
+    u_long c_prepare_sent	Total prepare messages sent
+    u_long c_commit_sent	Total commit messages sent
+    u_long c_abort_sent		Total abort messages sent
+    u_long c_errors_sent	Total messages sent with error indication 
+
 };

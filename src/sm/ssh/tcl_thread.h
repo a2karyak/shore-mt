@@ -6,7 +6,7 @@
 /* --------------------------------------------------------------- */
 
 /*
- *  $Id: tcl_thread.h,v 1.24 1996/03/13 20:23:35 bolo Exp $
+ *  $Id: tcl_thread.h,v 1.26 1997/05/27 13:10:47 kupsch Exp $
  */
 #ifndef TCL_THREAD_H
 #define TCL_THREAD_H
@@ -17,6 +17,8 @@
 
 class ss_m;
 extern ss_m* sm;
+extern int t_co_retire(Tcl_Interp* , int , char*[]);
+extern void copy_interp(Tcl_Interp *ip, Tcl_Interp *pip);
 
 class tcl_thread_t : public smthread_t  {
 public:
@@ -56,6 +58,8 @@ protected:
     smutex_t   			thread_mutex;
 
     static int 			count;
+public:
+    static bool 		allow_remote_command;
 
 private:
     tcl_thread_t(const tcl_thread_t&);
@@ -64,31 +68,6 @@ private:
 
 // for gcc template instantiation
 typedef w_list_i<tcl_thread_t>             tcl_thread_t_list_i;
-
-#ifdef MULTI_SERVER
-#ifdef undef
-class tcl_client_thread_t : public tcl_thread_t  {
-public:
-    tcl_client_thread_t(Node* node, Port* port, Tcl_Interp* parent);
-    ~tcl_client_thread_t();
-
-    //static w_list_t<tcl_thread_t> list;
-    //w_link_t 			link;
-
-protected:
-    virtual void run();  // process client messages
-
-    Node*  _node;
-    Port*  _port;
-
-private:
-    // disabled
-    tcl_client_thread_t(const tcl_client_thread_t&);
-    tcl_client_thread_t& operator=(const tcl_client_thread_t&);
-
-};
-#endif /* undef */
-#endif /* MULTI_SERVER */
 
 #endif /*TCL_THREAD_H*/
 

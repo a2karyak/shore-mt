@@ -6,7 +6,7 @@
 /* --------------------------------------------------------------- */
 
 /*
- *  $Header: /p/shore/shore_cvs/src/vas/server/client.C,v 1.29 1996/07/22 16:12:30 nhall Exp $
+ *  $Header: /p/shore/shore_cvs/src/vas/server/client.C,v 1.30 1997/01/24 16:47:44 nhall Exp $
  */
 #include <copyright.h>
 
@@ -106,7 +106,7 @@ bad:
 		_server = 0;
 	}
 	dassert(ok);
-	*ok = FALSE;
+	*ok = false;
 	RETURN;
 }
 
@@ -185,7 +185,7 @@ bad:
 		_server = 0;
 	}
 	dassert(ok);
-	*ok = FALSE;
+	*ok = false;
 	RETURN;
 }
 

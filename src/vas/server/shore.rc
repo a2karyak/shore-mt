@@ -48,16 +48,16 @@ set ok 1
 #
 	set rootvolumename ./volumes/miniroot
 	set rootvolumeid 10
-	set rootvolumesize 20000
+	set rootvolumesize 5000
 	set rootvolumeinfo  [list $rootvolumename / writable $rootvolumeid $rootvolumesize ]
 
 #	Information for non-root volumes:
-#	Just for yuks, let's have a persistently-mounted volume
 
-	set volumeinfo  {
-	}
+	set volumeinfo  { }
+#	set volumeinfo  {
 #	{./volumes/vol8k /small writable 8000 3000 }
 #	{./volumes/vol9k /large writable 9000 10000 }
+#	}
 
 #
 #	

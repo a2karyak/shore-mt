@@ -6,7 +6,7 @@
 /* --------------------------------------------------------------- */
 
 /*
- *  $Header: /p/shore/shore_cvs/src/common/umemcmp.h,v 1.10 1995/10/05 13:25:22 zwilling Exp $
+ *  $Header: /p/shore/shore_cvs/src/common/umemcmp.h,v 1.11 1997/05/19 19:41:12 nhall Exp $
  */
 #ifndef UMEMCMP_H
 #define UMEMCMP_H
@@ -20,7 +20,9 @@
  * on the compiler.
  */
 
+#ifndef W_WORKAROUND_H
 #include <w_workaround.h>
+#endif
 
 // Simple byte-by-byte comparisions
 inline int __umemcmp(const unsigned char* p, const unsigned char* q, int n)

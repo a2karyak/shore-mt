@@ -13,12 +13,17 @@ set scripts [ list	\
     lockrec_pin lockrec_sm lockfile_sm \
     ]
 
-echo $scripts
+verbose scripts: $scripts
 
-foreach scr $scripts {
-    echo "================================================================="
-    echo "================================================================="
-    echo "RUNNING:  $scr"
-    source $script_dir/$scr
+echo CLEANUP BEFORE lock.all :
+cleanup stdout
+addcleanupvars {script}
+
+foreach script $scripts {
+    echo
+    echo "RUNNING:  $script"
+    source $script_dir/$script
+    checkstats  $script
+    puts stdout [concat CLEANUP AFTER  $script  : ]
+    cleanup stdout
 }
-unset scr

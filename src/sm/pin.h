@@ -6,7 +6,7 @@
 /* --------------------------------------------------------------- */
 
 /*
- * $Id: pin.h,v 1.67 1995/09/22 20:38:50 markos Exp $
+ * $Id: pin.h,v 1.71 1997/05/19 19:47:44 nhall Exp $
  */
 #ifndef PIN_H
 #define PIN_H
@@ -65,6 +65,25 @@
    the state of the pin_i (either pinned or not) remains the same.
 
  **********************************************************************/
+
+#if defined(PIN_C) || defined(SCAN_C)
+inline 
+latch_mode_t lock_to_latch(lock_mode_t m)
+{
+    switch(m) {
+    case SH:
+    case UD:
+    case NL:
+	return LATCH_SH;
+    case EX:
+	return LATCH_EX;
+
+    default:
+	W_FATAL(smlevel_0::eNOTIMPLEMENTED);
+    }
+    return LATCH_NL; // never gets here
+}
+#endif
 
 struct file_p;
 struct lgdata_p;

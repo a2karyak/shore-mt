@@ -45,7 +45,7 @@ proc lockit { id locks } {
     }
 }
 
-echo "TEST:\tLock Upgrade on Record and File"
+verbose "TEST:\tLock Upgrade on Record and File"
 
 verbose "\n*******  Lock Upgrade on Record  *******\n"
 lockit $rid $mode1
@@ -56,6 +56,6 @@ lockit $fid $mode2
 verbose "\n*******  Lock Upgrade on Volume  *******\n"
 lockit $vid $mode2
 
-echo "STATUS:\tOK"
+verbose "STATUS:\tOK"
 
 unset mode1 mode2 fid vid rid

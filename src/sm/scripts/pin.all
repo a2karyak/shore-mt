@@ -7,10 +7,17 @@
 
 source $script_dir/vol.init
 
-set scripts [list pin.1 pin.2 pin.3 thread.1]
+set scripts [list pin.1 pin.2 pin.3 pin.4 pin.5 thread.1]
+
+echo CLEANUP BEFORE pin.all :
+cleanup stdout
+addcleanupvars {script}
 
 foreach script $scripts {
     echo
     echo RUNNING: $script 
     source $script_dir/$script
+    checkstats  $script
+    puts stdout [concat CLEANUP AFTER  $script  : ]
+    cleanup stdout
 }

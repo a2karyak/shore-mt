@@ -6,7 +6,7 @@
 /* --------------------------------------------------------------- */
 
 /*
- *  $Header: /p/shore/shore_cvs/src/common/vec_t.h,v 1.50 1996/01/26 20:28:33 nhall Exp $
+ *  $Header: /p/shore/shore_cvs/src/common/vec_t.h,v 1.53 1997/05/19 19:41:15 nhall Exp $
  */
 #ifndef VEC_T_H
 #define VEC_T_H
@@ -73,7 +73,7 @@ public:
     }
     ~cvec_t();
 
-    void split(size_t l1, cvec_t& v1, cvec_t& v2);
+    void split(size_t l1, cvec_t& v1, cvec_t& v2) const;
     cvec_t& put(const cvec_t& v, size_t offset, size_t nbytes);
     cvec_t& put(const void* p, size_t l);
     cvec_t& put(const cvec_t& v);

@@ -6,7 +6,7 @@
 /* --------------------------------------------------------------- */
 
 /*
- * $Header: /p/shore/shore_cvs/src/vas/common/svas_base.C,v 1.32 1996/07/17 22:30:50 nhall Exp $
+ * $Header: /p/shore/shore_cvs/src/vas/common/svas_base.C,v 1.33 1997/06/13 21:35:11 solomon Exp $
  * 
  * implementation of base class for client & server shore vas.
  */
@@ -600,7 +600,6 @@ svas_base::unix_error(int reason)
 			return ENOENT; 
 
 		case eBADVOL:
-		case eBADDEVNAME:
 			DBG(<<"ENXIO");
 			return ENXIO; // no such device or addr
 

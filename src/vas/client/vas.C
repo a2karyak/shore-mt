@@ -6,7 +6,7 @@
 /* --------------------------------------------------------------- */
 
 /*
- * $Header: /p/shore/shore_cvs/src/vas/client/vas.C,v 1.110 1995/10/30 17:59:43 nhall Exp $
+ * $Header: /p/shore/shore_cvs/src/vas/client/vas.C,v 1.111 1997/01/24 16:49:21 nhall Exp $
  */
 #define RPC_CLNT
 #define __malloc_h
@@ -112,7 +112,7 @@ static _msg_stats msg_stats("Client Requests", 0x00090000,
 
 static _msg_stats rmsg_stats("Messages Sent", 0x000b0000,
 	client_init, gather_stats, cmsg_names);
-bool	printusererrors = TRUE;
+bool	printusererrors = true;
 
 #include <errlog.h>
 #define shorelog ShoreVasLayer.log
@@ -1063,7 +1063,7 @@ svas_client::lookup(
 	OUT(lrid_t) loid,
 	OUT(bool)	found, // cannot be null
 	PermOp		perm,	//  default = op_exec
-	bool      follow     //  default = TRUE
+	bool      follow     //  default = true
 )
 {
 	FSTART(svas_client::lookup,lookup1,lookup);
@@ -1089,7 +1089,7 @@ VASResult
 svas_client::sysprops(
 	IN(lrid_t)	obj,
 	OUT(SysProps) sysp,
-	bool				wholepage, 	// =FALSE, 
+	bool				wholepage, 	// =false, 
 	LockMode			lock,		// =S	
 	OUT(bool)			is_unix_file, // = NULL
 	OUT(int)			sysp_size, // = NULL
@@ -1110,12 +1110,12 @@ svas_client::sysprops(
 	NULLPARAMCHECK(sysp,2);
 	audit("svas_client::sysprop1");
 
-	if(is_unix_file) *is_unix_file = FALSE;
+	if(is_unix_file) *is_unix_file = false;
 #ifdef DEBUG
 	if(sysp_size) *sysp_size = 3000;
 #endif
 
-	checkflags(FALSE); // not xfer time yet
+	checkflags(false); // not xfer time yet
 
 	// locate the object on the page
 	DBG( << "trying to locate object " << obj.serial.data._low 
@@ -1168,7 +1168,7 @@ on_page:
 				dassert(0);
 				break;
 		}
-		checkflags(FALSE); // not xfer time yet
+		checkflags(false); // not xfer time yet
 		DBG(<<"sysprops returns type oid=" << sysp->type._low);
 		dassert(sysp->type._low & 0x1);
 
@@ -1183,7 +1183,7 @@ on_page:
 		}
 #endif
 		DBG( << "NOT FOUND");
-		checkflags(FALSE); // not xfer time yet
+		checkflags(false); // not xfer time yet
 		// could be large object
 		a.obj = obj;
 		assert(obj.serial.data._low != 0);
@@ -1193,7 +1193,7 @@ on_page:
 		SVCALL(stat1,rpcSysProps);
 
 		if((x=reply->status.vasresult) != SVAS_OK)  {
-			checkflags(FALSE); // not xfer time 
+			checkflags(false); // not xfer time 
 			DBG(<< "Error from SV CALL");
 		} else {
 			dassert(reply!=NULL);
@@ -1233,7 +1233,7 @@ on_page:
 			} else  {
 				DBG(<< "NO small object page");
 				// TODO: what if over the wire 
-				dassert(reply->commonpart.sent_small_obj_page == FALSE);
+				dassert(reply->commonpart.sent_small_obj_page == false);
 				*sysp =  convert_sysprops(reply->sysprops);
 				if(sysp_size) *sysp_size = reply->sysp_size;
 				dassert(sysp->type._low & 0x1);
@@ -1602,7 +1602,7 @@ svas_client::mkRegistered(
 ) 	// for user-defined types only
 {
 	FSTART(svas_client::mkRegistered,mkregistered,lrid_t);
-	bool 	warn=FALSE;
+	bool 	warn=false;
 
 	PREVENTER;
 	NULLPARAMCHECK(name,1);
@@ -1826,7 +1826,7 @@ svas_client::mkAnonymous(
 )
 {
 	FSTART(svas_client::mkAnonymous,mkanonymous2,mkanon);
-	bool 	warn=FALSE;
+	bool 	warn=false;
 
 	PREVENTER;
 	NULLPARAMCHECK(result,7);
@@ -1927,7 +1927,7 @@ svas_client::mkAnonymous(
 )
 {
 	FSTART(svas_client::mkAnonymous,mkanonymous3,void);
-	bool 	warn=FALSE;
+	bool 	warn=false;
 
 	if(ISNULL(typeobj.serial)) {
 		VERR( SVAS_BadParam2);
@@ -2321,7 +2321,7 @@ svas_client::readObj(
 {
 	// 	gets whatever lock you ask for, + read lock
 	smsize_t			limit, bufoff, bytes_this_call;
-	bool				found_on_page = FALSE;
+	bool				found_on_page = false;
 	VASResult			x = SVAS_OK;
 	bool				contacted_server=false;
 
@@ -2340,7 +2340,7 @@ svas_client::readObj(
 //		VERR(SVAS_BadParam3); // buf too small
 //		VRETURN SVAS_FAILURE;
 //	}
-	checkflags(FALSE); // not xfer time yet
+	checkflags(false); // not xfer time yet
 
 on_page:
 	{
@@ -2455,7 +2455,7 @@ on_page:
 			dassert(!reply->commonpart.obj_follows_bytes);
 			replaceflags(vf_obj_follows|vf_sm_page, vf_no_xfer);
 
-			checkflags(FALSE); // not xfer time 
+			checkflags(false); // not xfer time 
 			DBG(<< "Error from SV CALL");
 			break;
 		}
@@ -2504,7 +2504,7 @@ on_page:
 				// large or registered object 
 				// (didn't come with a page)
 
-				dassert(reply->commonpart.sent_small_obj_page == FALSE);
+				dassert(reply->commonpart.sent_small_obj_page == false);
 				// dassert(reply->commonpart.data.opaque_t_len >= 0); unsigned now
 
 				replaceflags(vf_no_xfer,vf_obj_follows);
@@ -2546,7 +2546,7 @@ done:
 
 	if(x == SVAS_OK) {
 		if(contacted_server) {
-			checkflags(TRUE); // xfer done 
+			checkflags(true); // xfer done 
 		}
 
 		if(snapped) {
@@ -2561,7 +2561,7 @@ done:
 	// Don't do VECOUTPUT(data) because the copy was done explicitly, above 
 
 	replaceflags(vf_obj_follows|vf_sm_page, vf_no_xfer);
-	checkflags(FALSE); // ready for next call
+	checkflags(false); // ready for next call
 
 #ifdef DEBUG
 	if(!found_on_page) {
@@ -2680,8 +2680,8 @@ failure:
 VASResult		
 svas_client::_nextPoolScan(
 	INOUT(Cookie)		cookie,	
-	OUT(bool)			eof,	// TRUE if no result
-						// if FALSE, result is legit
+	OUT(bool)			eof,	// true if no result
+						// if false, result is legit
 	OUT(lrid_t)			result,
 	bool				nextpage	//=false
 )
@@ -2695,7 +2695,7 @@ svas_client::_nextPoolScan(
 
 	// just to be safe
 	a.lock = NL;
-	a.wantsysprops = FALSE;
+	a.wantsysprops = false;
 	a.pageoffset = 0;
 	a.start = 0;
 	a.requested = 0;
@@ -2715,8 +2715,8 @@ failure:
 VASResult		
 svas_client::nextPoolScan(
 	INOUT(Cookie)		cookie,	
-	OUT(bool)			eof,	// TRUE if no result
-						// if FALSE, result is legit
+	OUT(bool)			eof,	// true if no result
+						// if false, result is legit
 	OUT(lrid_t)			result
 )
 {
@@ -2726,8 +2726,8 @@ svas_client::nextPoolScan(
 VASResult		
 svas_client::_nextPoolScan(
 	INOUT(Cookie)		cookie,	
-	OUT(bool)			eof,	// TRUE if no result
-								// if FALSE, result is legit
+	OUT(bool)			eof,	// true if no result
+								// if false, result is legit
 	OUT(lrid_t)			result, 	// snapped ref
 	ObjectOffset		start,
 	ObjectSize			requested,	// -- could be WholeObject
@@ -2749,9 +2749,9 @@ svas_client::_nextPoolScan(
 	NULLPARAMCHECK(eof,7);
 	NULLPARAMCHECK(result,8);
 	if(sysprops) {
-		a.wantsysprops = TRUE;
+		a.wantsysprops = true;
 	} else {
-		a.wantsysprops = FALSE;
+		a.wantsysprops = false;
 	}
 	a.cookie = *cookie;
 	a.start	 = start;
@@ -2776,7 +2776,7 @@ svas_client::_nextPoolScan(
 	if(sysprops) {
 		if(reply->commonpart.sent_small_obj_page) {
 			// just call sysprops() to get it off the page
-			x = this->sysprops(*result,sysprops,TRUE/*irrelevant*/, SH, 0, 0);
+			x = this->sysprops(*result,sysprops,true/*irrelevant*/, SH, 0, 0);
 			if(x!=SVAS_OK) {
 				VERR(SVAS_InternalError);
 				FAIL;
@@ -2799,8 +2799,8 @@ failure:
 VASResult		
 svas_client::nextPoolScan(
 	INOUT(Cookie)		cookie,	
-	OUT(bool)			eof,	// TRUE if no result
-						// if FALSE, result is legit
+	OUT(bool)			eof,	// true if no result
+						// if false, result is legit
 	OUT(lrid_t)			result, 	// snapped ref
 	ObjectOffset		offset,
 	ObjectSize			requested,	// -- could be WholeObject
@@ -2812,7 +2812,7 @@ svas_client::nextPoolScan(
 	OUT(int)			sysp_size // optional
 )
 {
-	bool				found_on_page = FALSE;
+	bool				found_on_page = false;
 	VASResult			x = SVAS_OK;
 
 	FUNC(svas_client::nextPoolScan);
@@ -3003,8 +3003,8 @@ svas_client::nextIndexScan(
 	OUT(ObjectSize)		keylen, // - bytes of vec used
 	IN(vec_t)			value,	// "INOUT", actually
 	OUT(ObjectSize)		valuelen, // - bytes of vec used
-	INOUT(bool)		eof	// TRUE if no result
-						// if FALSE, result is legit
+	INOUT(bool)		eof	// true if no result
+						// if false, result is legit
 )
 {
 	FSTART(svas_client::nextIndexScan,nextindexscan,nextindexscan);
@@ -3661,7 +3661,7 @@ svas_client::appendObj(
 )
 {
 	FSTART(svas_client::appendObj,appendobj,void);
-	bool warn=FALSE;
+	bool warn=false;
 
 	if(newdata.size() == 0){
 		VERR(SVAS_BadParam3);
@@ -3718,7 +3718,7 @@ svas_client::appendObj(
 )
 {
 	FSTART(svas_client::appendObj,appendobj,void);
-	bool	warn=FALSE;
+	bool	warn=false;
 	if(newdata.size() == 0){
 		VERR(SVAS_BadParam3);
 		FAIL;
@@ -3765,7 +3765,7 @@ svas_client::updateObj(
 {
 	// append+write
 	FSTART(svas_client::updateObj,updateobj1,void);
-	bool 	warn=FALSE;
+	bool 	warn=false;
 
 	_DO_(invalidateobj(obj) );
 
@@ -3837,7 +3837,7 @@ svas_client::updateObj(
 {
 	// trunc+write
 	FSTART(svas_client::updateObj,updateobj2,void);
-	bool 	warn=FALSE;
+	bool 	warn=false;
 
 	_DO_(invalidateobj(obj) );
 
@@ -3897,7 +3897,7 @@ svas_client::writeObj(
 )
 {
 	FSTART(svas_client::writeObj,writeobj,void);
-	bool 	warn=FALSE;
+	bool 	warn=false;
 
 	if(newdata.size() == 0){
 		VERR(SVAS_BadParam3);

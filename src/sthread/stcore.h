@@ -24,6 +24,7 @@ typedef struct sthread_core_t {
 extern int  sthread_core_init(sthread_core_t* t,
 			      void (*proc)(void *), void *arg,
 			      unsigned stack_size);
+
 extern void sthread_core_exit(sthread_core_t *t);
 
 extern void sthread_core_fatal();

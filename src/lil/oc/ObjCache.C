@@ -9,7 +9,7 @@
 // ObjCache.C
 //
 
-/* $Header: /p/shore/shore_cvs/src/lil/oc/ObjCache.C,v 1.165 1996/07/26 21:12:34 schuh Exp $ */
+/* $Header: /p/shore/shore_cvs/src/lil/oc/ObjCache.C,v 1.168 1997/06/13 21:51:08 solomon Exp $ */
 
 #ifndef OBJECT_CACHE
 #define OBJECT_CACHE
@@ -1475,7 +1475,7 @@ ObjCache::sysprops(OTEntry *ote, SysProps *props,
 	}
 	else
 	{
-		VAS_DO(vas->sysprops(loid.id, props, FALSE, lm,0,0,&cached_something));
+		VAS_DO(vas->sysprops(loid.id, props, false, lm,0,0,&cached_something));
 		
 	}
 
@@ -1750,7 +1750,7 @@ ObjCache::poolscan_next(Cookie *cookie,
 						LockMode lm,
 						OTEntry *&ote)				// OUT ote
 {
-	bool eof = FALSE;
+	bool eof = false;
 	LOID loid;
 
 	// try to advance the scan
@@ -2035,11 +2035,11 @@ ObjCache::fetch(OTEntry *ote,
 	W_DO(get_loid(ote, loid));
 
 	// get the object's sysprops
-	// W_DO(sysprops(ote, &props, do_prefetch?TRUE:FALSE, lm));
+	// W_DO(sysprops(ote, &props, do_prefetch?true:false, lm));
 	// save the rc, and print a message.
-	// W_DO(sysprops(ote, &props, do_prefetch?TRUE:FALSE, lm));
+	// W_DO(sysprops(ote, &props, do_prefetch?true:false, lm));
 	w_rc_t rc;
-	rc= sysprops(ote, &props, do_prefetch?TRUE:FALSE, lm);
+	rc= sysprops(ote, &props, do_prefetch?true:false, lm);
 	if (rc)
 	{
 		cerr << "oc::fetch: sysprops failed for object " << loid << endl;
@@ -2140,7 +2140,8 @@ ObjCache::fetch(OTEntry *ote,
 	// FIX: protcol for reading very large objects
 	nbytes = 0;
 	more = 0;
-	VAS_DO(vas->readObj(loid.id, 0, props.csize + props.hsize,
+	if (props.csize + props.hsize)
+		VAS_DO(vas->readObj(loid.id, 0, props.csize + props.hsize,
 						lm, vec, &nbytes, &more, &loid.id,
 						&cached_something))
 	// note: client side should never get more != 0, but server
@@ -2942,7 +2943,6 @@ ObjCache::get_type_loid(OTEntry *ote, const rType * type, LOID &t_oid)
 w_rc_t
 ObjCache::writeback(OTEntry *ote)
 {
-	StringRec srec;
 	vec_t core, heap;
 	LOID loid;
 	if (ote->flags & OF_Transient) // don't do anything.
@@ -2968,10 +2968,6 @@ ObjCache::writeback(OTEntry *ote)
 	// must have screwed up
 	if(ote->is_dirty() && ote->obj == 0 )
 		return return_error(RC(SH_Internal));
-
-	// unswizzle the object and swap bytes back
-	srec.string = 0;
-	srec.length = 0;
 
 	// make sure obj has a serial # allocated.
 	if(ote->is_new() && ote->obj && !ote->has_serial())
@@ -3049,6 +3045,7 @@ ObjCache::writeback(OTEntry *ote)
 		// heap implementation
 		smsize_t hlen,tlen;
 
+		/* Unused?
 		// here comes a hack to avoid logging heap space twice
 		// on initialization.  If the initial size of the object
 		// (as show in the brec) is the same as the core size for
@@ -3056,6 +3053,7 @@ ObjCache::writeback(OTEntry *ote)
 		// of doing trunc and write.  2nd hack is to not do trunc
 		// if the size of the object hasn't changed.
 		BehindRec * brec = (BehindRec *)(ote->obj-sizeof(BehindRec));
+		*/
 		// now, put the heap stuff into a separate vec.
 		W_DO(prepare_for_disk(ote, &heap, hlen, tlen));
 

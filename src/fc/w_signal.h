@@ -8,14 +8,16 @@
 #ifndef  W_SIGNAL_H
 #define  W_SIGNAL_H
 /*
- *  $Id: w_signal.h,v 1.10 1995/09/01 20:30:01 zwilling Exp $
+ *  $Id: w_signal.h,v 1.12 1997/05/19 19:39:28 nhall Exp $
  */
 /* 
  * workarounds for 
  * various systems' signal definitions, some of which
  * are wrong (not ANSI-C, even though they claim to be)
  */
+#ifndef W_WORKAROUND_H
 #include <w_workaround.h>
+#endif
 
 #ifdef GNUG_BUG_8
 #define signal __gnubug_signal__
@@ -40,7 +42,7 @@ typedef void (*_W_POSIX_HANDLER)(...);
 #define W_POSIX_HANDLER (_W_POSIX_HANDLER) /* type-cast */
 
 /* prevent use of bsd functions -- use posix ones instead */
-#ifdef 0
+#if 0
 #ifdef sigblock
 #undef sigblock
 #endif

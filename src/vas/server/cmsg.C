@@ -6,7 +6,7 @@
 /* --------------------------------------------------------------- */
 
 /*
- *  $Header: /p/shore/shore_cvs/src/vas/server/cmsg.C,v 1.76 1996/07/23 22:42:41 nhall Exp $
+ *  $Header: /p/shore/shore_cvs/src/vas/server/cmsg.C,v 1.77 1997/01/24 16:47:47 nhall Exp $
  */
 #include <copyright.h>
 
@@ -159,7 +159,7 @@ client_init_1(
 	);
 
 #ifdef DEBUG
-	vas->checkflags(FALSE);
+	vas->checkflags(false);
 #endif
 
 	DBG(<<""<<flushl);
@@ -700,7 +700,7 @@ common_objmsg(
 	reply->_u.tag = reqtype;
 	reply->_u.repu_u._any.commonpart.data.opaque_t_len = 0;
 	reply->_u.repu_u._any.commonpart.data.opaque_t_val = NULL;
-	reply->_u.repu_u._any.commonpart.sent_small_obj_page = FALSE;
+	reply->_u.repu_u._any.commonpart.sent_small_obj_page = false;
 	reply->_u.repu_u._any.commonpart.obj_follows_bytes =  0;
 	reply->_u.repu_u._any.commonpart.more =  more;
 
@@ -724,11 +724,11 @@ common_objmsg(
 		assert(what & cor_page);
 
 #		ifdef DEBUG
-		vas->checkflags(TRUE);
+		vas->checkflags(true);
 		dassert(vas->num_page_bufs() > 0);
 #		endif
 
-		reply->_u.repu_u._any.commonpart.sent_small_obj_page = TRUE; // only one
+		reply->_u.repu_u._any.commonpart.sent_small_obj_page = true; // only one
 		reply->_u.repu_u._any.commonpart.obj_follows_bytes = 0; 
 
 		assert(vas->shm.base() == NULL);
@@ -747,11 +747,11 @@ common_objmsg(
 	case svas_base::case_b: // case_b = vf_sm_page|vf_shm,
 		assert(what & cor_page);
 #		ifdef DEBUG
-		vas->checkflags(TRUE);
+		vas->checkflags(true);
 		dassert(vas->num_page_bufs() > 0);
 #		endif
 
-		reply->_u.repu_u._any.commonpart.sent_small_obj_page = TRUE; // only one
+		reply->_u.repu_u._any.commonpart.sent_small_obj_page = true; // only one
 		reply->_u.repu_u._any.commonpart.obj_follows_bytes = 0; 
 
 		reply->_u.repu_u._any.commonpart.data.opaque_t_len = 0;
@@ -765,13 +765,13 @@ common_objmsg(
 	case svas_base::case_c: // case_c = vf_obj_follows|vf_wire,
 		assert(what & cor_read);
 #		ifdef DEBUG
-		vas->checkflags(TRUE);
+		vas->checkflags(true);
 #		endif
 
 		// data were copied to the given vector,
 		// whatever that was
 
-		reply->_u.repu_u._any.commonpart.sent_small_obj_page = FALSE;
+		reply->_u.repu_u._any.commonpart.sent_small_obj_page = false;
 		reply->_u.repu_u._any.commonpart.obj_follows_bytes = opaque_t_len;
 		// opaque_t_len was set by readObj
 
@@ -783,13 +783,13 @@ common_objmsg(
 	case svas_base::case_d: // case_d = vf_obj_follows|vf_shm,
 		assert(what & cor_read);
 #		ifdef DEBUG
-		vas->checkflags(TRUE);
+		vas->checkflags(true);
 #		endif
 
 		// data were copied to the given vector,
 		// and the object length was written  opaque_t_len
 
-		reply->_u.repu_u._any.commonpart.sent_small_obj_page = FALSE;
+		reply->_u.repu_u._any.commonpart.sent_small_obj_page = false;
 		reply->_u.repu_u._any.commonpart.obj_follows_bytes = opaque_t_len;
 
 		reply->_u.repu_u._any.commonpart.data.opaque_t_len = 0;
@@ -802,25 +802,25 @@ common_objmsg(
 		
 	default:
 #ifdef DEBUG
-		vas->checkflags(FALSE);
+		vas->checkflags(false);
 #endif
 		assert(what & cor_sysp);
 		// legitimate case for sysprops()
-		reply->_u.repu_u._any.commonpart.sent_small_obj_page = FALSE; // only one
+		reply->_u.repu_u._any.commonpart.sent_small_obj_page = false; // only one
 		reply->_u.repu_u._any.commonpart.obj_follows_bytes = 0;
 		reply->_u.repu_u._any.commonpart.data.opaque_t_len=0;
 		reply->_u.repu_u._any.commonpart.data.opaque_t_val=NULL;
 	} /* end switch */
 
 #ifdef DEBUG
-	if(what&cor_read) vas->checkflags(TRUE);
+	if(what&cor_read) vas->checkflags(true);
 #endif
 
 	vas->clrflags(svas_base::vf_sm_page|svas_base::vf_obj_follows);
 	vas->setflags(svas_base::vf_no_xfer);
 
 #ifdef DEBUG
-	vas->checkflags(FALSE);
+	vas->checkflags(false);
     if(reply->_u.repu_u._any.commonpart.data.opaque_t_len!=0)
                 dassert(reply->_u.repu_u._any.commonpart.data.opaque_t_val!=NULL);
 #endif
@@ -849,27 +849,27 @@ stat1_1(
 	memset(reply,'\0',sizeof(*reply));
 
 #	ifdef DEBUG
-	vas->checkflags(FALSE);
+	vas->checkflags(false);
 #	endif
 
 	if(argp->copypage) what |= cor_page;
 	// stat1 never tries to read the page
 
 #	ifdef DEBUG
-	vas->checkflags(FALSE);
+	vas->checkflags(false);
 #	endif
 
 	s.tag = KindTransient;
 
 #ifdef DEBUG
-	vas->checkflags(FALSE);
+	vas->checkflags(false);
 #endif
 
 	// tell vas what set of pages to use.
 	if((x = vas->use_page(argp->pageoffset))== SVAS_OK) {
 
 #		ifdef DEBUG
-		vas->checkflags(FALSE);
+		vas->checkflags(false);
 #		endif
 
 		x =  vas->sysprops(argp->obj, &s, argp->copypage, argp->lock,
@@ -882,10 +882,10 @@ stat1_1(
 		switch(vas->xfercase()) {
 		case svas_base::case_a: // case_a = vf_sm_page|vf_wire,
 #ifdef DEBUG
-			vas->checkflags(TRUE);
+			vas->checkflags(true);
 #endif
 			dassert(vas->num_page_bufs() > 0);
-			reply->sent_small_obj_page = TRUE; // only one
+			reply->sent_small_obj_page = true; // only one
 			assert(vas->shm.base() == NULL);
 
 			// sending exactly one page
@@ -905,10 +905,10 @@ stat1_1(
 		case svas_base::case_b: // case_b = vf_sm_page|vf_shm,
 
 #ifdef DEBUG
-			vas->checkflags(TRUE);
+			vas->checkflags(true);
 #endif
 			dassert(vas->num_page_bufs() > 0);
-			reply->sent_small_obj_page = TRUE; // only one
+			reply->sent_small_obj_page = true; // only one
 			reply->data.opaque_t_len = 0;
 			reply->data.opaque_t_val = NULL;
 
@@ -925,9 +925,9 @@ stat1_1(
 		default: // legit case for sysprops() is none of the "case_?"s
 			// nothing to do yet.
 #ifdef DEBUG
-			vas->checkflags(FALSE);
+			vas->checkflags(false);
 #endif
-			reply->sent_small_obj_page = FALSE; // only one
+			reply->sent_small_obj_page = false; // only one
 			reply->sysprops = convert_sysprops(s);
 			reply->data.opaque_t_len=0;
 			reply->data.opaque_t_val=NULL;
@@ -937,12 +937,12 @@ stat1_1(
 		vas->clrflags(svas_base::vf_sm_page|svas_base::vf_obj_follows);
 		vas->setflags(svas_base::vf_no_xfer);
 #ifdef DEBUG
-		vas->checkflags(FALSE);
+		vas->checkflags(false);
 #endif
 	} else {
 		reply->data.opaque_t_len = 0;
 		reply->data.opaque_t_val = NULL;
-		reply->sent_small_obj_page = FALSE;
+		reply->sent_small_obj_page = false;
 		s.tag = KindTransient; // for rpc 
 	}
 	if(reply->data.opaque_t_len!=0)
@@ -1240,7 +1240,7 @@ readobj_1(
 	vec_t	data(data_ptr, (int) argp->data_limit);
 
 #ifdef DEBUG
-	vas->checkflags(FALSE);
+	vas->checkflags(false);
 #endif
 	reply->commonpart.data.opaque_t_len = 0; // in case of error
 
@@ -1260,14 +1260,14 @@ readobj_1(
 		// small-page_buf if small anonymous
 
 #ifdef DEBUG
-		vas->checkflags(TRUE);
+		vas->checkflags(true);
 #endif
 
 		switch(vas->xfercase()) {
 		case svas_base::case_a: // case_a = vf_sm_page|vf_wire,
 
 			dassert(vas->num_page_bufs() > 0);
-			reply->sent_small_obj_page = TRUE; // only one
+			reply->sent_small_obj_page = true; // only one
 			reply->obj_follows_bytes = 0; 
 
 			assert(vas->shm.base() == NULL);
@@ -1285,7 +1285,7 @@ readobj_1(
 
 		case svas_base::case_b: // case_b = vf_sm_page|vf_shm,
 			dassert(vas->num_page_bufs() > 0);
-			reply->sent_small_obj_page = TRUE; // only one
+			reply->sent_small_obj_page = true; // only one
 			reply->obj_follows_bytes = 0; 
 
 			reply->data.opaque_t_len = 0;
@@ -1299,7 +1299,7 @@ readobj_1(
 		case svas_base::case_c: // case_c = vf_obj_follows|vf_wire,
 			// data were copied to the given vector,
 			// whatever that was
-			reply->sent_small_obj_page = FALSE;
+			reply->sent_small_obj_page = false;
 			reply->obj_follows_bytes = reply->data.opaque_t_len;
 			// reply->data.opaque_t_len was set by readObj
 
@@ -1311,7 +1311,7 @@ readobj_1(
 			// data were copied to the given vector,
 			// and the object length was written  to data.opaque_t_len
 
-			reply->sent_small_obj_page = FALSE;
+			reply->sent_small_obj_page = false;
 			reply->obj_follows_bytes = 
 				reply->data.opaque_t_len;
 
@@ -1324,17 +1324,17 @@ readobj_1(
 			assert(0);
 		}
 #ifdef DEBUG
-		vas->checkflags(TRUE);
+		vas->checkflags(true);
 #endif
 		vas->clrflags(svas_base::vf_sm_page|svas_base::vf_obj_follows);
 		vas->setflags(svas_base::vf_no_xfer);
 #ifdef DEBUG
-		vas->checkflags(FALSE);
+		vas->checkflags(false);
 #endif
 	} else {
 		reply->data.opaque_t_len = 0;
 		reply->data.opaque_t_val = NULL;
-		reply->sent_small_obj_page = FALSE;
+		reply->sent_small_obj_page = false;
 		reply->obj_follows_bytes =  0;
 	}
 #else
@@ -2054,7 +2054,7 @@ readsymlink_1(
 		(ObjectSize *)&reply->contents.opaque_t_len);
 
 #	ifdef DEBUG
-	vas->checkflags(TRUE);
+	vas->checkflags(true);
 #	endif
 	vas->clrflags(svas_base::vf_sm_page|svas_base::vf_obj_follows);
 	vas->setflags(svas_base::vf_no_xfer);
@@ -2074,7 +2074,7 @@ readsymlink2_1(
 	x = vas->readLink(argp->object, contents, 
 		(ObjectSize *)&reply->contents.opaque_t_len);
 #	ifdef DEBUG
-	vas->checkflags(TRUE);
+	vas->checkflags(true);
 #	endif
 	vas->clrflags(svas_base::vf_sm_page|svas_base::vf_obj_follows);
 	vas->setflags(svas_base::vf_no_xfer);
@@ -2130,7 +2130,7 @@ nextpoolscan1_1(
 	// sysprops
 
 #ifdef DEBUG
-	vas->checkflags(FALSE);
+	vas->checkflags(false);
 #endif
 
 	// tell vas what set of pages to use.
@@ -2175,7 +2175,7 @@ nextpoolscan2_1(
 	vec_t	data(data_ptr, (int) argp->data_limit);
 
 #ifdef DEBUG
-	vas->checkflags(FALSE);
+	vas->checkflags(false);
 #endif
 
 	bool eof=false;
@@ -2208,14 +2208,14 @@ nextpoolscan2_1(
 		// small-page_buf if small anonymous
 
 #ifdef DEBUG
-		vas->checkflags(TRUE);
+		vas->checkflags(true);
 #endif
 
 		switch(vas->xfercase()) {
 		case svas_base::case_a: // case_a = vf_sm_page|vf_wire,
 
 			dassert(vas->num_page_bufs() > 0);
-			reply->sent_small_obj_page = TRUE; // only one
+			reply->sent_small_obj_page = true; // only one
 			reply->obj_follows_bytes = 0; 
 
 			assert(vas->shm.base() == NULL);
@@ -2233,7 +2233,7 @@ nextpoolscan2_1(
 
 		case svas_base::case_b: // case_b = vf_sm_page|vf_shm,
 			dassert(vas->num_page_bufs() > 0);
-			reply->sent_small_obj_page = TRUE; // only one
+			reply->sent_small_obj_page = true; // only one
 			reply->obj_follows_bytes = 0; 
 
 			reply->data.opaque_t_len = 0;
@@ -2247,7 +2247,7 @@ nextpoolscan2_1(
 		case svas_base::case_c: // case_c = vf_obj_follows|vf_wire,
 			// data were copied to the given vector,
 			// whatever that was
-			reply->sent_small_obj_page = FALSE;
+			reply->sent_small_obj_page = false;
 			reply->obj_follows_bytes = 
 				reply->data.opaque_t_len;
 			// reply->data.opaque_t_len was set by readObj
@@ -2259,7 +2259,7 @@ nextpoolscan2_1(
 			// data were copied to the given vector,
 			// and the object length was written  to data.opaque_t_len
 
-			reply->sent_small_obj_page = FALSE;
+			reply->sent_small_obj_page = false;
 			reply->obj_follows_bytes = 
 				reply->data.opaque_t_len;
 
@@ -2272,17 +2272,17 @@ nextpoolscan2_1(
 			assert(0);
 		}
 #ifdef DEBUG
-		vas->checkflags(TRUE);
+		vas->checkflags(true);
 #endif
 		vas->clrflags(svas_base::vf_sm_page|svas_base::vf_obj_follows);
 		vas->setflags(svas_base::vf_no_xfer);
 #ifdef DEBUG
-		vas->checkflags(FALSE);
+		vas->checkflags(false);
 #endif
 	} else {
 		reply->data.opaque_t_len = 0;
 		reply->data.opaque_t_val = NULL;
-		reply->sent_small_obj_page = FALSE;
+		reply->sent_small_obj_page = false;
 		reply->obj_follows_bytes =  0;
 		s.tag = KindTransient; // for rpc 
 	}

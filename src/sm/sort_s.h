@@ -12,11 +12,23 @@
 #pragma interface
 #endif
 
+typedef int  (*PFC) (uint4 kLen1, const void* kval1, uint4 kLen2, const void*
+kval22, const void* cdata);
+
 //
 // info on keys
 //
 struct key_info_t {
-    enum key_type_t 	{ t_char=0, t_int, t_float, t_string, t_spatial };
+    typedef sortorder::keytype key_type_t;
+
+    // for backward compatibility only: should use keytype henceforth
+    enum dummy_t { t_char=sortorder::kt_u1,
+	t_int=sortorder::kt_i4,
+	t_float=sortorder::kt_f4,
+	t_string=sortorder::kt_b,
+	t_spatial=sortorder::kt_spatial,
+	t_custom=sortorder::kt_custom };
+
     enum where_t 	{ t_hdr=0, t_body };
 
     key_type_t  type;	    // key type
@@ -30,13 +42,31 @@ struct key_info_t {
     where_t 	where;      // where the key resides
     uint4	offset;	    // offset fron the begin
     uint4	len;	    // key length
-    
+    uint4	est_reclen; // estimated record length
+    /**
+     * A pointer to any additional data needed by the comparison function.
+     * this pointer is passed directly into the function and is not altered
+     * by surrounding code.
+     */
+    void *      comp_data;
+    /**
+     * A function which accepts two arguments, item_1 and item_2, and any
+     * additional data necessary for comparison (see comp_data above) and
+     * returns the following:
+     * Returns     When
+     *    0        item_1 = item_2
+     *   < 0       item_1 < item_2
+     *   > 0       item_1 > item_2
+     */
+    PFC         cmp;
+
     key_info_t() {
-      type = t_int;
+      type = sortorder::kt_i4;
       where = t_body;
       offset = 0;
       len = sizeof(int);
-      derived = FALSE;
+      derived = false;
+      est_reclen = 0;
     }
 };
 
@@ -53,11 +83,11 @@ struct sort_parm_t {
     bool   keep_lid;		// preserve logical oid for recs in sorted
 				// file -- only for destructive sort
     lvid_t   lvid;		// logical volume id
-    sm_store_property_t property; // temporary file ?
+    smlevel_3::sm_store_property_t property; // temporary file ?
 
     sort_parm_t() : run_size(10), unique(false), ascending(true),
 		    destructive(false), keep_lid(false),
-		    lvid(lvid_t::null), property(t_regular) {}
+		    lvid(lvid_t::null), property(smlevel_3::t_regular) {}
 };
 
 #endif // _SORT_S_H_

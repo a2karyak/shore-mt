@@ -25,9 +25,9 @@ set nrec 800
 #
 sm begin_xct
 set ndx [sm create_index $volid btree]
-echo created index $ndx
+verbose created index $ndx
 for {set i 1} {$i <= $nrec} {incr i} {
-    #echo inserting $i [format $vlong_form $i] [format $vlong_form $i]
+    #verbose inserting $i [format $vlong_form $i] [format $vlong_form $i]
     if {$i%20 == 0} { 
 	verbose inserting $i [format $vlong_form $i] [format $vlong_form $i] 
     }
@@ -40,23 +40,23 @@ for {set i 1} {$i <= $nrec} {incr i} {
 	    set el [sm find_assoc $ndx [format $vlong_form $j] ]
 	    #assert {[expr {[format $vlong_form $j] == $el}]}
 	    if {[format $vlong_form $j] != $el} {
-	        echo [format $vlong_form $j] != $el
+	        verbose [format $vlong_form $j] != $el
 		assert {0}
 	    }
 	}
     }
 }
-echo "probe:"
+verbose "probe:"
 for {set i 1} {$i <= $nrec} {incr i} {
     set el [sm find_assoc $ndx [format $vlong_form $i] ]
     assert {[expr {[format $vlong_form $i] == $el}]}
 }
-echo probed [expr {$i - 1}]
-echo "---- successful"
+verbose probed [expr {$i - 1}]
+verbose "---- successful"
 
 sm commit_xct
 
-echo testing integer key btree
+verbose testing integer key btree
 sm begin_xct
 sm test_int_btree $volid $nrec
 sm commit_xct

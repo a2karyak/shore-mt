@@ -14,11 +14,9 @@ else
 		libs=
 	fi
 fi
-rm -f Makefile.configured
-echo '# Edited by configure.  DO NOT EDIT' >Makefile.configured
-echo >> Makefile.configured
-sed "s/@LIB@/$libs/" <Makefile >>Makefile.configured
-chmod +w Makefile
-mv Makefile.configured Makefile
+rm -f Makefile
+echo '# Created by configure.  DO NOT EDIT' >Makefile
+echo >> Makefile
+sed "s/@LIB@/$libs/" <Makefile.tmpl >>Makefile
 chmod -w Makefile
 rm -f nil* a.out

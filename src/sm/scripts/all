@@ -8,30 +8,34 @@
 source $script_dir/vol.init
 
 set scripts [list \
-		alloc.all \
-		btree.all  \
-		pin.all \
-		rtree.all \
-		free.all \
-		multi.all \
 		trans.all \
-		lock.all quark.all\
+		lock.all \
+		alloc.all \
+		quark.all\
+		btree.all  \
+		file.all  \
+		free.all \
 		sort.all \
+		pin.all \
 		lid.all  \
 		thread_fork_example \
 		vol.all \
+		rtree.all \
 		lgrec.all \
-		file.all  \
+		multi.all \
 		]
 
-cleanup stderr
+set script ""
+cleanup stdout
 
 foreach script $scripts {
     echo
     echo RUNNING: $script 
     source $script_dir/$script
-    puts stderr [concat CLEANUP AFTER  $script  : ]
-    cleanup stderr
+
+    # WARNING: $script is modified by every script above so don't expect its
+    # value to be that which is set in this foreach loop.  it will be set to the
+    # name of the last script executed by the sourced script.
 }
 
 pstats

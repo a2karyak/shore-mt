@@ -6,7 +6,7 @@
 /* --------------------------------------------------------------- */
 
 /*
- *  $Header: /p/shore/shore_cvs/src/common/aix_tid_t.h,v 1.3 1996/07/09 20:39:14 nhall Exp $
+ *  $Header: /p/shore/shore_cvs/src/common/aix_tid_t.h,v 1.4 1996/11/28 00:42:06 nhall Exp $
  */
 #ifndef AIX_TID_T_H
 #define AIX_TID_T_H
@@ -81,60 +81,7 @@ private:
     uint4       lo;
 };
 
-#define max_gtid_len  256
-struct gtid_t {
-
-	uint4         _length;
-	unsigned char _opaque[max_gtid_len];
-
 #ifdef __cplusplus
-	gtid_t() {
-	    _length = 0;
-#ifdef PURIFY
-	    memset(_opaque, '\0', max_gtid_len);
-#endif
-	}
-	gtid_t	&
-	operator=(const gtid_t	&r) 
-	{
-		_length=r._length;
-		memcpy(_opaque,r._opaque,_length);
-		return *this;
-	}
-#endif
-};
-
-#ifdef __cplusplus
-inline 
-bool operator==(const gtid_t &a,
-	const gtid_t	&b) 
-{
-	return ((a._length==b._length) &&
-		(memcmp(a._opaque,b._opaque,a._length)==0));
-}
-
-#ifdef DEBUG
-
-#include <iostream.h>
-
-// Only for debugging purposes; for debugging,
-// we assume that this is a null-terminated character
-// string that fits
-inline ostream &
-operator<<(ostream &o, const gtid_t &t)
-{
-    return o << (char *)(t._opaque);
-}
-inline istream &
-operator>>(istream &i, gtid_t &t)
-{
-    i.width(sizeof(t._opaque));
-    i >> t._opaque;
-    t._length = strlen((const char *)t._opaque);
-    // assert(t._opaque[t._length]=0);
-    return i;
-}
-#endif DEBUG
 
 inline ostream& operator<<(ostream& o, const w_tid_t& t)
 {

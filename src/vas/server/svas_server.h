@@ -8,7 +8,7 @@
 #ifndef __SVAS_SERVER_H__
 #define __SVAS_SERVER_H__
 /*
- * $Header: /p/shore/shore_cvs/src/vas/server/svas_server.h,v 1.43 1996/06/25 14:38:40 nhall Exp $
+ * $Header: /p/shore/shore_cvs/src/vas/server/svas_server.h,v 1.44 1997/01/24 16:48:19 nhall Exp $
  */
 
 #include <copyright.h>
@@ -405,7 +405,7 @@ protected:
 						const Path absolute,	// in
 						OUT(bool)	found,		
 						OUT(lrid_t)	result = NULL,// valid only if found
-						bool		errIfNotFound = TRUE, // in
+						bool		errIfNotFound = true, // in
 						PermOp		perm = Permissions::op_exec, // in
 						OUT(serial_t) reg_file=NULL // EFSD
 					);
@@ -415,7 +415,7 @@ protected:
 					IN(lrid_t)	obj,
 					IN(lrid_t)	dir,
 					OUT(bool) result
-					);	// return TRUE iff obj is in the path from dir to root 
+					);	// return true iff obj is in the path from dir to root 
 
 					//
 					// MISCELLANEOUS OPERATIONS on registered
@@ -635,8 +635,8 @@ protected:
 		OUT(bool)		found,	
 		OUT(lrid_t)		result,	// -- valid only if found
 		OUT(serial_t)	reg_file,// -- valid only if found
-		bool			errIfNotFound = TRUE, // in
-		bool			followsym = TRUE // in -- follow symb links & xrefs
+		bool			errIfNotFound = true, // in
+		bool			followsym = true // in -- follow symb links & xrefs
 	);
 
 	//
@@ -670,15 +670,15 @@ public:
 	//
 	V_IMPL( VASResult		_nextPoolScan(
 						INOUT(Cookie)		cookie,	
-						OUT(bool)			eof,	// TRUE if no result
-											// if FALSE, result is legit
+						OUT(bool)			eof,	// true if no result
+											// if false, result is legit
 						OUT(lrid_t)			result,
 						bool				nextpage = false
 					))
 	V_IMPL( VASResult		_nextPoolScan(
 						INOUT(Cookie)		cookie,	
-						OUT(bool)			eof,	// TRUE if no result
-											// if FALSE, result is legit
+						OUT(bool)			eof,	// true if no result
+											// if false, result is legit
 						OUT(lrid_t)			result, 	// snapped ref
 						ObjectOffset		offset,
 						ObjectSize			requested,	// -- could be WholeObject
@@ -736,14 +736,14 @@ public:
 
 	V_IMPL( VASResult		nextPoolScan(
 						INOUT(Cookie)		cookie,	
-						OUT(bool)			eof,	// TRUE if no result
-											// if FALSE, result is legit
+						OUT(bool)			eof,	// true if no result
+											// if false, result is legit
 						OUT(lrid_t)			result
 					))
 	V_IMPL( VASResult		nextPoolScan(
 						INOUT(Cookie)		cookie,	
-						OUT(bool)			eof,	// TRUE if no result
-											// if FALSE, result is legit
+						OUT(bool)			eof,	// true if no result
+											// if false, result is legit
 						OUT(lrid_t)			result, 	// snapped ref
 						ObjectOffset		offset,
 						ObjectSize			requested,	// -- could be WholeObject
@@ -796,7 +796,7 @@ public:
 	VASResult		_rmDir(
 						IN(lrid_t) 	dir,			// - can't be "/"
 						const Path	 name,			
-						bool		checkaccess	= TRUE
+						bool		checkaccess	= true
 					);
 
 
@@ -837,7 +837,7 @@ public:
 							// call rmLink2 after doing
 							// integrity maintenance to get rid of the
 							// object
-						bool				checkaccess = TRUE
+						bool				checkaccess = true
 					);
 	VASResult		_mkLink(
 						IN(lrid_t)	 	target,			// -- can't be "/"
@@ -1208,7 +1208,7 @@ public:
 						OUT(lrid_t)	result,
 						OUT(bool)	found,
 						PermOp		perm = Permissions::op_read,
-						bool		followLinks=TRUE // if true, 
+						bool		followLinks=true // if true, 
 							// follow xrefs and symlinks
 							// if false, stop when you reach a symlink or
 							// xref and return its oid
@@ -1266,7 +1266,7 @@ public:
 	V_IMPL( VASResult		sysprops(
 						IN(lrid_t)	 		loid, 	
 						OUT(SysProps)		sysprops,
-						bool				wholepage=FALSE, // if TRUE,
+						bool				wholepage=false, // if true,
 											// the VAS will ship a 
 											// whole page to the client
 											// if appropriate.
@@ -1274,7 +1274,7 @@ public:
 						LockMode			lock=SH, 	// lock to acquire
 						OUT(bool)			is_unix_file=NULL,
 									// out default = NULL (don't care)
-									// if TRUE returned, object is
+									// if true returned, object is
 									// an object with TEXT portion
 									// (could be reg or anonymous -- could
 									// open an anonymous object through xref)
@@ -1286,7 +1286,7 @@ protected:
 	VASResult		_sysprops(
 						IN(lrid_t)	 		loid, 	
 						OUT(SysProps)		sysprops,
-						bool				wholepage=FALSE, 
+						bool				wholepage=false, 
 						LockMode			lock=SH, 
 						OUT(bool)			is_unix_file=NULL,
 						OUT(int)			size_of_sysp=0,
@@ -1621,8 +1621,8 @@ public:
 						OUT(ObjectSize)		keylen, // - bytes of vec used
 						IN(vec_t)			value,	
 						OUT(ObjectSize)		vallen, //  bytes of vec used
-						INOUT(bool)		eof=0	// TRUE if no result
-											// if FALSE, result is legit
+						INOUT(bool)		eof=0	// true if no result
+											// if false, result is legit
 					))
 	V_IMPL( VASResult		closeIndexScan(
 						IN(Cookie)			cookie	

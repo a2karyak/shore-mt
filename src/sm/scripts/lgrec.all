@@ -7,10 +7,17 @@
 
 source $script_dir/vol.init
 
-set scripts [list lgrec.1 lgrec.2 lgrec.3]
+set scripts [list lgrec.1 lgrec.2 lgrec.3 lgrec.4]
+
+echo CLEANUP BEFORE lgrec.all :
+cleanup stdout
+addcleanupvars {script}
 
 foreach script $scripts {
     echo
     echo RUNNING: $script 
     source $script_dir/$script
+    checkstats  $script
+    puts stdout [concat CLEANUP AFTER  $script  : ]
+    cleanup stdout
 }

@@ -13,7 +13,7 @@
 #endif
 
 struct dp_entry_t {
-    lpid_t      pid;
+    bfpid_t      pid;
     lsn_t       rec_lsn;
     w_link_t    link;
 

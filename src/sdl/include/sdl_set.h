@@ -210,9 +210,9 @@ public:
 	{ 	rType *my_type;						
 		SH_HANDLE_ERROR(OCRef::get_type(my_type));			
 		if (my_type->cast(0,&RefPin<T>::TypeObj))
-			return TRUE;
+			return true;
 		else
-			return FALSE;
+			return false;
 	}
 	shrc get_pool(Ref<Pool> &pool)					
 	{ W_DO(_get_pool(pool)); return RCOK; }				
@@ -544,7 +544,7 @@ TYPE(T)::isa(const OCRef &ref) {					\
 };									\
 /* one more for the road */						\
 bool 									\
-TYPE(T)::methods_exist() { return TRUE; };				\
+TYPE(T)::methods_exist() { return true; };				\
 /* and another */							\
 REF(T)::Ref(const T *p) { OCRef::init(p?p->get_top():0); }			\
 

@@ -21,11 +21,9 @@
 #include "sdl_string.h"
 
 
-void 
-sdl_heap_base::__extend_space(size_t s)
 // extend the existing heap space to size s; copy the existing contents.
 // we (with some danger) use realloc.
-{
+void sdl_heap_base::__extend_space(size_t s) {
 	char * new_sp;
 	assert(s>cur_size);
 	if (free_it && space != 0)
@@ -47,146 +45,98 @@ sdl_heap_base::__extend_space(size_t s)
 	free_it = 1;
 }
 
-// constructors, except for default sdl_string::sdl_string(), defined
-// in sdl_support.C.
-sdl_string::sdl_string(const sdl_string &istring)
-{
+sdl_string::sdl_string(const sdl_string &istring) {
 	sdl_heap_base::init();
-	set(istring.string(),0,istring.blen());
+	set(istring.string(),0,istring.length());
 }
 
-sdl_string::sdl_string(const char *s)
-{
+sdl_string::sdl_string(const char *s) {
 	sdl_heap_base::init();
 	set(s);
 }
 
-// note: everywhere __reset_space is called below, we could probably
-// do something with realloc in sdl_heap_base.
-char sdl_string::get(size_t n) const
-{
-	if(n >= strlen())
+char sdl_string::get(size_t n) const {
+	if (n >= length())
 		return '\0';
-	else
-		return string()[n];
+	return space[n];
 }
 
-
-void sdl_string::get(char *s) const
-{
-	if (strlen())
-		::memcpy(s, string(), strlen()+1);
+void sdl_string::get(char *s) const {
+	if (length())
+		::memcpy(s, space, length()+1);
 	else
 		*s = 0;
 }
 
-
-void sdl_string::get(char *s, size_t from, size_t len) const
-{
-	if (from >= strlen())
+void sdl_string::get(char *s, size_t from, size_t len) const {
+	if (from >= length())
 		*s = 0;
 	else {
 		// Allow copying of null at the end.  This is necessary
-		// in order to make get(x,0,strlen()+1) equiv to get(x)
+		// in order to make get(x,0,length()+1) equiv to get(x)
 
-		if (from + len > strlen()+1) len = (strlen()+1) - from;
-		::memcpy(s, string() + from, len);
+		if (from + len > length()+1) len = (length()+1) - from;
+		::memcpy(s, &space[from], len);
 	}
 }
 
-
-void sdl_string::set(size_t n, char c)
-{
+void sdl_string::set(size_t n, char c) {
 	char *tmp;
 
-	check_size(n);
-	string()[n] = c;
+	check_size(n+1);
+	space[n] = c;
+	space[n+1] = 0; // maintain invariant that "invisible" terminator is 0
 }
 
-
-void sdl_string::set(const char *s)
-{
-	kill(); // null outthe previous string.
+void sdl_string::set(const char *s) {
+	kill(); // discard previous value
 	if (s == 0) {
 		return; // already nulled
 	}
-	set(s,0,::strlen(s)+1);
+	set(s,0,::strlen(s));
 }
 
-
-void sdl_string::set(const char *s, size_t from, size_t len)
-{
+void sdl_string::set(const char *s, size_t from, size_t len) {
 	if (s == 0) {
 		return;
 	}
 	if (len < 0) return;
-
-	check_size(from+len); // puts in the null at the end
-							// if extend was called
-	if (len>0)::memcpy(string() + from, s, len);
+	check_size(from+len);  // memcpy will overwrite space[from..from+len-1]
+	if (len>0)
+		::memcpy(&space[from], s, len);
+	space[from+len] = 0; // maintain invariant that "invisible" terminator is 0
 }
 
-
-
-
-int sdl_string::countc(const char c) const
-{
-	// strlen/blen confusion makes this questionable...
+int sdl_string::countc(char c) const {
 	size_t i, count;
+	int n = length();
 
 	count = 0;
-	for(i = 0; i < strlen(); ++i)
-		if(string()[i] == c)
+	while (n-- > 0)
+		if(space[i++] == c)
 			++count;
-
 	return count;
 }
 
-
-int sdl_string::strcmp(const char *s) const
-{
-	//return memcmp(string(), s, ::strlen(s)+1);
-	// why memcmp? null termination is guaranteed?
-	return ::strcmp(string(),s);
+int sdl_string::strcmp(const char *s) const {
+	if (!s) return non_null() ? 1 : 0; // "xx" > ""; ""==""
+	if (!non_null) return -1;	// "" < "xx"
+	return ::strcmp(space,s);
 }
-
-
-int sdl_string::strcmp(const sdl_string &s) const
-{
-	//return memcmp(string(), s.string(), s.strlen()+1);
-	return ::strcmp(string(),s.string());
-}
-
 
 int sdl_string::strncmp(const char *s, size_t len) const
 {
-	// if (len > strlen()) len = strlen();
-	// again, null termination is guaranteed.?
-	return ::strncmp(string(), s, len);
+	if (len <= 0) return 0;  // equality
+	if (!s) return non_null() ? 1 : 0; // "xx" > ""; ""==""
+	if (!non_null) return -1;	// "" < "xx"
+	return ::strncmp(space,s,len);
 }
 
-
-int sdl_string::strncmp(const sdl_string &s, size_t len) const
-{
-	//if (len > strlen()) len = strlen();
-	//if (len > s.strlen()) len = s.strlen();
-	return ::strncmp(string(), s.string(), len);
-}
-
-
-sdl_string &
-sdl_string::operator=(const sdl_string & s)
-// do a literal copy, including nulls, of the entire space of s.
-{
+sdl_string & sdl_string::operator=(const sdl_string & s) {
 	kill();
-	set(s.string(),0,s.blen());
+	set(s.string(),0,s.length());
 	return *this;
 }
 
-ostream& operator<<(ostream& os, const sdl_string& x)
-{
-	os << (char *)x;
-}
-	
 template class Apply<sdl_string>;
 // I'm not sure about this.

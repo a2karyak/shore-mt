@@ -9,7 +9,7 @@
 #  Test btree remove
 #
 proc scan_up_partial {ndx lb ub nrec} {
-    echo "scan up partial:"
+    verbose "scan up partial:"
     set scan [sm create_scan $ndx >= $lb <= $ub]
 
     set lb [string trimleft $lb 0]
@@ -27,39 +27,39 @@ proc scan_up_partial {ndx lb ub nrec} {
     assert {expr $i > $nrec}
     assert {expr [string compare [sm scan_next $scan] eof] == 0}
     sm destroy_scan $scan
-    echo "---- successful"
+    verbose "---- successful"
 }
 
 proc scan_up {ndx nrec}  {
     #
     # verify ascending
     #
-    echo "scan up:"
+    verbose "scan up:"
     set scan [sm create_scan $ndx >= neg_inf <= pos_inf]
     for {set i 1} {$i <= $nrec} {incr i}  {
         set r [sm scan_next $scan]
 	if {[string compare $r eof] == 0} then { break }
         set key [string trimleft [lindex $r 0] 0]
         set el [lindex $r 1]
-        echo "scanned ($key, $el)"
+        verbose "scanned ($key, $el)"
         assert {expr $key == $el}
         assert {expr $i == $key}
     }
     assert {expr $i > $nrec}
     assert {expr [string compare [sm scan_next $scan] eof] == 0}
     sm destroy_scan $scan
-    echo "---- successful"
+    verbose "---- successful"
 }
 
 proc probe {ndx nrec} {
     global short_form
-    echo "probe:"
+    verbose "probe:"
     for {set i 1} {$i <= $nrec} {incr i} {
         set el [sm find_assoc $ndx [format $short_form $i]]
         assert {expr $i == $el}
         verbose probed $i
     }
-    echo "---- successful"
+    verbose "---- successful"
 }
 
 #
@@ -67,6 +67,9 @@ proc probe {ndx nrec} {
 #
 source $script_dir/vol.init
 
+if {$logging==0} {
+    echo "Logging off: script not run. "
+} else {
 set nrec 200
 
 #
@@ -74,7 +77,7 @@ set nrec 200
 #
 sm begin_xct
 set ndx [sm create_index $volid btree]
-echo created index $ndx
+verbose created index $ndx
 sm commit_xct
 
 sm begin_xct
@@ -89,27 +92,28 @@ scan_up $ndx $nrec
 sm commit_xct
 
 sm begin_xct
-echo 92: emptying index $ndx
+verbose 92: emptying index $ndx
 for {set i 1} {$i <= $nrec} {incr i} {
     verbose removing $i
     sm destroy_assoc $ndx [format $short_form $i] $i
 }
-sm abort_xct
+verbose sm abort_xct 
+sm abort_xct 
 
 sm begin_xct
 scan_up $ndx $nrec
 sm commit_xct
 
 sm begin_xct
-echo 104: emptying half the index $ndx
+verbose 104: emptying half the index $ndx
 for {set i 1} {$i <= [expr $nrec/2]} {incr i} {
     verbose removing $i
     sm destroy_assoc $ndx [format $short_form $i] $i
 }
-echo starting log corruption before destroying $i
+verbose starting log corruption before destroying $i
 sm start_log_corruption
 sm destroy_assoc $ndx [format $short_form $i] $i
-echo syncing log
+verbose syncing log
 sm sync_log
 restart
 
@@ -118,7 +122,7 @@ scan_up $ndx $nrec
 sm commit_xct
 
 sm begin_xct
-echo 121: emptying index $ndx
+verbose 121: emptying index $ndx
 for {set i 1} {$i <= $nrec} {incr i} {
     verbose removing $i
     sm destroy_assoc $ndx [format $short_form $i] $i
@@ -131,6 +135,9 @@ for {set i 1} {$i < $nrec} {incr i} {
     assert {error_is $err "{not found}"} 
 }
 scan_up $ndx 0
+
+verbose [sm gather_stats]
 sm commit_xct
 
 unset nrec ndx i err
+}

@@ -14,140 +14,144 @@ proc rid_to_pid { rec } {
 proc rem1 { rid  commit} {
 	sm begin_xct
 	sync
-	echo destroying r1
+	verbose destroying r1
 	sm destroy_rec $rid
-	echo r1 destroyed
+	verbose r1 destroyed
 	sync
 	if {$commit} {
 		sm commit_xct
-		echo t1 committed
+		verbose t1 committed
 	} else {
-		echo t1 aborting
+		verbose t1 aborting
 		sm abort_xct
-		echo t1 aborted
+		verbose t1 aborted
 	}
 }
 
 proc rem2 { rid  commit} {
 	sm begin_xct
 	sync
-	echo destroying r2
+	verbose destroying r2
 	sm destroy_rec $rid
-	echo r2 destroyed
+	verbose r2 destroyed
 	sync
 	if {$commit} {
 		sm commit_xct
-		echo t2 committed
+		verbose t2 committed
 	} else {
-		echo t2 aborting
+		verbose t2 aborting
 		sm abort_xct
-		echo t2 aborted
+		verbose t2 aborted
 	}
 }
 
 source $script_dir/vol.init
 
-sm begin_xct
+if { $logging == 0 } {
+    echo "Logging off: script not run. "
+} else {
+    sm begin_xct
 
-echo creating file
-set f1 [sm create_file $volid]
+    verbose creating file
+    set f1 [sm create_file $volid]
 
-set PG_SZ       952
+    set PG_SZ       952
 
-# Create 3 records: r0, r1 and r2. 
-# r0 will be big enough to fill a whole page.
-# r1 and r2 are placed in the second page of the file.
+    # Create 3 records: r0, r1 and r2. 
+    # r0 will be big enough to fill a whole page.
+    # r1 and r2 are placed in the second page of the file.
 
-# change body width
-set id_body_width %0[expr {$PG_SZ * .96}]d
+    # change body width
+    set id_body_width %0[expr {$PG_SZ * .96}]d
 
-echo creating r0
-set r0 [ sm create_rec $f1 "" 11 [format $id_body_width 0] ]
-echo $r0
+    verbose creating r0
+    set r0 [ sm create_rec $f1 "" 11 [format $id_body_width 0] ]
+    verbose $r0
 
-echo creating r1 and r2
-set r1 [ sm create_rec $f1 "" 11 markos ]
-set r2 [ sm create_rec $f1 "" 11 mike ]
-echo $r1 $r2
+    verbose creating r1 and r2
+    set r1 [ sm create_rec $f1 "" 11 markos ]
+    set r2 [ sm create_rec $f1 "" 11 mike ]
+    verbose $r1 $r2
 
-#Remember the pid of the page containing r1 and r2
-set pid1 [rid_to_pid $r1 ]
-echo $pid1
-set pid2 [rid_to_pid $r2]
-echo $pid2
-assert {expr [string compare $pid1 $pid2] ==0 }
+    #Remember the pid of the page containing r1 and r2
+    set pid1 [rid_to_pid $r1 ]
+    verbose $pid1
+    set pid2 [rid_to_pid $r2]
+    verbose $pid2
+    assert {expr [string compare $pid1 $pid2] ==0 }
 
-echo du after creating r1 and r2
-dstats $f1
+    verbose du after creating r1 and r2
+    dstats $f1
 
-sm commit_xct
+    sm commit_xct
 
-# Create two transactions: t1 and t2.
-# First t1 destroys r1 and then t2 destroys r2.
-# Both xacts commit.
+    # Create two transactions: t1 and t2.
+    # First t1 destroys r1 and then t2 destroys r2.
+    # Both xacts commit.
 
-echo forking 1
-set t1 [ fork_thread rem1 $r1 1 ]
-echo forking 2
-set t2 [ fork_thread rem2 $r2 1 ]
+    verbose forking 1
+    set t1 [ fork_thread rem1 $r1 1 ]
+    verbose forking 2
+    set t2 [ fork_thread rem2 $r2 1 ]
 
-#destroy r1
-sync_thread $t1
-#destroy r2: t2 destroys r2 and tries to free page==>must wait until t1 commits
-sync_thread $t2
-#commit t1
-sync_thread $t1
-#commit t2
-sync_thread $t2
+    #destroy r1
+    sync_thread $t1
+    #destroy r2: t2 destroys r2 and tries to free page==>must wait until t1 commits
+    sync_thread $t2
+    #commit t1
+    sync_thread $t1
+    #commit t2
+    sync_thread $t2
 
-join_thread $t1 $t2
+    join_thread $t1 $t2
 
-# Re-create r1 and r2 
-# Check that the same page is reused.
+    # Re-create r1 and r2 
+    # Check that the same page is reused.
 
-sm begin_xct
+    sm begin_xct
 
-echo du after destroying r1 and r2
-dstats $f1
+    verbose du after destroying r1 and r2
+    dstats $f1
 
-echo re-creating recs r1 and r2
+    verbose re-creating recs r1 and r2
 
-set r1 [ sm create_rec $f1 "" 11 markos ]
-set r2 [ sm create_rec $f1 "" 11 mike ]
-echo $r1 $r2
-assert {expr [string compare $pid1 [rid_to_pid $r1]] == 0}
-assert {expr [string compare $pid2 [rid_to_pid $r2]] == 0}
+    set r1 [ sm create_rec $f1 "" 11 markos ]
+    set r2 [ sm create_rec $f1 "" 11 mike ]
+    verbose $r1 $r2
+    assert {expr [string compare $pid1 [rid_to_pid $r1]] == 0}
+    assert {expr [string compare $pid2 [rid_to_pid $r2]] == 0}
 
-echo du after re-creating r1 and r2
-dstats $f1
+    verbose du after re-creating r1 and r2
+    dstats $f1
 
-sm commit_xct
+    sm commit_xct
 
-# Create two transactions: t1 and t2.
-# First t1 destroys r1 and then t2 destroys r2.
-# t1 will abort, t2 will commit.
+    # Create two transactions: t1 and t2.
+    # First t1 destroys r1 and then t2 destroys r2.
+    # t1 will abort, t2 will commit.
 
-echo forking 1
-set t1 [ fork_thread rem1 $r1 0 ]
-echo forking 2
-set t2 [ fork_thread rem2 $r2 1 ]
+    verbose forking 1
+    set t1 [ fork_thread rem1 $r1 0 ]
+    verbose forking 2
+    set t2 [ fork_thread rem2 $r2 1 ]
 
-sync_thread $t1
-sync_thread $t2
-sync_thread $t1
-sync_thread $t2
-join_thread $t1 $t2
+    sync_thread $t1
+    sync_thread $t2
+    sync_thread $t1
+    sync_thread $t2
+    join_thread $t1 $t2
 
-sm begin_xct
+    sm begin_xct
 
-dstats $f1
+    dstats $f1
 
-echo [sm scan_recs $f1]
+    sm scan_recs $f1
 
-sm destroy_file $f1
+    sm destroy_file $f1
 
-sm commit_xct
+    sm commit_xct
 
-unset f1 PG_SZ  r0 r1 r2 
-unset pid1 pid2 
-unset t1 t2
+    unset f1 PG_SZ  r0 r1 r2 
+    unset pid1 pid2 
+    unset t1 t2
+}

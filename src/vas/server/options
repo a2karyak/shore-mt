@@ -6,7 +6,7 @@
 # --------------------------------------------------------------- #
 
 #
-# $Header: /p/shore/shore_cvs/src/vas/server/options,v 1.2 1996/07/24 21:54:39 nhall Exp $
+# $Header: /p/shore/shore_cvs/src/vas/server/options,v 1.3 1997/08/05 19:45:28 solomon Exp $
 #
 # Example .rc file for shore value-added server, svas tester, 
 # and example applications.
@@ -165,10 +165,10 @@ shore.server.shore.svas_shellrc: ~/shore.rc
 # You will probably have trouble if you 
 # try this with nfs.
 #
-# shore.server.?.svas_remote_pmap: no
-# shore.server.shore.svas_client_pmap: no
-# shore.server.shore.svas_nfsd_pmap: no
-# shore.server.shore.svas_mountd_pmap: no
+shore.server.?.svas_remote_pmap: yes
+shore.server.shore.svas_client_pmap: yes
+# shore.server.shore.svas_nfsd_pmap: yes
+# shore.server.shore.svas_mountd_pmap: yes
 #
 # If any of the above services registers
 # with the portmapper, you have a choice in how
@@ -209,7 +209,7 @@ shore.server.shore.svas_shellrc: ~/shore.rc
 #
 # shore.client.sshutdown.svas_host: localhost
 # shore.client.sshutdown.svas_remote_port: 2998
-# shore.client.sshutdown.svas_remote_pmap: no
+shore.client.sshutdown.svas_remote_pmap: yes
 #
 
 ################################################
@@ -225,7 +225,7 @@ shore.server.shore.svas_shellrc: ~/shore.rc
 # shore.client.?.svas_host: localhost
 # shore.client.?.svas_port: 2999
 # shore.client.?.svas_log: -
-# shore.client.?.svas_use_pmap: no
+shore.client.?.svas_use_pmap: yes
 # audit is very costly -- for debugging only
 # shore.client.?.svas_audit: no
 # shore.client.?.svas_print_user_errors: no

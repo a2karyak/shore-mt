@@ -6,7 +6,7 @@
 /* --------------------------------------------------------------- */
 
 /*
- *  $Id: rsrc.h,v 1.51 1995/07/14 21:33:09 nhall Exp $
+ *  $Id: rsrc.h,v 1.53 1997/06/16 21:35:49 solomon Exp $
  */
 #ifndef RSRC_H
 #define RSRC_H
@@ -15,8 +15,12 @@
 #include <w.h>
 #endif 
 
+#ifndef STHREAD_H
 #include <sthread.h>
+#endif
+#ifndef LATCH_H
 #include <latch.h>
+#endif
 
 /*********************************************************************
 Template Class: rsrc_m
@@ -221,7 +225,7 @@ private:
 
 #ifdef __GNUC__
 #if defined(IMPLEMENTATION_RSRC_H) || !defined(EXTERNAL_TEMPLATES)
-#include "rsrc.c"
+#include "rsrc.cc"
 #endif
 #endif
 #endif /*RSRC_H*/

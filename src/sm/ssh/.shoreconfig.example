@@ -6,7 +6,7 @@
 # --------------------------------------------------------------- #
 
 #
-# $Header: /p/shore/shore_cvs/src/sm/ssh/.shoreconfig.example,v 1.3 1996/06/26 20:19:14 nhall Exp $
+# $Header: /p/shore/shore_cvs/src/sm/ssh/.shoreconfig.example,v 1.4 1997/05/27 13:04:09 kupsch Exp $
 #
 # Example .shoreconfig file for ssh
 #
@@ -43,7 +43,7 @@
 # use sm_reformat_log to reinitialize a log that is a raw device
 *.server.*.sm_reformat_log: no
 
-*.server.*.sm_logsize: 10000
+*.server.*.sm_logsize: 20000
 *.server.*.sm_multiserver: no
 
 # Specify the sm buffer pool size for any program

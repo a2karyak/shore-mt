@@ -6,8 +6,10 @@
 # --------------------------------------------------------------- #
 
 #
-#	Test sort on integers
+#	Test sort on integers and floats -- this is called by sort.4
+#    This assumed that $ktype and $nrec  are set by calling script
 #
+
 source $script_dir/vol.init
 
 set nrec 40
@@ -16,41 +18,23 @@ set pattern_block ".123456789"
 set pattern ""
 for {set i 0} {$i < 900} {incr i} {
     set pattern $pattern$pattern_block
-    #echo $pattern
+    #verbose $pattern
 }
 
-#create and load a file with integers in reverse order
-sm begin_xct
-set f1 [sm create_file $volid]
-echo f1 = $f1
-for {set i 0} {$i < $nrec} {incr i} {
-   sm create_sort_rec $f1 [expr { $nrec - $i }] 4 $pattern int
+set typelist { u1 u2 u4 i1 i2 i4 f4 f8 b1 }
+# sort does not work for variable-length keys, since
+# the key lengths then need to be stored with each key
+# set typelist { b*1000 }
+#
+
+set len [llength $typelist]
+
+for {set k 0} {$k < $len} {incr k} {
+    set ktype [lindex $typelist $k] 
+    verbose "---- testing -- $ktype"
+
+    source $script_dir/sort.4a
 }
-echo scans on f1...
-#echo [sm scan_sorted_recs $f1 int]
-sm commit_xct
 
-#sort and display (non-destructive)
-sm begin_xct
-echo sort ...
-set f2 [sm sort_file $f1 $volid 3 int 4 distinct keep]
-echo f2 = $f2
 
-echo scans on f2 ...
-echo [sm scan_sorted_recs $f2 int]
-
-#sort and display (destructive)
-echo sort ...
-set f3 [sm sort_file $f1 $volid 3 int 4 distinct destruct]
-echo f3 = $f3
-
-echo scans on f3 ...
-echo [sm scan_sorted_recs $f3 int]
-
-#sm destroy_file $f1
-#sm destroy_file $f2
-#sm destroy_file $f3
-
-sm commit_xct
-
-unset nrec f1 f2 f3 pattern pattern_block i
+unset nrec pattern pattern_block len k typelist ktype

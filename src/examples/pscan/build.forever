@@ -1,6 +1,0 @@
-#/bin/csh -f
-while 1
-	echo build 1000
-	build 1000
-	sleep 1
-end

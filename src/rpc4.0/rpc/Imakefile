@@ -1,23 +1,21 @@
 #
 # $RCSfile: Imakefile,v $
-# $Revision: 1.17 $
-# $Date: 1996/07/10 21:23:34 $
-# $Author: nhall $
+# $Revision: 1.18 $
+# $Date: 1997/06/13 22:32:51 $
+# $Author: solomon $
 #
 #
-DESTDIR=.
 
-#CPPFLAGS = -I.. $(FC_INCL) -I$(TOP)/config
-#AUXFLAGS = $(CPPFLAGS) -DUW
+#if defined(IS_SOLARIS2)
 
-INCLUDE = -I.. $(FC_INCL) -I$(TOP)/config 
-#if defined(IS_SPARC_SOLARIS2) || defined(IS_I386_SOLARIS2)
-INCLUDE += -I. -I/usr/ucbinclude
-#endif
+%# Solaris does not need anything from this directory
 
-#if defined(IS_SPARC_SOLARIS2) || defined(IS_I386_SOLARIS2)
-SRC = dummy.c
-#else 
+#else /* not SOLARIS */
+
+%# Warning: the non-solaris version of this stuff has not been tested yet
+
+CPPFLAGS = -I.. -I../../fc -I$(TOP)/config
+
 SRC = auth_none.c auth_unix.c  authunix_prot.c bindresvport.c \
 	clnt_generic.c clnt_perror.c clnt_raw.c clnt_simple.c clnt_tcp.c \
 	clnt_udp.c rpc_dtablesize.c get_myaddress.c getrpcent.c getrpcport.c \
@@ -26,44 +24,23 @@ SRC = auth_none.c auth_unix.c  authunix_prot.c bindresvport.c \
 	svc.c svc_auth.c svc_auth_unix.c svc_raw.c svc_run.c svc_simple.c \
 	svc_tcp.c svc_udp.c xdr.c xdr_packed.c xdr_array.c xdr_float.c xdr_mem.c \
 	xdr_rec.c xdr_reference.c xdr_stdio.c paragon.c  svc_stats.C
-#endif   
 
-OBJ.tmp = $(SRC:.c=.o)
-OBJ = $(OBJ.tmp:.C=.o)
+%GEN c_to_o(OBJ,$(SRC))
 
-HFILES = auth.h auth_unix.h clnt.h netdb.h pmap_clnt.h \
+#define Hfiles auth.h auth_unix.h clnt.h netdb.h pmap_clnt.h \
 	pmap_prot.h pmap_rmt.h rpc.h rpc_msg.h svc.h svc_auth.h types.h xdr.h\
 	svc_stats.h
 
-SRC.cvs = $(SRC) $(HFILES)
-STAT_FILES = \
-	udpstats_struct.i udpstats_op.i udpstats_msg.i \
-	tcpstats_struct.i tcpstats_op.i tcpstats_msg.i \
-	svcstats_struct.i svcstats_op.i svcstats_msg.i 
+all_local:: librpclib.a
 
-STAT_DEF_FILES = \
-	udpstats_def.i tcpstats_def.i svcstats_def.i
-	
+%GEN stats(svc_stats.dat, udpstats, tcpstats, svcstats)
+%GEN library(librpclib.a, $(OBJ))
 
-AUTOMATIC = $(STAT_FILES) $(STAT_DEF_FILES)
-	
-DISPOSABLE= $(STAT_FILES) $(STAT_DEF_FILES)
-ALLTARGETS = librpclib.a
+%GEN install(include, udpstats_def.i tcpstats_def.i svcstats_def.i)
+%GEN install(include/rpc, Hfiles)
+%GEN install(lib, librpclib.a)
 
-rpclib:	librpclib.a
+%GEN depend_target($(SRC) Hfiles)
+%GEN tags($(SRC))
 
-statistics(svc_stats.dat,-C,$(STAT_FILES) $(STAT_DEF_FILES))
-
-#if defined(IS_SPARC_SOLARIS2) || defined(IS_I386_SOLARIS2)
-#else
-install_copy(include, $(STAT_DEF_FILES))
-install_copy(include/rpc, $(HFILES))
-#endif
-
-install_copy(lib, librpclib.a)
-
-build_library(librpclib.a, $(OBJ))
-
-clean_files($(DISPOSABLE))
-
-depend_target($(SRC) $(HFILES))
+#endif /* non-Solaris version */

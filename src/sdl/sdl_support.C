@@ -6,7 +6,7 @@
 /* --------------------------------------------------------------- */
 
 /*
- * $Header: /p/shore/shore_cvs/src/sdl/sdl_support.C,v 1.69 1996/07/26 20:23:45 schuh Exp $
+ * $Header: /p/shore/shore_cvs/src/sdl/sdl_support.C,v 1.71 1997/06/13 21:58:34 solomon Exp $
  */
 
 #define OBJECT_CACHE 1
@@ -454,53 +454,6 @@ sdl_heap_op(HeapOps op, void **spt, size_t length, int free_it)
 	}
 }
 
-
-#ifdef oldcode
-// because sdl_string is derived from sdl_heap_base, now nothing
-// it need not define its own __apply now.
-
-// need be done here.
-void
-sdl_string::__apply(HeapOps op)
-{
-	switch(op) {
-	case PrepareForMem:
-	if (rt_pt->obj_hpt  && length>0)
-	{
-		string = (char *)rt_pt->obj_hpt;
-		// obj_hpt += length;
-		rt_pt->obj_hpt += roundup(length+1,sizeof(double));
-		free_it = 0;
-		// need to fix up for allignment; reinstall max_len?
-	}
-	break;
-	case ReSwizzle: // object has ben PreparedForDisk but is
-	// being reclaimed.
-	// nothing to do at this point..
-	break;
-	case ComputeHeapSize:
-		rt_pt->tot_hlen += roundup(length,sizeof(double));
-	break;
-	case PrepareForDisk:
-	if (length > 0)
-	{
-		size_t len = roundup(length+1,sizeof(double));
-		rt_pt->obj_outvec->put(string, len);
-		rt_pt->tot_hlen += len;
-		// ideally, we'd free the string now, but 
-		// can't do that till after it's written.
-
-	}
-	break;
-	case DeAllocate:
-	// check if space should be freed
-		if (free_it)
-			delete [] string;
-	break;
-	}
-}
-#endif
-
 // the text __apply is analagous to the string version, but the
 // there can only be one pointer.
 // similary, text is for the most part directly eqivalent to sdl_heap_base,
@@ -513,9 +466,7 @@ sdl_heap_base::text__apply(HeapOps op)
 	if (rt_pt->text_hpt  )
 	{
 		space = (rt_pt->text_hpt);
-		cur_size = rt_pt->text_length;
-		// convert to null terminated string...
-		// bummer, may have to reallocate memory.
+		cur_size = rt_pt->text_length + 1;
 		rt_pt->text_hpt[rt_pt->text_length]=0;
 		free_it = 0;
 	}
@@ -532,10 +483,15 @@ sdl_heap_base::text__apply(HeapOps op)
 	break;
 	case PrepareForDisk:
 	case ComputeHeapSize:
-	if (cur_size > 0)
+	if (cur_size > 1)
 	{
+		// NB:  The text field is an sdl_string, so it ends with a null that is
+		// not supposed to be counted in the length of the field.  To keep NFS
+		// from being confused, we chop that null here.  If cur_size==1, the
+		// field contains nothing but that null, so we treated it as if it were
+		// zero-length.
 		rt_pt->text_hpt = space;
-		rt_pt->text_length = cur_size;
+		rt_pt->text_length = cur_size - 1;
 	}
 	break;
 	case DeAllocate:
@@ -546,42 +502,6 @@ sdl_heap_base::text__apply(HeapOps op)
 	}
 }
 
-#ifdef oldcode
-void
-sdl_set::__apply(HeapOps op)
-{
-	switch(op) {
-	case PrepareForMem:
-	{
-		sdl_heap_base::__apply(op);
-		OCRef * elts = space_pt();
-		for (int i = 0; i < num_elements; i++)
-		    W_COERCE(elts[i].swizzle(rt_pt->cur_vindex));
-	}
-	break;
-	case ReSwizzle: // object has ben PreparedForDisk but is
-	// being reclaimed. Redo prepareforMem without space allocation.
-	{
-		OCRef * elts = space_pt();
-		for (int i = 0; i < num_elements; i++)
-		    W_COERCE(elts[i].swizzle(rt_pt->cur_vindex));	// FIX
-	}
-	break;
-	case PrepareForDisk:
-	{
-		// don't save more than actually used.
-		__trim_space(num_elements * sizeof(OCRef));
-		OCRef * elts = space_pt();
-		for (int i = 0; i < num_elements; i++)
-			W_COERCE(elts[i].unswizzle(rt_pt->cur_vindex));
-		sdl_heap_base::__apply(op);
-	}
-	break;
-	default:
-		sdl_heap_base::__apply(op);
-	}
-}
-#endif
 // ref-based sdl_set is obosolete; now, use as a generic heap elt only..
 
 void
@@ -873,7 +793,7 @@ prepare_to_abort()
 bool
 rType::methods_exist()
 {
-	return FALSE;
+	return false;
 }
 
 
@@ -891,11 +811,11 @@ rType::metaobj_exists()
 	{
 		// make sure its type is valid.
 		if (mref.get_type(ttpt) || TYPE_OBJECT(sdlInterfaceType).loid != ttpt->loid)
-			return FALSE;
-		return TRUE;
+			return false;
+		return true;
 	}
 	else
-		return FALSE;
+		return false;
 }
 
 // dummy persistent object base virtual fcts.

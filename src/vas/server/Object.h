@@ -8,7 +8,7 @@
 #ifndef __OBJECT_H__
 #define __OBJECT_H__
 /*
- *  $Header: /p/shore/shore_cvs/src/vas/server/Object.h,v 1.47 1995/08/25 21:03:50 nhall Exp $
+ *  $Header: /p/shore/shore_cvs/src/vas/server/Object.h,v 1.49 1997/06/13 21:43:33 solomon Exp $
  */
 #include <copyright.h>
 #include <vas_internal.h>
@@ -19,7 +19,7 @@
 #include "sysprops.h"
 #include "hdrinfo.h"
 
-#define	NotTempFile  t_regular
+#define	NotTempFile  ss_m::t_regular
 
 #ifdef __GNUG__
 # pragma interface
@@ -176,7 +176,7 @@ protected:
 	void 	freeBody();
 
 	inline		in_creation()const   { 
-		return _lrid == ReservedOid::_nil?TRUE:FALSE;}
+		return _lrid == ReservedOid::_nil?true:false;}
 
 	inline		is_root() const { 
 #		ifdef DEBUG
@@ -188,7 +188,7 @@ protected:
 			);
 		}
 #		endif
-		return _lrid == ReservedOid::_RootDir?TRUE:FALSE;
+		return _lrid == ReservedOid::_RootDir?true:false;
 	}
 
 	inline unsigned int offset2startofpage(smsize_t x, lpid_t &pid )  const{
@@ -328,7 +328,7 @@ private:
 
 protected: // gak- needed for Directory
 	VASResult repin(LockMode lm = NL);	
-	VASResult unpin(bool completely = FALSE);
+	VASResult unpin(bool completely = false);
 
 public:
 	VASResult addIndex( int	i, IN(serial_t)	idxserial); 
@@ -388,13 +388,13 @@ public:
 	}
 
 	inline bool	offset_pinned(smsize_t offset) const {
-			bool result = FALSE;
+			bool result = false;
 			if(handle.pinned()) {
 				if (start_byte() <= offset) {
 					if (pinned_length()+start_byte() > offset) {
-						result = TRUE;
+						result = true;
 					} else if(offset == 0) {
-						result = FALSE;
+						result = false;
 					}
 				}
 			}
@@ -404,7 +404,7 @@ public:
 	inline bool	loc_pinned(const char *loc) {
 			return (handle.pinned() && (handle.body() <= (char *)loc)
 				&& (pinned_length()+handle.body() > (char *)loc))?
-					TRUE:FALSE;
+					true:false;
 		}
 
 	inline void check_lsn() const {
@@ -466,7 +466,7 @@ public:
 	VASResult	modifytimes(
 		_sysprops 			*s,
 		unsigned int 		which,
-		bool				writeback// =FALSE (write back to disk)
+		bool				writeback// =false (write back to disk)
 	);
 
 	VASResult 		indexAccess(

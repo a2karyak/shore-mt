@@ -6,25 +6,23 @@
 /* --------------------------------------------------------------- */
 
 /*
- *  $Id: Imakefile,v 1.3 1995/08/05 18:40:36 zwilling Exp $
+ *  $Id: Imakefile,v 1.6 1997/06/13 22:33:24 solomon Exp $
  */
 
-SRC = sm_app_test.C
-OBJ = $(SRC:.C=.o)
-EXEC = sm_app_test file_scan
+SRC = file_scan.C options.C sm_app_test.C
 
 INCLUDE += $(SM_INCL) $(STHREAD_INCL) $(FC_INCL) $(COMMON_INCL)
+CPPFLAGS = -I.. -I../../fc -I../../common -I../../sthread Include(TclInclude)
 
-LIB = $(SM_LIB) $(COMMON_LIB) $(STHREAD_LIB) $(FC_LIB)
+all_local:: sm_app_test file_scan
 
-$(SM_LIB): ALWAYS
-	(cd $(SM_DIR); $(MAKE) $(OPTIONS))
+LIB = ../libsm.a ../../common/libcommon.a ../../sthread/libst.a ../../fc/libfc.a
 
-c_plus_program(sm_app_test, sm_app_test.o, $(LIB))
-c_plus_program(file_scan, file_scan.o options.o, $(LIB))
+%GEN c_plus_program(sm_app_test, sm_app_test.o, $(LIB))
+%GEN c_plus_program(file_scan, file_scan.o options.o, $(LIB))
 
 PURE_OPTIONS = $(PURE_OPT)
-purify_c_plus_program(sm_app_test, sm_app_test.o, $(LIB), $(PURE_OPTIONS))
+%GEN purify_c_plus_program(sm_app_test, sm_app_test.o, $(LIB), $(PURE_OPTIONS))
 
-depend_target($(SRC))
-
+%GEN depend_target($(SRC))
+%GEN tags($(SRC))

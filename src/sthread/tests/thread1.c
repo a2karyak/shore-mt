@@ -6,7 +6,7 @@
 /* --------------------------------------------------------------- */
 
 /*
- *  $Id: thread1.c,v 1.22 1996/07/15 22:51:02 bolo Exp $
+ *  $Id: thread1.c,v 1.23 1997/04/19 04:11:38 bolo Exp $
  */
 #include <iostream.h>
 #include <strstream.h>
@@ -113,6 +113,7 @@ int	PongGames = 1;
 int	StackOverflow = 0;	/* check stack overflow by allocatings
 				   this much on the stack */
 bool	ThreadExit = false;	/* exit main via thread package */
+bool	DumpThreads = false;
 
 worker_thread_t		**worker;
 int			*ack; 
@@ -123,7 +124,7 @@ int	parse_args(int argc, char **argv)
 	int	errors = 0;
 	int	c;
 
-	while ((c = getopt(argc, argv, "n:p:s:g:o:x")) != EOF) {
+	while ((c = getopt(argc, argv, "n:p:s:g:o:xd")) != EOF) {
 		switch (c) {
 		case 'n':
 			NumThreads = atoi(optarg);
@@ -142,6 +143,9 @@ int	parse_args(int argc, char **argv)
 			break;
 		case 'x':
 			ThreadExit = true;
+			break;
+		case 'd':
+			DumpThreads = true;
 			break;
 		default:
 			errors++;
@@ -197,10 +201,16 @@ void playPong()
 
 	for (i = 0; i < PongGames; i++) {
 		W_COERCE(games[i].pong->wait());
+		if (DumpThreads)
+			cout << "Pong Thread Done:" << endl
+				<< *games[i].pong << endl;
 		delete games[i].pong;
 		games[i].pong = 0;
 
 		W_COERCE(games[i].ping->wait());
+		if (DumpThreads)
+			cout << "Ping Thread Done:" << endl
+				<< *games[i].ping << endl;
 		delete games[i].ping;
 		games[i].ping = 0;
 	}
@@ -239,12 +249,17 @@ int	main(int argc, char* argv[])
 		    W_COERCE(worker[i]->fork());
 	    }
 
-	    if (next_arg < argc)
-	    	sthread_t::dump("dump", cout);
+#if 0
+	    if (DumpThreads)
+		    sthread_t::dump("dump", cout);
+#endif
     
 	    for(i=0; i<NumThreads; ++i) {
 		    W_COERCE( worker[i]->wait() );
 		    w_assert1(ack[i]);
+		    if (DumpThreads)
+			    cout << "Thread Done:"
+				    <<  endl << *worker[i] << endl;
 		    delete worker[i];
 		    worker[i] = 0;
 	    }
@@ -261,6 +276,9 @@ int	main(int argc, char* argv[])
 	    w_assert1(timer_thread);
 	    W_COERCE( timer_thread->fork() );
 	    W_COERCE( timer_thread->wait() );
+	    if (DumpThreads)
+		    cout << "Thread Done:" << endl
+			    << *timer_thread << endl;
 	    delete timer_thread;
     }
 

@@ -1,11 +1,26 @@
+#!/s/std/bin/perl -w
+use strict 'subs';
+use Getopt::Std;
+
+$opt_e = 0;
+$opt_c = 0;
+$opt_d = 0;
+$opt_v = 0;
+die "usage: $0 [-vde]\n"
+	unless getopts("vcde");
 #
-#  $Header: /p/shore/shore_cvs/tools/errors.pl,v 1.13 1995/09/08 16:05:26 nhall Exp $
+#  $Header: /p/shore/shore_cvs/tools/errors.pl,v 1.16 1997/06/16 21:34:36 solomon Exp $
 #
 # *************************************************************
 #
 # usage: <this-script> [-e] [-d] [-v] filename [filename]*
 #
 # -v verbose
+# -c count occurrences of each error code in the sources (*.[chi])
+#    turns off -e, -d.  Use as follows:
+#	perl -s $(TOP)/tools/errors.pl -c -e <xxx.dat>
+#    If you have the xxx*.i files intact, you'll see at least 1 count
+#	for each error code; if not, you'll so 0 for those unused.
 # -e generate enums
 # -d generate #defines 
 # 
@@ -41,32 +56,67 @@
 # *************************************************************
 #
 # OUTPUT:
-#  for each software layer ("name"), this script creates:
-#	STR:  <name>_error.i
-#	INFO: <name>_einfo.i  
-#	BINFO: <name>_einfo_bakw.h (if -d option is used)
-#	HDRE: <name>_error.h (if -e option is used)
-#	HDRD: <name>_error_def.h (if -d option is used)
-#
-#	name_error.i  contains a static char * array, each element is
-#		the error message associated with an error code
-#	name_einfo.i  contains a definition of a w_error_info_t array
-#		for use with the w_error package.
-#	name_error.h  contains an enumeration for the
-#		error codes , and an enum containing eERRMIN & eERRMAX
-#	name_error_def.h contains the #defined constants for the error 
-#		codes, and for minimum and maximum error codes
-#
+#  For each software layer (<name>), this script creates up to 5 files.
+#  Examples are taken from <name> == "svas":
+#      svas = 0x00100000 "Shore VAS" {
+#            NotImplemented        Feature is not implemented
+#            ...
+#         }
+#  In all cases the following two files are produced:
+#    STR:  <name>_error.i
+#      The error messages associated with codes, as a static array of strings
+#         static char* svas_errmsg[] = {
+#            /* SVAS_NotImplemented     */ "Feature is not implemented",
+#            ...
+#         };
+#         const svas_msg_size = <number of entries>;
+#    INFO: <name>_einfo.i  
+#      An array of (code, message) pairs as an array of w_error_info_t
+#         w_error_info_t svas_error_info[] = {
+#             { SVAS_NotImplemented    , "Feature is not implemented" },
+#            ...
+#         };
+#  If -d is used, two additional files are produced.
+#    BINFO: <name>_einfo_bakw.i
+#      Similar to <name>_einfo.i, but with string versions of the error
+#      codes rather than the error messages
+#         w_error_info_t svas_error_info_bakw[] = {
+#              { SVAS_NotImplemented, "SVAS_NotImplemented" },
+#            ...
+#         };
+#    HDRD: <name>_error_def.h
+#      The #defined constants for the error codes, and for minimum and maximum
+#      error codes
+#         #define SVAS_OK                   0
+#         #define SVAS_NotImplemented       0x100000
+#         ...
+#         #define SVAS_ERRMIN                0x100000
+#         #define SVAS_ERRMAX                0x10003f
+#  If -e is used, one additional file is produced.
+#    HDRE: <name>_error.h
+#      An enumeration for the codes, and an enum containing eERRMIN & eERRMAX
+#         enum { 
+#             svasNotImplemented       = 0x100000,
+#             ...
+#         };
+#         enum {
+#             svasERRMIN = 0x100000,
+#             svasERRMAX = 0x10003f
+#         };
 # *************************************************************
-#
-#
 
-if(!$d && !$e) {
+if(!$opt_d && !$opt_e) {
 	die "You must specify one of -d, -e.";
 }
 $both = 0;
-if($d && $e) {
+if($opt_d && $opt_e) {
 	$both = 1;
+}
+
+if($opt_c) {
+	$both = 0;
+	$opt_d = 0;
+	$opt_e = 0;
 }
 
 $cpysrc = <<EOF;
@@ -79,19 +129,16 @@ $cpysrc = <<EOF;
 EOF
 
 
-open(ERRS, "gcc -dM -E /usr/include/sys/errno.h |") || die "cannot open /usr/include/sys/errno.h: $!\n";
+open(ERRS, "gcc -dM -E /usr/include/sys/errno.h |")
+	|| die "cannot open /usr/include/sys/errno.h: $!\n";
 
 
 # set up Unix error codes 
 while (<ERRS>)  {
-    /^\#define\s+([E]\w*)\s+([1234567890]+)/ && do {
-        @errs{$1}=$2;
-    }
+	next unless ($name,$value) = /^\#define \s+ (E\S*) \s+ (\S+)/x;
+	$value = $errs{$value} if defined $errs{$value};
+	$errs{$name} = $value;
 }
-@errkeys = keys %errs;
-@errvalues = values %errs;
-
-
 
 $_error = '_error';
 $_error_def = '_error_def';
@@ -104,16 +151,16 @@ $_OK	= 'OK';
 foreach $FILE (@ARGV) {
 
 	&translate($FILE);
-	if($v) { printf(STDERR "done\n");}
+	if($opt_v) { printf(STDERR "done\n");}
 }
 
 sub translate {
-	local($file)=@_[0];
+	local($file)=@_;
 	local($warning)="";
-	local($base)=\e;
+	local($base)="\e";
 
 	open(FILE,$file) || die "Cannot open $file\n";
-	if($v) { printf (STDERR "translating $file ...\n"); }
+	if($opt_v) { printf (STDERR "translating $file ...\n"); }
 	$warning = 
 			"\n/* DO NOT EDIT --- GENERATED from $file by errors.pl */\n\n";
 
@@ -121,7 +168,7 @@ sub translate {
 		next LINE if (/^#/);
 		# {
 		s/\s*[}]// && do {
-			if($v) { 
+			if($opt_v) { 
 				printf(STDERR "END OF PACKAGE: ".$basename.",".$BaseName." = 0x%x\n", $base);
 			}
 
@@ -134,11 +181,12 @@ sub translate {
 				print(INFO $basename.'ERRMAX - '.$basename.'ERRMIN + 1)) ) {');
 				print(INFO "\n\t\t\t W_FATAL(fcINTERNAL);\n\t}\n}\n");
 			}
-			if($d) {
+			if($opt_d) {
+				# {
 				print BINFO "};\n\n";
 			}
 
-			if($e) {
+			if($opt_e) {
 				#{
 				printf(HDRE "};\n\n");
 				printf(HDRE "enum {\n");
@@ -146,7 +194,7 @@ sub translate {
 				printf(HDRE "    %s%s = 0x%x\n", $basename, 'ERRMAX', $highest);
 				printf(HDRE "};\n\n");
 			}
-			if($d) {
+			if($opt_d) {
 				printf(HDRD "#define $BaseName%s%-20s  0x%x\n", '_','ERRMIN', $base);
 				printf(HDRD "#define $BaseName%s%-20s  0x%x\n", '_','ERRMAX', $highest);
 				printf(HDRD "\n");
@@ -156,11 +204,11 @@ sub translate {
 			print STR "\t\"dummy error code\"\n};\n";
 			print STR "const ".$basename.$_msg_size." = $cnt;\n\n";
 
-			if($e) {
+			if($opt_e) {
 				printf(HDRE "#endif /*__".$basename."_error_h__*/\n");
 				close HDRE;
 			}
-			if($d) {
+			if($opt_d) {
 				printf(HDRD "#endif /*__".$basename."_error_def_h__*/\n");
 				close HDRD;
 			}
@@ -168,14 +216,14 @@ sub translate {
 			close STR;
 			printf(INFO "#endif /*__".$basename."_einfo_i__*/\n");
 			close INFO;
-			if($d) {
+			if($opt_d) {
 				printf(BINFO "#endif /*__".$basename."_einfo_bakw_i__*/\n");
 				close BINFO;
 			}
 
 			$basename = "";
 			$BaseName = "";
-			$base = \e;
+			$base = "\e";
 		};
 
 		s/\s*(\S+)\s*[=]\s*([0xabcdef123456789]+)\s*(["].*["])\s*(.*)[{]// && do {
@@ -188,7 +236,7 @@ sub translate {
 			$BaseName =~ y/a-z/A-Z/;
 			$base = oct($base) if $base =~ /^0/;
 			if($class){
-				if($v) {
+				if($opt_v) {
 					printf(STDERR "CLASS=$class\n");
 				}
 			}
@@ -196,13 +244,13 @@ sub translate {
 			$cnt = -1;
 			$highest = 0;
 
-			if($v) { 
+			if($opt_v) { 
 				printf(STDERR "PACKAGE: $basename,$BaseName = 0x%x\n", $base);
 			}
 
 
-			if($d) {
-				if($v) {printf(STDERR "trying to open ".$basename.$_error_def.".h\n");}
+			if($opt_d) {
+				if($opt_v) {printf(STDERR "trying to open ".$basename.$_error_def.".h\n");}
 				open(HDRD, ">$basename$_error_def.h") || 
 					die "cannot open $basename$_error_def.h: $!\n";
 
@@ -210,8 +258,8 @@ sub translate {
 				printf(HDRD "#define __$basename%serror_def_h__\n", '_');
 				printf(HDRD $cpysrc);
 			}
-			if($d) {
-				if($v) {printf(STDERR "trying to open ".$basename."_einfo_bakw.h\n");}
+			if($opt_d) {
+				if($opt_v) {printf(STDERR "trying to open ".$basename."_einfo_bakw.h\n");}
 				open(BINFO, ">$basename"."_einfo_bakw.i") || 
 					die "cannot open $basename"."_einfo_bakw.i: $!\n";
 
@@ -219,8 +267,8 @@ sub translate {
 				printf(BINFO "#define __$basename"."_einfo_bakw_i__\n");
 				printf(BINFO $cpysrc);
 			}
-			if($e) {
-				if($v) {printf(STDERR "trying to open $basename$_error.h\n");}
+			if($opt_e) {
+				if($opt_v) {printf(STDERR "trying to open $basename$_error.h\n");}
 				open(HDRE, ">$basename$_error.h") || 
 					die "cannot open $basename$_error.h: $!\n";
 				printf(HDRE "#ifndef __$basename%serror_h__\n", '_');
@@ -228,7 +276,7 @@ sub translate {
 				printf(HDRE $cpysrc);
 			}
 
-			if($v) {printf(STDERR "trying to open $basename$_error.i\n");}
+			if($opt_v) {printf(STDERR "trying to open $basename$_error.i\n");}
 			open(STR, ">$basename$_error.i") || 
 				die "cannot open $basename$_error.i: $!\n";
 
@@ -236,17 +284,17 @@ sub translate {
 			printf(STR "#define __".$basename."_error_i__\n");
 			printf(STR $cpysrc);
 
-			if($v) {printf(STDERR "trying to open $basename$_einfo.i\n");}
+			if($opt_v) {printf(STDERR "trying to open $basename$_einfo.i\n");}
 			open(INFO, ">$basename$_einfo.i") || 
 				die "cannot open $basename$_einfo.i: $!\n";
 			printf(INFO "#ifndef __".$basename."_einfo_i__\n");
 			printf(INFO "#define __".$basename."_einfo_i__\n");
 			printf(INFO $cpysrc);
 
-			if($e) {
+			if($opt_e) {
 				print HDRE $warning;
 			} 
-			if($d) {
+			if($opt_d) {
 				print HDRD $warning;
 				print BINFO $warning;
 			}
@@ -260,18 +308,18 @@ sub translate {
 				print INFO 
 					"w_error_info_t ".$basename.$_error.$_info."[] = {\n"; #}
 			}
-			if($e) { printf(HDRE "enum { \n"); } #}
-			if($d) { printf(HDRD "#define $BaseName%s%-20s 0\n", '_','OK');}
+			if($opt_e) { printf(HDRE "enum { \n"); } #}
+			if($opt_d) { printf(HDRD "#define $BaseName%s%-20s 0\n", '_','OK');}
 			printf(STR "static char* ".$basename.$_errmsg."[] = {\n"); #}
 
-			if($d) {
+			if($opt_d) {
 				print BINFO  
 					"w_error_info_t ".$basename.$_error.$_info."_bakw[] = {\n"; #}
 			}
 		};  # } to match the one in the pattern
 		
 
-		next LINE if $base =~ \e;
+		next LINE if $base =~ "\e";
 		($def, $msg) = split(/\s+/, $_, 2);
 		next LINE unless $def;
 		chop $msg;
@@ -288,32 +336,36 @@ sub translate {
 		}
 		if($highest < $val) { $highest = $val; }
 
-		if($d) {
+		if($opt_c) {
+			$msg = `fgrep $def *.[chi] | wc -l`;
+			printf(STDOUT "$def: $msg");
+		}
+		if($opt_d) {
 			printf(HDRD "#define $BaseName%s%-20s 0x%x\n", '_', $def, $val);
 		}
-		if($e) {
+		if($opt_e) {
 			printf(HDRE "    $basename%-20s = 0x%x,\n", $def, $val);
 		}
 
-		if($e) {
+		if($opt_e) {
 			printf(STR "/* $basename%-18s */ \"%s\",\n",  $def, $msg);
 		} else {
 			printf(STR "/* $BaseName%s%-18s */ \"%s\",\n",  '_', $def, $msg);
 		}
 
-		if($e) {
+		if($opt_e) {
 			printf(INFO " { $basename%-18s, \"%s\" },\n", $def, $msg);
 		} else {
 			printf(INFO " { $BaseName%s%-18s, \"%s\" },\n", '_', $def, $msg);
 		}
 
-		if($d) {
+		if($opt_d) {
 			printf(BINFO " { $BaseName%s%s, \"$BaseName%s%s\" },\n",
 				'_', $def, '_', $def);
 		}
 	} # LINE: while
 
-	if($v) { printf(STDERR "translated $file\n");}
+	if($opt_v) { printf(STDERR "translated $file\n");}
 
 	close FILE;
 }

@@ -10,7 +10,9 @@
 
 /* w_sptr_t is visible from w_rc for historical reasons.  Users of
    w_sptr_t should include it themselves */
+#ifndef W_SPTR_H
 #include "w_sptr.h"
+#endif
 
 #if defined(CHEAP_RC)
 #include "w_cheaprc.h"
@@ -38,6 +40,11 @@ public:
 	const char* const 	    filename,
 	w_base_t::uint4_t	    line_num,
 	w_base_t::int4_t	    err_num);
+    NORET			w_rc_t(
+	const char* const 	    filename,
+	w_base_t::uint4_t	    line_num,
+	w_base_t::int4_t	    err_num,
+	w_base_t::int4_t	    sys_err);
     NORET			w_rc_t(const w_rc_t&);
     w_rc_t&			operator=(const w_rc_t&);
     NORET			~w_rc_t();
@@ -336,15 +343,20 @@ w_rc_t::operator const void*() const
  *
  *  RC(x)   : create an rc for error code x.
  *  RCOK    : create an rc for no error.
+ *  MAKERC(bool, x):	create an rc if true, else RCOK
  *
  *  e.g.  if (eof) 
  *            return RC(eENDOFFILE);
  *        else
  *            return RCOK;
+ *  With MAKERC, this can be converted to
+ *       return MAKERC(eof, eENDOFFILE);
  *
  *********************************************************************/
 #define RC(x)		w_rc_t(__FILE__, __LINE__, x)
+#define	RC2(x,y)	w_rc_t(__FILE__, __LINE__, x, y)
 #define RCOK		w_rc_t(w_error_t::no_error)
+#define	MAKERC(condition,err)	((condition) ? RC(err) : RCOK)
 
 
 

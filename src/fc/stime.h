@@ -118,6 +118,13 @@ public:
 #ifdef USE_POSIX_TIME
 	operator struct timespec() const;
 #endif
+	
+	/* XXX really belongs in sinterval_t */
+	/* simple output conversions for integers to eliminate fp */
+	long	secs();			/* seconds */
+	long	msecs();		/* mill seconds */
+	long	usecs();		/* micro seconds */
+	long	nsecs();		/* nano seconds */
 
 	/* input conversion operators for integral types */
 	static	stime_t sec(int seconds); 
@@ -141,12 +148,14 @@ class sinterval_t : public stime_t {
 public:
 	/* XXX why do I duplicate the constructors ???  There
 	 is or was a reason for it. */
-	
+
+	sinterval_t() : stime_t() { }
 	sinterval_t(const struct timeval &tv) : stime_t(tv) { }
 #ifdef USE_POSIX_TIME
 	sinterval_t(const struct timespec &ts) : stime_t(ts) { }
 #endif
 	sinterval_t(const stime_t &time) : stime_t(time) { }
+	sinterval_t(double time) : stime_t(time) { }
 
 	ostream	&print(ostream &s) const;
 };

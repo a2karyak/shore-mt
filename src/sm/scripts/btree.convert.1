@@ -1,3 +1,9 @@
+# --------------------------------------------------------------- #
+# -- Copyright (c) 1994, 1995 Computer Sciences Department,    -- #
+# -- University of Wisconsin-Madison, subject to the terms     -- #
+# -- and conditions given in the file COPYRIGHT.  All Rights   -- #
+# -- Reserved.                                                 -- #
+# --------------------------------------------------------------- #
 #
 # The idea behind this script is to make sure that
 # if 2 txs are fiddling with a 1-page index, and it get
@@ -13,6 +19,15 @@
 global Use_logical_id
 
 source $script_dir/vol.init
+
+if {$Use_logical_id != 1} {
+    echo WARNING: btree.convert.1 cannot be run without logical IDs 
+    return
+}
+if {$multi_threaded_xct == 0 } {
+    echo "Not configured for multi-threaded xcts"
+    return
+}
 source $script_dir/bt.lib
 
 set keylist { 118 1493 1663 1797 235 2487 \
@@ -26,11 +41,7 @@ set keylist { 118 1493 1663 1797 235 2487 \
 proc mkval { i e } {
     global max_btree_entry_size
     set maxsize [expr {$max_btree_entry_size - 30}]
-    if {$max_btree_entry_size <= 4048} {
-	set res [format "%0*s" $maxsize a]
-    } else {
-	set res [format "%0*s" $e a]
-    }
+    set res [format "%0*s" $maxsize a]
     return $res
 }
 
@@ -50,7 +61,7 @@ set elemlength 4044
 #
 sm begin_xct
 set ndx [sm create_index $volid $unique regular b*1000 small]
-echo created index $ndx
+verbose created index $ndx
 sm commit_xct
 
 
@@ -59,13 +70,14 @@ sm commit_xct
 #
 set nrec [llength $keylist]
 
-echo $nrec records: $keylist
+verbose $nrec records: $keylist
 
 proc random_restart { a } {
     set j [random 3]
     for { set i 0 } { $i <= $j } { incr i } {
 	_restart $a
     }
+    unset j
 }
 
 proc runtest { term } {
@@ -73,35 +85,35 @@ proc runtest { term } {
     global ndx
     global nrec
 
-    echo runtest $term
+    verbose runtest $term
 	
     set key 1
     set value 1
     sm begin_xct
     for {set i 0} {$i < $nrec} {incr i} {
-	echo inserting $i
+	verbose inserting $i
 	set key [lindex $keylist $i] 
 	set value [mkval $i $key]
 
-	echo sm create_assoc $ndx $key <elem $key length>
+	verbose sm create_assoc $ndx $key <elem $key length>
 	sm create_assoc $ndx $key $value
 
-	# echo sm find_assoc $ndx $key
+	# verbose sm find_assoc $ndx $key
 	# set res [sm find_assoc $ndx $key]
 	# assert {[expr [string compare $value $res] == 0]}
-	# echo FOUND
+	# verbose FOUND
     }
     switch $term {
        abort { 
-	    echo sm abort_xct 
+	    verbose sm abort_xct 
 	    sm abort_xct 
 	}
        commit { 
-	    echo sm commit_xct 
+	    verbose sm commit_xct 
 	    sm commit_xct 
 	}
        restart { 
-	    echo random_restart
+	    verbose random_restart
 	    random_restart false
 	}
     }
@@ -127,22 +139,22 @@ proc t1 { item } {
     set value 1
     sm begin_xct
     for {set i 0} {$i < $nrec} {incr i} {
-	echo t1 inserting $i
+	verbose t1 inserting $i
 	set key [lindex $keylist $i] 
 	set value [mkval $i $key]
 
-	echo sm create_assoc $ndx $key <elem $key length>
+	verbose sm create_assoc $ndx $key <elem $key length>
 	sm create_assoc $ndx $key $value
 
 	if { $i == $item } {
-	   echo t1 sync-1
-   	   sync
+	   verbose t1 sync-1
+	   sync
 	   break
 	}
     }
-    echo t1 sync-2
+    verbose t1 sync-2
     sync
-    echo t1 aborting ...
+    verbose t1 aborting ...
     sm abort_xct
 }
 
@@ -155,79 +167,76 @@ proc t2 { item } {
     set value 1
     sm begin_xct
 
-    echo t2 sync-1
+    verbose t2 sync-1
     sync
 
     for {set i [expr {$item + 1}]} {$i < $nrec} {incr i} {
-	echo t2 inserting $i
+	verbose t2 inserting $i
 	set key [lindex $keylist $i] 
 	set value [mkval $i $key]
 
-	echo sm create_assoc $ndx $key <elem $key length>
+	verbose sm create_assoc $ndx $key <elem $key length>
 	sm create_assoc $ndx $key $value
     }
 
-    echo t2 sync-2
+    verbose t2 sync-2
     sync
-    echo t2 committing ...
+    verbose t2 committing ...
 
     sm commit_xct
 }
 
-if {$Use_logical_id != 1} {
-    echo WARNING: btree.convert.1 cannot be run without logical IDs 
-} else {
-    set item 8
+set item 8
 
-    set y2 [fork_thread t2 $item]
-    echo started t2: $y2
-    set y1 [fork_thread t1 $item]
-    echo started t1: $y1
+set y2 [fork_thread t2 $item]
+verbose started t2: $y2
+set y1 [fork_thread t1 $item]
+verbose started t1: $y1
 
-    echo sync_thread $y1 $y2
-    sync_thread $y1 $y2
-    sync_thread $y1 $y2
-    join_thread $y1 $y2
+verbose sync_thread $y1 $y2
+sync_thread $y1 $y2
+sync_thread $y1 $y2
+join_thread $y1 $y2
 
-    echo "success so far... restarting..."
+verbose "success so far... restarting..."
 
-    random_restart false
+random_restart false
 
-    #
-    # scan the index and check for the expected values
-    # in the expected order
-    #
-    sm begin_xct
-    set start [expr {$item + 1} ]
-    set len [llength $keylist] 
-    set sorted [lsort [lrange $keylist $start $len ] ]
-    set res [test_scan $ndx [expr {$len - $start}]]
+#
+# scan the index and check for the expected values
+# in the expected order
+#
+sm begin_xct
+set start [expr {$item + 1} ]
+set len [llength $keylist] 
+set sorted [lsort [lrange $keylist $start $len ] ]
+set res [test_scan $ndx [expr {$len - $start}]]
 
-    for {set i [expr {$item + 1}]} {$i < $len} {incr i} {
-       set resi [lindex $res $i]
-       set sorti [lindex $sorted $i]
+for {set i [expr {$item + 1}]} {$i < $len} {incr i} {
+   set resi [lindex $res $i]
+   set sorti [lindex $sorted $i]
 
-       # use string comparison rather than expr so that
-       # it works with entries that are not integers
-       if { [string compare $resi [lindex $sorted $i]] != 0 } {
-	  echo index $i: test_scan returns $resi expected $sorti
-       }
-    }
-    sm commit_xct
-
-    # clean up:
-
-    sm begin_xct
-    echo sm destroy_index $ndx
-    sm destroy_index $ndx
-    echo destroyed index
-    sm commit_xct
-
-
-    unset sorted resi start res len i item unique y1 y2 sorti
+   # use string comparison rather than expr so that
+   # it works with entries that are not integers
+   if { [string compare $resi [lindex $sorted $i]] != 0 } {
+      verbose index $i: test_scan returns $resi expected $sorti
+   }
 }
+sm commit_xct
+
+# clean up:
+
+sm begin_xct
+verbose sm destroy_index $ndx
+sm destroy_index $ndx
+verbose destroyed index
+sm commit_xct
+
+
+unset sorted resi start res len i item y1 y2 sorti
 
 unset keylist nrec 
 unset maxnum
 unset ndx
 unset elemlength
+unset unique

@@ -6,7 +6,7 @@
 /* --------------------------------------------------------------- */
 
 /*
- *  $Header: /p/shore/shore_cvs/src/common/debug.h,v 1.28 1995/10/23 22:53:23 nhall Exp $
+ *  $Header: /p/shore/shore_cvs/src/common/debug.h,v 1.30 1997/05/19 19:40:57 nhall Exp $
  */
 #ifndef __DEBUG_H__
 #define __DEBUG_H__
@@ -15,9 +15,14 @@
 #pragma interface
 #endif
 
+#ifndef W_WORKAROUND_H
 #include <w_workaround.h>
+#endif
+
 #ifdef __cplusplus
+#ifndef ERRLOG_H
 #include <errlog.h>
+#endif
 #endif
 
 /* ************************************************************************
@@ -106,7 +111,10 @@
 
 #include <assert.h>
 #include <unix_error.h>
+#ifndef CAT_H
 #include "cat.h"
+#endif
+#include "regex.posix.h"
 
 #ifdef __cplusplus
 #    include <stream.h>
@@ -180,6 +188,12 @@ extern  char    *_fname_debug_;
 		unsigned int	mask;
 		int		_trace_level;
 
+		static regex_t		re_posix_re;
+		static bool			re_ready;
+		static char*		re_error_str;
+		inline static char*	re_comp_debug(const char* pattern);
+		inline static int	re_exec_debug(const char* string);
+
 		inline int	all(void) { return (mask & _all) ? 1 : 0; }
 		inline int	none(void) { return (mask & _none) ? 1 : 0; }
 
@@ -192,6 +206,26 @@ extern  char    *_fname_debug_;
 		void memdump(void *p, int len); // hex dump of memory
 		int trace_level() { return _trace_level; }
 	};
+
+	char* __debug::re_comp_debug(const char* pattern)
+	{
+		if (re_ready)
+			regfree(&re_posix_re);
+		
+		if (regcomp(&re_posix_re, pattern, REG_NOSUB|REG_EXTENDED) != 0)
+			return re_error_str;
+		
+		re_ready = true;
+		return NULL;
+	}
+
+	int __debug::re_exec_debug(const char* string)
+	{
+		if (!re_ready)  // no compiled string
+			return -1;
+		
+		return regexec(&re_posix_re, string, (size_t)0, NULL, 0) == 0;
+	}
 
 	extern __debug _debug;
 #endif  /*defined(__cplusplus)*/

@@ -2,7 +2,7 @@
 eval 'exec perl -s $0 ${1+"$@"}'
 	if 0;
 #
-#  $Header: /p/shore/shore_cvs/src/sm/ssh/runtests.pl,v 1.7 1996/07/01 22:08:14 nhall Exp $
+#  $Header: /p/shore/shore_cvs/src/sm/ssh/runtests.pl,v 1.11 1997/05/23 20:55:00 nhall Exp $
 #
 
 $v=1;
@@ -19,35 +19,19 @@ EOF
 use FileHandle;
 
 # Complete list of the tests:
+
+# Set $kind to one of : crash abort yield delay
+
 # NB: below this, the list gets reset if you
 # want to run a subset of the tests.
 # Also note: they are run in reverse order.
 
+$kind = crash;
+
 $tests_ = <<EOF;
-    extent.1/1/alloc.2
-    extent.4/1/alloc.2
-    extent.5/1/alloc.2
-    extent.6/1/alloc.2
-    extent.7/1/vol.2
-
-    extent.6/1/lgrec.1
-    extent.2/1/alloc.2
     extent.3/1/alloc.2
-
-    toplevel.btree.1/1/bt.insert.3
-    toplevel.btree.2/1/bt.insert.3
-    toplevel.btree.3/1/bt.insert.3
-    toplevel.btree.4/1/bt.insert.3
-    toplevel.btree.5/1/bt.insert.3
-    toplevel.btree.6/1/bt.insert.3
-    toplevel.btree.7/1/bt.insert.3
-    toplevel.btree.8/1/bt.insert.3
-    toplevel.btree.9/1/bt.insert.3
-    toplevel.btree.10/1/btree.3
-    toplevel.btree.11/1/bt.insert.3
-
-    toplevel.btree.12/3/file.1
-    toplevel.12/3/file.1
+    store.1/1/file.undo.1
+    store.1/1/vol.2
 
     rtree.1/1/rtree.1
     rtree.2/1/rtree.1
@@ -55,26 +39,9 @@ $tests_ = <<EOF;
     rtree.4/1/rtree.1
     rtree.5/1/rtree.3
 
-    btree.1page.2/1/bt.insert.3
-    btree.1page.3/3/bt.insert.3
-
-    store.1/1/file.undo.1
-    store.1/1/vol.2
-
     enter.2pc.1/1/trans.1
-    recover.2pc.1/1/trans.1
-    recover.2pc.2/1/trans.1
-
-    prepare.unfinished.0/1/trans.1
-    prepare.unfinished.1/1/trans.1
-    prepare.unfinished.2/1/trans.1
-    prepare.unfinished.3/1/trans.1
-
-    commit.1/1/trans.1
-    commit.2/1/trans.1
-    commit.3/1/trans.1
-
-    enter.2pc.1/1/trans.1
+    recover.2pc.1/1/trans.2
+    recover.2pc.2/1/trans.2
     extern2pc.commit.1/1/trans.1
 
     prepare.readonly.1/1/trans.1
@@ -82,47 +49,87 @@ $tests_ = <<EOF;
     prepare.abort.1/1/trans.1
     prepare.abort.2/1/trans.1
 
-    btree.propagate.1/1/bt.insert.5
-    btree.propagate.2/1/bt.insert.5
-    btree.propagate.3/1/bt.insert.5
+    prepare.unfinished.0/1/trans.1
+    prepare.unfinished.1/1/trans.1
+    prepare.unfinished.2/1/trans.1
+    prepare.unfinished.3/1/trans.1
+    prepare.unfinished.4/1/trans.1
+    prepare.unfinished.5/1/trans.1
 
-    btree.remove.1/1/bt.remove.3
-    btree.remove.2/1/bt.remove.3
-    btree.remove.3/1/bt.remove.3
-    btree.remove.4/1/bt.remove.3
-
-
-    btree.shrink.1/1/bt.remove.3
-    btree.shrink.2/1/bt.remove.3
-    btree.shrink.3/1/bt.remove.3
-
-    btree.grow.1/2/bt.insert.5
-    btree.grow.2/2/bt.insert.5
-    btree.grow.3/2/bt.insert.5
-    btree.grow.4/2/bt.insert.5
-
-    btree.grow.1/1/bt.insert.5
-    btree.grow.2/1/bt.insert.5
-    btree.grow.3/1/bt.insert.5
-    btree.grow.4/1/bt.insert.5
-
-    btree.split.1/1/bt.insert.3
-    btree.split.2/1/bt.insert.3
-    btree.split.3/6/bt.insert.3
-    btree.split.4/6/bt.insert.3
-
-    btree.smo.1/300/bt.insert.5
-
-    btree.unlink.1/1/bt.remove.3
-    btree.unlink.2/1/bt.remove.3
-    btree.unlink.3/1/bt.remove.3
-    btree.unlink.4/1/bt.remove.3
-
-    btree.insert.1/6/bt.insert.3
-    btree.insert.2/1/bt.insert.3
+    commit.1/1/trans.1
+    commit.2/1/trans.1
+    commit.3/1/trans.1
 
     io_m::_mount.1/1/vol.init
     io_m::_dismount.1/1/vol.init
+
+    commit.1/1/btree.6
+    commit.2/1/btree.6
+    commit.3/1/btree.6
+    extent.3/1/btree.6
+    io_m::_dismount.1/1/btree.6
+    io_m::_mount.1/1/btree.6
+
+    compensate/1/btree.1
+    compensate/1/bt.remove.1
+
+    commit.1/1/bt.remove.1
+    commit.2/1/bt.remove.1
+    commit.3/1/bt.remove.1
+    extent.3/1/bt.remove.1
+    btree.bulk.1/1/btree.3
+    btree.bulk.2/1/btree.3
+    btree.bulk.3/1/btree.3
+
+    btree.remove.9/1/bt.remove.1
+    btree.unlink.4/1/bt.remove.1
+    btree.unlink.3/1/bt.remove.1
+    btree.unlink.1/1/bt.remove.1
+    btree.unlink.2/1/bt.remove.1
+
+    btree.shrink.1/1/btree.5
+    btree.shrink.2/1/btree.5
+    btree.shrink.3/1/btree.5
+    btree.create.1/1/btree.6
+    btree.create.2/1/btree.6
+    btree.distribute.1/1/btree.6
+    btree.grow.1/1/btree.6
+    btree.grow.2/1/btree.6
+    btree.grow.3/1/btree.6
+    btree.insert.1/1/btree.6
+    btree.insert.2/1/btree.6
+    btree.insert.3/1/btree.6
+    btree.insert.4/1/btree.6
+    btree.insert.5/1/btree.6
+
+    btree.propagate.s.10/1/btree.6
+    btree.propagate.s.1/1/btree.6
+    btree.propagate.s.2/1/btree.6
+    btree.propagate.s.3/1/btree.6
+    btree.propagate.s.4/1/btree.6
+    btree.propagate.s.5/1/btree.6
+    btree.propagate.s.6/1/btree.6
+    btree.propagate.s.7/1/btree.6
+    btree.propagate.s.8/1/btree.6
+    btree.propagate.s.9/1/btree.6
+
+    btree.remove.6/1/btree.33
+
+    btree.propagate.d.1/1/bt.remove.1
+    btree.propagate.d.3/1/bt.remove.1
+    btree.propagate.d.4/1/bt.remove.1
+    btree.propagate.d.5/1/bt.remove.1
+    btree.propagate.d.6/1/bt.remove.1
+    btree.remove.1/1/bt.remove.1
+    btree.remove.2/1/bt.remove.1
+    btree.remove.3/1/bt.remove.1
+    btree.remove.4/1/bt.remove.1
+    btree.remove.5/1/bt.remove.1
+    btree.remove.7/1/bt.remove.1
+    btree.remove.10/1/bt.remove.1
+
+    btree.1page.1/1/btree.convert.1
+    btree.1page.2/1/btree.convert.1
 
 EOF
 
@@ -168,7 +175,7 @@ sub onetest {
     $status = `/bin/rm -f log/* volumes/*`;
     if($status != 0) { return 1; }
 
-    $system="./runtest $test $val crashtest $script";
+    $system="./runtest $test $val $kind crashtest $script";
     print STDOUT "    $system\n";
     system $system;
     $status = $?;
@@ -188,11 +195,14 @@ sub onetest {
 
     print STDOUT "    RECOVERY ... ";
 
-    $ENV{"DEBUG_FLAGS"}="restart_m::redo_pass xct_t::rollback log_m::insert";
-    $ENV{"CRASHTEST"}="";
+    $ENV{"DEBUG_FLAGS"}="restart_m::redo_pass xct_t::rollback xct_impl.c log_m::insert";
+    $ENV{"SSMTEST"}="";
+    $ENV{"SSMTEST_ITER"}="";
+    $ENV{"SSMTEST_KIND"}="";
 
     $system="./runtest \"\" "
 	.  $val
+	.  " $kind"
 	.  " \"restart_m::redo_pass xct_t::rollback log_m::insert\" "
 	.  " empty";
 
@@ -200,7 +210,7 @@ sub onetest {
     system $system;
     $status = $?;
 
-    # print STDOUT "    STATUS $status\n";
+    print STDOUT "    STATUS $status\n";
     if($status >= 32768) {
        exit $status;
     }

@@ -8,16 +8,17 @@
 #ifndef BASICS_H
 #define BASICS_H
 /*
- *  $Header: /p/shore/shore_cvs/src/common/basics.h,v 1.45 1996/07/09 22:12:33 nhall Exp $
+ *  $Header: /p/shore/shore_cvs/src/common/basics.h,v 1.51 1997/06/13 22:31:03 solomon Exp $
  */
 #ifdef __GNUG__
 #pragma interface
 #endif
 
-/* get configuration definitions from config/shore.def */
-#include <shore.def>
+#include <config.h>
 
+#ifndef W_WORKAROUND_H
 #include <w_workaround.h>
+#endif
 
 /*
  * NB -- THIS FILE MUST BE LEGITIMATE INPUT TO cc and RPCGEN !!!!
@@ -61,22 +62,28 @@ typedef uint4	smsize_t;
  */
 typedef unsigned int	smksize_t;
 
+#ifndef W_BOOLEAN_H
 #include <w_boolean.h>
+#endif
 
 #ifdef __cplusplus
-const short				max_int2 = 0x7fff; 		/*  (1 << 15) - 1; 	*/
-const short				min_int2 = 0x8000; 		/* -(1 << 15);		*/
-const long				max_int4 = 0x7fffffff; 	/*  (1 << 31) - 1;  */
-const long				min_int4 = 0x80000000; 	/* -(1 << 31);		*/
-const unsigned short	max_uint2 = 0xffff;
-const unsigned short	min_uint2 = 0;
-const unsigned long		max_uint4 = 0xffffffff;
-const unsigned long		min_uint4 = 0;
+const int2	max_int2 = 0x7fff; 		/*  (1 << 15) - 1; 	*/
+const int2	min_int2 = 0x8000; 		/* -(1 << 15);		*/
+const int4	max_int4 = 0x7fffffff;	 	/*  (1 << 31) - 1;  */
+const int4	max_int4_minus1 = max_int4 -1;
+const int4	min_int4 = 0x80000000; 		/* -(1 << 31);		*/
+
+const uint2	max_uint2 = 0xffff;
+const uint2	min_uint2 = 0;
+const uint4	max_uint4 = 0xffffffff;
+const uint4	min_uint4 = 0;
 #else
 const max_int2 = 0x7fff; 		/*  (1 << 15) - 1; 	*/
 const min_int2 = 0x8000; 		/* -(1 << 15);		*/
-const max_int4 = 0x7fffffff; 	/*  (1 << 31) - 1;  */
-const min_int4 = 0x80000000; 	/* -(1 << 31);		*/
+const max_int4 = 0x7fffffff;	 	/*  (1 << 31) - 1;  */
+const max_int4_minus1 = 0x7ffffffe; 	/*  (1 << 31) - 2;  */
+const min_int4 = 0x80000000; 		/* -(1 << 31);		*/
+
 const max_uint2 = 0xffff;
 const min_uint2 = 0;
 const max_uint4 = 0xffffffff;
@@ -137,7 +144,8 @@ inline bool is_aligned(const void* p)
 #endif
 
     /* used by sm and all layers: */
-enum CompareOp { badOp=0x0, eqOp=0x1, gtOp=0x2, geOp=0x3, ltOp=0x4, leOp=0x5,
+enum CompareOp {
+	badOp=0x0, eqOp=0x1, gtOp=0x2, geOp=0x3, ltOp=0x4, leOp=0x5,
 	/* for internal use only: */
 	NegInf=0x100, eqNegInf, gtNegInf, geNegInf, ltNegInf, leNegInf,
 	PosInf=0x400, eqPosInf, gtPosInf, gePosInf, ltPosInf, lePosInf
@@ -174,13 +182,20 @@ enum vote_t {
     vote_commit     /* can commit if so told                    */
 };
 
+/* used by lock escalation routines */
+enum escalation_options {
+    dontEscalate		= max_int4_minus1,
+    dontEscalateDontPassOn,
+    dontModifyThreshold		= -1
+};
+
 
 #ifdef __cplusplus
 inline bool bigendian()
 {
-    int i = 3;
-    char* c = (char*) &i;
-    return ((int)c[3]) == i; 
+    const int i = 3;
+    const char* c = (const char*) &i;
+    return ((int)c[sizeof(int)-1]) == i; 
 }
 #endif /* __cplusplus */
 
@@ -189,23 +204,23 @@ inline bool bigendian()
  * in structures.  The auto init helps with purify.
  */
 struct fill1 {
-    uint1 u1;
+	uint1 u1;
 #ifdef __cplusplus
-    fill1() : u1(0) {}
+	fill1() : u1(0) {}
 #endif /* __cplusplus */
 };
 
 struct fill2 {
-    uint2 u2;
+	uint2 u2;
 #ifdef __cplusplus
-    fill2() : u2(0) {}
+	fill2() : u2(0) {}
 #endif /* __cplusplus */
 };
 
 struct fill4 {
-    uint4 u4;
+	uint4 u4;
 #ifdef __cplusplus
-    fill4() : u4(0) {}
+	fill4() : u4(0) {}
 #endif /* __cplusplus */
 };
 

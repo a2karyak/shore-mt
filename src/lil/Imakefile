@@ -6,24 +6,24 @@
 /* --------------------------------------------------------------- */
 
 /*
- * $Header: /p/shore/shore_cvs/src/lil/Imakefile,v 1.11 1995/06/19 17:28:05 schuh Exp $
+ * $Header: /p/shore/shore_cvs/src/lil/Imakefile,v 1.13 1997/06/17 16:10:29 solomon Exp $
  */
+#define Subdirs oc
 
-SUBDIR = oc
+#if defined(IS_SOLARIS2)
+/* Solaris does not require librpc.a, since it's in the default libraries */
+%GEN merge_library(libshore.a,,
+			../sdl/libsdl.a oc/liboc.a ../vas/common/libcommon.a
+			../vas/client/libvas.a ../common/libcommon.a ../fc/libfc.a)
+#else
+%GEN merge_library(libshore.a,,
+			../sdl/libsdl.a oc/liboc.a ../vas/common/libcommon.a
+			../vas/client/libvas.a ../common/libcommon.a ../fc/libfc.a
+			../rpc4.0/rpc/librpclib.a)
+#endif
 
-ALLTARGETS = 
+%GEN merge_library(libserver.a,../vas/server/main.o,
+			../vas/server/libserver.a ../vas/common/libcommon.a ../sm/libsm.a
+			../sthread/libst.a TclLib)
 
-install::libshore.a
-install_copy(lib, libshore.a)  /* done with "cp -p" so ranlib not needed*/
-build_joint_library(libshore.a, ,$(SDL_LIB) $(OC_LIB) $(VAS_APP_LIB) $(COMMON_LIB) $(FC_LIB) $(RPC_LIB))
-
-# extra libs needed to build vas server lib 
-SERVER_LIBS =	\
-	$(VAS_DIR)/server/libserver.a  $(VAS_DIR)/common/libcommon.a \
-	$(SM_LIB) $(TCL_LIB) $(KRBLIB) \
-	$(VERIFY_LIB)  $(STHREAD_LIB)
-install::libserver.a
-
-install_copy(lib, libserver.a)  /* done with "cp -p" so ranlib not needed*/
-build_joint_library(libserver.a, $(VAS_DIR)/server/main.o, $(SERVER_LIBS))
-
+%GEN install(lib, libshore.a libserver.a)

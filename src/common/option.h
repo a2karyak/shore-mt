@@ -6,7 +6,7 @@
 /* --------------------------------------------------------------- */
 
 /*
- *  $Id: option.h,v 1.16 1995/09/15 03:41:36 zwilling Exp $
+ *  $Id: option.h,v 1.17 1997/05/19 19:41:06 nhall Exp $
  */
 #ifndef OPTION_H
 #define OPTION_H
@@ -29,7 +29,9 @@ of options.  An option_file_scan_t is used to parse a file
 containing option configuration information.
 */
 
+#ifndef __opt_error_def_h__
 #include "opt_error_def.h"
+#endif
 
 class option_group_t;
 

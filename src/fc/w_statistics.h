@@ -6,18 +6,25 @@
 /* --------------------------------------------------------------- */
 
 /*
- *  $Header: /p/shore/shore_cvs/src/fc/w_statistics.h,v 1.14 1995/07/14 21:30:35 nhall Exp $
+ *  $Header: /p/shore/shore_cvs/src/fc/w_statistics.h,v 1.15 1997/05/19 19:39:28 nhall Exp $
  */
 
+
+#ifndef W_STATISTICS_H
+#define W_STATISTICS_H
 #ifdef __GNUG__
 #pragma interface
 #endif
 
-#ifndef W_STATISTICS_H
-#define W_STATISTICS_H
+#ifndef W_BASE_H
 #include <w_base.h>
+#endif
+#ifndef W_RC_H
 #include <w_rc.h>
+#endif
+#ifndef W_FASTNEW_H
 #include <w_fastnew.h>
+#endif
 #include <iostream.h>
 #include <stdio.h>
 

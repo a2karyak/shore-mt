@@ -6,20 +6,31 @@
 /* --------------------------------------------------------------- */
 
 /*
- *  $Id: sm.h,v 1.231 1996/06/25 14:52:34 nhall Exp $
+ *  $Id: sm.h,v 1.260 1997/05/27 13:09:57 kupsch Exp $
+ *
+ *  Stuff needed by value-added servers.  NOT meant to be included by
+ *  internal SM .c files, except to the extent that they need these
+ *  definitions used in the API.
  */
 #ifndef SM_H
 #define SM_H
 
 #include <e_error.h>
+#ifndef W_STATISTICS_H
 #include <w_statistics.h>
+#endif
 
 #ifdef __GNUG__
 #pragma interface
 #endif
 
+#ifndef SM_DU_STATS_H
 #include <sm_du_stats.h>
-#include "smstats.h" // declares sm_stats_info_t and sm_config_info_t
+#endif
+
+#ifndef SM_STATS_H
+#include <smstats.h> // declares sm_stats_info_t and sm_config_info_t
+#endif
 
 /********************************************************************/
 
@@ -40,14 +51,31 @@ class option_group_t;
 class option_t;
 class prologue_rc_t;
 
+#ifndef NBOX_H
 #include <nbox.h>
+#endif
+
 class rtree_m;
 #ifdef USE_RDTREE
 #include <setarray.h>
 class rdtree_m;
 #endif /* USE_RDTREE */
+
+#ifndef KVL_T_H
+#include <kvl_t.h>
+#endif
+
+#ifndef LOCK_S_H
 #include <lock_s.h>
+#endif
+
+#ifndef LEXIFY_H
+#include <lexify.h>
+#endif
+
+#ifndef SORT_S_H
 #include <sort_s.h>
+#endif
 
 struct key_type_s;
 
@@ -82,9 +110,11 @@ private:
 //
 class sm_quark_t {
 public:
-    NORET			sm_quark_t() {};
+    NORET			sm_quark_t() {}
+    NORET			~sm_quark_t();
+
     rc_t			open();
-    rc_t			close(bool release_locks);
+    rc_t			close(bool release=true);
 
     tid_t			tid()const { return _tid; }
     operator			bool()const { return _tid != tid_t::null; }
@@ -101,10 +131,15 @@ private:
 
 };
 
+class sm_store_info_t;
+class log_entry;
+class coordinator;
 class ss_m : public smlevel_top {
     friend class pin_i;
     friend class sort_stream_i;
     friend class prologue_rc_t;
+    friend class log_entry;
+    friend class coordinator;
 public:
 #ifdef GNUG_BUG_4    
     typedef smlevel_0::ndx_t ndx_t;
@@ -139,7 +174,6 @@ public:
     // file will be gone the next time the volume is mounted.
     //
     // TODO: IMPLEMENTATION NOTE on Temporary Files/Indexes:
-    //	  	Temp files should be removed during volume mount.
     //		Temp files cannot be trusted after transaction abort.
     //			They should be marked for removal.
     //
@@ -192,6 +226,25 @@ public:
                 none, emerg, fatal, alert,
 		internal, error, warning, info, debug
                 default value: error
+
+	sm_lock_escalate_to_page_threshold  <int>
+		positive integer   denotes the default threshold to escalate
+		0                  denotes don't escalate
+		default value: 5
+
+	sm_lock_escalate_to_store_threshold  <int>
+		positive integer   denotes the default threshold to escalate
+		0                  denotes don't escalate
+		default value: 25
+
+	sm_lock_escalate_to_volume_threshold  <int>
+		positive integer   denotes the default threshold to escalate
+		0                  denotes don't escalate
+		default value: 0
+	
+	sm_num_lid_cache_entries  <int)
+		positive integer   denotes the number of logical id cache entries
+		default value: 10000
     *
     */
 
@@ -212,17 +265,31 @@ public:
 
     static const char* 		getenv(char* name);
 
+private:
+    static smutex_t		_begin_xct_mutex;  // used to prevent xct creation during dismount
+
+public:
     static rc_t                 begin_xct(
 	long			    timeout = WAIT_SPECIFIED_BY_THREAD);
     static rc_t			begin_xct(
 	tid_t&			    tid,
 	long			    timeout = WAIT_SPECIFIED_BY_THREAD);
+
+    static rc_t 		set_coordinator(const server_handle_t &); 
     static rc_t			prepare_xct(vote_t &v); 
     static rc_t			enter_2pc(const gtid_t &); 
+    static rc_t			force_vote_readonly(); 
     static rc_t			recover_2pc(const gtid_t &,// in
 					bool	mayblock,
 					tid_t	&	//out -- attached if found(?)
 					);
+    static rc_t			query_prepared_xct(int &numtids);
+    static rc_t			query_prepared_xct(int numtids, gtid_t l[]);
+
+    static rc_t			unblock_global_xct_waiting_on_lock(const gtid_t &gtid);
+    static rc_t			send_wait_for_graph();
+    static rc_t			set_global_deadlock_client(GlobalDeadlockClient* gdc);
+    static rc_t			set_deadlock_event_callback(DeadlockEventCallback* callback);
 
     static rc_t			commit_xct(
 	bool 			    lazy = false);
@@ -235,8 +302,10 @@ public:
     static rc_t			rollback_work(
 	const sm_save_point_t&	    sp);
 
+    static w_base_t::uint4_t 	num_active_xcts();
     static xct_t* 		tid_to_xct(const tid_t& tid);
     static tid_t 		xct_to_tid(const xct_t*);
+    static rc_t			dump_xcts(ostream &o);
     static xct_state_t 		state_xct(const xct_t*);
     static concurrency_t	xct_lock_level();
     static void			set_xct_lock_level(concurrency_t l);
@@ -436,29 +505,29 @@ public:
     // Note that stats are
     // added the the sm_du_stats_t structure rather than overwriting it.
     //
-    // When audit==TRUE, the volume or store is SH locked and the stats
+    // When audit==true, the volume or store is SH locked and the stats
     // are audited for correctness (a fatal internal error will be
     // generated if an audit fails -- that way the system stops exactly
-    // where the audit fails for easier debugging).  When audit==FALSE,
+    // where the audit fails for easier debugging).  When audit==false,
     // only IS locks are obtained and no auditing is done.
     //
     static rc_t			get_du_statistics(
 	vid_t 			    vid,
 	sm_du_stats_t& 	    	    du,
-	bool			    audit = TRUE); 
+	bool			    audit = true); 
     static rc_t			get_du_statistics(
 	lvid_t 			    vid,
 	sm_du_stats_t&		    du,
-	bool			    audit = TRUE);
+	bool			    audit = true);
     static rc_t			get_du_statistics(
 	const lvid_t& 		    vid,
 	const serial_t& 	    serial, 
 	sm_du_stats_t& 	    	    du,
-	bool			    audit = TRUE);
+	bool			    audit = true);
     static rc_t			get_du_statistics(
 	const stid_t& 		    stid, 
 	sm_du_stats_t& 	    	    du,
-	bool			    audit = TRUE);
+	bool			    audit = true);
    
     // these two functions return the physical ID of a volume root index
     static rc_t			vol_root_index(
@@ -467,7 +536,7 @@ public:
     static rc_t			vol_root_index(
 	const vid_t& 		    v, 
 	stid_t& 		    iid)	{
-	    iid.vol = v; iid.store = 2;
+	    iid.vol = v; iid.store = store_id_root_index;
 	    return RCOK;
     }
 
@@ -480,15 +549,31 @@ public:
      * Physical ID version of all the storage operations
      *****************************************************************/
 
-    //
-    // Functions for B+tree Indexes
-    //
     static rc_t			set_store_property(
 	stid_t			    stid,
 	store_property_t	    property);
     static rc_t			get_store_property(
 	stid_t			    stid,
 	store_property_t&	    property);
+
+    static rc_t			get_store_info( 
+	const stpgid_t&		    stpgid, 
+	sm_store_info_t&	    info);
+
+    //
+    // Functions for B+tree Indexes
+    //
+
+    static rc_t			create_index(
+	vid_t 			    vid, 
+	ndx_t 			    ntype, 
+	store_property_t	    property,
+	const char* 		    key_desc,
+        concurrency_t		    cc, 
+	stid_t& 		    stid, 
+	const serial_t& 	    logical_id=serial_t::null);
+
+    // for backward compatibility:
     static rc_t			create_index(
 	vid_t 			    vid, 
 	ndx_t 			    ntype, 
@@ -496,6 +581,7 @@ public:
 	const char* 		    key_desc,
 	stid_t& 		    stid, 
 	const serial_t& 	    logical_id=serial_t::null);
+
     static rc_t			destroy_index(const stid_t& iid); 
     static rc_t			bulkld_index(
 	const stid_t& 		    stid, 
@@ -509,21 +595,25 @@ public:
     static rc_t			create_assoc(
 	stid_t 			    stid, 
 	const vec_t& 		    key, 
-	const vec_t& 		    el);
+	const vec_t& 		    el
+	);
     static rc_t			destroy_assoc(
 	stid_t 			    stid, 
 	const vec_t&		    key,
-	const vec_t& 		    el);
+	const vec_t& 		    el
+	);
     static rc_t			destroy_all_assoc(
 	stid_t 			    stid, 
 	const vec_t&		    key,
-	int&		    	    num_removed);
+	int&		    	    num_removed
+	);
     static rc_t			find_assoc(
 	stid_t 			    stid, 
 	const vec_t& 		    key, 
 	void* 			    el, 
 	smsize_t& 		    elen, 
-	bool& 		    found);
+	bool& 		    	    found
+	);
 
     //
     // Functions for R*tree (multi-dimensional(MD), spatial) Indexes
@@ -556,7 +646,7 @@ public:
 	const nbox_t& 		    key, 
 	void* 			    el, 
 	smsize_t&		    elen, 
-	bool& 		    found);
+	bool&			    found);
     static rc_t			create_md_assoc(
 	stid_t 			    stid, 
 	const nbox_t& 		    key,
@@ -662,6 +752,11 @@ public:
 	const serial_t&		    lstid,
 	store_property_t&	    property);
 
+    static rc_t			get_store_info( 
+	const lvid_t&		    lvid,
+	const serial_t&		    lstid,
+	sm_store_info_t&	    info);
+
 
     //
     // Functions for B+tree Indexes
@@ -671,9 +766,21 @@ public:
 	ndx_t 			    ntype, 
 	store_property_t	    property,
 	const char* 		    key_desc,
+        concurrency_t		    cc, 
 	uint		    	    size_kb_hint,  // approx size in KB
 						   // use 0 if not sure
 	serial_t& 		    liid);
+
+    // for backward compatibility:
+    static rc_t			create_index(
+	const lvid_t& 		    lvid, 
+	ndx_t 			    ntype, 
+	store_property_t	    property,
+	const char* 		    key_desc,
+	uint		    	    size_kb_hint,  // approx size in KB
+						   // use 0 if not sure
+	serial_t& 		    liid);
+
     static rc_t			destroy_index(
 	const lvid_t& 		    lvid, 
 	const serial_t& 	    liid); 
@@ -695,17 +802,20 @@ public:
 	const lvid_t& 		    lvid, 
 	const serial_t& 	    liid,
 	const vec_t&		    key, 
-	const vec_t&		    el);
+	const vec_t&		    el
+	);
     static rc_t			destroy_assoc(
 	const lvid_t& 		    lvid, 
 	const serial_t&		    liid,
         const vec_t&		    key,
-	const vec_t&		    el);
+	const vec_t&		    el
+	);
     static rc_t			destroy_all_assoc(
 	const lvid_t& 		    lvid, 
 	const serial_t&		    liid,
         const vec_t&		    key,
-        int&		    	    num_removed);
+        int&		    	    num_removed
+	);
 
     static rc_t			find_assoc(
 	const lvid_t& 		    lvid,
@@ -714,7 +824,8 @@ public:
 	void* 			    el, 
 	smsize_t& 		    elen, // if you don't want the result,
 					// make this 0 on input
-	bool& 		    found);
+	bool& 		    	    found
+	);
 
     //
     // Functions for R*tree (multi-dimensional(MD), spatial) Indexes
@@ -764,7 +875,7 @@ public:
 	const nbox_t& 		    key, 
 	void* 			    el, 
 	smsize_t& 		    elen,
-	bool& 		    found);
+	bool&			    found);
     static rc_t			draw_rtree(
 	const lvid_t& 		    lvid, 
 	const serial_t& 	    serial);
@@ -882,7 +993,7 @@ public:
         const vec_t& 		    data, 
 	const serial_t& 	    lrid, 
 	rid_t& 			    rid,
-	bool			    forward_alloc = FALSE); 
+	bool			    forward_alloc = false); 
     static rc_t			destroy_rec(
 	const lvid_t& 		    lvid, 
 	const serial_t& 	    lrid);
@@ -973,46 +1084,60 @@ public:
      *       stid_t to lockid_t, so wherever a lockid_t parameter is
      *	     specified a lpid_t, rid_t, or stid_t can be used.
      *
-     * See the comments above remote_lock_m::lock in lock_remote.h
-     * for a discussion of the "optimistic" parameter.
      *****************************************************************/
 
     static rc_t			lock(
 	const lockid_t& 	    n, 
 	lock_mode_t 		    m,
 	lock_duration_t 	    d = t_long,
-	long 			    timeout = WAIT_SPECIFIED_BY_XCT,
-	bool			    optimistic = FALSE);
+	long 			    timeout = WAIT_SPECIFIED_BY_XCT);
     
     static rc_t			lock(
 	const lvid_t& 		    lvid, 
 	const serial_t& 	    serial,
 	lock_mode_t 		    m, 
 	lock_duration_t 	    d = t_long,
-	long 			    timeout = WAIT_SPECIFIED_BY_XCT,
-	bool			    optimistic = FALSE);
+	long 			    timeout = WAIT_SPECIFIED_BY_XCT);
 
     static rc_t			lock(
 	const lvid_t& 		    lvid, 
 	lock_mode_t 		    m, 
 	lock_duration_t 	    d = t_long,
-	long 			    timeout = WAIT_SPECIFIED_BY_XCT,
-	bool			    optimistic = FALSE);
+	long 			    timeout = WAIT_SPECIFIED_BY_XCT);
     
     static rc_t			unlock(const lockid_t& n);
     static rc_t			unlock(
 	const lvid_t& 		    lvid, 
 	const serial_t& 	    serial);
+    
+    static rc_t			dont_escalate(
+	const lockid_t&		    n,
+	bool			    passOnToDescendants = true);
+    static rc_t			dont_escalate(
+	const lvid_t&		    lvid,
+	const serial_t&		    serial,
+	bool			    passOnToDescendants = true);
+    static rc_t			dont_escalate(
+	const lvid_t&		    lvid,
+	bool			    passOnToDescendants = true);
+    static rc_t			get_escalation_thresholds(
+	int4&			    toPage,
+	int4&			    toStore,
+	int4&			    toVolume);
+    static rc_t			set_escalation_thresholds(
+	int4			    toPage,
+	int4			    toStore,
+	int4			    toVolume);
 
     static rc_t			query_lock(
 	const lockid_t& 	    n, 
 	lock_mode_t& 		    m,
-	bool			    implicit = FALSE);
+	bool			    implicit = false);
     static rc_t			query_lock(
 	const lvid_t& 		    lvid, 
 	const serial_t& 	    serial,
 	lock_mode_t& 		    m,
-	bool			    implicit = FALSE);
+	bool			    implicit = false);
 
     /*****************************************************************
      * Lock Cache related functions
@@ -1034,6 +1159,7 @@ private:
     static int _instance_cnt;
     static option_group_t* _options;
     static option_t* _reformat_log;
+    static option_t* _prefetch;
     static option_t* _bfm_strategy;
     static option_t* _bufpoolsize;
     static option_t* _locktablesize;
@@ -1047,12 +1173,33 @@ private:
     static option_t* _error_loglevel;
     static option_t* _script_log;
     static option_t* _script_loglevel;
+    static option_t* _numLidCacheEntries;
+    static option_t* _lockEscalateToPageThreshold;
+    static option_t* _lockEscalateToStoreThreshold;
+    static option_t* _lockEscalateToVolumeThreshold;
+    static option_t* _dcommit_timeout;
+    static option_t* _cc_alg_option;
 
     // root index key for finding logical ID of the root index.
     // used to implement vol_root_index(lvid_t, serial_t&)
     static const char* _root_index_lid_key;
 
     static rc_t			_set_option_logsize(
+	option_t*		    opt,
+	const char*		    value,
+	ostream*		    err_stream);
+    
+    static rc_t			_set_option_lock_escalate_to_page(
+	option_t*		    opt,
+	const char*		    value,
+	ostream*		    err_stream);
+    
+    static rc_t			_set_option_lock_escalate_to_store(
+	option_t*		    opt,
+	const char*		    value,
+	ostream*		    err_stream);
+    
+    static rc_t			_set_option_lock_escalate_to_volume(
 	option_t*		    opt,
 	const char*		    value,
 	ostream*		    err_stream);
@@ -1073,7 +1220,9 @@ private:
     static rc_t 		_begin_xct(tid_t& tid, long timeout);
     static rc_t			_commit_xct(bool lazy);
     static rc_t			_prepare_xct(vote_t &v);
+    static rc_t 		_set_coordinator(const server_handle_t &); 
     static rc_t			_enter_2pc(const gtid_t &); 
+    static rc_t			_force_vote_readonly(); 
     static rc_t			_recover_2pc(const gtid_t &,// in
 					bool	mayblock,
 					tid_t	&	//out -- attached if found(?)
@@ -1087,7 +1236,9 @@ private:
 	const char*		    device,
 	u_int&			    vol_cnt,
 	vid_t			    local_vid);
-    static rc_t			_dismount_dev(const char* device);
+    static rc_t			_dismount_dev(
+	const char*		    device,
+	bool			    dismount_if_locked = true);
     static rc_t			_create_vol(
 	const char* 		    device_name,
 	const lvid_t&		    lvid,
@@ -1098,10 +1249,14 @@ private:
 	ndx_t 			    ntype, 
 	store_property_t	    property,
 	const char* 		    key_desc,
+        concurrency_t		    cc,
 	bool			    use_1page_store,
 	stpgid_t& 		    stpgid,
 	const serial_t& 	    logical_id=serial_t::null);
     static rc_t			_destroy_index(const stpgid_t& iid); 
+    static rc_t			_get_store_info( 
+	const stpgid_t&		    stpgid, 
+	sm_store_info_t&	    info);
 
     static rc_t			_bulkld_index(
 	const stid_t& 		    stid, 
@@ -1116,21 +1271,25 @@ private:
     static rc_t			_create_assoc(
 	const stpgid_t&		    stpgid, 
 	const vec_t& 		    key, 
-	const vec_t& 		    el);
+	const vec_t& 		    el
+	);
     static rc_t			_destroy_assoc(
 	const stpgid_t&		    stpgid, 
 	const vec_t& 		    key,
-	const vec_t& 		    el);
+	const vec_t& 		    el
+	);
     static rc_t			_destroy_all_assoc(
 	const stpgid_t&		    stpgid, 
 	const vec_t& 		    key,
-    	int&			    num_removed);
+    	int&			    num_removed
+	);
     static rc_t			_find_assoc(
 	const stpgid_t&		    stpgid, 
 	const vec_t& 		    key, 
 	void* 			    el, 
 	smsize_t&		    elen, 
-	bool& 		    found);
+	bool& 		    	    found
+	);
     static rc_t			_convert_to_store(
 	const lid_t& 	    	    id, 
 	const stpgid_t& 	    stpgid, 
@@ -1173,7 +1332,7 @@ private:
 	const nbox_t& 		    key, 
 	void* 			    el, 
 	smsize_t& 		    elen, 
-	bool& 		    found);
+	bool&			    found);
 #ifdef USE_RDTREE
     static rc_t			_create_set_index(
 	vid_t 			    vid, 
@@ -1235,7 +1394,7 @@ private:
 	const vec_t& 		    data, 
 	rid_t& 			    new_rid,
 	const serial_t& 	    serial,
-	bool			    forward_alloc = FALSE); 
+	bool			    forward_alloc = false); 
     static rc_t			_destroy_rec(
 	const rid_t& 		    rid, 
 	const serial_t&		    verify);
@@ -1286,14 +1445,6 @@ private:
 	const serial_t& 	    logical_id,
 	const lvid_t&		    logical_vid);
 
-    // this is used in sorting
-    static rc_t			_copy_out_large_obj(
-	const record_t*		    rec,
-	void*			    data,
-	smsize_t		    start,
-	smsize_t		    len,
-	const file_p&		    hdr_page);
-
     static rc_t			_create_rec_id(
 	const lvid_t& 		    lvid, 
 	const serial_t& 	    lfid,
@@ -1311,9 +1462,13 @@ private:
         const vec_t& 		    data, 
 	const serial_t& 	    lrid, 
         rid_t& 			    rid,
-	bool			    forward_alloc = FALSE); 
+	bool			    forward_alloc = false); 
 
-    static uint4_t		_make_store_flag(store_property_t property);
+    static store_flag_t		_make_store_flag(store_property_t property);
+    // reverse function:
+    // static store_property_t	_make_store_property(uint4_t flag);
+    // is in dir_vol_m
+
     static rc_t			_add_lid_volume(vid_t vid);
 
     // this is for df statistics  DU DF
@@ -1326,6 +1481,36 @@ private:
 	sm_du_stats_t&		    du,
 	bool			    audit);
 
+};
+
+class sm_store_info_t {
+public:
+    NORET sm_store_info_t(int len) :
+	store(0), stype(ss_m::t_bad_store_t), 
+	ntype(ss_m::t_bad_ndx_t), cc(ss_m::t_cc_bad),
+	eff(0), large_store(0), root(0),
+	logical_id(0), nkc(0), keydescrlen(len)
+	{  keydescr = new char[len]; }
+    NORET ~sm_store_info_t() { if (keydescr) delete[] keydescr; }
+
+    snum_t	store;		// store id
+    u_char	stype;		// store_t: t_index, t_file, ...
+    u_char	ntype;		// ndx_t: t_btree, t_rtree, ...
+    u_char	cc;	 	// concurrency_t on index: t_cc_kvl, ...
+    u_char	eff;		// unused
+
+    snum_t	large_store;	// store for large record pages of t_file
+    shpid_t	root;		// root page (of index)
+    serial_t	logical_id;     // zero if no logical ID
+    uint4	nkc;		// # components in key
+
+    int		keydescrlen;	// size of array below
+    char        *keydescr;	// variable length string:
+				// he who creates a sm_store_info_t
+				// for use with get_store_info()
+				// is responsible for allocating enough
+				// space for longer key descriptors, if
+				// he expects to find them.
 };
 
 
@@ -1343,7 +1528,12 @@ istream& operator>>(istream& i, rid_t& rid);
 ostream& operator<<(ostream& o, const sm_stats_info_t& s);
 ostream& operator<<(ostream& o, const sm_config_info_t& s);
 
+#ifndef VEC_T_H
 #include <vec_t.h>
+#endif
+#ifndef SM_ESCALATION_H
+#include <sm_escalation.h>
+#endif
 
 #endif /* SM_H */
 

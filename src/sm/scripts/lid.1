@@ -17,33 +17,33 @@ if {$Use_logical_id == 0} {
 
     sm begin_xct
     set f1 [sm create_file $volid]
-    echo f1 = $f1
+    verbose f1 = $f1
 
     set r1 [sm create_rec $f1 hdr1 11 mike]
-    echo read of $r1: [sm read_rec $r1 0 0]
+    verbose read of $r1: [sm read_rec $r1 0 0]
 
     set r2 [sm create_rec $f1 hdr12345 11 abcdefghijklmnopqrstuvwxyz]
-    echo read of $r2: [sm read_rec $r2 0 0]
+    verbose read of $r2: [sm read_rec $r2 0 0]
 
     set alias2 [sm link_to_remote_id $volid $r2]
-    echo read of alias2 $alias2: [sm read_rec $alias2 0 0]
+    verbose read of alias2 $alias2: [sm read_rec $alias2 0 0]
     set orig_id [sm convert_to_local_id $alias2]
     assert {expr [string compare $r2 $orig_id]==0}
 
     set alias3 [sm link_to_remote_id $volid $alias2]
-    echo read of alias3 $alias3: [sm read_rec $alias3 0 0]
+    verbose read of alias3 $alias3: [sm read_rec $alias3 0 0]
     set orig_id [sm convert_to_local_id $alias3]
     assert {expr [string compare $r2 $orig_id]==0}
 
     set alias4 [sm link_to_remote_id $volid $r2]
-    echo read of alias4 $alias4: [sm read_rec $alias4 0 0]
+    verbose read of alias4 $alias4: [sm read_rec $alias4 0 0]
     set orig_id [sm convert_to_local_id $alias4]
-    echo converted $alias4 to $orig_id
+    verbose converted $alias4 to $orig_id
     assert {expr [string compare $r2 $orig_id]==0}
     assert {expr [string compare $alias2 $alias4]==0}
 
     set lfid [sm lfid_of_lrid $r1]
-    echo $f1   $lfid
+    verbose $f1   $lfid
     assert {expr [string compare $f1 $lfid]==0}
 
     sm commit_xct

@@ -5,486 +5,332 @@
 /* -- Reserved.                                                 -- */
 /* --------------------------------------------------------------- */
 
-/*
- *  $Header: /p/shore/shore_cvs/config/Imake.rules,v 1.80 1996/07/15 22:50:10 bolo Exp $
- */
-/*
- SRC for sources
- OBJ for objects
- DISPOSABLE for non precious files
- LDLIBS for libraries
-*/
+%#>>>>>>>>>>>> $Header: /p/shore/shore_cvs/config/Imake.rules,v 1.89 1997/08/07 12:17:15 solomon Exp $
 
-NEWSUFFIXES += .C
-NEWSUFFIXES += .htag .itag .Ctag .ctag                           
+/****************************************************************
+ * Imake.rules:  "Library procedures" for building up a Makefile.
+ * Each of these rules is envoked by a line of the form
+ *   %GEN rule_name(arg1,arg2)
+ ****************************************************************/
 
-/*
- * When compiling .c files, do not compile with -g any file
- * named in the file NO_G_FILES
- */
-.c.o:
-	@ if (test -r NO_G_FILES) then (                  \
-	    if ($(GREP) "(^| | )[       ]*"$< NO_G_FILES >/dev/null) then \
-	    ( echo $(COMPILE_NOSYMBOL.c) $< ;               \
-	      $(COMPILE_NOSYMBOL.c) $< )                    \
-	    else                                                \
-	    ( echo $(COMPILE.c) $< ;                        \
-	      $(COMPILE.c) $< )                             \
-	    fi                                                  \
-	)                                                       \
-	else                                                    \
-	    ( echo $(COMPILE.c) $< ;                            \
-	    $(COMPILE.c) $< )                               \
-	fi
+/****************************************************************
+ * Build a C program from .o files and libraries.
+ ****************************************************************/
+%DEF c_program(program,objlist,libs)
+clean_local::
+	-$(RM) -f program objlist
 
+program: objlist libs
+	$(LINK.c) -o program objlist libs GlobalLibraries
+%ENDDEF
 
-.C.o:
-	@ if (test -r NO_G_FILES) then (                  \
-	    if ($(GREP) "(^| | )[       ]*"$< NO_G_FILES >/dev/null) then \
-	    ( echo $(COMPILE_NOSYMBOL.C) $< ;               \
-	      $(COMPILE_NOSYMBOL.C) $< )                    \
-	    else                                                \
-	    ( echo $(COMPILE.C) $< ;                        \
-	      $(COMPILE.C) $< )                             \
-	    fi                                                  \
-	)                                                       \
-	else                                                    \
-	    ( echo $(COMPILE.C) $< ;                            \
-	    $(COMPILE.C) $< )                               \
-	fi
+/****************************************************************
+ * Build a C++ program from .o files and libraries
+ ****************************************************************/
+%DEF c_plus_program(program,objlist,libs)
+clean_local::
+	-$(RM) -f program objlist
 
-.cc.o:
-	@ if (test -r NO_G_FILES) then (                  \
-	    if ($(GREP) "(^| | )[       ]*"$< NO_G_FILES >/dev/null) then \
-	    ( echo $(COMPILE_NOSYMBOL.cc) $< ;               \
-	      $(COMPILE_NOSYMBOL.cc) $< )                    \
-	    else                                                \
-	    ( echo $(COMPILE.cc) $< ;                        \
-	      $(COMPILE.cc) $< )                             \
-	    fi                                                  \
-	)                                                       \
-	else                                                    \
-	    ( echo $(COMPILE.cc) $< ;                            \
-	    $(COMPILE.cc) $< )                               \
-	fi
+program: objlist libs
+	$(LINK.cc) -o program objlist libs GlobalLibraries
+%ENDDEF
 
-#if IS_SNAKE_HPUX8
-#define extra_ld_flags $(CPLUSFLAGS)
+/****************************************************************
+ * Build a Purified C++ program from .o files and libraries.
+ ****************************************************************/
+#ifdef UsePurify
+%DEF purify_c_plus_program(program,objlist,libs,pure_options)
+clean_local::
+	-$(RM) -f program.pure objlist real-ld .pure *_pure_*.o lib*pure*.a
+program.pure: objlist libs
+	Purify/purify PureFlags %
+		$(LINK.cc) -o program.pure objlist libs PurifyLibrary GlobalLibraries
+%ENDDEF
 #else
-#define extra_ld_flags
-#endif
+%DEF purify_c_plus_program(program,objlist,libs,pure_options)
+/* nothing */
+%ENDDEF
+#endif /* UsePurify */
 
-#ifdef USE_CC
-#if IS_SNAKE_HPUX8
-#define pxdb_message echo "NB: Ignore error messages from pxdb."
-#endif
-#endif
-
-#ifndef pxdb_message
-#define pxdb_message 
-#endif
-
-/*
-** Build a C++ program from .o files and libraries.
-*/
-#ifndef c_program
-#define c_program(program, objlist, libs)		@@\
-clean::							@@\
-	-@$(RM) -f program objlist                      @@\
-	                                                @@\
-program: objlist libs 								@@\
-	$(MAKE) program.link							@@\
-program.link:										@@\
-	$(LD) -o program objlist libs extra_ld_flags $(LDFLAGS) $(LOCAL_LDFLAGS) $(CLIB) $(GLOBAL_LDFLAGS)				@@\
-	pxdb_message
-#endif /* c_program */
-
-/*
-** Build a C++ program from .o files and libraries.
-*/
-#ifndef c_plus_program
-#define c_plus_program(program, objlist, libs)		@@\
-clean::							@@\
-	-@$(RM) -f program objlist                      @@\
-	                                                @@\
-program: objlist libs 								@@\
-	$(MAKE) program.link							@@\
-program.link:										@@\
-	$(LD) -o program objlist libs extra_ld_flags $(LDFLAGS) $(LOCAL_LDFLAGS) $(CPLUSLIB) $(GLOBAL_LDFLAGS)				@@\
-	pxdb_message
-#endif /* c_plus_program */
-
-#if defined(IS_SP2) && !defined(poe_c_plus_program)
-/*
-** Build a C++ program from .o files and libraries.
-** The resulting executable is link with the IBM POE (Parallel Operating
-** Environment) runtime.
-*/
-#define poe_c_plus_program(program, objlist, libs)		@@\
-clean::							@@\
-	-@$(RM) -f program objlist                      @@\
-	                                                @@\
-program: objlist libs 								@@\
-	$(MAKE) program.link							@@\
-program.link:										@@\
-	$(LD) -mpoe -o program objlist libs extra_ld_flags $(LDFLAGS) $(LOCAL_LDFLAGS) $(CPLUSLIB) $(GLOBAL_LDFLAGS)				@@\
-	pxdb_message
+/****************************************************************
+ * Build a Quantified C++ program from .o files and libraries.
+ ****************************************************************/
+#ifdef UseQuantify
+%DEF quantify_c_plus_program(program,objlist,libs,quant_options)
+clean_local::
+	-$(RM) -f program.quant objlist real-ld .quant *_quant_*.o lib*quant*.a
+program.quant: objlist libs
+	Quantify/quantify %
+		$(LINK.cc) -o program.quant objlist libs PurifyLibrary GlobalLibraries
+%ENDDEF
 #else
-#define	poe_c_plus_program(program, objlist, libs)
-#endif /* SP2 */
+%DEF quantify_c_plus_program(program,objlist,libs,quant_options)
+/* nothing */
+%ENDDEF
+#endif /* UseQuantify */
 
-/*
-***************************************************************
-** Build a Purify-ied C++ program from .o files and libraries.
-*/
-#if IS_SNAKE_HPUX8
-GLOBAL_PURE_OPT =
-#define PURIFY_LIB $(PURIFY_DIR)/purify_stubs.a
-PURIFY_SUPPORTED = -DPURIFY
-#else 
-#if IS_SPARC_SUNOS41
-PURIFY_SUPPORTED = -DPURIFY
-#define PURIFY_LIB $(PURIFY_DIR)/purify_stubs.a
-GLOBAL_PURE_OPT = -g++ -collector=$(PURIFY_COLLECTOR)
+/****************************************************************
+ * Build a PureCoveraged C++ program from .o files and libraries.
+ ****************************************************************/
+#ifdef UsePureCoverage
+%DEF purecov_c_plus_program(program,objlist,libs,pure_options)
+clean_local::
+	-$(RM) -f program.purecov objlist real-ld .pure *_pure_*.o lib*pure*.a
+program.purecov: objlist libs
+	PureCoverage/purecov %
+		$(LINK.cc) -o program.purecov objlist libs PurifyLibrary GlobalLibraries
+%ENDDEF
 #else
-#if IS_I860_OSF1AD
-PURIFY_SUPPORTED = 
-/* don't define PURIFY_LIB */
-GLOBAL_PURE_OPT = -collector=unknown
-#else
-#if IS_MIPS_ULTRIX42
-#define PURIFY_LIB $(PURIFY_DIR)/purify_stubs.a
-PURIFY_SUPPORTED = -DPURIFY
-GLOBAL_PURE_OPT = -g++ -collector=$(PURIFY_DIR)/collect2
-#else
-GLOBAL_PURE_OPT = -g++=yes -collector=$(PURIFY_COLLECTOR)
-/* don't define PURIFY_LIB */
-#endif /*IS_MIPS_ULTRIX42*/
-#endif /*IS_I860_OSF1AD*/
-#endif /*IS_SPARC_SUNOS41*/
-#endif /*IS_SNAKE_HPUX8*/
-#ifndef purify_c_plus_program
-#define purify_c_plus_program(program, objlist, libs, pure_options) @@\
-clean::								@@\
-	-@$(RM) -f program.pure objlist real-ld .pure *_pure_*.o lib*pure*.a  @@\
-program.pure: objlist libs 										@@\
-	$(MAKE) program.pure.link									@@\
-program.pure.link:                                              @@\
-	$(PURIFY_DIR)/purify $(GLOBAL_PURE_OPT) pure_options $(LD) -o program.pure objlist libs extra_ld_flags $(LDFLAGS) $(LOCAL_LDFLAGS) $(CPLUSLIB) $(GLOBAL_LDFLAGS)
-#endif /* purify_c_plus_program */
+%DEF purecov_c_plus_program(program,objlist,libs,pure_options)
+/* nothing */
+%ENDDEF
+#endif /* UsePureCoverage */
 
-/*
-** end Purify
-***************************************************************
-*/
-
-/*
-***************************************************************
-** Build a Quantified C++ program from .o files and libraries.
-*/
-#if IS_SNAKE_HPUX8
-GLOBAL_QUANT_OPT =
-/*#define QUANTIFY_LIB */
-QUANTIFY_SUPPORTED = 
-#else 
-#if IS_SPARC_SUNOS41
-QUANTIFY_SUPPORTED = -DQUANTIFY
-#define QUANTIFY_LIB $(QUANT_DIR)/quantify_stubs.a
-GLOBAL_QUANT_OPT = -g++ -collector=$(QUANTIFY_COLLECTOR)
-#else 
-#if IS_I860_OSF1AD
-QUANTIFY_SUPPORTED = 
-/* don't define QUANTIFY_LIB */
-GLOBAL_QUANT_OPT = -collector=unknown
-#else
-#if IS_MIPS_ULTRIX42
-#define QUANTIFY_LIB /usr/sup/quantify/quantify_stubs.a
-QUANTIFY_SUPPORTED = -DQUANTIFY
-GLOBAL_QUANT_OPT = -g++ -collector=$(PURIFY_DIR)/collect2
-#else
-QUANTIFY_SUPPORTED = -DQUANTIFY
-GLOBAL_QUANT_OPT = -g++=yes -collector=$(QUANTIFY_COLLECTOR)
-/* don't define QUANTIFY_LIB */
-#endif /*IS_MIPS_ULTRIX42*/
-#endif /*IS_I860_OSF1AD*/
-#endif /*IS_SPARC_SUNOS41*/
-#endif /*IS_SNAKE_HPUX8*/
-#ifndef quantify_c_plus_program
-#define quantify_c_plus_program(program, objlist, libs, quant_options) @@\
-clean::								@@\
-	-@$(RM) -f program.quant objlist real-ld .quant *_pure_q*.o  lib*_pure_q*.a  @@\
-program.quant: objlist libs 						@@\
-	$(MAKE) program.quant.link						@@\
-program.quant.link:                                 @@\
-	$(QUANT_DIR)/quantify $(GLOBAL_QUANT_OPT) quant_options $(LD) -o program.quant objlist libs extra_ld_flags $(LDFLAGS) $(LOCAL_LDFLAGS) $(CPLUSLIB) $(GLOBAL_LDFLAGS)
-#endif /* quantify_c_plus_program */
-/*
-** end Quantify
-***************************************************************
-*/
-
-/*
-***************************************************************
-** Build a Pure-coverage-ed C++ program from .o files and libraries.
-*/
-#if IS_SNAKE_HPUX8
-GLOBAL_PURECOV_OPT =
-#define PURECOV_LIB $(PURECOV_DIR)/purecov_stubs.a
-PURECOV_SUPPORTED = -DPURECOV
-#else 
-#if IS_SPARC_SUNOS41
-PURECOV_SUPPORTED = -DPURECOV
-#define PURECOV_LIB $(PURECOV_DIR)/purify_stubs.a
-GLOBAL_PURECOV_OPT = -g++ -collector=$(PURECOV_COLLECTOR)
-#else 
-#if IS_I860_OSF1AD
-PURECOV_SUPPORTED = 
-/* don't define PURECOV_LIB */
-GLOBAL_PURE_OPT = -collector=unknown
-#else
-#if IS_MIPS_ULTRIX42
-#define PURECOV_LIB $(PURECOV_DIR)/purify_stubs.a
-PURECOV_SUPPORTED = -DPURECOV
-GLOBAL_PURECOV_OPT = -g++ -collector=$(PURECOV_COLLECTOR)
-#else 
-GLOBAL_PURECOV_OPT = -linker=gcc
-/* don't define PURECOV_LIB */
-#endif /*IS_MIPS_ULTRIX42*/
-#endif /*IS_I860_OSF1AD*/
-#endif /*IS_SPARC_SUNOS41*/
-#endif /*IS_SNAKE_HPUX8*/
-
-#ifndef purecov_c_plus_program
-#define purecov_c_plus_program(program, objlist, libs, pure_options) @@\
-clean::								@@\
-	-@$(RM) -f program.purecov objlist real-ld .pure *_pure_*.o lib*pure*.a  @@\
-program.purecov: objlist libs 							@@\
-	$(MAKE) program.purecov.link						@@\
-program.purecov.link: 							 		@@\
-	$(PURECOV_DIR)/purecov $(GLOBAL_PURECOV_OPT) pure_options $(LD) -o program.purecov objlist libs extra_ld_flags $(LDFLAGS) $(LOCAL_LDFLAGS) $(CPLUSLIB) $(GLOBAL_LDFLAGS)
-#endif /* purecov_c_plus_program */
-
-#ifndef pureboth_c_plus_program
-#define pureboth_c_plus_program(program, objlist, libs, pure_options) @@\
-clean::								@@\
-	-@$(RM) -f program.purecov objlist real-ld .pure *_pure_*.o lib*pure*.a  @@\
-program.pureboth: objlist libs 							@@\
-	$(MAKE) program.pureboth.link						@@\
-program.pureboth.link: @@\
-	$(PURIFY_DIR)/purify $(GLOBAL_PURE_OPT) pure_options \
-	$(PURECOV_DIR)/purecov $(GLOBAL_PURECOV_OPT) \
-	$(LD) -o program.pureboth objlist libs extra_ld_flags $(LDFLAGS) $(LOCAL_LDFLAGS) $(CPLUSLIB) $(GLOBAL_LDFLAGS)
-#endif /* pureboth_c_plus_program */
-/*
-** end Purecov
-***************************************************************
-*/
-
-/*
+/****************************************************************
  * How to make a library
- * remove it and use quick append (fastest way)
- */
-#ifndef build_library
-#define build_library(lib, objlist)         @@\
-clean::                                     @@\
-	-@$(RM) -f lib objlist li*pure*.a  li*pure_q*.a    @@\
-lib: objlist 								@@\
-	$(MAKE) lib.archive						@@\
-lib.archive:  								@@\
-	-$(RM) -f lib                           @@\
-	$(AR) qv  lib  objlist              	@@\
-	$(RANLIB_IFNEEDED) lib 
-
-/* append objlist to lib */
-#define append_library(lib, objlist)         @@\
-clean::                                      @@\
-	-@$(RM) -f objlist lib  li*pure_q*.a li*pure*.a     @@\
-lib:: objlist                                @@\
-	$(AR) rv lib  $?                   		 @@\
-	$(RANLIB_IFNEEDED) lib        
-
-/* build lib from objlist and otherlib's objects */
-#define build_joint_library(lib, objlist, otherlibs)   @@\
-clean::                                      @@\
-	-@$(RM) -f lib objlist li*pure_q*.a li*pure*.a     @@\
-lib:: objlist otherlibs          			@@\
-	$(MAKE) lib.archive						@@\
-lib.archive: 								 @@\
-	@echo "(re)build joint library " lib     @@\
-	-@$(RM) -f lib                           @@\
-	@echo "from objects " objlist            @@\
-	$(AR) qv lib objlist              		 @@\
-	@echo "add libraries " otherlibs         @@\
-	$(TOP)/tools/combinelibs $(AR) lib otherlibs  
-#endif /* build_library */
-
-
-/*
-** Build Makefile dependencies for an object tree.
-*/
-#ifndef depend_target
-#define depend_target(src_list)             @@\
-depend:: 	automatic                       @@\
-						@@\
-depend:: ALWAYS                             @@\
-	-@$(RM) -f .depend                      @@\
-	@$(MKDEPEND) $(MKDEPFLAGS) $(CFLAGS) src_list > .depend
-#endif /* depend_target */
-
-/*
- * These files can be removed with "make clean"
- */
-#ifndef clean_files
-#define clean_files(files)                    @@\
-clean::                                       @@\
-	-@$(RM) -f files
-#endif 
-
-
-/* NB- WHEN REMOVING SYMBOLIC LINKS, USE basename to prevent */
-/* removal of the target of the link!!                       */
-
-#ifndef symbolic_links
-#define clean_symbolic_links(lnks)  /* dummy */
-
-/* _clean_symbolic_links is automatic with symbolic_links */
-#define _clean_symbolic_links(lnks)             @@\
-clean:: clean_symlinks     						@@\
-clean_symlinks::         						@@\
-	-@for i in `echo lnks`;\					@@\
-		do \									@@\
-		if (test -h `basename $$i`) then \		@@\
-			$(RM) -f `basename $$i`; \			@@\
-		fi;\									@@\
-		done; 
-
-#    if IS_SNAKE_HPUX8
-#    define symbolic_links(lnks)             @@\
-_clean_symbolic_links(lnks)					 @@\
-                                             @@\
-symlinks:: 									 @@\
-	-@for i in `echo lnks`; do \			 @@\
-		if (test ! -h `basename $$i`) then \ @@\
-			echo $$i;\      				 @@\
-			ln -fs $$i .;\					 @@\
-		fi;\			 					 @@\
-	done;
-#    else
-#    define symbolic_links(lnks)             @@\
-_clean_symbolic_links(lnks)					 @@\
-                                             @@\
-symlinks:: 									 @@\
-	-@for i in `echo lnks`; do \			 @@\
-		if (test ! -h `basename $$i`) then \ @@\
-			echo $$i;\      				 @@\
-			ln -s $$i;\						 @@\
-		fi;\			 					 @@\
-	done;
-#    endif
+ *    lib:      the library
+ *    objlist:  the files that go in it
+ * Also arranges for "make clean" to remove the libarary, its component files,
+ * and purify and quantify versions of it.
+ ****************************************************************/
+%DEF library(lib,objlist)
+lib: objlist
+	-$(RM) -f lib
+	Ar qv  lib  objlist
+#ifdef Ranlib
+	Ranlib lib
 #endif
+clean_local::
+	-$(RM) -f lib objlist li*pure*.a  li*pure_q*.a
+%ENDDEF
 
-/*
-** Build Makefile dependencies for an object tree.
-*/
-#ifndef error_codes
-#define error_codes(datfile,flags,errfiles)             @@\
-depend:: errfiles	@@\
-clean:: @@\
-	-@$(RM) -f errfiles	@@\
-errfiles: datfile $(ERRORPL)	@@\
-	$(PERL) -s $(ERRORPL) flags datfile
-#endif /* error_codes */
+/****************************************************************
+ * Build lib from objlist and the objects in each of otherlibs.
+ ****************************************************************/
+%DEF merge_library(lib,objlist,otherlibs)
+lib:: objlist otherlibs
+	@echo "(re)build joint library " lib
+	@echo "from objects " objlist
+	-$(RM) -f lib
+	Ar qv lib objlist
+	@echo "add libraries " otherlibs
+	$(TOP)/tools/combinelibs Ar lib otherlibs  
+clean_local::
+	-$(RM) -f lib objlist li*pure_q*.a li*pure*.a
+%ENDDEF
 
-#ifndef statistics
-#define statistics(datfile,flags,statfiles)             @@\
-depend:: statfiles	@@\
-clean:: @@\
-	-@$(RM) -f statfiles	@@\
-statfiles: datfile $(STATPL)	@@\
-	$(PERL) -s $(STATPL) flags datfile
-#endif /* statistics */
+/****************************************************************
+ * Add srcs to the list of files to be analyzed by "make depend" or "make
+ * tags".  These rules are invoked directly from Imakefiles for hand-written
+ * sources.  They are also invoked indirectly, through generated_srcs (see
+ * below), for source files built by other tools (such as Perl scripts).
+ * The rules only add the file names to the values of Make macros DEPEND_SOURCE
+ * (TAGS_SOURCE) so that the dependencies (tags) can be built all at once
+ * in rules near the start of Imake.targets.
+ ****************************************************************/
+%DEF depend_target(srcs)
+DEPEND_SOURCE += srcs
+%ENDDEF
 
+%DEF tags(srcs)
+TAGS_SOURCE += srcs
+%ENDDEF
 
-/*
-** Copy files to installation location
-** Notice that install:: does not depend on anything.  This
-** is done on purpose so that install can be done without a recompile
-*/
-#ifndef install_copy
-#define install_copy(dir, toinstall)  	         	@@\
-install:: 						@@\
-	-@mkdir -p $(INSTALL_DIR)/dir			@@\
-	-for i in toinstall; do ($(RM) -f $(INSTALL_DIR)/dir/`basename $$i`); done @@\
-	-cp -p toinstall $(INSTALL_DIR)/dir		@@\
-clean_install::						@@\
-	for i in toinstall; do ($(RM) -f $(INSTALL_DIR)/dir/`basename $$i`); done
+/****************************************************************
+ * Additional files to be removed with "make clean", "make distclean", etc.
+ * This rule is seldom needed in Imakefiles.  Various other rules in
+ * this file explicitly add the files they build to the list of files
+ * removed by "make clean".
+ ****************************************************************/
+%DEF clean_files(files)
+clean_local::
+	-$(RM) -f files
+%ENDDEF
 
-#endif /*install_copy*/
+/****************************************************************
+ * Extra rules for sources that are generated by various pre-processors
+ * (such as rpcgen or perl scripts).
+ * Generated_headers and generated srcs differ only in that the former
+ * are supplied as dependencies but not inputs to the rule the makes the
+ * .depend file.   Thus if foo.h, bar.h, foo.cc and bar.cc are generated files,
+ * the resulting Makefile would have something similar to
+ *    depend_local: foo.cc bar.cc
+ *        makedepend foo.cc bar.cc >.depend
+ *    depend_local: foo.h bar.h
+ * In both cases, the named files are candidates for removal on "make clean",
+ * inputs to "make tags", and dependencies of the special PHONY target
+ * "automatic", which is a prerequisite for many things.
+ ****************************************************************/
+%DEF generated_headers(targets)
+depend_local: targets
+clean_local::
+	-$(RM) -f targets
+automatic:: targets
+%GEN tags(targets)
+%ENDDEF
 
-/*
-** Move files to installation location
-** Notice that install:: does not depend on anything.  This
-** is done on purpose so that install can be done without a recompile
-*/
-#ifndef install_move
-#define install_move(dir, toinstall)  	         	@@\
-install:: 						@@\
-	-@mkdir -p $(INSTALL_DIR)/dir			@@\
-	-mv toinstall $(INSTALL_DIR)/dir		@@\
-clean_install::						@@\
-	for i in toinstall; do ($(RM) -f $(INSTALL_DIR)/dir/`basename $$i`); done;
+%DEF generated_srcs(targets)
+%GEN depend_target(targets)
+clean_local::
+	-$(RM) -f targets
+automatic:: targets
+%GEN tags(targets)
+%ENDDEF
 
-#endif /*install_move*/
+/****************************************************************
+ * Generate source files (usually C++ source or header files) from other
+ * files using a Perl script.
+ *   targets:      files to be produced
+ *   script:       script that does the work
+ *   dependencies: files implicitly used by the script
+ *   flags:        initial command-line options to the script
+ *   inputs:       explicit file arguments to the script.
+ * Ensures that targets are built by "make depend", removed by "make clean",
+ * included in the ctags, and listed as dependencies of the special PHONY
+ * target "automatic", which is a prerequisite for many things.
+ ****************************************************************/
+%DEF generate_source(targets,script,dependencies,flags,inputs)
+targets: script dependencies inputs
+	Perl script flags inputs
+%GEN generated_headers(targets)
+%ENDDEF
 
-#if IS_I386_SOLARIS2 || IS_SPARC_SOLARIS2 || IS_SNAKE_HPUX8 || IS_RS6000_AIX32 || IS_RS6000_AIX41
-#define	ECHO_NO_NL	echo \\c
-#endif
-#ifndef ECHO_NO_NL
-#define ECHO_NO_NL	echo -n
-#endif
+/**** Special cases of generate_source ****/
 
-#ifndef do_subdirs
-#define do_subdirs(commands, subdirs)				@@\
-commands::											@@\
-	@for i in `echo subdirs`; do \					@@\
-		echo "subdir " $$i;\						@@\
-		if(test -d $$i) then \						@@\
-			echo "cwd=" `pwd`;\						@@\
-			echo "Making " $@ " in " $$i;\			@@\
-			if(cd $$i;\								@@\
-				$(MAKE) -S $(OPTIONS) $@; \ 		@@\
-				res=$$?;	\						@@\
-				echo "status=" $$res; \				@@\
-				 exit $$res) then	\				@@\
-				ECHO_NO_NL;\						@@\
-				else exit 1; fi;\ 					@@\
-		fi;\ 										@@\
+/****************************************************************
+ * Rule for invoking stats.pl.
+ *   datfile:  the specification file
+ *   name:     the "layer names" defined in the specification file.
+ ****************************************************************/
+%DEF stats(datfile,names)
+%GEN generate_source(%CROSS(names,_msg.i _def.i _struct.i _op.i),
+	$(TOP)/tools/stats.pl,,,datfile)
+%ENDDEF
+
+/****************************************************************
+ * Rules for invoking errors.pl.
+ * Use error_enum for errors.pl -e and error_def for errors.pl -d.
+ *   datfile:  the specification file
+ *   name:     the "layer names" defined in the specification file.
+ ****************************************************************/
+%DEF error_enum(datfile,names)
+%GEN generate_source(%CROSS(names,_error.i _einfo.i _error.h),
+	$(TOP)/tools/errors.pl,,-e,datfile)
+%ENDDEF
+
+%DEF error_def(datfile,names)
+%GEN generate_source(
+	%CROSS(names,_error.i _einfo.i _einfo_bakw.i _error_def.h),
+	$(TOP)/tools/errors.pl,,-d,datfile)
+%ENDDEF
+
+/****************************************************************
+ * Copy files to installation location
+ *
+ * Target install_only unconditionally copies the files to the installation
+ * directory.  It does not try to build them, and does not check for
+ * existing installed copies.
+ *
+ * Target install builds all the files and only copies them to the
+ * installation directory if necessar (if the installed versions are missing
+ * or out of date).
+ *
+ * NB:  These rules assum mkdir understands the '-p' option (no error if
+ * existing, make parent directories as needed).  If your platform doesn't
+ * support this option, use gnu mkdir, or fix this rule!
+ ****************************************************************/
+%DEF install(dir,toinstall)
+%NON_NULL toinstall
+install_local:: $(INSTALL_DIR)/dir %CROSS($(INSTALL_DIR)/dir/, toinstall)
+$(INSTALL_DIR)/dir::
+	@mkdir -p $(INSTALL_DIR)/dir
+%FOREACH(file,toinstall,$(INSTALL_DIR)/dir/file: file
+	cp -p file $(INSTALL_DIR)/dir/file
+)
+
+install_only_local:: $(INSTALL_DIR)/dir
+	cp -p toinstall $(INSTALL_DIR)/dir
+
+uninstall_local::
+	@echo "Uninstalling from dir: toinstall"
+	for i in toinstall; do %
+		$(RM) -f $(INSTALL_DIR)/dir/`basename $$i`; %
 	done
+%ENDDEF
 
-#endif /* do_subdirs */
+/****************************************************************
+ * Install_check is like install except that the generated rules only
+ * check for existence of the installed files; they do not try to copy them
+ * from somewhere else.  
+ * A typical use is
+ *   %GEN merge_library($(INSTALL_DIR)/lib/libshore.a,,...)
+ *   %GEN install_check(lib, libshore.a)
+ * The install_check rule ensures that "make install" will try to make
+ * $(INSTALL_DIR)/lib/libshore.a, and the merge_library rule explains how
+ * to do that without creating a local copy of libshore.
+ ****************************************************************/
+%DEF install_check(dir,toinstall)
+%NON_NULL toinstall
+install_only_local install_local:: $(INSTALL_DIR)/dir %CROSS($(INSTALL_DIR)/dir/, toinstall)
+$(INSTALL_DIR)/dir::
+	@mkdir -p $(INSTALL_DIR)/dir
 
-#ifndef do_tags
-#define do_tags(srcs)								@@\
-.i..itag:											@@\
-	$(CTAGS)        $(PWD)/$<  -a					@@\
-.C.Ctag:											@@\
-	$(CTAGS)        $(PWD)/$<  -a					@@\
-.h.htag:											@@\
-	$(CTAGS)        $(PWD)/$<  -a					@@\
-.c.ctag:											@@\
-	$(CTAGS)        $(PWD)/$<  -a					@@\
-clean_tags clean::									@@\
-	-$(RM) -f tags									@@\
-tags::	clean_tags									@@\
-	-$(RM) -f tags									@@\
-	touch $(TOP)/tags.unsorted  tags				@@\
-	for i in `echo srcs`; do \						@@\
-		if(test -f $$i) then \						@@\
-			$(MAKE) $(OPTIONS) `basename $$i`tag; fi; done			@@\
-	cat tags >>$(TOP)/tags.unsorted					@@\
-	sort -u $(TOP)/tags.unsorted > $(TOP)/tags		@@\
-	/bin/rm ./tags									@@\
-	ln -s $(TOP)/tags tags
+uninstall_local::
+	@echo "Uninstalling from dir: toinstall"
+	for i in toinstall; do %
+		$(RM) -f $(INSTALL_DIR)/dir/`basename $$i`; %
+	done
+%ENDDEF
 
-#endif /* do_tags */
+/****************************************************************
+ * Special version of install where the file changes name as it's installed:
+ *
+ * 'src' is installed as '$(INSTALL_DIR)/dir/dest'
+ ****************************************************************/
+%DEF install_as(dir,dest,src)
+install_local:: $(INSTALL_DIR)/dir $(INSTALL_DIR)/dir/dest
+$(INSTALL_DIR)/dir::
+	@mkdir -p $(INSTALL_DIR)/dir
+$(INSTALL_DIR)/dir/dest: src
+	cp -p src $(INSTALL_DIR)/dir/dest
 
+install_only_local:: $(INSTALL_DIR)/dir
+	cp -p src $(INSTALL_DIR)/dir/dest
+
+uninstall_local::
+	@echo "Uninstalling from dir: dest"
+	$(RM) -f $(INSTALL_DIR)/dir/dest
+%ENDDEF
+
+/****************************************************************
+ * Mechanism for generating a recursive walk of a directory tree.
+ * If "make commands" is invoked in this directory, it will cause
+ * "make commands" to be recursively envoked in each of the directories
+ * named in "subdirs".  The "set -e" is used to ensure that the loop
+ * is immediately existed if any of the recursive MAKEs fails.
+ * This rule is only explicitly used in Imake.targets in the config directory.
+ ****************************************************************/
+%DEF do_subdirs(commands,subdirs)
+%NON_NULL subdirs
+commands::
+	@set -e; %
+	for i in subdirs; %
+	do %
+		if test -d $$i; %
+		then %
+			echo '===START' making $@ in `pwd`/$$i; %
+			$(MAKE) -C $$i --no-print-directory $@; %
+			echo '===END' making $@ in `pwd`/$$i; %
+		fi %
+	done
+%ENDDEF
+
+/****************************************************************
+ * Rule to replace all .C, .cc, and .c in a list of files with .o
+ * Note that this depends on a rather special feature of GnuMake.
+ ****************************************************************/
+%DEF c_to_o(obj,src)
+obj = $(patsubst %%.C,%%.o,$(patsubst %%.cc,%%.o,$(patsubst %%.c,%%.o,src)))
+%ENDDEF
+
+%#<<<<<<<<<<<< end of Imake.rules

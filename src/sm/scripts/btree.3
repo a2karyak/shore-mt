@@ -14,70 +14,32 @@
 #
 source $script_dir/vol.init
 
+
 set nrec 120
-#
-# create file of <key, el> pair (to be sorted later in blkld)
-#
-sm begin_xct
-set f1 [sm create_file $volid]
-for {set i $nrec} {$i > 0} {set i [ expr {$i - 1} ]} {
-    sm create_rec $f1 [format $short_form $i] 10 $i
+
+set typelist { u2 u4 i2 i4 b*1000 f4 f8 u1 i1 }
+
+set len [llength $typelist]
+
+for {set k 0} {$k < $len} {incr k} {
+    set ktype [lindex $typelist $k] 
+    verbose "---- testing -- $ktype"
+
+    source $script_dir/btree.3a
 }
 
-sm commit_xct
 
-#
-# create index and load it up 
-#
-sm begin_xct
-set ndx [sm create_index $volid btree]
-set stat [sm blkld_ndx $ndx $f1 string]
-echo created index $ndx
-echo stats: $stat
-
-sm abort_xct
-
-dstats $volid
-
-
-sm begin_xct
-set ndx [sm create_index $volid btree]
-set stat [sm blkld_ndx $ndx $f1 string]
-echo created index $ndx again
-echo stats: $stat
-#sm print_index $ndx
-sm commit_xct
-
-dstats $volid
-
-#
-# verify ascending
-#
-echo "scan up:"
-sm begin_xct
-set scan [sm create_scan $ndx >= neg_inf <= pos_inf]
-for {set i 1} {$i <= $nrec} {incr i}  {
-    set r [sm scan_next $scan]
-    if {[string compare $r eof] == 0} then { break }
-    set key [string trimleft [lindex $r 0] 0]
-    set el [lindex $r 1]
-    verbose "scanned ($key, $el)"
-    assert {expr $key == $el}
-    assert {expr $i == $key}
+if { 0 } {
+    # BEGIN test b1
+    # testing characters is a bit different since we
+    # don't want duplicates in this test
+    set nrec 9
+    set ktype b1
+    verbose "---- testing -- $ktype"
+    source $script_dir/btree.3a
+    # END test b1
 }
-assert {expr $i > $nrec}
-assert {expr [string compare [sm scan_next $scan] eof] == 0}
-sm destroy_scan $scan
-echo "---- successful"
 
-echo "probe:"
-for {set i 1} {$i <= $nrec} {incr i} {
-    set el [sm find_assoc $ndx [format $short_form $i]]
-    assert {expr $i == $el}
-    verbose probed $i
-}
-sm commit_xct
-echo "---- successful"
+verbose [sm gather_stats]
 
-
-unset ndx nrec i f1 stat key r el scan
+unset k ktype len typelist nrec

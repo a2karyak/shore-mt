@@ -6,7 +6,7 @@
 /* --------------------------------------------------------------- */
 
 /*
- *  $Id: srv_log.h,v 1.13 1996/07/18 14:43:07 kupsch Exp $
+ *  $Id: srv_log.h,v 1.15 1997/04/13 16:29:52 nhall Exp $
  */
 #ifndef SRV_LOG_H
 #define SRV_LOG_H
@@ -30,6 +30,7 @@ typedef enum    {
 #define CHKPT_META_BUF 512
 			
 
+class log_buf; //forward
 class srv_log; //forward
 class partition_t; //forward
 
@@ -37,13 +38,14 @@ class partition_t; //forward
 class srv_log : public log_base {
      friend class partition_t;
 
+
 protected:
-    const int XFERSIZE =	log_buf::XFERSIZE;
 
     char *			_chkpt_meta_buf;
 
 public:
     void                check_wal(const lsn_t &) ;
+    void 		compute_space(); 
 
     // CONSTRUCTOR -- figures out which srv type to construct
     static srv_log*	new_log_m(
@@ -83,7 +85,6 @@ public:
 				    bool forappend = true,
 				    bool during_recovery = false
 				); 
-    void 			compute_space(); 
     partition_t *		n_partition(partition_number_t n) const;
     partition_t *		curr_partition() const;
 
@@ -110,6 +111,7 @@ protected:
 				);
     void			sanity_check() const;
     partition_index_t		get_index(partition_number_t)const; 
+    void 			_compute_space(); 
 
     // Data members:
 
@@ -117,6 +119,18 @@ protected:
     static char 		_logdir[max_devname];
     partition_index_t		_curr_index; // index of partition
     partition_number_t		_curr_num;   // partition number
+
+    // log_buf stuff:
+public:
+    log_buf *			writebuf() { return _writebuf; }
+    int				writebufsize() const { return _wrbufsize; }
+    char *			readbuf() { return _readbuf; }
+    int 			readbufsize() const { return _rdbufsize; }
+protected:
+    int 			_rdbufsize;
+    int 			_wrbufsize;
+    char*   			_readbuf;  
+    log_buf*   			_writebuf;  
 };
 
 typedef int  FHDL;
@@ -127,6 +141,7 @@ class partition_t {
 	friend class srv_log;
 
 public:
+	const XFERSIZE = log_base::XFERSIZE;
 	partition_t() :_start(0),
 		_index(0), _num(0), _size(0), _mask(0), 
 		_owner(0) {}
@@ -150,7 +165,6 @@ protected:
 
 public:
 	const uint4		nosize = max_uint4;
-	const int		XFERSIZE = log_buf::XFERSIZE;
 
 	const log_buf &		writebuf() const { return *_owner->writebuf(); }
 	int			writebufsize() const { return _owner->

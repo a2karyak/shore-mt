@@ -6,7 +6,7 @@
 /* --------------------------------------------------------------- */
 
 /*
- *  $Id: file_s.h,v 1.22 1996/05/06 20:10:44 nhall Exp $
+ *  $Id: file_s.h,v 1.24 1997/05/19 19:47:13 nhall Exp $
  */
 #ifndef FILE_S_H
 #define FILE_S_H
@@ -26,17 +26,26 @@ enum recflags_t {
     t_large_0 		= 0x08,    // large with short list of chunks
     t_large_1 		= 0x10,	   // large with 1-level indirection
     t_large_2 		= 0x20,    // large with 2-level indirection
+    t_logicalid 	= 0x40     // has serial # (uses logical ids)
 };
     
 struct rectag_t {
     uint2	hdr_len;	// length of user header 
     uint2	flags;		// enum recflags_t
     uint4	body_len;	// true length of the record 
+    /* 8 */
+
     serial_t	serial_no;	// logical serial number in file
+#ifndef BITS64
+    fill4	filler;		// for 8 byte alignment with small serial#s
+#endif
+    /* 16 */
+
+#ifdef notdef
     fill4	cluster_id;	// cluster for this record
 				// not used at this time
-#ifdef BITS64
-    fill4	filler;		// for 8 byte alignment
+				// if you add it, be sure to adjust the alignment
+				// above
 #endif
 };
 
@@ -64,12 +73,13 @@ public:
     int body_offset() const { 
 		return offsetof(record_t,info)+align(tag.hdr_len);
 	}
+
+    lpid_t pid_containing(smsize_t offset, smsize_t& start_byte, const file_p& page) const;
 private:
 
     // only friends can use these
     uint4  page_count() const;
     lpid_t last_pid(const file_p& page) const;
-    lpid_t pid_containing(smsize_t offset, smsize_t& start_byte, const file_p& page) const;
 };
 
 /*

@@ -56,12 +56,12 @@ proc lock_test { id } {
 	}
 	sm commit_xct
 	if {$verbose_flag}  {sm dump_locks}
-	# echo press RETURN to continue
+	# verbose press RETURN to continue
 	# gets stdin
     }
 }
 
-echo "TEST:\t6x6 Lock Compatibility on Record, File, and Volume"
+verbose "TEST:\t6x6 Lock Compatibility on Record, File, and Volume"
 
 verbose "\n*******  Volume Locking  *******\n"
 lock_test $vid
@@ -72,6 +72,6 @@ lock_test $fid
 verbose "\n*******  Record Locking  *******\n"
 lock_test $rid
 
-echo "STATUS:\tOK"
+verbose "STATUS:\tOK"
 
 unset lock_mode rid vid fid

@@ -6,7 +6,7 @@
 /* --------------------------------------------------------------- */
 
 /*
- *  $Header: /p/shore/shore_cvs/src/vas/server/pool.C,v 1.41 1995/08/25 21:03:52 nhall Exp $
+ *  $Header: /p/shore/shore_cvs/src/vas/server/pool.C,v 1.42 1997/01/24 16:48:11 nhall Exp $
  */
 #include <copyright.h>
 
@@ -261,8 +261,8 @@ FFAILURE:
 VASResult		
 svas_server::_nextPoolScan(
 	INOUT(Cookie)		cookie,	
-	OUT(bool)			eof,	// TRUE if no result
-							// if FALSE, result is legit
+	OUT(bool)			eof,	// true if no result
+							// if false, result is legit
 	OUT(lrid_t)			result,
 	bool				nextpage//=false
 )
@@ -305,7 +305,7 @@ FSTART
 			FAIL;
 		}
 	}
-	if(*eof == FALSE) {
+	if(*eof == false) {
 		result->serial = p->serial_no();
 		result->lvid =  scandesc->lvid();
 	}
@@ -321,8 +321,8 @@ FFAILURE:
 VASResult		
 svas_server::_nextPoolScan(
 	INOUT(Cookie)		cookie,	
-	OUT(bool)			eof,	// TRUE if no result
-						// if FALSE, result is legit
+	OUT(bool)			eof,	// true if no result
+						// if false, result is legit
 	OUT(lrid_t)			result, 	// snapped ref
 	ObjectOffset		offset,
 	ObjectSize			requested,	// -- could be WholeObject
@@ -345,10 +345,10 @@ svas_server::_nextPoolScan(
 FSTART
 	_DO_(_nextPoolScan(cookie, eof, &obj));
 
-	if(*eof==FALSE) {
+	if(*eof==false) {
 		_DO_(_readObj(obj, offset, requested, lock, buf, used, more, result));
 		if(sysprops) {
-			_DO_(_sysprops(obj, sysprops, FALSE, ::NL, 0, sysp_size));
+			_DO_(_sysprops(obj, sysprops, false, ::NL, 0, sysp_size));
 		}
 	}
 

@@ -6,9 +6,7 @@
 /* --------------------------------------------------------------- */
 
 /*
- * $Header: /p/shore/shore_cvs/src/vas/Imakefile,v 1.16 1995/04/24 19:43:09 zwilling Exp $
+ * $Header: /p/shore/shore_cvs/src/vas/Imakefile,v 1.17 1997/06/13 22:34:03 solomon Exp $
  */
-
-/* ORDER IS IMPORTANT thanks to (grot) ptrepository stuff */
-SUBDIR = include common client server tests
-
+#define Subdirs include common client server
+#define Tests tests

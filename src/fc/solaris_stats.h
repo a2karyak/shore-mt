@@ -9,8 +9,8 @@
 #define __STATS_H__
 /*
  *   $RCSfile: solaris_stats.h,v $  
- *   $Revision: 1.2 $  
- *   $Date: 1995/11/30 16:56:49 $      
+ *   $Revision: 1.3 $  
+ *   $Date: 1996/10/28 17:51:50 $      
  */ 
 /*
  * stats.h
@@ -87,8 +87,10 @@ public:
     int    msgrecv() const;			/* socket messages recvd */
     int    signals() const;			/* signals dispatched */
 
-    friend ostream& operator<<(ostream&, const unix_stats &s);
+    ostream &print(ostream &o) const;
 };
+
+extern ostream& operator<<(ostream&, const unix_stats &s);
 
 float compute_time(const struct timeval *start_time, const struct timeval *end_time);
 

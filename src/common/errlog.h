@@ -8,7 +8,7 @@
 #ifndef ERRLOG_H
 #define ERRLOG_H
 
-/* $Header: /p/shore/shore_cvs/src/common/errlog.h,v 1.19 1995/09/15 03:41:26 zwilling Exp $ */
+/* $Header: /p/shore/shore_cvs/src/common/errlog.h,v 1.20 1997/05/19 19:41:01 nhall Exp $ */
 
 #include <assert.h>
 #include <stdlib.h>
@@ -26,7 +26,10 @@
 #else
 #	include <syslog.h>
 #endif
+
+#ifndef W_LIST_H
 #include <w_list.h>
+#endif
 
 /* errlog.h -- facilities for logging errors */
 

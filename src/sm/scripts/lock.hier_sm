@@ -39,8 +39,8 @@ proc lock_rec { rid fid vid } {
     global table
 
     foreach lock $rec_modes {
-	verbose "---"
 	foreach op $rec_ops($lock) {
+	    verbose "---" $op
             sm begin_xct
 	    case $op in {
 		read 		{ verbose [sm read_rec $rid 0 0] }
@@ -141,15 +141,15 @@ source $script_dir/vol.init
 sm begin_xct
 set fid [ sm create_file $volid ]
 set data [format %0${rec_size}d 0]
-echo data = $data;
+verbose data = $data;
 set rid [ sm create_rec $fid "" $rec_size $data]
 sm commit_xct
 
-echo volid = $volid
-echo fid = $fid
-echo rid = $rid
+verbose volid = $volid
+verbose fid = $fid
+verbose rid = $rid
 
-echo "TEST:\tHierarchical Locking on Record and File Using SM File/Rec Operations"
+verbose "TEST:\tHierarchical Locking on Record and File Using SM File/Rec Operations"
 
 verbose "******  Lock set on record  ******"
 lock_rec $rid $fid $volid
@@ -157,7 +157,7 @@ lock_rec $rid $fid $volid
 verbose "******  Lock set on file  ******"
 lock_file $rid $fid $volid
 
-echo "STATUS:\tOK"
+verbose "STATUS:\tOK"
 
 unset fid data rid
 unset table file_ops rec_ops file_modes rec_modes

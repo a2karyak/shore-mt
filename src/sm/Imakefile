@@ -6,105 +6,88 @@
 /* --------------------------------------------------------------- */
 
 /*
- *  $Id: Imakefile,v 1.72 1996/01/26 20:27:23 nhall Exp $
+ *  $Id: Imakefile,v 1.89 1997/06/16 21:35:59 solomon Exp $
  */
+#define Tests ssh tests
 
-CFILES = bf.c bf_core.c btree.c cache.c callback.c chkpt.c comm.c \
-	 device.c dir.c \
-	 file.c io.c keyed.c lgrec.c lid.c lock.c lock_core.c lock_remote.c \
-	 log.c unix_log.c log_base.c srv_log.c raw_log.c \
-	 logrec.c logstub.c \
-	 page.c pin.c remote.c remote_client.c \
-	 restart.c rtree.c scan.c \
-	 sm.c sm_s.c smstats.c sm_du_stats.c smfile.c smindex.c \
-	 smthread.c \
-	 sort.c vol.c \
-	 xct.c zkeyed.c
+CPPFLAGS = -I../fc -I../common -I../sthread Include(TclInclude)
 
-HFILES = bf_s.h bf.h bf_core.h btree.h btree_p.h cache.h callback.h chkpt.h \
-	comm.h device.h dir.h \
-        io.h keyed.h lid.h lock.h lock_x.h lock_core.h lock_remote.h \
-	log.h logrec.h page.h \
-        restart.h scan.h sm.h smthread.h sm_int.h sysdefs.h \
-        file.h pin.h \
-        rtree.h smstats.h sdesc.h zkeyed.h sm_du_stats.h\
-	remote.h remote_client.h remote_s.h\
-	remote_msg.h sort.h srvid_t.h \
-	vol.h xct.h
+%# General source files; the order is roughly from smlevel 0->4
+CFILES = %
+	 pmap.cc common_templates.cc %
+	 lexify.cc %
+	 bf.cc bf_core.cc chkpt_serial.cc device.cc io.cc page.cc xct.cc %
+	 xct_impl.cc smthread.cc %
+	 lock.cc lock_core.cc vol.cc  %
+	 log.cc unix_log.cc log_base.cc log_buf.cc srv_log.cc raw_log.cc %
+	 logrec.cc logstub.cc %
+	 btree_p.cc keyed.cc zkeyed.cc %
+ 	 btree.cc btcursor.cc btree_bl.cc btree_impl.cc%
+	 file.cc lgrec.cc  %
+	 rtree.cc  %
+	 restart.cc lid.cc  dir.cc chkpt.cc  %
+	 pin.cc  %
+	 bf_prefetch.cc scan.cc %
+	 sm.cc sm_s.cc smstats.cc sm_du_stats.cc smfile.cc smindex.cc %
+	 sort.cc %
+	 crash.cc deadlock_events.cc 
+
+#ifdef USE_COORD
+%# Source files for coordinator support
+CFILES += coord.cc subord.cc coord_log.cc coord_thread.cc participant.cc %
+	participant2.cc dtid_t.cc sm_global_deadlock.cc
+#endif
+
+%# General header files
+HFILES = bf_s.h bf.h bf_core.h bf_prefetch.h %
+	btree.h %
+	btree_impl.h btree_p.h btcursor.h %
+	chkpt.h chkpt_serial.h %
+	device.h dir.h %
+        io.h keyed.h lid.h lock.h lock_x.h lock_core.h %
+	log_buf.h srv_log.h log.h logrec.h page.h pmap.h%
+        restart.h scan.h sm.h smthread.h  %
+	sm_int_0.h sm_int_1.h sm_int_2.h sm_int_3.h sm_int_4.h  %
+	sysdefs.h %
+        file.h pin.h %
+        rtree.h smstats.h sdesc.h zkeyed.h sm_du_stats.h%
+	sort.h %
+	vol.h xct.h xct_impl.h xct_dependent.h %
+	global_deadlock.h deadlock_events.h
+
+#ifdef USE_COORD
+%# Header files for coordinator support
+HFILES += coord.h dtid_t.h coord_log.h mappings.h sm_global_deadlock.h 
+#endif
 
 #ifdef USE_RDTREE
-CFILES += rdtree.c setarray.c
+%# RD-tree support
+CFILES += rdtree.cc setarray.cc
 HFILES += rdtree.h setarray.h
 #endif
 
-SCRIPTS = remote_msg.pl  logdef.pl
-DATFILES = remote_msg.dat e_error.dat logdef.dat sm_stats_info.dat
-STAT_FILES = sm_stats_info_t_struct.i sm_stats_info_t_op.i\
-	 sm_stats_info_t_msg.i 
-STAT_DEF_FILES = sm_stats_info_t_def.i
+#define Install \
+	bf.h bf_s.h deadlock_events.h e_error.h file_s.h io.h lexify.h lock.h \
+	lock_s.h log.h page.h page_s.h pin.h pmap.h scan.h sdesc.h setarray.h \
+	sm.h sm_base.h sm_du_stats.h sm_escalation.h sm_int_0.h sm_int_1.h \
+	sm_int_2.h sm_int_3.h sm_int_4.h sm_s.h sm_stats_info_t_def.i \
+	sm_stats_info_t_struct.i smstats.h smthread.h sort.h sort_s.h sysdefs.h \
+	xct_dependent.h
 
-SRC.cvs = $(CFILES) $(HFILES) $(SCRIPTS) $(DATFILES)
-SRCS = $(CFILES) $(HFILES) 
+LOGRECFILES = logfunc.i logtype.i logdef.i logstub.i redo.i undo.i logstr.i
 
-SUBDIR_LOCAL = ssh
-SUBDIR = $(SUBDIR_LOCAL)
+OBJ = $(CFILES:.cc=.o)
 
-SRC = $(CFILES) $(HFILES)
-OBJ = $(CFILES:.c=.o)
+all_local:: libsm.a
 
-INCLUDE += $(SM_INCL) $(FC_INCL) $(COMMON_INCL) $(STHREAD_INCL) $(OCOMM_INCL) $(TCL_INCL)
+%GEN stats(sm_stats_info.dat,sm_stats_info_t)
+%GEN error_enum(e_error.dat,e)
+%GEN generate_source($(LOGRECFILES),logdef.pl,logdef.dat,,)
 
-LOGRECFILES = logdef.i logtype.i redo.i undo.i logstr.i
-ERROR_FILES = e_error.h e_error.i e_einfo.i
+%GEN library(libsm.a, $(OBJ))
 
-MSGFILES = remote_msg_enum.i
+%GEN install(include, Install)
+%GEN install(lib, libsm.a)
 
-AUTOMATIC= $(LOGRECFILES) $(ERROR_FILES) $(MSGFILES) $(STAT_FILES) $(STAT_DEF_FILES)
-
-ALLTARGETS = libsm.a 
-
-$(OBJ): $(AUTOMATIC)
-
-statistics(sm_stats_info.dat,,$(STAT_FILES) $(STAT_DEF_FILES))
-error_codes(e_error.dat,-e,$(ERROR_FILES))
-
-$(LOGRECFILES) : logdef.dat logdef.pl
-	$(PERL) logdef.pl
-
-$(MSGFILES) : remote_msg.dat remote_msg.pl
-	$(PERL) remote_msg.pl
-
-build_library(libsm.a, $(OBJ))
-
-clean_files($(OBJ) $(AUTOMATIC) logfunc.i logstub.i)
-
-install_copy(include, e_error.h $(STAT_DEF_FILES))
-install_copy(include, sm_s.h sm_base.h smthread.h file_s.h sm.h pin.h \
-		      scan.h sort.h sm_du_stats.h smstats.h lock_s.h \
-		      sort_s.h setarray.h page_s.h)
-install_copy(include, sm_stats_info_t_struct.i)
-
-install_copy(lib, libsm.a)
-
-automatic:: $(AUTOMATIC)
-
-depend_target($(CFILES))
-
-/**********  Handle Subdirectories ***********/
-
-#ifdef GNU_MAKE
-
-HOLDSPACE =
-COMMANDS_MINUS_ALL := $(SUBDIRCOMMANDS:$(HOLDSPACE) all= )
-do_subdirs($(COMMANDS_MINUS_ALL), $(SUBDIR_LOCAL))
-
-CMNT nullify the default call to do-subdirs macro:
-SUBDIRCOMMANDS=
-SUBDIR = 
-
-#else
-
-all := SUBDIR = 
-
-#endif /* GNU_MAKE */
-
+%GEN depend_target($(CFILES))
+%GEN tags($(CFILES) $(HFILES))

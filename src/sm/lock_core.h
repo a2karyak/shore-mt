@@ -6,16 +6,17 @@
 /* --------------------------------------------------------------- */
 
 /*
- *  $Id: lock_core.h,v 1.19 1996/06/27 17:16:15 kupsch Exp $
+ *  $Id: lock_core.h,v 1.24 1997/05/22 20:12:07 kupsch Exp $
  */
 #ifndef LOCK_CORE_H
-#define LOCK_CORE_C
+#define LOCK_CORE_H
 
 #ifdef __GNUG__
 #pragma interface
 #endif
 
 
+class bucket_t; // forward
 class lock_core_m : public lock_base_t {
 	const	BPB=8;	// bits per byte
 
@@ -41,6 +42,7 @@ public:
 			    ) const;
 
     void		dump();
+    void		_dump();
 
     lock_head_t*	find_lock(
 				const lockid_t&			n,
@@ -59,7 +61,7 @@ public:
 				xct_t*			xd,
 				const lockid_t&		name,
 				lock_head_t*		lock,
-				lock_request_t*		request,
+				lock_request_t**	request,
 				mode_t			mode,
 				mode_t&			prev_mode,
 				duration_t		duration,
@@ -85,10 +87,14 @@ public:
 
     void		wakeup_waiters(lock_head_t*& lock);
 
+    bool		upgrade_ext_req_to_EX_if_should_free(
+				lock_request_t*		req);
+
     rc_t		release_duration(
 				xct_t*			xd,
 				duration_t		duration,
-				bool			all_less_than);
+				bool			all_less_than,
+				extid_t*		ext_to_free);
 
     rc_t		open_quark(xct_t*		xd);
     rc_t		close_quark(
@@ -102,6 +108,7 @@ public:
     void		FreeLockHeadToPool(lock_head_t* theLockHead);
 
 private:
+    uint4		deadlock_check_id;
     u_long		_hash(u_long) const;
     rc_t	_check_deadlock(xct_t* xd, bool* deadlock_found = 0);
     rc_t	_find_cycle(xct_t* self);
@@ -114,29 +121,6 @@ private:
 #endif
 #endif
 
-    struct bucket_t {
-
-#ifndef NOT_PREEMPTIVE
-#ifndef ONE_MUTEX
-	smutex_t 		    mutex("lktbl");
-#endif
-#endif
-	w_list_t<lock_head_t> 	    chain;
-
-	NORET			    bucket_t() :
-#ifndef NOT_PREEMPTIVE
-#ifndef ONE_MUTEX
-			mutex("lkbkt"),
-#endif
-#endif
-			chain(offsetof(lock_head_t, chain)) {
-	}
-
-	private:
-	// disabled
-	NORET			    bucket_t(const bucket_t&);
-	bucket_t& 		    operator=(const bucket_t&);
-    };
 
     bucket_t* 			_htab;
     uint4			_htabsz;
@@ -205,27 +189,6 @@ lock_core_m::find_lock(w_list_t<lock_head_t>& l, const lockid_t& n)
     return lock;
 }
 
-
-
-inline lock_head_t*
-lock_core_m::find_lock(const lockid_t& n, bool create)
-{
-    uint4 idx = _hash(hash(n));
-
-    ACQUIRE(idx);
-    lock_head_t* lock = 0;
-    w_list_i<lock_head_t> iter(_htab[idx].chain);
-    while ((lock = iter.next()) && lock->name != n);
-    if (!lock && create) {
-	lock = GetNewLockHeadFromPool(n, NL);
-        w_assert1(lock);
-        _htab[idx].chain.push(lock);
-    }
-
-    if (lock) { MUTEX_ACQUIRE(lock->mutex); }
-    RELEASE(idx);
-    return lock;
-}
 
 inline lock_request_t*
 lock_core_m::find_req(w_list_t<lock_request_t>& l, const xct_t* xd)

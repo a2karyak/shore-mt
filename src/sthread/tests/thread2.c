@@ -6,7 +6,7 @@
 /* --------------------------------------------------------------- */
 
 /*
- *  $Id: thread2.c,v 1.16 1996/07/15 22:51:03 bolo Exp $
+ *  $Id: thread2.c,v 1.21 1997/04/21 20:31:23 bolo Exp $
  */
 #include <iostream.h>
 #include <strstream.h>
@@ -29,80 +29,139 @@ extern "C" char *optarg;
 
 class io_thread_t : public sthread_t {
 public:
-    io_thread_t(int i, char *bf) : idx(i), buf(bf), sthread_t(t_regular)   {};
+	io_thread_t(int i, char *bf);
+
 protected:
-    virtual void run();
+	virtual void run();
+
 private:
-    int		idx;
-    char	*buf;
+	int		idx;
+	char	*buf;
 };
+
 
 io_thread_t **ioThread;
 
 int	NumIOs = 100;
 int	NumThreads = 5;
 int	BufSize = 1024;
+int	vec_size = 0;		// i/o vector slots for an i/o operation
+bool	local_io = false;
+bool	fastpath_io = false;
 
 char	*io_dir = IO_DIR;
+
+/* build an i/o vector for an I/O operation, to test write buffer. */
+int make_vec(char *buf, int size, int vec_size, 
+		sthread_t::iovec *vec, const int iovec_max)
+{
+	int	slot = 0;
+
+	if (vec_size == 0)
+		vec_size = size;
+
+	while (size > vec_size && slot < iovec_max-1) {
+		vec[slot].iov_len = vec_size;
+		vec[slot].iov_base = buf;
+		buf += vec_size;
+		size -= vec_size;
+		slot++;
+	}
+	if (size) {
+		vec[slot].iov_len = size;
+		vec[slot].iov_base = buf;
+		slot++;
+	}
+
+	return slot;
+}
+
+
+
+io_thread_t::io_thread_t(int i, char *bf)
+: idx(i),
+  buf(bf),
+  sthread_t(t_regular)
+{
+	char buf[40];
+	ostrstream s(buf, sizeof(buf));
+
+	s << "io[" << idx << "]" << ends;
+	rename(buf);
+}
 
 
 void io_thread_t::run()
 {
-    cout << "io[" << idx << "]: started" << endl;
-    char fname[40];
-    ostrstream f(fname, sizeof(fname));
+	cout << name() << ": started" << endl;
 
-    f.form("%s/sthread.%d.%d", io_dir, getpid(), idx);
-    f << ends;
+	char fname[40];
+	ostrstream f(fname, sizeof(fname));
+
+	f.form("%s/sthread.%d.%d", io_dir, getpid(), idx);
+	f << ends;
     
-    int fd;
-    w_rc_t rc;
-    if (rc = sthread_t::open(fname, O_RDWR|O_SYNC|O_CREAT, 0666, fd))	{
-	cerr << "open:" << endl << rc << endl;
-	W_COERCE(rc);
-    }
+	int fd;
+	w_rc_t rc;
+	int flags = OPEN_RDWR | OPEN_SYNC | OPEN_CREATE;
+	if (local_io)
+		flags |= OPEN_LOCAL;
+	else if (fastpath_io)
+		flags |= OPEN_FAST;
 
-    int i; 
-    for (i = 0; i < NumIOs; i++)  {
-	for (register j = 0; j < BufSize; j++)
-	    buf[j] = (unsigned char) i;
-	if (rc = sthread_t::write(fd, buf, BufSize))  {
-	    cerr << "write:" << endl << rc << endl;
-	    W_COERCE(rc);
+	rc = sthread_t::open(fname, flags, 0666, fd);
+	if (rc) {
+		cerr << "open:" << endl << rc << endl;
+		W_COERCE(rc);
 	}
-    }
 
-    cout << "io[" << idx << "]: finished writing" << endl;
+	int i; 
+	for (i = 0; i < NumIOs; i++)  {
+		iovec	vec[iovec_max];	/*XXX magic number */
+		int	cnt;
+		for (register j = 0; j < BufSize; j++)
+			buf[j] = (unsigned char) i;
 
-    off_t pos;
-    if (rc = sthread_t::lseek(fd, 0, SEEK_SET, pos))  {
-	cerr << "lseek:" << endl << rc << endl;
-	W_COERCE(rc);
-    }
+		cnt = make_vec(buf, BufSize, vec_size, vec, iovec_max);
+
+		rc = sthread_t::writev(fd, vec, cnt);
+		if (rc) {
+			cerr << "write:" << endl << rc << endl;
+			W_COERCE(rc);
+		}
+	}
+
+	cout << name() << ": finished writing" << endl;
+
+	off_t pos;
+	if (rc = sthread_t::lseek(fd, 0, SEEK_SET, pos))  {
+		cerr << "lseek:" << endl << rc << endl;
+		W_COERCE(rc);
+	}
     
-    cout << "io[" << idx << "]: finished seeking" << endl;
-    for (i = 0; i < NumIOs; i++) {
-	if (rc = sthread_t::read(fd, buf, BufSize))  {
-	    cerr << "read:" << endl << rc << endl;
-	    W_COERCE(rc);
+	cout << name() << ": finished seeking" << endl;
+	for (i = 0; i < NumIOs; i++) {
+		if (rc = sthread_t::read(fd, buf, BufSize))  {
+			cerr << "read:" << endl << rc << endl;
+			W_COERCE(rc);
+		}
+		for (register j = 0; j < BufSize; j++) {
+			if ((unsigned char)buf[j] != (unsigned char)i) {
+				cout << name() << ": read bad data";
+				cout.form(" (page %d  expected %d got %d\n",
+					  i, i, buf[j]);
+				W_FATAL(fcINTERNAL);
+			}
+		}
 	}
-	for (register j = 0; j < BufSize; j++) {
-	    if ((unsigned char)buf[j] != (unsigned char)i) {
-		cout << "io[" << idx << "]: read bad data";
-		cout.form(" (page %d  expected %d got %d\n",
-			i, i, buf[j]);
-		W_FATAL(fcINTERNAL);
-	    }
-	}
-    }
-    cout << "io[" << idx << "]: finished reading" << endl;
+	cout << name() << ": finished reading" << endl;
+	
+	W_COERCE( sthread_t::fsync(fd) );
 
-    W_COERCE( sthread_t::fsync(fd) );
+	W_COERCE( sthread_t::close(fd) );
 
-    W_COERCE( sthread_t::close(fd) );
-
-    // cleanup after ourself
-    (void) ::unlink(fname);
+	// cleanup after ourself
+	(void) ::unlink(fname);
 }
 
 main(int argc, char **argv)
@@ -110,7 +169,7 @@ main(int argc, char **argv)
     int c;
     int errors = 0;
 
-    while ((c = getopt(argc, argv, "i:b:t:d:")) != EOF) {
+    while ((c = getopt(argc, argv, "i:b:t:d:lfv:")) != EOF) {
 	   switch (c) {
 	   case 'i':
 		   NumIOs = atoi(optarg);
@@ -124,6 +183,15 @@ main(int argc, char **argv)
 	   case 'd':
 		   io_dir = optarg;
 		   break;
+	   case 'l':
+		   local_io = true;
+		   break;
+	   case 'f':
+		   fastpath_io = true;
+		   break;
+	   case 'v':
+		   vec_size = atoi(optarg);
+		   break;
 	   default:
 		   errors++;
 		   break;
@@ -136,6 +204,8 @@ main(int argc, char **argv)
 		   << " [-b bufsize]"
 		   << " [-t num_threads]"
 		   << " [-d directory]"
+		   << " [-v vectors]" 	   
+		   << " [-l]"	   
 		   << endl;	   
 
 	   return 1;
@@ -146,6 +216,10 @@ main(int argc, char **argv)
 
     ioThread = new io_thread_t *[NumThreads];
     assert(ioThread);
+
+    cout << "Using "
+	    << (local_io ? "local" : (fastpath_io ? "fastpath" : "diskrw"))
+	    << " io." << endl;
 
     int i;
     for (i = 0; i < NumThreads; i++)  {

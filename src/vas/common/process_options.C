@@ -6,7 +6,7 @@
 /* --------------------------------------------------------------- */
 
 /*
- *  $Header: /p/shore/shore_cvs/src/vas/common/process_options.C,v 1.9 1995/08/22 22:39:57 solomon Exp $
+ *  $Header: /p/shore/shore_cvs/src/vas/common/process_options.C,v 1.10 1997/06/13 22:34:13 solomon Exp $
  */
 
 #define __PROCESS_OPTIONS_C__
@@ -14,7 +14,7 @@
 #ifndef W_OS2
 #define W_UNIX
 #endif
-#include <shore.def>
+#include <config.h>
 #include <stdlib.h>
 #include <iostream.h>
 #include <externc.h>

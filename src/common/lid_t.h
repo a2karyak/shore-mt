@@ -6,10 +6,10 @@
 /* --------------------------------------------------------------- */
 
 /*
- *  $Header: /p/shore/shore_cvs/src/common/lid_t.h,v 1.22 1995/09/25 17:24:04 nhall Exp $
+ *  $Header: /p/shore/shore_cvs/src/common/lid_t.h,v 1.23 1997/05/19 19:41:04 nhall Exp $
  */
-#ifndef __LID_T_H__
-#define __LID_T_H__
+#ifndef LID_T_H
+#define LID_T_H
 
 /*
  * NB -- THIS FILE MUST BE LEGITIMATE INPUT TO cc and RPCGEN !!!!
@@ -18,8 +18,12 @@
  * b) If you put something c++-specific make sure it's 
  * 	  got ifdefs around it
  */
+#ifndef BASICS_H
 #include "basics.h"
+#endif
+#ifndef SERIAL_T_H
 #include "serial_t.h"
+#endif
 
 #ifdef __GNUG__
 #pragma interface
@@ -121,4 +125,4 @@ inline u_long hash(const lid_t& l)
 }
 #endif /*__cplusplus*/
 
-#endif
+#endif /*LID_T_H*/

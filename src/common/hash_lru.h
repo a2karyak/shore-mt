@@ -6,7 +6,7 @@
 /* --------------------------------------------------------------- */
 
 /*
- *  $Id: hash_lru.h,v 1.21 1995/06/16 02:58:13 zwilling Exp $
+ *  $Id: hash_lru.h,v 1.23 1997/06/16 21:35:47 solomon Exp $
  */
 #ifndef HASH_LRU_H
 #define HASH_LRU_H
@@ -14,8 +14,12 @@
 #ifndef W_H
 #include <w.h>
 #endif
+#ifndef STHREAD_H
 #include <sthread.h>
+#endif
+#ifndef LATCH_H
 #include <latch.h>
+#endif
 
 
 /*********************************************************************
@@ -137,7 +141,7 @@ private:
 
 #ifdef __GNUC__
 #if defined(IMPLEMENTATION_HASH_LRU_H) || !defined(EXTERNAL_TEMPLATES)
-#include "hash_lru.c"
+#include "hash_lru.cc"
 #endif
 #endif
 #endif /*HASH_LRU_H*/
