@@ -1,6 +1,6 @@
 /*<std-header style='imakefile' orig-src='shore'>
 
- $Id: Imakefile,v 1.108 2003/12/09 15:09:02 bolo Exp $
+ $Id: Imakefile,v 1.109 2004/01/21 04:21:20 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -71,7 +71,7 @@ libfc.h += \
         w_signal.h w_sptr.h w_statistics.h w_stream.h w_strstream.h	\
         w_timer.h w_vector.h w_windows.h w_workaround.h			\
         w_dynarray.h os_types.h extTraceEvents.h w_defines.h		\
-	ncrTraceEvents.h
+	ncrTraceEvents.h tcl_workaround.h w_winsock.h
 
 libfc.cpp += \
         common_tmpl.cpp debug.cpp errlog.cpp getopt.cpp nbox.cpp	\

@@ -5,6 +5,6 @@ BISON_DIR = /usr/bin
 FLEX_DIR = /usr/bin
 PERL_DIR = /usr/pkg/
 
-TCL_INCL = -I/usr/pkg/include
+TCL_INC = /usr/pkg/include
 TCL_LIB = /usr/pkg/lib/libtcl.a
 #define	TCL_DEF

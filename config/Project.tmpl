@@ -1,6 +1,6 @@
 /*<std-header style='imake' orig-src='shore'>
 
- $Id: Project.tmpl,v 1.272 2003/12/20 01:16:07 bolo Exp $
+ $Id: Project.tmpl,v 1.274 2004/02/02 22:38:11 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -360,7 +360,7 @@ TCL_LIBEXT=.a
 
 
 #if IS_NT
-TCL_INCL = -I$(TCL_DIR)/include
+TCL_INC = $(TCL_DIR)/include
 #ifdef UNIX_PATHS
 /* provide DOS style filename to linker :-( */
 TCL_LIB = $(UNIX_DSK):$(TCL_DIR)/lib/tcl$(TCL_VER)$(TCL_LIBEXT) 
@@ -372,11 +372,19 @@ TCL_LIB = $(TCL_DIR)/lib/tcl$(TCL_VER)$(TCL_LIBEXT)
 
 #ifndef TCL_DEF
 /* TCL_DIR = $(TCL_DIR)  this is defined at the top now */
-TCL_INCL = -I$(TCL_DIR)/include
+TCL_INC = $(TCL_DIR)/include
 TCL_LIB = $(TCL_DIR)/lib/libtcl$(TCL_VER)$(TCL_LIBEXT)
 #else
 #undef TCL_DEF
 #endif
+
+/* On some platforms, gcc-3 moans if -I/usr/include because tcl is installed
+   as part of the system instead of an add-on.   This only adds the
+   include if it isn't /usr/include. */
+TCL_INCL =
+ifneq (/usr/include,$(TCL_INC))
+TCL_INCL += -I$(TCL_INC)
+endif
 
 TRANSPORT_LIB =
 TRANSPORT_INCL =
@@ -1212,7 +1220,9 @@ CPP = $(CPLUSPLUS) $(CFLAGS_NODEFINES) -E $(CPP_FLAGS)
 CPP += -Zs
 #endif
 GENDEPENDPL = $(PERL) $(TOOLS_DIR)/GenDepend.pl
-GENDEPENDFLAGS = --objExtension=.OBJEXT --cppCmd='$(strip $(subst ','"'"', $(CPP)))'
+GENDEPENDFLAGS = --objExtension=.OBJEXT
+GENDEPEND_CPP = $(CPP)
+GENDEPENDFLAGS += --cppCmd='$(strip $(subst ','"'"', $(GENDEPEND_CPP)))'
 #ifdef USE_AUTOUPDATING_DEPENDS
 GENDEPENDFLAGS += --autoUpdating
 #endif
