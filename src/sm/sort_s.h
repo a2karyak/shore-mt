@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='SORT_S_H'>
 
- $Id: sort_s.h,v 1.28 2000/02/02 03:57:33 bolo Exp $
+ $Id: sort_s.h,v 1.30 2007/05/18 21:43:29 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -66,9 +66,9 @@ struct key_info_t {
 
     // following applies to file sort only
     where_t 	where;      // where the key resides
-    uint4_t	offset;	    // offset fron the begin
-    uint4_t	len;	    // key length
-    uint4_t     est_reclen; // estimated record length
+    w_base_t::uint4_t	offset;	    // offset fron the begin
+    w_base_t::uint4_t	len;	    // key length
+    w_base_t::uint4_t     est_reclen; // estimated record length
     
     key_info_t() {
       type = sortorder::kt_i4;
@@ -109,28 +109,34 @@ struct sort_parm_t {
 typedef void * key_cookie_t;
 
 
-struct factory_t 
+class factory_t 
 {
-   /* users are meant to derive write own factories 
+   /* users are meant to write their own factories 
     * that inherit from this
     */
 public:
-   virtual	void freefunc(const void *, smsize_t)=0;
-   virtual	void* allocfunc(smsize_t)=0;
+   factory_t();
    virtual	NORET ~factory_t();
+
+   virtual	void* allocfunc(smsize_t)=0;
+   virtual	void freefunc(const void *, smsize_t)=0;
+
    // none: causes no delete - used for statically allocated space
    static factory_t*	none;
 
    // cpp_vector - simply calls delete[] 
    static factory_t*	cpp_vector;
 
-   void factory_t::freefunc(vec_t&v) {
+   void freefunc(vec_t&v) {
 	for(int i=v.count()-1; i>=0; i--) {
 	    DBG(<<"freefuncVEC(ptr=" << (void*)v.ptr(i) << " len=" << v.len(i));
 	    freefunc((void *)v.ptr(i), v.len(i));
 	}
    }
 };
+
+/* XXX move virtual functions to a .cpp */
+inline factory_t::factory_t() {}
 inline NORET factory_t::~factory_t() {}
 
 class key_location_t 
@@ -427,8 +433,8 @@ typedef w_rc_t (*UMOF)(
  * metadata are passed in.  This will probably change.
  */
 
-typedef int (*CF) (uint4_t , const void *, 
-		    uint4_t , const void *);
+typedef int (*CF) (w_base_t::uint4_t , const void *, 
+		    w_base_t::uint4_t , const void *);
 
 /* 
  * LEXFUNC: create Index Key function
@@ -510,17 +516,17 @@ public:
      * comparisons.  No byte-swapping is done; alignment
      * requirements must already be met before calling these.
      */
-    static int string_cmp(uint4_t , const void* , uint4_t , const void*);
-    static int uint8_cmp(uint4_t , const void* , uint4_t , const void* );
-    static int int8_cmp(uint4_t , const void* , uint4_t , const void* );
-    static int uint4_cmp(uint4_t , const void* , uint4_t , const void* );
-    static int int4_cmp(uint4_t , const void* , uint4_t , const void* );
-    static int uint2_cmp(uint4_t , const void* , uint4_t , const void* );
-    static int int2_cmp(uint4_t , const void* , uint4_t , const void* );
-    static int uint1_cmp(uint4_t , const void* , uint4_t , const void* );
-    static int int1_cmp(uint4_t , const void* , uint4_t , const void* );
-    static int f4_cmp(uint4_t , const void* , uint4_t , const void* );
-    static int f8_cmp(uint4_t , const void* , uint4_t , const void* );
+    static int string_cmp(w_base_t::uint4_t , const void* , w_base_t::uint4_t , const void*);
+    static int uint8_cmp(w_base_t::uint4_t , const void* , w_base_t::uint4_t , const void* );
+    static int int8_cmp(w_base_t::uint4_t , const void* , w_base_t::uint4_t , const void* );
+    static int uint4_cmp(w_base_t::uint4_t , const void* , w_base_t::uint4_t , const void* );
+    static int int4_cmp(w_base_t::uint4_t , const void* , w_base_t::uint4_t , const void* );
+    static int uint2_cmp(w_base_t::uint4_t , const void* , w_base_t::uint4_t , const void* );
+    static int int2_cmp(w_base_t::uint4_t , const void* , w_base_t::uint4_t , const void* );
+    static int uint1_cmp(w_base_t::uint4_t , const void* , w_base_t::uint4_t , const void* );
+    static int int1_cmp(w_base_t::uint4_t , const void* , w_base_t::uint4_t , const void* );
+    static int f4_cmp(w_base_t::uint4_t , const void* , w_base_t::uint4_t , const void* );
+    static int f8_cmp(w_base_t::uint4_t , const void* , w_base_t::uint4_t , const void* );
 
 public:
     static w_rc_t f8_lex(const void *, smsize_t , void *);

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: errcodes.cpp,v 1.11 2000/01/13 18:49:23 bolo Exp $
+ $Id: errcodes.cpp,v 1.13 2006/03/14 05:31:23 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -31,16 +31,10 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 
 /*  -- do not edit anything above this line --   </std-header>*/
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <w_strstream.h>
-#include <iostream.h>
-#include <stddef.h>
-#include <limits.h>
 #include <w.h>
-#include <w_base.h>
 #include <option.h>
-#include <w_debug.h>
+
+#include <iostream>
 
 int main()
 {

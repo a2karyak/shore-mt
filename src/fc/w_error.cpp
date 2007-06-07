@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: w_error.cpp,v 1.56 1999/12/11 03:04:10 bolo Exp $
+ $Id: w_error.cpp,v 1.58 2007/05/18 21:38:24 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -40,12 +40,12 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #include <win32_error.h>
 #endif
 
-#include <string.h>
+#include <cstring>
 
 #define W_SOURCE
 #include <w_base.h>
 
-W_FASTNEW_STATIC_DECL(w_error_t, 32);
+W_FASTNEW_STATIC_DECL(w_error_t, 32)
 
 const
 #include <fc_einfo_gen.h>

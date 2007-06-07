@@ -1,6 +1,6 @@
 /*<std-header style='asm' orig-src='shore'>
 
- $Id: tsl.S,v 1.24 2002/01/25 00:36:28 bolo Exp $
+ $Id: tsl.S,v 1.25 2004/10/25 04:12:17 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -29,7 +29,7 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 
 /*
  * The Testandset package is Copyright 1993, 1994, 1995, 1997,
- * 1998, 1998 by:
+ * 1998, 1999, 2000, 2001, 2002, 2004 by:
  *
  *	Josef Burger	<bolo@cs.wisc.edu>
  *
@@ -589,46 +589,78 @@ FUNC(tsl)
 #endif /* i860 */
 
 
-#if defined(PowerPC)
-/* untested lock Code almost verbatim from _The PowerPC Architecture_ by IBM */
+#if defined(__ppc__) || defined(PowerPC)
+#define IS_MACOSX	/ XXXX until config info propagated */
+#ifdef IS_MACOSX
+/* XXX The MacOSX assembler doesn't allow multiple instructions per
+   line seperated by ';'.  SO, this disgusting hack. */
+#define	BROKEN_AS
+#endif
 
 #define	arg0	r3
 #define	arg1	r4
 #define	retval	r3
-#define	FUNC(name)	.globl	.##name; .align 8; .##name:
 
-.set	BO_ALWAYS,20
-.set	CR0_LT,0
-.set	r0,0
-.set	r3,3
-.set	r4,4
-	
+#ifdef __APPLE__
+#define	NAME(x)		_##x
+#define	ALIGN_TO	2
+#else
+#define	NAME(x)		.##x
+#define	ALIGN_TO	8
+#endif
+#define	CONCAT(x,y)	x##y
+#define	LABEL(x)	CONCAT(NAME(x),:)
+
+#ifdef BROKEN_AS
+#define	FUNC(name)	LABEL(name)
+#else
+#define	FUNC(name)	.align ALIGN_TO ; .globl NAME(name); LABEL(name)
+#endif
+
+	.text
+
+#ifdef BROKEN_AS
+	.align	ALIGN_TO
+	.globl	NAME(tsl)
+#endif
 FUNC(tsl)
 	/* XXX should test for arg1 == 0 */
 	lwarx	r0, 0, arg0
 	cmpwi	r0, 0
-	bne-	T.nope
-	stwcx	arg1, 0, arg0
-T.NOPE:
-	ai	retval, r0, 0
-	bcr	BO_ALWAYS, CR0_LT
+	bne-	L001
+	/* XXX stwcx also mentions if it works */
+	stwcx.	arg1, 0, arg0
+L001:
+	mr	retval, r0
+	blr
 
+#ifdef BROKEN_AS
+	.align	ALIGN_TO
+	.globl	NAME(tsl_release)
+#endif
 FUNC(tsl_release)
-	cal	r0, 0(r0)
-	st	r0, 0(arg0)
-	bcr	B0_ALWAYS, CR0_LT
+	li	r0, 0
+	stw	r0, 0(arg0)
+	blr
 
+#ifdef BROKEN_AS
+	.align	ALIGN_TO
+	.globl	NAME(tsl_init)
+#endif
 FUNC(tsl_init)
-	cal	r0, 0(r0)
-	st	r0, 0(r3)
-	bcr	B0_ALWAYS, CR0_LT
+	li	r0, 0
+	stw	r0, 0(arg0)
+	blr
 
+#ifdef BROKEN_AS
+	.align	ALIGN_TO
+	.globl	NAME(tsl_examine)
+#endif
 FUNC(tsl_examine)
 	lwz	retval, 0(arg0)
-	bcr	B0_ALWAYS, CR0_LT
-
+	blr
 	
-#endif /* rs6000 */	
+#endif /* PowerPC */	
 
 #if defined(alpha) || defined(__alpha)
 

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: dtid_t.cpp,v 1.13 2000/02/02 03:57:29 bolo Exp $
+ $Id: dtid_t.cpp,v 1.14 2006/03/14 05:31:26 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -51,7 +51,7 @@ DTID_T::update()
 	relative ++;
 
 	stime_t stamp = stime_t::now();
-	ostrstream s(date, sizeof(date));
+	w_ostrstream s(date, sizeof(date));
 	stamp.ctime(s);
 	s << endl << ends;
 	/* paranoia .. Ensure it is null terminated. */

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: w_statistics.cpp,v 1.28 2003/06/19 18:43:47 bolo Exp $
+ $Id: w_statistics.cpp,v 1.30 2007/05/18 21:38:25 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -38,11 +38,11 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 
 #include "w_statistics.h"
 #include "fc_error_enum_gen.h"
-#include <assert.h>
+#include <cassert>
 
 #include <w_stream.h> 
 
-W_FASTNEW_STATIC_DECL(w_stat_module_t, 100);
+W_FASTNEW_STATIC_DECL(w_stat_module_t, 100)
 
 w_stat_t		w_statistics_t::error_stat(-1);
 int			w_statistics_t::error_int=-1;

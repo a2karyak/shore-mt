@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: btcursor.cpp,v 1.13 1999/06/22 20:02:36 nhall Exp $
+ $Id: btcursor.cpp,v 1.14 2007/05/18 21:43:24 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -43,7 +43,7 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #include "btree_p.h"
 #include "btcursor.h"
 
-W_FASTNEW_STATIC_DECL(bt_cursor_t, 32); 
+W_FASTNEW_STATIC_DECL(bt_cursor_t, 32) 
 
 rc_t
 bt_cursor_t::set_up( const lpid_t& root, int nkc, const key_type_s* kc,

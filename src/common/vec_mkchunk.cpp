@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: vec_mkchunk.cpp,v 1.13 2001/11/30 02:01:01 bolo Exp $
+ $Id: vec_mkchunk.cpp,v 1.14 2006/01/29 18:24:57 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -36,7 +36,7 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #endif
 
 #define VEC_T_C
-#include <stdlib.h>
+#include <cstdlib>
 #include <w_stream.h>
 #include <w_base.h>
 #include <w_minmax.h>

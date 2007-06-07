@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='SM_INT_1_H'>
 
- $Id: sm_int_1.h,v 1.10 1999/08/20 15:31:16 nhall Exp $
+ $Id: sm_int_1.h,v 1.11 2007/05/18 21:43:28 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -59,10 +59,14 @@ public:
 
 #if (SM_LEVEL >= 1)
 #    include <lock.h>
+
 #    include <deadlock_events.h>
+
 #    include <logrec.h>
 #    include <xct.h>
+
 #    include <global_deadlock.h>
+
 #endif
 class xct_log_warn_check_t : public smlevel_0 {
 public:

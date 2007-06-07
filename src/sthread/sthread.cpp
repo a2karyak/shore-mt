@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: sthread.cpp,v 1.315 2003/12/29 20:50:25 bolo Exp $
+ $Id: sthread.cpp,v 1.321 2007/05/18 21:53:43 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -52,7 +52,6 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 
 #define STHREAD_C
 
-#define W_INCL_LIST
 #define W_INCL_SHMEM
 #define W_INCL_TIMER
 #include <w.h>
@@ -60,14 +59,14 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #include <w_debug.h>
 #include <w_stream.h>
 #include <w_signal.h>
-#include <stdlib.h>
+#include <cstdlib>
 #ifndef _WINDOWS
 #include <unistd.h>
 #endif
-#include <string.h>
+#include <cstring>
 
 #ifdef _WINDOWS
-#include <time.h>
+#include <ctime>
 #else
 #include <sys/time.h>
 #endif
@@ -75,7 +74,7 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #ifndef _WINDOWS
 #include <sys/wait.h>
 #endif
-#include <new.h>
+#include <new>
 
 #include <sys/stat.h>
 #include <w_rusage.h>
@@ -169,7 +168,7 @@ extern w_rc_t init_winsock();
 //
 //////////////////////////////////////////////
 #ifndef STHREAD_NO_FASTNEW_NAME_T
-W_FASTNEW_STATIC_PTR_DECL(sthread_name_t);
+W_FASTNEW_STATIC_PTR_DECL(sthread_name_t)
 #endif
 
 class sthread_stats SthreadStats;
@@ -775,7 +774,7 @@ sthread_t::sthread_t(priority_t		pr,
   user(0),
   id(_next_id++),
 #ifdef W_TRACE
-  trace_level(_debug.trace_level()),
+  trace_level(_w_debug.trace_level()),
 #else
   trace_level(0),
 #endif
@@ -2165,8 +2164,15 @@ const sthread_base_t::fileoff_t sthread_base_t::fileoff_max = sdisk_t::fileoff_m
  *  identity of main_thread.
  *
  *********************************************************************/
+#include "sthread_vtable_enum.h"
+
 sthread_init_t::sthread_init_t()
 {
+	// For thread stats: set the largest stat ...
+	// To override this, do so in main().
+	// (anything but sthread tests need to do so)
+	global_vtable_last = thread_last;
+
 	if (++count == 1) {
 
 		hack_large_file_stuff(max_os_file_size);

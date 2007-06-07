@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='SMTHREAD_H'>
 
- $Id: smthread.h,v 1.93 2002/01/28 06:54:50 bolo Exp $
+ $Id: smthread.h,v 1.97 2007/05/18 21:43:29 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -34,7 +34,6 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 
 /*  -- do not edit anything above this line --   </std-header>*/
 
-#define W_INCL_LIST
 #ifndef W_H
 #include <w.h>
 #endif
@@ -64,9 +63,10 @@ class lockid_t;
 
 class smthread_t;
 
-class SmthreadFunc
-{
-    public:
+class SmthreadFunc {
+public:
+	virtual ~SmthreadFunc();
+	
 	virtual void operator()(const smthread_t& smthread) = 0;
 };
 
@@ -120,7 +120,15 @@ class smthread_t : public sthread_t {
 	fill4	_fill;		
 #endif
 #endif
+#if 1
+        union {
+		/* XXX see above "most restrictive aligned type" approx. */
+		double	kc_buf_align;
+		char	kc_buf[smlevel_0::page_sz];
+	};
+#else		
 	char	kc_buf[smlevel_0::page_sz];
+#endif
 	int	kc_len;
 	cvec_t	kc_vec;
 	sdesc_cache_t	*_sdesc_cache;
@@ -142,6 +150,11 @@ class smthread_t : public sthread_t {
 	    kc_vec.reset();
 	    memset(kc_buf, '\0', sizeof(kc_buf));
 #endif
+#ifdef BOLO_DEBUG
+	    if ((ptrdiff_t)kc_buf & 0x7)
+		    cerr << "tcb_t " << this << " kc_buf misaligned "
+			 << (void*) kc_buf << endl;
+#endif	    
 	    attach_stats();
 	}
 	~tcb_t() { detach_stats(); }
@@ -405,7 +418,7 @@ DumpBlockedThreads(ostream& o);
  */
 #undef FUNC
 #define FUNC(fn)\
-	fname_debug__ = _string(fn); DBGTHRD(<< _string(fn));
+	_w_fname_debug__ = _string(fn); DBGTHRD(<< _string(fn));
 #endif /* W_TRACE */
 
 

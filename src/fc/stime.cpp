@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: stime.cpp,v 1.33 2003/12/02 00:22:39 bolo Exp $
+ $Id: stime.cpp,v 1.37 2006/01/29 18:51:07 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -41,13 +41,13 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #define _BSD_TIME
 #endif
 
-#include <time.h>
-#include <string.h>
+#include <ctime>
+#include <cstring>
 
 #include <w_base.h>
 #include <stime.h>
 #include <w_stream.h>
-#include <limits.h>
+#include <climits>
 
 /*
    All this magic is to allow either timevals or timespecs
@@ -441,7 +441,9 @@ ostream &stime_t::ctime(ostream &s) const
 	struct	tm	tm;
 	char	buf[26];	/* XXX well known magic number */
 	local = localtime_r(&kludge, &tm);
-#ifdef SOLARIS2
+#if defined(SOLARIS2) && !defined(_POSIX_PTHREAD_SEMANTICS)
+	// from solaris threads ... actually a better idea than the
+	// posix "assumed buffer size" implementation.
 	when = asctime_r(local, buf, sizeof(buf));
 #else
 	when = asctime_r(local, buf);

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='EXTENT_H'>
 
- $Id: extent.h,v 1.9 2003/12/01 20:41:03 bolo Exp $
+ $Id: extent.h,v 1.10 2005/09/10 06:21:49 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -243,8 +243,13 @@ extlink_p::put(slotid_t idx, const extlink_t& e)
 {
     DBG(<<"extlink_p::put(" <<  idx << " owner=" <<
 	e.owner << ", " << e.next << ")");
+#ifndef NO_VEC_TMP_HACK
+    const vec_t	extent_vec_tmp(&e, sizeof(e));
+    W_COERCE(overwrite(0, idx * sizeof(extlink_t), extent_vec_tmp));
+#else
     W_COERCE(overwrite(0, idx * sizeof(extlink_t),
 		 vec_t(&e, sizeof(e))));
+#endif
 }
 
 inline void
@@ -335,7 +340,12 @@ stnode_p::get(slotid_t idx)
 inline w_rc_t 
 stnode_p::put(slotid_t idx, const stnode_t& e)
 {
+#ifndef NO_VEC_TMP_HACK
+    const vec_t stnode_vec_tmp(&e, sizeof(e));
+    W_DO(overwrite(0, idx * sizeof(stnode_t), stnode_vec_tmp));
+#else
     W_DO(overwrite(0, idx * sizeof(stnode_t), vec_t(&e, sizeof(e))));
+#endif
     return RCOK;
 }
 

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='BTREE_IMPL_H'>
 
- $Id: btree_impl.h,v 1.14 1999/06/07 19:03:57 kupsch Exp $
+ $Id: btree_impl.h,v 1.15 2005/08/08 20:23:26 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -49,6 +49,8 @@ typedef enum {  m_not_found_end_of_file,
 	m_satisfying_key_found_same_page,
 	m_not_found_end_of_non_empty_page, 
 	m_not_found_page_is_empty } m_page_search_cases;
+
+class btsink_t;
 
 class btree_impl : protected btree_m  {
     friend class btree_m;

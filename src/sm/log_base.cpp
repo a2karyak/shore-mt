@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: log_base.cpp,v 1.33 2003/03/15 03:05:33 bolo Exp $
+ $Id: log_base.cpp,v 1.34 2006/03/14 05:31:26 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -72,7 +72,7 @@ log_base::log_base(
     if(segid) {
 	// server size -- attach to it
 	int i;
-	istrstream(segid) >> i;
+	w_istrstream(segid) >> i;
 	w_rc_t rc = _shmem_seg.attach(i);
 	if(rc) {
 	    cerr << "log daemon:-  cannot attach to shared memroy " << segid << endl;

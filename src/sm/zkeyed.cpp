@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: zkeyed.cpp,v 1.47 1999/06/07 19:04:51 kupsch Exp $
+ $Id: zkeyed.cpp,v 1.49 2007/05/18 21:43:30 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -58,7 +58,7 @@ void zkeyed_p::ntoh()
     /* nothing to do */
 }
 
-MAKEPAGECODE(zkeyed_p, page_p);
+MAKEPAGECODE(zkeyed_p, page_p)
 
 
 static int max_prefix_level = MAX_PREFIX_LEVEL;
@@ -196,15 +196,15 @@ zkeyed_p::insert(
 	<< " do_it=" << do_it << " compress=" << compress);
 #ifdef W_TRACE
     if(compress && do_it) {
-    if(_debug.flag_on("zkeyed_p::insert",__FILE__)) {
-	_debug.clog << __LINE__ << " " << __FILE__ 
+    if(_w_debug.flag_on("zkeyed_p::insert",__FILE__)) {
+	_w_debug.clog << __LINE__ << " " << __FILE__ 
 	    << " KEY BEFORE INSERT " 
 	    << " in page " << pid().page << endl;
-	_debug.clog << key;
-	_debug.clog << __LINE__ << " " << __FILE__ 
+	_w_debug.clog << key;
+	_w_debug.clog << __LINE__ << " " << __FILE__ 
 	    << " AUX BEFORE INSERT "  << endl;
-	_debug.clog << aux;
-	_debug.clog << flushl;
+	_w_debug.clog << aux;
+	_w_debug.clog << flushl;
     }
     }
 #endif /* W_TRACE */
@@ -274,7 +274,7 @@ zkeyed_p::insert(
 	w_assert3(idx>0);
 	W_DO(this->rec(/*prev*/idx-1,prevpxl, prevpxp, prevkey,junk,junklen));
 #ifdef W_TRACE
-	    if(_debug.flag_on("zkeyed_p::insert",__FILE__)) {
+	    if(_w_debug.flag_on("zkeyed_p::insert",__FILE__)) {
 		dump(idx-1, __LINE__," PREV BEFORE INSERT ");
 	    }
 #endif
@@ -382,7 +382,7 @@ zkeyed_p::insert(
 		<< " junklen " << junklen
 	);
 #ifdef W_TRACE
-	if(_debug.flag_on("zkeyed_p::insert",__FILE__)) {
+	if(_w_debug.flag_on("zkeyed_p::insert",__FILE__)) {
 	    dump(idx, __LINE__," NEXT BEFORE INSERT ");
 	}
 #endif
@@ -564,7 +564,7 @@ zkeyed_p::insert(
     DBG(<<"");
 #ifdef W_TRACE
     if(compress && do_it) {
-	if(_debug.flag_on("zkeyed_p::insert",__FILE__)) {
+	if(_w_debug.flag_on("zkeyed_p::insert",__FILE__)) {
 	    if(idx>0) {
 		dump(idx-1, __LINE__," PREV AFTER INSERT ");
 	    }
@@ -739,7 +739,7 @@ zkeyed_p::remove(slotid_t idx, bool compress)
 	);
 
 #ifdef W_TRACE
-    if(_debug.flag_on("zkeyed_p::remove",__FILE__)) {
+    if(_w_debug.flag_on("zkeyed_p::remove",__FILE__)) {
 	dump(idx, __LINE__," THIS BEFORE REMOVE ");
     }
 #endif
@@ -778,7 +778,7 @@ zkeyed_p::remove(slotid_t idx, bool compress)
 
 	W_DO(this->rec(next_rec, nextpxl, nextpxp, nextkey, junk, junklen));
 #ifdef W_TRACE
-	if(_debug.flag_on("zkeyed_p::remove",__FILE__)) {
+	if(_w_debug.flag_on("zkeyed_p::remove",__FILE__)) {
 	    dump(next_rec, __LINE__," NEXT BEFORE REMOVE ");
 	}
 #endif
@@ -802,7 +802,7 @@ zkeyed_p::remove(slotid_t idx, bool compress)
 		W_DO(this->rec(prev_rec, 
 			prevpxl, prevpxp, prevkey, junk, junklen));
 #ifdef W_TRACE
-		if(_debug.flag_on("zkeyed_p::remove",__FILE__)) {
+		if(_w_debug.flag_on("zkeyed_p::remove",__FILE__)) {
 		    dump(prev_rec, __LINE__," PREV BEFORE REMOVE ");
 		}
 #endif
@@ -948,7 +948,7 @@ zkeyed_p::remove(slotid_t idx, bool compress)
 	// DO NOT MOVE - this depends
 	// on the if(!done) of previous line!
 #ifdef W_TRACE
-	if(_debug.flag_on("zkeyed_p::remove",__FILE__)) {
+	if(_w_debug.flag_on("zkeyed_p::remove",__FILE__)) {
 	    if(idx>0) {
 		dump(idx-1, __LINE__," PREV BEFORE REMOVE_COMPRESS ");
 	    }
@@ -974,7 +974,7 @@ zkeyed_p::remove(slotid_t idx, bool compress)
 
 #ifdef W_TRACE
 	if(next_rec < nrecs()) {
-	    if(_debug.flag_on("zkeyed_p::remove",__FILE__)) {
+	    if(_w_debug.flag_on("zkeyed_p::remove",__FILE__)) {
 		dump(next_rec, __LINE__," NEXT AFTER REWRITE ");
 	    }
 	}
@@ -1257,14 +1257,14 @@ zkeyed_p::dump(slotid_t W_IFTRACE(idx),
 	    << " key.size() " << key.size()
 	    << " junklen " << junklen
     );
-    if(_debug.flag_on("zkeyed_p::remove",__FILE__)) {
-	_debug.clog << line << " " << __FILE__ 
+    if(_w_debug.flag_on("zkeyed_p::remove",__FILE__)) {
+	_w_debug.clog << line << " " << __FILE__ 
 	    << string 
 	    << " page " << pid().page 
 	    << " record " <<  idx
 	     << key
 	    << endl;
-	_debug.clog << __LINE__ << " " << __FILE__ 
+	_w_debug.clog << __LINE__ << " " << __FILE__ 
 	    << " junklen " <<  junklen
 	    << flushl;
     }

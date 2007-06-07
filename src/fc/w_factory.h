@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='W_FACTORY_H'>
 
- $Id: w_factory.h,v 1.15 1999/06/07 19:02:52 kupsch Exp $
+ $Id: w_factory.h,v 1.16 2007/05/18 21:38:24 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -42,7 +42,7 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 
 #include <w_list.h>
 #include <vtable_info.h>
-#include <vtable_enum.h>
+#include <w_factory_vtable_enum.h>
 #include <w_shore_alloc.h>
 
 #ifdef __GNUG__

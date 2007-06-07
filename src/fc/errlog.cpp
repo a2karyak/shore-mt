@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: errlog.cpp,v 1.21 2003/06/19 22:39:32 bolo Exp $
+ $Id: errlog.cpp,v 1.30 2007/05/18 21:38:23 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -34,11 +34,11 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #define __ERRLOG_C__
 /* errlog.cpp -- error logging functions */
 
-#include <stdarg.h>
-#include <stdlib.h>
-#include <stddef.h>
-#include <string.h>
-#include <assert.h>
+#include <cstdarg>
+#include <cstdlib>
+#include <cstddef>
+#include <cstring>
+#include <cassert>
 
 #ifdef __GNUC__
 #pragma implementation "errlog.h"
@@ -50,8 +50,8 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 
 #include <errlog_s.h>
 
-#include <w_stream.h>
-#include <stdio.h>
+#include <w_strstream.h>
+#include <cstdio>
 
 #ifdef EXPLICIT_TEMPLATE
 template class w_list_t<ErrLogInfo>;
@@ -59,8 +59,8 @@ template class w_list_i<ErrLogInfo>;
 template class w_keyed_list_t<ErrLogInfo, simple_string>;
 #endif
 
-char __c;
-ostrstream  logstream::static_stream(&__c,1);
+static char __c;
+w_ostrstream  logstream::static_stream(&__c,1);
 
 ostream &operator<<(ostream &out, const simple_string x) {
 	out << x._s;
@@ -239,7 +239,7 @@ ErrLog::_init1()
 #if defined(_WIN32) && defined(FC_ERRLOG_WIN32_LOCK)
     InitializeCriticalSection(&_crit);
 #endif
-    this->clog.seekp(ios::beg);
+    w_reset_strstream(this->clog);
 }
 
 void
@@ -387,7 +387,11 @@ ErrLog::log(enum LogPriority prio, const char *format, ...)
 		case log_to_open_file:
 		case log_to_stderr:
 
+#if HAVE_VPRINTF
 			(void) vfprintf(_file,format, ap);
+#else
+#error need vfprintf
+#endif
 			fputc('\n', _file);
 			fflush(_file);
 			break;
@@ -398,7 +402,7 @@ ErrLog::log(enum LogPriority prio, const char *format, ...)
 	va_end(ap);
 
 	// clear the slate for the next use of operator<<
-	this->clog.seekp(ios::beg);
+	w_reset_strstream(this->clog);
 
 	if (prio == log_fatal) {
 	    W_FATAL(fcINTERNAL);
@@ -431,8 +435,8 @@ ErrLog::_flush(bool
 			case log_to_unix_file:
 			case log_to_open_file:
 			case log_to_stderr:
-				fprintf(_file, "%s", this->clog.str());
-				// fprintf(_file, "%s\n", this->clog.str());
+				fprintf(_file, "%s", this->clog.c_str());
+				// fprintf(_file, "%s\n", this->clog.c_str());
 				fflush(_file);
 				break;
 				
@@ -440,12 +444,13 @@ ErrLog::_flush(bool
 				break;
 		}
 	} else {
-	    /* turn on only for debugging the debugging tools
-	    cerr << "wrong priority: _prio=" << this->clog._prio
-		<< " level=" << _level 
-		<< " string= " << this->clog.str()
-		<< endl;
-	    */
+#if 0
+		/* turn on only for debugging the debugging tools */
+		cerr << "wrong priority: _prio=" << this->clog._prio
+		     << " level=" << _level 
+		     << " string= " << this->clog.c_str()
+		     << endl;
+#endif
 	}
 	if (this->clog._prio == log_fatal) {
 		W_FATAL(fcINTERNAL);
@@ -453,7 +458,7 @@ ErrLog::_flush(bool
 	this->clog.flush();
 
 	// reset to beginning of buffer
-	this->clog.seekp(ios::beg);
+	w_reset_strstream(this->clog);
 #if defined(_WIN32) && defined(FC_ERRLOG_WIN32_LOCK)
 	if(!already_in_crit) LeaveCriticalSection(&_crit);
 #endif

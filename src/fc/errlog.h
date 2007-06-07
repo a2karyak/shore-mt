@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='ERRLOG_H'>
 
- $Id: errlog.h,v 1.12 2000/02/02 15:31:02 bolo Exp $
+ $Id: errlog.h,v 1.17 2006/03/14 05:31:24 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -36,13 +36,13 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 
 /* errlog.h -- facilities for logging errors */
 
-#include <assert.h>
-#include <stdlib.h>
-#include <stddef.h>
+#include <cassert>
+#include <cstdlib>
+#include <cstddef>
 #include <w.h>
-#include <w_stream.h>
+#include <iostream>
 #include <w_strstream.h>
-#include <stdio.h>	// XXX just needs a forward decl
+#include <cstdio>	// XXX just needs a forward decl
 
 
 #ifdef __GNUG__
@@ -89,7 +89,7 @@ extern ostream& debug_prio(ostream& o);
 extern	void setprio(ostream&, LogPriority);
 extern logstream *is_logstream(ostream &);
 
-class logstream : public ostrstream {
+class logstream : public w_ostrstream {
 	friend class ErrLog;
 	friend ostream &flush_and_setprio(ostream& o, LogPriority p);
 	friend ostream& emerg_prio(ostream& o);
@@ -111,12 +111,13 @@ public:
 	enum { LOGSTREAM__MAGIC = 0xad12bc45 };
 
 private:
-	static ostrstream static_stream;
+	static w_ostrstream static_stream;
 public:
-	logstream(char *buf, size_t bufsize = 1000) : 
-		ostrstream(buf, bufsize), __magic1(LOGSTREAM__MAGIC),
-		_prio(log_none), 
-		__magic2(LOGSTREAM__MAGIC)
+	logstream(char *buf, size_t bufsize = 1000)
+	: w_ostrstream(buf, bufsize),
+	  __magic1(LOGSTREAM__MAGIC),
+	  _prio(log_none), 
+	  __magic2(LOGSTREAM__MAGIC)
 		{
 			// tie this to a hidden stream; 
 			tie(&static_stream);

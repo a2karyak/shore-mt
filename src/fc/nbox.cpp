@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: nbox.cpp,v 1.18 2002/01/04 05:47:12 bolo Exp $
+ $Id: nbox.cpp,v 1.24 2006/04/04 16:42:50 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -40,12 +40,12 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #include <w.h>
 #include <nbox.h>
 
-#include <stdlib.h>
-#include <math.h>
+#include <cstdlib>
+#include <cmath>
 
-#include <iostream.h>
+#include <iostream>
 #include <w_strstream.h>
-#include <stdio.h>
+#include <cstdio>
 
 #ifndef MIN
 #define MIN(x,y) ((x) < (y) ? (x) : (y))
@@ -397,10 +397,12 @@ double nbox_t::operator*(const nbox_t& other) const
 //
 // for tcl only
 //
+// XXtghread problems
+//
 nbox_t::operator char*()
 {
 	static char s[40];	/* XXX sharing problem */
-	ostrstream ss(s, sizeof(s));
+	w_ostrstream ss(s, sizeof(s));
 
 #ifdef notyet
 	ss << dim << '.' << array[0] << '.' << array[1]
@@ -428,7 +430,7 @@ void nbox_t::put(const char* s)
 {
     int n;
 #ifdef notyet
-    istrstream	ss(s, strlen(s));
+    w_istrstream	ss(s);
     char	c[4];
     ss >> dim >> c[0] >> array[0] >> c[1] >> array[1]
     	>> c[2] >> array[2] >> c[3] >> array[3];

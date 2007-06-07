@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: btree_impl.cpp,v 1.36 1999/08/26 12:42:36 nhall Exp $
+ $Id: btree_impl.cpp,v 1.37 2007/05/18 21:43:24 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -3233,13 +3233,17 @@ no_change:
     w_assert3(  leaf.is_fixed());
     w_assert3(  leaf.is_leaf());
     w_assert3(  leaf.latch_mode() == mode );
-    w_assert3( leaf_lsn != lsn_t::null);
+    if(smlevel_1::log && smlevel_0::logging_enabled) {
+	    w_assert3( leaf_lsn != lsn_t::null);
+    }
 
     w_assert3(parent.is_fixed());
     w_assert3( parent.is_node() || 
 	(parent.is_leaf() && leaf.pid() == start  ));
     w_assert3( parent.is_leaf_parent() || parent.is_leaf());
-    w_assert3(parent_lsn != lsn_t::null);
+    if(smlevel_1::log && smlevel_0::logging_enabled) {
+	    w_assert3(parent_lsn != lsn_t::null);
+    }
 
     if(leaf.pid() == __root) {
 	// sh, ex: 2,0 or 0,2, or 1,1

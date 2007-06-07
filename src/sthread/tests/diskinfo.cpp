@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: diskinfo.cpp,v 1.17 2003/10/14 22:42:55 bolo Exp $
+ $Id: diskinfo.cpp,v 1.19 2007/05/18 21:52:30 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -31,11 +31,11 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 
 /*  -- do not edit anything above this line --   </std-header>*/
 
-#include <w_stream.h>
-#include <os_types.h>
-#include <memory.h>
-#include <getopt.h>
+#include <iostream>
 
+#include <os_types.h>
+#include <getopt.h>
+#include <os_memory.h>
 #include <w.h>
 #include <w_statistics.h>
 #include <sthread.h>

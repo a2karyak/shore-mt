@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: stid_t.cpp,v 1.11 1999/06/07 19:02:32 kupsch Exp $
+ $Id: stid_t.cpp,v 1.13 2007/05/18 21:33:42 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -36,8 +36,8 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #endif
 
 #define VEC_T_C
-#include <stdlib.h>
-#include <memory.h>
+#include <cstdlib>
+#include <cstring>
 #include <w_stream.h>
 #include <w_base.h>
 #include <w_minmax.h>

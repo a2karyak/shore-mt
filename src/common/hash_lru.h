@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='HASH_LRU_H'>
 
- $Id: hash_lru.h,v 1.36 2001/06/22 17:31:38 bolo Exp $
+ $Id: hash_lru.h,v 1.37 2005/08/03 19:35:58 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -116,7 +116,7 @@ public:
     void remove(const TYPE*& t);
 
     // acquire the table mutex
-    void acquire_mutex(sthread_t::timeout_in_ms timeout = WAIT_FOREVER) {_mutex.acquire(timeout);}
+    void acquire_mutex(sthread_t::timeout_in_ms timeout = sthread_t::WAIT_FOREVER) {_mutex.acquire(timeout);}
     // release mutex obtained by grab, find, remove or acquire_mutex
     void release_mutex() {_mutex.release();}
     bool is_mine() const {return _mutex.is_mine();}

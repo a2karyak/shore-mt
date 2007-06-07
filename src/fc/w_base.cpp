@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: w_base.cpp,v 1.47 2002/01/28 06:54:45 bolo Exp $
+ $Id: w_base.cpp,v 1.54 2006/03/25 23:37:04 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -115,7 +115,7 @@ w_base_t::assert_failed(
 
 
 /* XXX compilers and/or environments which need these */
-#if defined(_MSC_VER) 
+#if 0 || defined(_MSC_VER) 
 
 /* XXX These output operators only follow base and showbase requests
    on win32 and visual c++.  Which is better than before, so 
@@ -215,18 +215,14 @@ operator>>(istream& i, w_base_t::int8_t &t)
 #endif
 
 #ifdef _MSC_VER
-
-#include <string.h>
-#include <ios.h>
-#include <strstrea.h>
+#include <cstring>
+#include <ios>
 typedef long fmtflags;
-
 #else
-
-#include <strstream.h>
 typedef ios::fmtflags  fmtflags;
-
 #endif
+
+#include <w_strstream.h>
 
 
 /* USE_OUR_IMPLEMENTATION lets us test the
@@ -255,7 +251,7 @@ __strtou8(
 
 #if defined(_MSC_VER) || defined(USE_OUR_IMPLEMENTATION)
 
-    istrstream 		tmp(VCPP_BUG_1 str, strlen(str));
+    w_istrstream 		tmp(str);
     streampos 		b =  tmp.tellg();
 
     fmtflags f = tmp.flags();
@@ -339,11 +335,11 @@ w_base_t::strtou8(
 }
 
 #ifdef _MSC_VER
-#include <float.h>
+#include <cfloat>
 #elif defined(SOLARIS2)
 #include <ieeefp.h>
 #else
-#include <math.h>
+#include <cmath>
 #endif
 
 bool
@@ -366,6 +362,8 @@ w_base_t::is_infinite(const f8_t x)
     value = !_finite(x) && !_isnan(x);
 #elif defined(SOLARIS2)
     value = !finite(x) && !isnand(x);
+#elif defined(MacOSX) && W_GCC_THIS_VER >= W_GCC_VER(3,0)
+    value = !finite(x) && !__isnand(x);
 #else
     value = !finite(x) && !isnan(x);
 #endif
@@ -380,6 +378,8 @@ w_base_t::is_nan(const f8_t x)
     value = _isnan(x);
 #elif defined(SOLARIS2)
     value = isnand(x);
+#elif defined(MacOSX) && W_GCC_THIS_VER >= W_GCC_VER(3,0)
+    value = __isnand(x);
 #else
     value = isnan(x);
 #endif
@@ -447,4 +447,27 @@ PURE_VIRTUAL
 	/* A hack  for visual c++ + inbred header files */
 	return 0;
 #endif
+}
+
+
+#include "w_endian.h"
+
+w_base_t::uint2_t w_base_t::w_ntohs(w_base_t::uint2_t net)
+{
+	return ntohs(net);
+}
+
+w_base_t::uint2_t w_base_t::w_htons(w_base_t::uint2_t host)
+{
+	return htons(host);
+}
+
+w_base_t::uint4_t w_base_t::w_ntohl(w_base_t::uint4_t net)
+{
+	return ntohl(net);
+}
+
+w_base_t::uint4_t w_base_t::w_htonl(w_base_t::uint4_t host)
+{
+	return htonl(host);
 }

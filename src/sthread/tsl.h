@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='TSL_H'>
 
- $Id: tsl.h,v 1.23 2002/01/04 06:31:41 bolo Exp $
+ $Id: tsl.h,v 1.24 2004/10/25 04:12:17 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -36,7 +36,7 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 
 /*
  * The Testandset package is Copyright 1993, 1994, 1995, 1997, 
- * 1998, 1999, 2000, 2001 by:
+ * 1998, 1999, 2000, 2001, 2002, 2004 by:
  *
  *	Josef Burger	<bolo@cs.wisc.edu>
  *

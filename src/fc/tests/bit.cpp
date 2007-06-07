@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: bit.cpp,v 1.19 2000/01/07 07:16:56 bolo Exp $
+ $Id: bit.cpp,v 1.20 2004/10/11 21:59:35 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -35,6 +35,8 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #include "w.h"
 
 #include "w_bitmap_space.h"
+
+#include <iostream>
 
 const unsigned nbits = 71;
 const unsigned nbytes = (nbits - 1) / 8 + 1;

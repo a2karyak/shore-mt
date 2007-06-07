@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: readstats.cpp,v 1.18 1999/10/25 18:57:41 bolo Exp $
+ $Id: readstats.cpp,v 1.20 2006/01/29 19:03:20 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -33,11 +33,11 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 
 #define DISKRW_C
 
-#include <stdio.h>
+#include <cstdio>
 #include <w_stream.h>
 #include <w_statistics.h>
 #include <w_signal.h>
-#include <stdlib.h>
+#include <cstdlib>
 #include <os_fcntl.h>
 #include <os_interface.h>
 

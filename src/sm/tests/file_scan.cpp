@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: file_scan.cpp,v 1.21 2003/12/01 20:54:43 bolo Exp $
+ $Id: file_scan.cpp,v 1.24 2007/05/18 21:39:18 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -37,8 +37,8 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 
 #include <w_stream.h>
 #include <sys/types.h>
-#include <memory.h>
-#include <assert.h>
+#include <os_memory.h>
+#include <cassert>
 
 // This include brings in all header files needed for writing a VAs 
 #include "sm_vas.h"
@@ -114,8 +114,14 @@ setup_device_and_volume(const char* device_name, bool init_device,
 	    memset(dummy, '\0', rec_size);
 	    vec_t data(dummy, rec_size);
 	    for (int i = 0; i < num_rec; i++) {
+#ifndef NO_VEC_TMP_HACK
+		const vec_t null_vec_tmp;
+		W_DO(ssm->create_rec(lvid, info.fid, null_vec_tmp,
+					rec_size, data, rid));
+#else		    
 		W_DO(ssm->create_rec(lvid, info.fid, vec_t(),
 					rec_size, data, rid));
+#endif
 		if (i == 0) {
 		    info.first_rid = rid;
 		}	
@@ -126,9 +132,17 @@ setup_device_and_volume(const char* device_name, bool init_device,
 
 	    // record file info in the root index
 	    W_DO(ss_m::vol_root_index(lvid, root_iid));
+#ifndef NO_VEC_TMP_HACK
+	    const vec_t key_vec_tmp(file_info_t::key, strlen(file_info_t::key));
+	    const vec_t info_vec_tmp(&info, sizeof(info));
+	    W_DO(ss_m::create_assoc(lvid, root_iid,
+				    key_vec_tmp,
+				    info_vec_tmp));
+#else
 	    W_DO(ss_m::create_assoc(lvid, root_iid,
 		    vec_t(file_info_t::key, strlen(file_info_t::key)),
 		    vec_t(&info, sizeof(info))));
+#endif
 	W_DO(ssm->commit_xct());
 
     } else {
@@ -156,10 +170,19 @@ setup_device_and_volume(const char* device_name, bool init_device,
     W_DO(ssm->begin_xct());
 
     bool        found;
+#ifndef NO_VEC_TMP_HACK
+    const vec_t	key_vec_tmp(file_info_t::key, strlen(file_info_t::key));
+#endif
     W_DO(ss_m::vol_root_index(lvid, root_iid));
+#ifndef NO_VEC_TMP_HACK
+    W_DO(ss_m::find_assoc(lvid, root_iid,
+			  key_vec_tmp,
+			  &info, info_len, found));
+#else
     W_DO(ss_m::find_assoc(lvid, root_iid,
 		      vec_t(file_info_t::key, strlen(file_info_t::key)),
 		      &info, info_len, found));
+#endif
     if (!found) {
 	cerr << "No file information found" <<endl;
 	exit(1);

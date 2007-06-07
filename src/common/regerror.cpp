@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: regerror.cpp,v 1.12 1999/06/07 19:02:28 kupsch Exp $
+ $Id: regerror.cpp,v 1.18 2006/01/29 22:27:28 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -72,11 +72,11 @@ to the following restrictions:
 */
 
 #include <os_types.h>
-#include <stdio.h>
-#include <string.h>
-#include <ctype.h>
-#include <limits.h>
-#include <stdlib.h>
+#include <cstdio>
+#include <cstring>
+#include <cctype>
+#include <climits>
+#include <cstdlib>
 #include <w_debug.h>
 #include <regex.h>
 
@@ -159,7 +159,7 @@ regerror(int errcode, const regex_t *preg, char *errbuf, size_t errbuf_size)
 				(void) strcpy(convbuf, r->name);
 			else
 				sprintf(convbuf, "REG_0x%x", target);
-			assert(strlen(convbuf) < sizeof(convbuf));
+			re_assert(strlen(convbuf) < sizeof(convbuf));
 			s = convbuf;
 		} else
 			s = r->explain;

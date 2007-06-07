@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='VTABLE_INFO_H'>
 
- $Id: vtable_info.h,v 1.10 1999/06/07 19:02:49 kupsch Exp $
+ $Id: vtable_info.h,v 1.12 2007/05/18 21:38:24 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -39,7 +39,7 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
  * to a virtual table.  
  */
 
-#include <string.h>
+#include <cstring>
 
 /* The only reason vtable_info_t is a template
  * is that there is no way to allocate an array of 
@@ -48,6 +48,7 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
  * we'd allocate an array as in 
  *  	v(n)[j].
  */
+extern int global_vtable_last;
 class vtable_info_t {
 public:
     enum { vtable_value_size = 64 };

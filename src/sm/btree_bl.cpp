@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: btree_bl.cpp,v 1.26 1999/11/02 02:47:37 kupsch Exp $
+ $Id: btree_bl.cpp,v 1.27 2006/06/01 16:40:06 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -555,6 +555,7 @@ btree_m::bulk_load(
     stats.leaf_pg.unique_cnt = uni_cnt;
     stats.leaf_pg.entry_cnt = cnt;
 
+    DBG(<<"end bulk load OK");
     return RCOK;
 }
 
@@ -638,9 +639,11 @@ btree_m::bulk_load(
 		prev_key.reset().put(tmp, key.size());
 	    } else {
 		if (unique) {
+		    DBG(<<"");
 		    return RC(eDUPLICATE);
 		}
 		// BUGBUG: need to sort elems for duplicate keys
+		DBG(<<"");
 		return RC(eNOTIMPLEMENTED);
 	    }
 	}
@@ -654,6 +657,7 @@ btree_m::bulk_load(
 	W_DO ( sorted_stream.get_next(key, el, eof) );
     }
 
+    DBG(<<"");
     W_DO( sink.map_to_root() );
 	
     stats.level_cnt = sink.height();
@@ -665,6 +669,7 @@ btree_m::bulk_load(
     stats.leaf_pg.unique_cnt = uni_cnt;
     stats.leaf_pg.entry_cnt = cnt;
 
+    DBG(<<" return OK from bulk load");
     return RCOK;
 }
 

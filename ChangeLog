@@ -1,0 +1,22 @@
+/*
+ * Define this if you want ssh to use the old, event semaphore 
+ * driven sychronization.  It is slower and can have race conditions,
+ * but there may be timing dependencies in it tests can
+ * depend upon in some cases.
+ */
+#undef SSH_SYNC_OLD
+
+/* 
+ * Define these ONLY if you want to back out the fixes I 
+ * put in to some recovery bugs.
+ * If all goes well, after a while these macros and their
+ * dependent code should be removed
+ * NEHFIX1: bookkeeping in reserved-space pages
+ * NEHFIX2: high-water mark in reserved-space pages
+ * NEHFIX3: log store flags in page format log
+ * NEHFIX4: update rec_lsn in bf_m::upgrade_latch
+ */
+#undef  BACKOUT_NEHFIX1
+#undef  BACKOUT_NEHFIX2
+#undef  BACKOUT_NEHFIX3
+#undef  BACKOUT_NEHFIX4

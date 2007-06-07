@@ -1,6 +1,0 @@
-UTIL_DIR = /opt
-VCPP_DIR =
-TCL_DIR = $(UTIL_DIR)/tcl
-BISON_DIR = $(UTIL_DIR)/bison/bin
-FLEX_DIR = $(UTIL_DIR)/flex/bin
-PERL_DIR = $(UTIL_DIR)/perl

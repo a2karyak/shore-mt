@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: test_stat.cpp,v 1.11 1999/06/07 19:02:37 kupsch Exp $
+ $Id: test_stat.cpp,v 1.12 2004/10/05 23:19:53 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -31,14 +31,10 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 
 /*  -- do not edit anything above this line --   </std-header>*/
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <iostream.h>
-#include <stddef.h>
-#include <limits.h>
-#include <assert.h>
 #include <w_statistics.h>
 #include "test_stat.h"
+
+#include <iostream>
 
 /* the code is here: */
 
@@ -49,6 +45,7 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 const char *test_stat ::stat_names[] = {
 #include "test_stat_msg_gen.h"
 };
+
 
 void
 test_stat::inc() 

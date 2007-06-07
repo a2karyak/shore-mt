@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: thread4.cpp,v 1.23 2001/10/13 17:55:43 bolo Exp $
+ $Id: thread4.cpp,v 1.30 2007/05/18 21:52:31 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -31,13 +31,15 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 
 /*  -- do not edit anything above this line --   </std-header>*/
 
-#include <w_stream.h>
-#include <stdlib.h>
-#include <time.h>
-#include <memory.h>
+#include <cstdlib>
+#include <ctime>
+#include <os_memory.h>
 
 #include <w.h>
 #include <sthread.h>
+
+#include <iostream>
+#include <w_strstream.h>
 
 class timer_thread_t : public sthread_t {
 public:
@@ -108,10 +110,9 @@ timer_thread_t::timer_thread_t(unsigned ms)
 : sthread_t(t_regular),
   _ms(ms)
 {
-	char		buf[40];
-	ostrstream	s(buf, sizeof(buf));
+	w_ostrstream_buf	s(40);		// XXX magic number
 	s << "timer_thread(" << ms << ')' << ends;
-	rename(buf);
+	rename(s.c_str());
 }
 
 void timer_thread_t::run()

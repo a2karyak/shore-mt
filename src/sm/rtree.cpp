@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: rtree.cpp,v 1.142 2002/01/03 01:25:18 bolo Exp $
+ $Id: rtree.cpp,v 1.145 2007/05/18 21:43:27 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -39,7 +39,7 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #    pragma implementation "rtree_p.h"
 #endif
 
-#include <math.h>
+#include <cmath>
 #include <sm_int_2.h>
 #include <rtree_p.h>
 #include "sm_du_stats.h"
@@ -352,7 +352,12 @@ rtree_base_p::set_hdr(const rtctrl_t& new_hdr)
 {
     vec_t v;
     v.put(&new_hdr, sizeof(new_hdr));
+#ifndef NO_VEC_TMP_HACK
+    vec_t hdr_vec_tmp(&new_hdr, sizeof(new_hdr));
+    W_DO( overwrite(0, 0, hdr_vec_tmp) );
+#else
     W_DO( overwrite(0, 0, vec_t(&new_hdr, sizeof(new_hdr))) );
+#endif
     return RCOK;
 }
 
@@ -380,8 +385,8 @@ void rtree_p::ntoh()
     W_FATAL(eINTERNAL);
 }
 
-MAKEPAGECODE(rtree_p, rtree_base_p);
-MAKEPAGECODE(rtree_base_p, keyed_p);
+MAKEPAGECODE(rtree_p, rtree_base_p)
+MAKEPAGECODE(rtree_base_p, keyed_p)
 
 //
 // set up level in header

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: vec_t.cpp,v 1.71 2003/12/01 23:33:32 bolo Exp $
+ $Id: vec_t.cpp,v 1.74 2007/05/18 21:33:42 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -36,8 +36,8 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #endif
 
 #define VEC_T_C
-#include <stdlib.h>
-#include <memory.h>
+#include <cstdlib>
+#include <cstring>
 #include <w_stream.h>
 #include <w_base.h>
 #include <w_minmax.h>
@@ -473,17 +473,18 @@ int cvec_t::checksum() const
     return sum;
 }
 
-void cvec_t::calc_kvl(uint4_t& rh) const
+void cvec_t::calc_kvl(w_base_t::uint4_t& rh) const
 {
-    if (size() <= sizeof(uint4_t))  {
+    if (size() <= sizeof(w_base_t::uint4_t))  {
 	rh = 0;
 	copy_to(&rh, size());
     } else {
-	uint4_t h = 0;
+	w_base_t::uint4_t h = 0;
 	for (int i = 0; i < _cnt; i++)  {
 	    const unsigned char* s = _base[i].ptr;
 	    for (size_t j = 0; j < _base[i].len; j++)  {
-		if (h & 0xf8000000)  {
+		if (h & 0xf8000000)  
+		{
 		    h = (h & ~0xf8000000) + (h >> 27);
 		}
 		h = (h << 5) + *s++;
@@ -521,7 +522,7 @@ void cvec_t::_grow(int total_cnt)
     }
 }
 
-#include <ctype.h>
+#include <cctype>
 
 ostream& operator<<(ostream& o, const cvec_t& v)
 {

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: bitmapvector.cpp,v 1.5 1999/12/24 01:52:10 bolo Exp $
+ $Id: bitmapvector.cpp,v 1.6 2007/05/18 21:43:24 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -37,7 +37,7 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #include <sm_int_1.h>
 #include <bitmapvector.h>
 
-W_FASTNEW_STATIC_DECL(BitMapVector, 64);
+W_FASTNEW_STATIC_DECL(BitMapVector, 64)
 
 
 /***************************************************************************

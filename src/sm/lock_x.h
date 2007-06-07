@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='LOCK_X_H'>
 
- $Id: lock_x.h,v 1.60 2003/12/01 20:41:03 bolo Exp $
+ $Id: lock_x.h,v 1.62 2007/05/18 21:43:26 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -89,14 +89,14 @@ class xct_impl; // forward
 
 class lock_request_t {
 public:
-    typedef lock_base_t::mode_t mode_t;
+    typedef lock_base_t::lmode_t lmode_t;
     typedef lock_base_t::duration_t duration_t;
     typedef lock_base_t::status_t status_t;
 
     w_link_t		rlink;		// link of req in lock queue
     uint4_t		state;		// lock state
-    mode_t		mode;		// mode requested (and granted)
-    mode_t		convert_mode;	// if in convert wait, mode desired 
+    lmode_t		mode;		// mode requested (and granted)
+    lmode_t		convert_mode;	// if in convert wait, mode desired 
     int			count;
     duration_t		duration;	// lock duration
     smthread_t*		thread;		// thread to wakeup when serviced 
@@ -110,7 +110,7 @@ public:
 
     NORET		lock_request_t(
 				xct_t*		x,
-				mode_t		m,
+				lmode_t		m,
 				duration_t	d);
 
     NORET		lock_request_t(
@@ -135,8 +135,26 @@ private:
 
 struct lock_cache_elem_t {
     lockid_t			lock_id;
-    lock_base_t::mode_t		mode;
+    lock_base_t::lmode_t	mode;
     lock_request_t*		req;
+
+    lock_cache_elem_t()
+    : mode(NL),
+      req(0)
+    {
+    }
+
+    const lock_cache_elem_t &operator=(const lock_cache_elem_t &r)
+    {
+	lock_id = r.lock_id;
+	mode = r.mode;
+	req = r.req;
+	return *this;
+    }
+
+private:
+    // disabled
+    lock_cache_elem_t(const lock_cache_elem_t &);
 };
     
 
@@ -160,7 +178,7 @@ public:
 	return p;
     }
 
-    void put(const lockid_t& id, lock_base_t::mode_t m, lock_request_t* req)  
+    void put(const lockid_t& id, lock_base_t::lmode_t m, lock_request_t* req)  
     {
 	lock_cache_elem_t e;
 	e.lock_id = id;
@@ -239,7 +257,7 @@ xct_lock_info_t::clear_last_deadlock_check_id()
     
 class lock_head_t {
 public:
-    typedef lock_base_t::mode_t mode_t;
+    typedef lock_base_t::lmode_t lmode_t;
     typedef lock_base_t::duration_t duration_t;
 
     // Note: The purged, adaptive, and critical flags are set on page locks
@@ -259,16 +277,16 @@ public:
     lockid_t			name;		// the name of this lock
     w_list_t<lock_request_t>	queue;		// the queue of
 						// requests for this lock 
-    mode_t			granted_mode;	// the mode of the granted group
+    lmode_t			granted_mode;	// the mode of the granted group
     bool			waiting;	// flag indicates
 						// nonempty wait group
     NORET			lock_head_t(
 	const lockid_t& 	    name, 
-	mode_t		 	    mode);
+	lmode_t		 	    mode);
 
     NORET			~lock_head_t()   { chain.detach(); }
 
-    mode_t 			granted_mode_other(
+    lmode_t 			granted_mode_other(
 					const lock_request_t* exclude);
 
     friend ostream& 		operator<<(ostream&, const lock_head_t& l);
@@ -289,7 +307,7 @@ lock_request_t::~lock_request_t()
 }
 
 inline NORET
-lock_head_t::lock_head_t( const lockid_t& n, mode_t m)
+lock_head_t::lock_head_t( const lockid_t& n, lmode_t m)
 : 
 #ifndef NOT_PREEMPTIVE
   mutex(W_IFDEBUG("m:lkhdt")),  // unnamed if not debug

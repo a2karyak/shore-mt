@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='BF_CORE_H'>
 
- $Id: bf_core.h,v 1.25 1999/11/23 15:36:32 kupsch Exp $
+ $Id: bf_core.h,v 1.26 2007/05/18 21:43:24 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -50,7 +50,7 @@ class bf_core_m : public smlevel_0 {
     friend class bf_cleaner_thread_t;
 public:
     NORET			bf_core_m(
-	uint4_t 		    n, 
+	w_base_t::uint4_t 	    n, 
 	char* 			    bp, 
 	int		            stratgy,
 	const char*		    descriptor=0);
@@ -73,7 +73,7 @@ public:
 	const bfpid_t& 		    p, 
 	latch_mode_t 		    mode = LATCH_EX,
 	timeout_in_ms		    timeout = sthread_base_t::WAIT_FOREVER,
-	int4_t 			    ref_bit = 0
+	w_base_t::int4_t 	    ref_bit = 0
 	);
 
     void			publish_partial(bfcb_t* p);
@@ -114,7 +114,7 @@ public:
     void			snapshot(u_int& npinned, u_int& nfree);
     void			snapshot_me(u_int& sh, u_int& ex, u_int& nd);
 
-    static uint8_t	 	ref_cnt, hit_cnt;
+    static w_base_t::uint8_t 	ref_cnt, hit_cnt;
 
     friend ostream& 		operator<<(ostream& out, const bf_core_m& mgr);
 

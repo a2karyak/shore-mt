@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: ntime.cpp,v 1.18 2000/01/07 07:17:05 bolo Exp $
+ $Id: ntime.cpp,v 1.20 2006/01/29 23:27:06 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -32,8 +32,8 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 /*  -- do not edit anything above this line --   </std-header>*/
 
 #include <w_stream.h>
-#include <stddef.h>
-#include <new.h>
+#include <cstddef>
+#include <new>
 
 #define __STIME_TESTER__
 

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: sm_s.cpp,v 1.27 2000/02/02 03:57:32 bolo Exp $
+ $Id: sm_s.cpp,v 1.28 2006/03/14 05:31:26 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -162,7 +162,7 @@ w_rc_t key_type_s::parse_key_type(
     uint4_t& 		count,
     key_type_s		kc[])
 {
-    istrstream is(VCPP_BUG_1 s, strlen(s));
+    w_istrstream is(s);
 
     uint i;
     for (i = 0; i < count; i++)  {
@@ -235,7 +235,7 @@ w_rc_t key_type_s::get_key_type(
     uint4_t 		count,  // in
     const key_type_s*	kc)   // in
 {
-    ostrstream o(s, buflen);
+    w_ostrstream o(s, buflen);
 
     uint i;
     char c;

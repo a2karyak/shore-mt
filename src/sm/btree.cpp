@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: btree.cpp,v 1.278 2002/01/02 20:49:29 bolo Exp $
+ $Id: btree.cpp,v 1.279 2005/09/10 06:21:49 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -275,8 +275,13 @@ btree_m::remove_key(
 	/*
 	 *  call btree_m::_remove() 
 	 */
+#ifndef NO_VEC_TMP_HACK
+	const cvec_t cursor_vec_tmp(cursor.elem(), cursor.elen());
+	W_DO( remove(root, nkc, kc, unique, cc, key, cursor_vec_tmp));
+#else
 	W_DO( remove(root, nkc, kc, unique, cc, key, 
 		     cvec_t(cursor.elem(), cursor.elen())) );
+#endif
 	++num_removed;
 
 	if (unique) break;
@@ -541,10 +546,17 @@ btree_m::fetch_reinit(
     cvec_t key(cursor.key(), cursor.klen());
     W_DO(_scramble_key(real_key, key, cursor.nkc(), cursor.kc()));
 
+#ifndef NO_VEC_TMP_HACK
+    const cvec_t cursor_vec_tmp(cursor.elem(), cursor.elen());
+#endif
     rc_t rc= btree_impl::_lookup(
 	cursor.root(), cursor.unique(), cursor.cc(),
 	*real_key,
+#ifndef NO_VEC_TMP_HACK
+	cursor_vec_tmp,
+#else
 	cvec_t(cursor.elem(), cursor.elen()),
+#endif
 	found,
 	&cursor, 
 	cursor.elem(), elen

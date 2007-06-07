@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: unix_log.cpp,v 1.73 2000/02/02 03:57:32 bolo Exp $
+ $Id: unix_log.cpp,v 1.79 2007/05/18 21:43:29 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -52,10 +52,10 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 /* XXX posix-dependency */
 #ifdef _WINDOWS
 #include <io.h>
-#else
-#include <dirent.h>
 #endif
 
+#if 0
+// Now defined in unistd.h
 #ifndef _WINDOWS
 extern "C" {
 	int	fstat(int, struct stat *);
@@ -63,31 +63,13 @@ extern "C" {
 	int	fsync(int);
 }
 #endif
+#endif
 
-#include <stdio.h>	/* XXX for log recovery */
+#include <cstdio>	/* XXX for log recovery */
 
 #include <os_interface.h>
+#include <largefile_aware.h>
 
-#if defined(LARGEFILE_AWARE) && defined(SOLARIS2)
-/*
- * Reconfigure stdio defaults to 64 bit variants so we can
- * replay a 64 bit log.  This will go away once we stop using
- * stdio for log replays.
- */
-#define	fopen(f,m)	fopen64(f,m)
-#define	freopen(f,m,s)	freopen64(f,m,s)
-#define	ftell(s)	ftello64(s)
-#define	fseek(s,o,w)	fseeko64(s,o,w)
-#elif defined(LARGEFILE_AWARE) && defined(_WIN32)
-/* XXX disgusting, + loose bits of fileoff_t when largefile */
-#define	fseek(s,o,w)		fseek(s,(off_t)o,w)
-#else
-#if defined(SOLARIS2) && defined(_LARGEFILE_SOURCE)	/* XXX cs install broke */
-/* Use the ftell variant which returns an off_t instead of a long */
-#define	ftell(s)	ftello(s)
-#define	fseek(s,o,w)	fseeko(s,o,w)
-#endif
-#endif
 
 #ifdef _WIN32
 /* dirent structure field name differs: */
@@ -110,7 +92,7 @@ const char SLASH = '/';
 void
 unix_log::_make_log_name(uint4_t idx, char* buf, int bufsz)
 {
-    ostrstream s(buf, (int) bufsz);
+    w_ostrstream s(buf, (int) bufsz);
     s << srv_log::_logdir << SLASH
       << log_prefix << idx << ends;
     w_assert1(s);
@@ -133,7 +115,7 @@ unix_log::_make_master_name(
     int			bufsz,
     bool		old_style)
 {
-    ostrstream s(buf, (int) bufsz);
+    w_ostrstream s(buf, (int) bufsz);
 
     s << srv_log::_logdir << SLASH << master_prefix;
     lsn_t 	array[2];
@@ -180,7 +162,7 @@ unix_log::_read_master(
 	int	len = strlen(fname+prefix_len) + 1;
 	char *buf = new char[len];
 	memcpy(buf, fname+prefix_len, len);
-	istrstream s(buf);
+	w_istrstream s(buf);
 
 	rc = parse_master_chkpt_string(s, tmp, tmp1, 
 				       listlength, lsnlist, old_style);
@@ -203,7 +185,7 @@ unix_log::_read_master(
 	if (!buf)
 	    W_FATAL(fcOUTOFMEMORY);
 	w_auto_delete_array_t<char> ad_fname(buf);
-	ostrstream s(buf, int(smlevel_0::max_devname));
+	w_ostrstream s(buf, int(smlevel_0::max_devname));
 	s << srv_log::_logdir << SLASH << fname << ends;
 
 #ifdef _WINDOWS
@@ -225,7 +207,7 @@ unix_log::_read_master(
 		    W_FATAL(eINTERNAL);
 		}
 		    
-		istrstream s(_chkpt_meta_buf);
+		w_istrstream s(_chkpt_meta_buf);
 		rc = parse_master_chkpt_contents(s, listlength, lsnlist);
 		if (rc != RCOK)  {
 		    smlevel_0::errlog->clog << error_prio 
@@ -384,7 +366,7 @@ unix_log::unix_log(const char* logdir,
 		    << "\t" << name << "..." << endl;
 
 		{
-		    ostrstream s(fname, (int) smlevel_0::max_devname);
+		    w_ostrstream s(fname, (int) smlevel_0::max_devname);
 		    s << srv_log::_logdir << SLASH << name << ends;
 		    w_assert1(s);
 		    if( unlink(fname) < 0) {
@@ -526,7 +508,7 @@ unix_log::unix_log(const char* logdir,
 		 *  File name matches log prefix
 		 */
 
-		istrstream s(name + prefix_len);
+		w_istrstream s(name + prefix_len);
 		uint4_t curr;
 		if (! (s >> curr))  {
 		    smlevel_0::errlog->clog << error_prio 
@@ -626,6 +608,7 @@ unix_log::unix_log(const char* logdir,
     /* XXXX :  Don't have a static method on 
      * partition_t for start() 
     */
+    /* end of the last valid log record / start of invalid record */
     fileoff_t pos = 0;
     {
 
@@ -660,9 +643,32 @@ unix_log::unix_log(const char* logdir,
 #else
 	FILE *f =  fopen(fname, "r");
 #endif
-	DBGTHRD(<<" opened " << fname);
+	DBGTHRD(<<" opened " << fname << " fp " << f);
 
 	fileoff_t start_pos = pos;
+
+#ifndef SM_LOG_UNIX_NO_SKIP_SEEK
+	/* If the master checkpoint is in the current partition, seek
+	   to its position immediately, instead of scanning from the 
+	   beginning of the log.   If the current partition doesn't have
+	   a checkpoint, must read entire paritition until the skip
+	   record is found. */
+
+	const lsn_t &seek_lsn = _shared->_master_lsn;
+
+	if (f && seek_lsn.hi() == last_partition) {
+		start_pos = seek_lsn.lo();
+
+		if (fseek(f, start_pos, SEEK_SET)) {
+			cerr << "log read: can't seek to " << start_pos
+			     << " starting log scan at origin"
+			     << endl;
+			start_pos = pos;
+		}
+		else
+			pos = start_pos;
+	}
+#endif
 
 	if (f)  {
 	    w_assert3(last_partition_exists);
@@ -734,6 +740,13 @@ unix_log::unix_log(const char* logdir,
 	    }
 	    fclose(f);
 
+	    /* XXXX this is a race condition where someone could swap the
+	       files around and have your truncating something different
+	       than intended -- either way, so maybe keep it open longer,
+	       and close it after truncation?
+	       XXX But, can'd do that since it is only open for
+	       reading.  Sigh
+	    */
 	    {
 		DBGTHRD(<<"truncating " << fname << " to " << pos);
 #ifndef _WINDOWS
@@ -1018,14 +1031,14 @@ unix_log::_write_master(
 	    }
 	}
 	if(j > 0) {
-	    ostrstream s(_chkpt_meta_buf, CHKPT_META_BUF);
+	    w_ostrstream s(_chkpt_meta_buf, CHKPT_META_BUF);
 	    create_master_chkpt_contents(s, j, array);
 	} else {
 	    memset(_chkpt_meta_buf, '\0', 1);
 	}
 	int length = strlen(_chkpt_meta_buf) + 1;
 	DBG(<< " #lsns=" << j
-	    << "write this to master checkpoint record: " <<
+	    << " write this to master checkpoint record: " <<
 		_chkpt_meta_buf);
 
 	if(fwrite(_chkpt_meta_buf, length, 1, f) != 1) {
@@ -1385,6 +1398,8 @@ unix_log::destroy_file(partition_number_t n, bool pmsg)
     unix_log::_make_log_name(n, fname, smlevel_0::max_devname);
     if (unlink(fname) == -1)  {
 	w_rc_t e = RC(eOS);
+	cerr << "destroy_file " << n << " " << fname << ":" <<endl
+	     << e << endl;
 	if(pmsg) {
 	    smlevel_0::errlog->clog << error_prio 
 	    << "warning : cannot free log file \"" 

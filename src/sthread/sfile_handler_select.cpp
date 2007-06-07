@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: sfile_handler_select.cpp,v 1.10 2001/09/18 22:09:57 bolo Exp $
+ $Id: sfile_handler_select.cpp,v 1.14 2007/05/18 21:53:43 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -44,18 +44,16 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
  *   to the above authors and the above copyright is maintained.
  */
 
-#include <w_strstream.h>
 #include <w_workaround.h>
 #include <w_signal.h>
-#include <stdlib.h>
+#include <cstdlib>
 #include <unistd.h>
-#include <string.h>
+#include <cstring>
 
 #ifdef __GNUC__
 #pragma implementation "sfile_handler_select.h"
 #endif
 
-#define W_INCL_LIST
 #include <w.h>
 #include <w_debug.h>
 

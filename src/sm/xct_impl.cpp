@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: xct_impl.cpp,v 1.53 2003/06/19 22:39:35 bolo Exp $
+ $Id: xct_impl.cpp,v 1.56 2007/05/18 21:43:30 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -62,7 +62,7 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #pragma implementation "xct_dependent.h"
 #endif
 
-#include <new.h>
+#include <new>
 
 #include <sm_int_4.h>
 #include <sm.h>
@@ -84,7 +84,7 @@ extern "C" void debugflags(const char *);
 void
 debugflags(const char *a) 
 {
-   _debug.setflags(a);
+   _w_debug.setflags(a);
 }
 #endif /* W_TRACE */
 
@@ -112,7 +112,7 @@ const char* 			xct_impl::_1thread_log_name = "1thLI";
  *  allocate many at a time.
  *
  *********************************************************************/
-W_FASTNEW_STATIC_DECL(xct_impl, 32);
+W_FASTNEW_STATIC_DECL(xct_impl, 32)
 
 
 /*********************************************************************
@@ -1696,7 +1696,7 @@ xct_impl::is_local() const
 }
 
 
-W_FASTNEW_STATIC_DECL(stid_list_elem_t, 64);
+W_FASTNEW_STATIC_DECL(stid_list_elem_t, 64)
 
 /*
  * clear the list of stores to be freed upon xct completion

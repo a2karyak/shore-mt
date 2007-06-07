@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: deadlock_events.cpp,v 1.17 2000/02/02 03:57:28 bolo Exp $
+ $Id: deadlock_events.cpp,v 1.21 2007/05/18 21:43:24 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -40,7 +40,7 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 template class w_list_t<GtidElem>;
 #endif
 
-W_FASTNEW_STATIC_DECL(GtidElem, 64);
+W_FASTNEW_STATIC_DECL(GtidElem, 64)
 
 void
 DeadlockEventPrinterBase::PrintLocalDeadlockDetected(
@@ -55,10 +55,11 @@ DeadlockEventPrinterBase::PrintLocalDeadlockDetected(
     bool isFirstElem = true;
     XctWaitsForLockElem* elem; 
     while ((elem = waitsForList.pop()))  {
-        char tidBuffer[80];
-        ostrstream tidStream(tidBuffer, 80);
+        w_ostrstream_buf tidStream(80);	/* XXX magic number */
         tidStream << elem->xct->tid() << ends;
-        W_FORM2(os, ("  %7s%15s waits for ", isFirstElem ? "" : "held by", tidBuffer));
+        W_FORM(os)("  %7s%15s waits for ",
+		   isFirstElem ? "" : "held by",
+		   tidStream.c_str());
 	os << elem->lockName << '\n';
         isFirstElem = false;
         delete elem;

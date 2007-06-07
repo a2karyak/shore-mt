@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='KVL_T_H'>
 
- $Id: kvl_t.h,v 1.8 1999/06/07 19:02:25 kupsch Exp $
+ $Id: kvl_t.h,v 1.9 2007/05/18 21:33:42 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -52,8 +52,8 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 
 struct kvl_t {
     stid_t			stid;
-    uint4_t			h;
-    uint4_t			g;
+    w_base_t::uint4_t		h;
+    w_base_t::uint4_t		g;
 
     static const cvec_t eof;
     static const cvec_t bof;

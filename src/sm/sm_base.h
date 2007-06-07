@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='SM_BASE_H'>
 
- $Id: sm_base.h,v 1.144 2003/10/14 22:45:09 bolo Exp $
+ $Id: sm_base.h,v 1.146 2007/05/18 21:43:28 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -38,7 +38,7 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #pragma interface
 #endif
 
-#include <limits.h>
+#include <climits>
 #ifndef OPTION_H
 #include "option.h"
 #endif
@@ -275,9 +275,9 @@ public:
 		(t_in_redo | t_in_undo | t_in_analysis)) !=0); }
 
     // these variable are the default values for lock escalation counts
-    static int4_t defaultLockEscalateToPageThreshold;
-    static int4_t defaultLockEscalateToStoreThreshold;
-    static int4_t defaultLockEscalateToVolumeThreshold;
+    static w_base_t::int4_t defaultLockEscalateToPageThreshold;
+    static w_base_t::int4_t defaultLockEscalateToStoreThreshold;
+    static w_base_t::int4_t defaultLockEscalateToVolumeThreshold;
 
     // These variables control the size of the log.
     static fileoff_t max_logsz; // max log file size
@@ -292,7 +292,7 @@ public:
     // to the SM software that makes it incompatible with
     // previouly formatted volumes, this volume number should
     // be incremented.  The value is set in sm.cpp.
-    static uint4_t volume_format_version;
+    static w_base_t::uint4_t volume_format_version;
 
     // This is a zeroed page for use wherever initialized memory
     // is needed.

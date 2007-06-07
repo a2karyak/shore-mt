@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='PAGE_S_H'>
 
- $Id: page_s.h,v 1.27 2002/01/15 23:47:24 bolo Exp $
+ $Id: page_s.h,v 1.30 2007/05/18 21:43:26 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -59,15 +59,23 @@ public:
 	space_t()	{};
 	~space_t()	{};
 	
-	void init(int nfree, int rflag)  { 
+	void init(int nfree, bool rflag)  { 
 	    _tid = tid_t(0, 0);
 	    _nfree = nfree;
 	    _nrsvd = _xct_rsvd = 0;
+#ifndef BACKOUT_NEHFIX2
+	    _nrsvd_hiwat = rflag ? 1 : 0;
+#else
 	    _rflag = rflag;
+#endif
 	}
 	
 	int nfree() const	{ return _nfree; }
+#ifndef BACKOUT_NEHFIX2
+	bool rflag() const	{ return _nrsvd_hiwat!=0; }
+#else
 	bool rflag() const	{ return _rflag!=0; }
+#endif
 	
 	int			usable(xct_t* xd); // might free space
 				// slot_bytes means bytes for new slots
@@ -78,6 +86,10 @@ public:
 	void 			undo_release(int amt, xct_t* xd);
 	const tid_t&		tid() const { return _tid; }
 	int2_t			nrsvd() const { return _nrsvd; }
+#ifndef BACKOUT_NEHFIX2
+	int2_t			nrsvd_hiwat() const { return _nrsvd_hiwat; }
+#else
+#endif
 	int2_t			xct_rsvd() const { return _xct_rsvd; }
 
 
@@ -93,7 +105,21 @@ public:
 	int2_t	_nfree;		// free space counter
 	int2_t	_nrsvd;		// reserved space counter
 	int2_t	_xct_rsvd;	// amt of space contributed by _tid to _nrsvd
-	int2_t	_rflag;
+#ifndef BACKOUT_NEHFIX2
+// NEHFIX2 5/11/06 Keep track of highwater mark for
+// data use on the page. Don't let the slot table grow
+// into that high water area until the tx commits.
+				// in the interest of not using any more
+				// space, we'll overload rflag
+				// and _nrsvd_hiwat.
+				// highwater is 0 only for _rflag == 0
+				// and is a minimum of 1 for _rflag == 1
+				// This works because the minimum amt
+				// that can be reserved is 4 bytes.
+	int2_t	_nrsvd_hiwat;
+#else
+	int2_t	_rflag; 
+#endif
     };
     enum {
 	    hdr_sz = (0
@@ -102,7 +128,7 @@ public:
 		      + 2 * sizeof(shpid_t) 
 		      + sizeof(space_t)
 		      + 4 * sizeof(int2_t)
-		      + 2 * sizeof(int4_t)
+		      + 2 * sizeof(w_base_t::int4_t)
 		      + 2 * sizeof(slot_t)
 #if !defined(SM_ODS_COMPAT_14) || (ALIGNON == 0x8)
 		      + sizeof(fill4)
@@ -122,8 +148,8 @@ public:
     int2_t	nslots;			// number of slots
     int2_t	nvacant;		// number of vacant slots
     uint2_t	tag;			// page_p::tag_t
-    uint4_t	store_flags;		// page_p::store_flag_t
-    uint4_t	page_flags;		// page_p::page_flag_t
+    w_base_t::uint4_t	store_flags;		// page_p::store_flag_t
+    w_base_t::uint4_t	page_flags;		// page_p::page_flag_t
 #if !defined(SM_ODS_COMPAT_14) || (ALIGNON == 0x8)
     /* Yes, the conditions above are  correct.  The default is 8 byte
        alignment.  If compatability mode is wanted, it reverts to 4 ...
@@ -143,6 +169,17 @@ public:
     slot_t	slot[1];		// 1st slot
     lsn_t	lsn2;
     void ntoh(vid_t vid);
+
+    // XXX this class is really intended to be a "STRUCT" as a bunch of
+    // things layed out in memory.  Unfortunately it includes
+    // some _classes_ which makes that a bit difficult.   Why?
+    // ... well that means that it may need to be constructed or
+    // destructed.   Probably the best way to handle this is to make
+    // a static method  which creates page_s instances from a memory
+    // buffer ... and destroy them the same way, thence fixing the
+    // constructor/destructor problem.   This is a work-around for now.
+    page_s() { }
+    ~page_s() { }
 };
 
 /* END VISIBLE TO APP */

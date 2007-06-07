@@ -1,0 +1,268 @@
+# rules, macros generic to all Makefile.am
+
+# --------------------------------------------------------
+#
+# Local non-standard paths to things are in Makefile.local
+#
+# --------------------------------------------------------
+include $(top_srcdir)/Makefile.local
+
+DISTCLEANFILES = Makefile.in  Makefile $(GENFILES)
+BUILT_SOURCES = $(GENFILES)
+
+# --------------------------------------------------------
+#
+# Initialize  
+#
+# --------------------------------------------------------
+# -pedantic requires -Wno-long-long
+ALWAYS_GCCFLAGS = -Wno-long-long -Werror 
+
+if NOPEDANTIC
+PEDANTIC =
+else
+PEDANTIC = -pedantic-errors  
+endif
+
+LOCALLDADD = 
+LOCALCLEAN = 
+# CXX flags that go on the compiles for pure products
+PURE_CXXFLAGS =
+# This clearing of CXXFLAGS is necessary to override the
+# annoying -g -O2 that autoconf stuffs in there, and which
+# I cannot find any other way to control.
+CXXFLAGS =
+WARN_FLAGS =
+AM_CXXFLAGS = $(PEDANTIC) 
+AM_CXXFLAGS += $(DEBUGFLAGS) $(W_WARNINGS) $(OPTFLAGS) $(PURE_CXXFLAGS)
+AM_CXXFLAGS += $(ALWAYS_GCCFLAGS) $(TEMPLATEFLAGS) $(LARGEFILE_FLAGS)
+
+ALLCLEANFILES = $(DISTCLEANFILES) \
+	       	$(MOSTLYCLEANFILES) \
+	       	$(MAINTAINERCLEANFILES) \
+	       	$(CLEANFILES) 
+
+# --------------------------------------------------------
+#
+# add target to create .cvsignore file
+#
+# --------------------------------------------------------
+.cvsignore:  Makefile 
+	touch $@
+	$(RM) $@
+	echo $(ALLCLEANFILES) >& $@
+
+# --------------------------------------------------------
+#
+# add target to get rid of additional built objects,
+#    in particular this is for the PURE targets
+#
+# --------------------------------------------------------
+clean-local: 
+	$(RM) $(LOCALCLEAN) 
+
+# --------------------------------------------------------
+#
+# Determine which gcc warnings to use, based on which 
+# compiler version we are using.
+#
+# --------------------------------------------------------
+WARN_FLAGS += -Wall -W -Wpointer-arith -Wwrite-strings
+
+if GCC_VER_34_WARNINGS
+# /* In adition to the 3.2 warnings, prototype errors for c/objc only */
+WARN_FLAGS += 
+else
+if GCC_VER_3_WARNINGS
+# /* GCC 3.2 doesn't like -Wmissing-declarations and -Wnested-externs */
+WARN_FLAGS += -Wstrict-prototypes -Wmissing-prototypes 
+# /* Need this to stop warnings of normal (old) standard c++ facilities use. */
+else
+WARN_FLAGS += -Wstrict-prototypes -Wmissing-prototypes 
+WARN_FLAGS += -Wmissing-declarations -Wnested-externs
+endif
+endif
+
+WARN_FLAGS += -Woverloaded-virtual 
+W_WARNINGS= $(WARN_FLAGS) -Wno-deprecated 
+
+if USE_IOS_COMPAT
+ALWAYS_GCCFLAGS += -I$(top_srcdir)/src/compat
+else
+endif
+
+# --------------------------------------------------------
+#
+# handle --enable-debug config option
+#
+# --------------------------------------------------------
+if DEBUGGERSYMBOLS 
+DEBUGFLAGS = -g3
+else
+if DEBUG 
+DEBUGFLAGS = -g3
+else
+DEBUGFLAGS = 
+endif
+endif
+
+if DEBUG
+DEBUGFLAGS += -DDEBUG -DW_DEBUG -UNDEBUG 
+OPTFLAGS = -O0 -fno-inline
+else
+DEBUGFLAGS += -DNDEBUG -UW_DEBUG -UDEBUG
+OPTFLAGS = -O2 -finline-functions -fexpensive-optimizations
+endif
+
+
+# --------------------------------------------------------
+#
+# handle --enable-trace config option
+# (Now is in shore-config.h, so we can take this off
+#  the command line)
+# If we need once again to do something different when
+# --enable-trace/--disable-trace, then we have to 
+# re-install an AM_CONDITIONAL in configure.ac
+#
+# --------------------------------------------------------
+# if TRACE
+# DEBUGFLAGS += -DW_TRACE
+# else
+# DEBUGFLAGS += -UW_TRACE
+# endif
+
+# --------------------------------------------------------
+#
+# handle --enable-explicit config option
+#
+# --------------------------------------------------------
+if EXPLICIT_TEMPLATE
+TEMPLATEFLAGS = -fno-implicit-templates -DEXPLICIT_TEMPLATE
+else
+TEMPLATEFLAGS=
+endif
+
+# --------------------------------------------------------
+#
+# handle --enable-lgfileaware config option
+#
+# shore-config.h turns on 
+#  -DLARGEFILE_AWARE and -D_FILE_OFFSET_BITS=64
+# when W_LARGEFILE is defined
+#
+# --------------------------------------------------------
+if W_LARGEFILE
+LARGEFILE_FLAGS = -DW_LARGEFILE
+else
+LARGEFILE_FLAGS =
+endif
+
+# --------------------------------------------------------
+#
+# handle --enable-largelogpart config option
+#
+# --------------------------------------------------------
+# If we need once again to do something different when
+# --enable-largelogpart/--disable-largelogpart, then we have to 
+# re-install an AM_CONDITIONAL in configure.ac
+# if LARGELOGPART
+# LARGEFILE_FLAGS += -DSM_DISKADDR_LARGE
+# endif
+
+
+
+# --------------------------------------------------------
+#
+# handle --enable-purify config option
+#
+# --------------------------------------------------------
+
+if PURIFY
+# PURIFY_INCLUDE = $(PURE_DIR)/include
+# no proper installation here, so hack all three of these paths ...
+# PURIFY_LIBS = $(PURE_DIR)/lib/libpurify_stubs.a
+# PURIFY_BIN = $(PURE_DIR)/bin
+PURIFY_INCLUDE = $(PURE_DIR)/releases/purify.i386_linux2.7.0
+# yes, libs are in the same place as is the header file
+PURIFY_LIBS = $(PURIFY_INCLUDE)/libpurify_stubs.a
+PURIFY_BIN = $(PURE_DIR)/bin
+# PURIFY_COLLECTOR = -collector=/usr/bin/ld
+LOCALLDADD += $(PURIFY_LIBS)
+PURIFY_FLAGS = -g++=yes -chain-length=10  -inuse-at-exit \
+	     -first-only -leaks-at-exit -copy-fd-output-to-logfile=1,2 \
+	     -ignore-signals=SIGUSR1 -pointer-mask=0xfffffffe \
+	     -threads -thread-stack-change=0x3000 -max_threads=64 \
+	     -cache-dir=$(PURE_CACHE_DIR)
+
+SUFFIXES =    .pure
+.$(OBJEXT).pure:  
+	$(PURIFY_BIN)/purify $(PURIFY_FLAGS)  $(PURIFY_COLLECTOR) $(CXX) -o $@ $< $(LDADD) $(LIBS)
+
+LOCALCLEAN += $(check_PROGRAMS:%=%.pure)
+PURE_CXXFLAGS += -DPURIFY -DPURIFY_ZERO -I$(PURIFY_INCLUDE) 
+
+endif
+
+# --------------------------------------------------------
+#
+# handle --enable-quantify config option
+#
+# --------------------------------------------------------
+
+if QUANTIFY
+# QUANTIFY_INCLUDE = $(PURE_DIR)/include
+# no proper installation here, so hack all three of these paths ...
+# QUANTIFY_LIBS = 
+# QUANTIFY_BIN = $(PURE_DIR)/bin
+QUANTIFY_INCLUDE = $(PURE_DIR)/releases/quantify.i386_linux2.7.0
+# yes, libs are in the same place as is the header file
+QUANTIFY_LIBS = $(QUANTIFY_INCLUDE)/libquantify_stubs.a
+QUANTIFY_BIN = $(PURE_DIR)/bin
+# QUANTIFY_COLLECTOR = -collector=/usr/bin/ld
+LOCALLDADD += $(QUANTIFY_LIBS)
+QUANTIFY_FLAGS = -g++=yes \
+	     -copy-fd-output-to-logfile=1,2 \
+	     -ignore-signals=SIGUSR1 \
+	     -threads -thread-stack-change=0x3000 -max_threads=64 \
+	     -cache-dir=$(PURE_CACHE_DIR)
+
+SUFFIXES =    .quant
+.$(OBJEXT).quant:  
+	$(QUANTIFY_BIN)/quantify $(QUANTIFY_FLAGS) $(QUANTIFY_COLLECTOR)  $(CXX) -o $@ $< $(LDADD) $(LIBS)
+
+LOCALCLEAN += $(check_PROGRAMS:%=%.quant)
+PURE_CXXFLAGS += -DQUANTIFY -I$(QUANTIFY_INCLUDE) 
+
+endif
+
+# --------------------------------------------------------
+#
+# handle --enable-purecov config option
+#
+# --------------------------------------------------------
+
+if PURECOV
+# PURECOV_INCLUDE = $(PURE_DIR)/include
+# no proper installation here, so hack all three of these paths ...
+# PURECOV_LIBS = $(PURE_DIR)/lib/libpurecov_stubs.a
+# PURECOV_BIN = $(PURE_DIR)/bin
+PURECOV_INCLUDE = $(PURE_DIR)/releases/purecov.i386_linux2.7.0
+# yes, libs are in the same place as is the header file
+PURECOV_LIBS = $(PURECOV_INCLUDE)/libpurecov_stubs.a
+PURECOV_BIN = $(PURE_DIR)/bin
+# PURECOV_COLLECTOR = -collector=/usr/bin/ld
+LOCALLDADD += $(PURECOV_LIBS)
+PURECOV_FLAGS = -g++=yes -chain-length=10  -inuse-at-exit \
+	     -first-only -leaks-at-exit -copy-fd-output-to-logfile=1,2 \
+	     -ignore-signals=SIGUSR1 -pointer-mask=0xfffffffe \
+	     -threads -thread-stack-change=0x3000 -max_threads=64 \
+	     -cache-dir=$(PURE_CACHE_DIR)
+
+SUFFIXES =    .purecov
+.$(OBJEXT).purecov:  
+	$(PURECOV_BIN)/purecov $(PURECOV_FLAGS)  $(PURECOV_COLLECTOR) $(CXX) -o $@ $< $(LDADD) $(LIBS)
+
+LOCALCLEAN += $(check_PROGRAMS:%=%.purecov)
+PURE_CXXFLAGS += -DPURECOV -I$(PURECOV_INCLUDE) 
+
+endif

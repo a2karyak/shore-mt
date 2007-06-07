@@ -1,0 +1,6 @@
+TCL_INCLUDE = /p/paradise/tcl/tcl-8.4.6/include
+TCL_LIB = -L/p/paradise/tcl/tcl-8.4.6/lib -ltcl8.4
+
+# PURE_DIR = /s/purifyplus-7.0/@sys/
+PURE_DIR = /s/purifyplus/@sys/
+PURE_CACHE_DIR = /scratch/nhall/pure

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='XCT_H'>
 
- $Id: xct.h,v 1.143 2000/01/25 23:12:14 bolo Exp $
+ $Id: xct.h,v 1.144 2007/05/18 21:43:30 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -202,7 +202,7 @@ public:
     static void 		update_youngest_tid(const tid_t &);
 
     // used by sm.cpp:
-    static uint4_t		num_active_xcts();
+    static w_base_t::uint4_t		num_active_xcts();
 
     // used for compensating (top-level actions)
     const lsn_t& 		anchor(bool grabit = true);
@@ -243,10 +243,10 @@ public:
 public:
 
     //	For SM interface:
-    void			GetEscalationThresholds(int4_t &toPage, 
-					int4_t &toStore, int4_t &toVolume);
-    void			SetEscalationThresholds(int4_t toPage, 
-					int4_t toStore, int4_t toVolume);
+    void			GetEscalationThresholds(w_base_t::int4_t &toPage, 
+					w_base_t::int4_t &toStore, w_base_t::int4_t &toVolume);
+    void			SetEscalationThresholds(w_base_t::int4_t toPage, 
+					w_base_t::int4_t toStore, w_base_t::int4_t toVolume);
     bool 			set_lock_cache_enable(bool enable);
     bool 			lock_cache_enabled();
 
@@ -294,7 +294,7 @@ protected:
     // For use by lock manager:
     w_rc_t			lockblock(timeout_in_ms timeout);// await other thread
     void			lockunblock(); 	 // inform other waiters
-    const int4_t*			GetEscalationThresholdsArray();
+    const w_base_t::int4_t*			GetEscalationThresholdsArray();
 
     rc_t			check_lock_totals(int nex, 
 					int nix, int nsix, int ) const;

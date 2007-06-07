@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: thread3.cpp,v 1.25 1999/10/24 17:45:56 bolo Exp $
+ $Id: thread3.cpp,v 1.31 2007/05/18 21:52:31 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -36,14 +36,16 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
  * register variables are really put in registers.
  */
 
-#include <w_stream.h>
-#include <iomanip.h>
-#include <assert.h>
-#include <memory.h>
+#include <cassert>
+#include <os_memory.h>
 #include <getopt.h>
 
 #include <w.h>
 #include <sthread.h>
+
+#include <iostream>
+#include <w_strstream.h>
+#include <iomanip>
 
 class float_thread_t : public sthread_t {
 public:
@@ -66,22 +68,18 @@ private:
 float_thread_t::float_thread_t(int fid)
 : id(fid)
 {
-	char buf[40];
-
-	ostrstream s(buf, sizeof(buf));
+	w_ostrstream_buf s(40);		// XXX magic number
 	s << "float[" << id << "]" << ends;
-	rename(buf);
+	rename(s.c_str());
 }
     
 
 int_thread_t::int_thread_t(int fid)
 : id(fid)
 {
-	char buf[40];
-
-	ostrstream s(buf, sizeof(buf));
+	w_ostrstream_buf s(40);		// XXX magic number
 	s << "int[" << id << "]" << ends;
-	rename(buf);
+	rename(s.c_str());
 
 	W_COERCE(set_use_float(false));
 }

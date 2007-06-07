@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='ZKEYED_H'>
 
- $Id: zkeyed.h,v 1.31 1999/06/07 19:04:52 kupsch Exp $
+ $Id: zkeyed.h,v 1.32 2007/05/18 21:43:30 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -51,7 +51,7 @@ public:
     rc_t 			format(
 	const lpid_t& 		    pid,
 	tag_t 			    tag,
-	uint4_t			    flags,
+	w_base_t::uint4_t			    flags,
         store_flag_t  	            store_flags,
 	const cvec_t& 		    hdr);    
 

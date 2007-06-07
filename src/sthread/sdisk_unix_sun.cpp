@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: sdisk_unix_sun.cpp,v 1.16 1999/06/07 19:06:04 kupsch Exp $
+ $Id: sdisk_unix_sun.cpp,v 1.18 2007/05/18 21:53:43 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -35,7 +35,7 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #include <sdisk.h>
 #include <sdisk_unix.h>
 
-#include <iostream.h>
+#include <iostream>
 #include <os_fcntl.h>
 #include <sys/stat.h>
 
@@ -44,7 +44,9 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #if defined(SOLARIS2)
 #include <sys/dkio.h>
 #include <sys/vtoc.h>
+#if HAVE_SYS_PARAM_H
 #include <sys/param.h>
+#endif
 #define	HAVE_GEOMETRY
 #endif
 
@@ -55,7 +57,9 @@ struct dk_map {
 	daddr_t dkl_nblk;       /* number of 512-byte blocks */
 };
 #include <sun/dkio.h>
+#if HAVE_SYS_PARAM_H
 #include <sys/param.h>
+#endif
 #define	HAVE_GEOMETRY
 #endif
 

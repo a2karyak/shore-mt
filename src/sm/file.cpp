@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: file.cpp,v 1.193 1999/12/07 22:53:32 bolo Exp $
+ $Id: file.cpp,v 1.195 2007/05/18 21:43:25 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -1675,7 +1675,12 @@ file_p::set_hdr(const file_p_hdr_t& new_hdr)
 {
     vec_t v;
     v.put(&new_hdr, sizeof(new_hdr));
+#ifndef NO_VEC_TMP_HACK
+    const vec_t hdr_vec_tmp(&new_hdr, sizeof(new_hdr));
+    W_DO( overwrite(0, 0, hdr_vec_tmp) );
+#else
     W_DO( overwrite(0, 0, vec_t(&new_hdr, sizeof(new_hdr))) );
+#endif
     return RCOK;
 }
 
@@ -1810,7 +1815,7 @@ void file_p::ntoh()
     // TODO: byteswap the records on the page
 }
 
-MAKEPAGECODE(file_p, page_p);
+MAKEPAGECODE(file_p, page_p)
 
 //DU DF
 rc_t

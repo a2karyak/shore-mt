@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: chkpt.cpp,v 1.73 2000/01/25 23:12:14 bolo Exp $
+ $Id: chkpt.cpp,v 1.74 2006/01/29 23:27:09 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -44,7 +44,7 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #include "chkpt.h"
 #include "logdef_gen.cpp"
 
-#include <new.h>
+#include <new>
 
 #ifdef EXPLICIT_TEMPLATE
 template class w_auto_delete_array_t<lsn_t>;

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: keyed.cpp,v 1.28 1999/06/07 19:04:05 kupsch Exp $
+ $Id: keyed.cpp,v 1.29 2007/05/18 21:43:25 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -41,7 +41,7 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #include <sm_int_1.h>
 #include <keyed.h>
 
-MAKEPAGECODE(keyed_p, page_p);
+MAKEPAGECODE(keyed_p, page_p)
 
 void keyed_p::ntoh()
 {

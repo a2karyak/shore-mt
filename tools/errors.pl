@@ -2,7 +2,7 @@
 
 # <std-header style='perl' orig-src='shore'>
 #
-#  $Id: errors.pl,v 1.29 1999/08/25 01:43:42 kupsch Exp $
+#  $Id: errors.pl,v 1.30 2007/05/18 19:44:27 nhall Exp $
 #
 # SHORE -- Scalable Heterogeneous Object REpository
 #
@@ -254,7 +254,7 @@ EOF
 
     print ENUM_OUT sprintf("    %-25s = 0x%x,\n", "${baseName}OK", 0) if ($e);
     print ENUM_OUT sprintf("    %-25s = 0x%x,\n", "${baseName}ERRMIN", $base) if ($e);
-    print ENUM_OUT sprintf("    %-25s = 0x%x,\n", "${baseName}ERRMAX", $base + $num) if ($e);
+    print ENUM_OUT sprintf("    %-25s = 0x%x\n", "${baseName}ERRMAX", $base + $num) if ($e);
     print ENUM_OUT "};\n\n#endif\n" if ($e);
 
     print DEF_OUT sprintf("#define %-25s 0x%x\n", "${uBaseName}_OK", 0) if ($d);

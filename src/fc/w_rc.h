@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='W_RC_H'>
 
- $Id: w_rc.h,v 1.64 1999/08/25 01:25:06 kupsch Exp $
+ $Id: w_rc.h,v 1.65 2006/03/14 05:31:24 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -408,16 +408,16 @@ w_rc_t::operator bool() const
 
 #define RC_SET_MSG(rc, m)				\
 do {							\
-    ostrstream os;					\
+    w_ostrstream os;					\
     os m << ends;					\
-    rc->set_more_info_msg(os.str());			\
+    rc->set_more_info_msg(os.take_c_str());		\
 } while (0)
 
 #define RC_APPEND_MSG(rc, m)				\
 do {							\
-    ostrstream os;					\
+    w_ostrstream os;					\
     os m << ends;					\
-    rc->append_more_info_msg(os.str());			\
+    rc->append_more_info_msg(os.take_c_str());		\
 } while (0)
 
 #define W_RETURN_RC(x)					\

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: testserial.cpp,v 1.18 2003/12/09 01:36:52 bolo Exp $
+ $Id: testserial.cpp,v 1.20 2006/01/29 22:27:32 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -43,12 +43,16 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #include <basics.h>
 #include <serial_t.h>
 
-#include <iostream.h>
-#ifndef _WIN32
-#include <stream.h>
-#endif
+#include <iostream>
 
-#include <assert.h>
+#include <w_form.h>
+
+#include <cassert>
+
+#if 0
+/* The new I/O compatability and w_form.h eliminate the need for all
+   this special handling.   I'm leaving it in for now until I can verify
+   everything is good on old and new visual c++ environments.  */
 
 #ifdef __GNUG__
 /* XXX gcc-3.2 broken, there is NO WAY to include the actual stream.h
@@ -63,8 +67,10 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
    a seperate hack, but now it just uses this hack. */
 #define W_HACK_STREAM_H
 #endif
+#endif
 
 
+/* XXX see bolo's other fixes for this in the MacOS port compat layer */
 #if defined(W_HACK_STREAM_H)
 #define	hex(x)	hex << x << dec
 #define	dec(x)	dec << x

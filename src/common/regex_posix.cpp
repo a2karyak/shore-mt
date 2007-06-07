@@ -1,6 +1,6 @@
 /*<std-header orig-src='regex'>
 
- $Id: regex_posix.cpp,v 1.4 1999/06/07 19:02:30 kupsch Exp $
+ $Id: regex_posix.cpp,v 1.5 2006/01/29 18:08:57 bolo Exp $
 
 
 */
@@ -14,7 +14,7 @@
  * regcomp() and regexec().
  */
 
-#include <stddef.h>
+#include <cstddef>
 #include <w_base.h>
 #include "regex_posix.h"
 

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='ERRLOG_S_H'>
 
- $Id: errlog_s.h,v 1.8 2001/04/18 17:22:58 bolo Exp $
+ $Id: errlog_s.h,v 1.9 2007/05/18 21:38:23 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -64,7 +64,7 @@ extern "C" {
 	int openlog(const simple_string ident, int logopt, int facil);
 	int closelog(void);
 #endif
-};
+}
 
 extern w_base_t::uint4_t w_hash(const char *); // in stringhash.C
 

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: w_shmem.cpp,v 1.22 1999/06/07 19:02:56 kupsch Exp $
+ $Id: w_shmem.cpp,v 1.23 2007/05/18 21:38:25 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -41,8 +41,18 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 
 #include <w_shmem.h>
 
-#ifdef PURIFY_ZERO
-#include <memory.h>
+#if defined(PURIFY_ZERO) 
+
+#if defined(HAVE_MEMORY_H)
+#	include <memory.h>
+#else
+#	if defined(HAVE_STRING_H)
+#	include <string.h>
+#	else
+#       Error. Need definition of memset. 
+#	endif
+#endif
+
 #endif
 
 #ifdef _WINDOWS

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='PAGE_H_H'>
 
- $Id: page_h.h,v 1.5 1999/06/07 19:04:19 kupsch Exp $
+ $Id: page_h.h,v 1.6 2007/05/18 21:43:26 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -58,7 +58,7 @@ enum    {
   	  space_num_buckets		= 4, // 2**HBUCKETBITS,
 #endif
 	  space_bucket_size_in_bits 	= HBUCKETBITS, 
-	  space_bucket_mask 	=    (1<<space_bucket_size_in_bits) - 1,
+	  space_bucket_mask 	=    (1<<space_bucket_size_in_bits) - 1
 	};
 
 /*

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: smthread.cpp,v 1.73 2001/04/17 18:51:37 bolo Exp $
+ $Id: smthread.cpp,v 1.76 2007/05/18 21:43:29 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -41,6 +41,12 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 //#include <e_errmsg_gen.h>
 
 #include <w_strstream.h>
+
+
+SmthreadFunc::~SmthreadFunc()
+{
+}
+
 
 /*
  * A few minor things for class tcb_t - for grabbing and freeing
@@ -412,7 +418,7 @@ DumpBlockedThreads(ostream& o)
 }
 
 #include <vtable_info.h>
-#include <vtable_enum.h>
+#include <sm_vtable_enum.h>
 
 void		
 smthread_t::vtable_collect(vtable_info_t& t) 
@@ -420,7 +426,7 @@ smthread_t::vtable_collect(vtable_info_t& t)
     sthread_t::vtable_collect(t);
 
     char *p = t[smthread_tid_attr];
-    ostrstream o(p, vtable_info_t::vtable_value_size);
+    w_ostrstream o(p, vtable_info_t::vtable_value_size);
 
     if(tcb().xct) {
       o << tcb().xct->tid() 

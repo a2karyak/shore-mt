@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='STCORE_H'>
 
- $Id: stcore.h,v 1.30 1999/08/03 15:55:49 bolo Exp $
+ $Id: stcore.h,v 1.32 2004/10/25 04:09:54 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -35,7 +35,8 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 /*  -- do not edit anything above this line --   </std-header>*/
 
 /*
- *   NewThreads is Copyright 1992, 1993, 1994, 1995, 1996, 1997 by:
+ *   NewThreads is Copyright 1992, 1993, 1994, 1995, 1996, 1997,
+ *   1998, 1999, 2000, 2001, 2002, 2003, 2004 by:
  *
  *	Josef Burger	<bolo@cs.wisc.edu>
  *	Dylan McNamee	<dylan@cse.ogi.edu>
@@ -86,7 +87,8 @@ extern int sthread_core_stack_frame_ok(const sthread_core_t *core,
 extern int stack_grows_up;
 extern int minframe;
 
-class ostream;
+#include <iosfwd>
+
 extern ostream &operator<<(ostream &o, const sthread_core_t &c);
 
 /*<std-footer incl-file-exclusion='STCORE_H'>  -- do not edit anything below this line -- */

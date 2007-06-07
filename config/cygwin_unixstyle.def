@@ -1,6 +1,0 @@
-UTIL_DIR = /usr
-VCPP_DSK =
-TCL_DIR = /usr/H-i586-cygwin32
-BISON_DIR = /usr/gnu/bin
-FLEX_DIR = /usr/local/gnu/bin
-PERL_DIR = /usr/local/perl

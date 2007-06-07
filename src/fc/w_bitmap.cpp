@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: w_bitmap.cpp,v 1.15 1999/06/07 19:02:50 kupsch Exp $
+ $Id: w_bitmap.cpp,v 1.16 2007/05/18 21:38:24 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -37,7 +37,7 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #endif
 
 #include "w_base.h"
-#include <memory.h>
+#include <cstring>
 #include "w_bitmap.h"
 
 inline int div8(long x)         { return x >> 3; }

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: vol.cpp,v 1.239 2003/12/01 20:41:04 bolo Exp $
+ $Id: vol.cpp,v 1.245 2007/05/18 21:43:30 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -48,7 +48,7 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #include <page_h.h>
 
 #include <vtable_info.h>
-#include <vtable_enum.h>
+#include <sm_vtable_enum.h>
 
 #ifdef EXPLICIT_TEMPLATE
 template class w_auto_delete_t<page_s>;
@@ -57,7 +57,7 @@ template class w_auto_delete_array_t<stnode_t>;
 template class w_auto_delete_array_t<ext_log_info_t>;
 #endif
 
-W_FASTNEW_STATIC_DECL(vol_t, 32); // #chunk_size == #bf_cleaner_threads
+W_FASTNEW_STATIC_DECL(vol_t, 32) // #chunk_size == #bf_cleaner_threads
 
 /*********************************************************************
  *
@@ -159,7 +159,7 @@ extlink_p::format(
     rc_t rc = log_page_format(*this, 0, 1, &vec);
     return rc;
 }
-MAKEPAGECODE(extlink_p, page_p);
+MAKEPAGECODE(extlink_p, page_p)
 
 
 
@@ -208,7 +208,7 @@ stnode_p::format(const lpid_t& pid, tag_t tag, uint4_t flags, store_flag_t store
     rc_t rc = log_page_format(*this, 0, 1, &vec);
     return rc;
 }
-MAKEPAGECODE(stnode_p, page_p);
+MAKEPAGECODE(stnode_p, page_p)
     
 
 ostream& operator<<(ostream &o, const extlink_t &e)
@@ -878,10 +878,9 @@ vol_t::mount(const char* devname, vid_t vid)
      */
     _vid = vid;
 #if defined(W_DEBUG) || defined(W_DEBUG_NAMES)
-    char buf[64];
-    ostrstream sbuf(buf, sizeof(buf));
+    w_ostrstream_buf sbuf(64);		/* XXX magic number */
     sbuf << "vol(vid=" << (int) _vid.vol << ")" << ends;
-    _mutex.rename("m:", buf);
+    _mutex.rename("m:", sbuf.c_str());
     /* XXX how about restoring the old mutex name when done? */
 #endif /* W_DEBUG */
     _lvid = vhdr.lvid();
@@ -1578,6 +1577,9 @@ vol_t::next_page_with_space(lpid_t& pid, space_bucket_t needed)
 	// continue search
     } while(1);
     W_FATAL(eINTERNAL);
+
+    /*NOTREACHED*/
+    return RC(eINTERNAL);
 }
 
 
@@ -1612,6 +1614,19 @@ vol_t::find_free_exts(
     if (first_ext == 0)  {
 	first_ext = _min_free_ext_num;
     }
+
+    /* XXX
+       Give an initial value to the extid, this should NOT be used
+       until an actual free extent is found, but it prevents
+       errors about possibly unset variables.   The only real problem
+       with this is that it can hide a bug from purify, since purify
+       would complain if something went wrong.   This is an example of
+       a compiler being too smart for its own good ... by causing the
+       user to create code that is possibly incorrect!
+       A better solution may be to eliminatefollowing 'ext' and use
+       the 'ext' in the extid_t instead. */
+    extid.ext = w_base_t::uint4_max;	// XXX knows about type
+
     bool alloced_min_free_ext = false;
     bool passed_zero = false;
     uint ext = first_ext;
@@ -3708,7 +3723,7 @@ vol_t::write_vhdr(int fd, volhdr_t& vhdr, bool raw_device)
     /*
      *  Open an ostream on tmp to write header bytes
      */
-    ostrstream s(tmp, tmpsz);
+    w_ostrstream s(tmp, tmpsz);
     if (!s)  {
 	    /* XXX really eCLIBRARY */
 	return RC(eOS);
@@ -3797,7 +3812,7 @@ vol_t::read_vhdr(int fd, volhdr_t& vhdr)
     /*
      *  Read the header strings from tmp using an istream.
      */
-    istrstream s(tmp, tmpsz);
+    w_istrstream s(tmp, tmpsz);
     s.seekg(0, ios::beg);
     if (!s)  {
 	    /* XXX c library */ 

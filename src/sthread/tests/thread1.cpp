@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: thread1.cpp,v 1.43 2003/02/03 16:14:22 bolo Exp $
+ $Id: thread1.cpp,v 1.51 2007/05/18 21:52:31 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -32,11 +32,10 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 /*  -- do not edit anything above this line --   </std-header>*/
 
 #include <w_debug.h>
-#include <w_stream.h>
-#include <stdlib.h>
-#include <assert.h>
-#include <time.h>
-#include <memory.h>
+#include <cstdlib>
+#include <cassert>
+#include <ctime>
+#include <os_memory.h>
 
 #include <w.h>
 #include <w_statistics.h>
@@ -44,6 +43,9 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #include <sthread_stats.h>
 
 #include <getopt.h>
+
+#include <iostream>
+#include <w_strstream.h>
 
 
 #define DefaultNumThreads 2
@@ -390,10 +392,9 @@ int	main(int argc, char* argv[])
 worker_thread_t::worker_thread_t(int id)
     : work_id(id)
 {
-    char b[40];
-    ostrstream s(b, sizeof(b));
+    w_ostrstream_buf s(40);		// XXX magic number
     s << "worker[" << id << "]" << ends;
-    rename(b);
+    rename(s.c_str());
 }
 
 void worker_thread_t::run()
@@ -415,11 +416,10 @@ pong_thread_t::pong_thread_t(ping_pong_t &which_game,
 			     wait_for_t &notify_me)
 : game(which_game), id(_id), note(notify_me)
 {
-	char	buf[128];
-	ostrstream	s(buf, sizeof(buf));
+	w_ostrstream_buf	s(128);		// XXX magic number
 	W_FORM2(s,("pong[%d]", id));
 	s << ends;
-	rename(s.str());
+	rename(s.c_str());
 }
 
 

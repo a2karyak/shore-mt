@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='BASICS_H'>
 
- $Id: basics.h,v 1.67 2002/01/03 01:06:15 bolo Exp $
+ $Id: basics.h,v 1.68 2006/01/29 22:27:28 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -45,7 +45,7 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #ifndef RPCGEN
 #include <unix_error.h>
 #include <os_types.h>
-#include <assert.h>
+#include <cassert>
 #endif
 
 #if defined(__cplusplus) && !defined(EXTERN)

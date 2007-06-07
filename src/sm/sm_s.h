@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='SM_S_H'>
 
- $Id: sm_s.h,v 1.85 2003/01/30 18:13:56 bolo Exp $
+ $Id: sm_s.h,v 1.86 2007/05/18 21:43:28 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -36,7 +36,7 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 
 extern "C" int pull_in_sm_export();
 
-typedef uint4_t	extnum_t;
+typedef w_base_t::uint4_t	extnum_t;
 
 #ifndef STHREAD_H
 #include <sthread.h>
@@ -176,7 +176,8 @@ public:
 	lstid_t( const lvid_t& lvid_, const serial_t& serial_) :
 		lid_t(lvid_,serial_) {};
 
-    lstid_t(uint4_t high, uint4_t low, uint4_t ser, bool remote) :
+    lstid_t(w_base_t::uint4_t high, w_base_t::uint4_t low, 
+	    	w_base_t::uint4_t ser, bool remote) :
 		lid_t(high, low, ser, remote) {};
 };
 typedef lstid_t lfid_t;		// logical file ID
@@ -213,18 +214,18 @@ public:
     lsn_t() : _file(0) { 
 	memset(&_rba, '\0', sizeof(_rba)); 
     }
-    lsn_t(uint4_t f, sm_diskaddr_t r) : _file(f) {
+    lsn_t(w_base_t::uint4_t f, sm_diskaddr_t r) : _file(f) {
 	memcpy(&_rba, &r, sizeof(_rba)); 
     }
 #else
     lsn_t() : _file(0), _rba(0)   {}
-    lsn_t(uint4_t f, sm_diskaddr_t r) : _file(f), _rba(r) {}
+    lsn_t(w_base_t::uint4_t f, sm_diskaddr_t r) : _file(f), _rba(r) {}
 #endif
 
     lsn_t(const lsn_t& l);
     lsn_t& operator=(const lsn_t& l);
 
-    uint4_t hi() const  { return _file; }
+    w_base_t::uint4_t hi() const  { return _file; }
 
     bool i_am_aligned() const {
 #ifdef SM_DISKADDR_LARGE
@@ -292,7 +293,7 @@ public:
     static const lsn_t max;
     
 private:
-    uint4_t	_file;		// log file number in log directory
+    w_base_t::uint4_t	_file;		// log file number in log directory
 #if defined(SM_DISKADDR_LARGE)
     /* Have to align to 8-bytes for Sparcs, so we do it for
      * everything (gak) so that volumes can be moved from one
@@ -338,8 +339,8 @@ struct key_type_s {
     // length of the array is passed in through "count" and
     // the number of elements filled in "kc" is returned through
     // "count". 
-    static w_rc_t parse_key_type(const char* s, uint4_t& count, key_type_s kc[]);
-    static w_rc_t get_key_type(char* s, int buflen, uint4_t count, const key_type_s *kc);
+    static w_rc_t parse_key_type(const char* s, w_base_t::uint4_t& count, key_type_s kc[]);
+    static w_rc_t get_key_type(char* s, int buflen, w_base_t::uint4_t count, const key_type_s *kc);
 
 };
 #define null_lsn (lsn_t::null)

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: io.cpp,v 1.11 2003/06/24 19:30:05 bolo Exp $
+ $Id: io.cpp,v 1.13 2006/03/14 05:31:24 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -65,7 +65,7 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 
 static int testnumber=0;
 
-#include <errno.h>
+#include <cerrno>
 
 void test(const char *s, int base, int times, bool /* error_ok */ ) 
 {
@@ -181,7 +181,7 @@ void test(const char *s, int base, int times, bool /* error_ok */ )
 	if(times > 1) {
 	    S.start();
 	    for(t = 0; t < times; t++) {
-		istrstream 		tmp(VCPP_BUG_1 s, strlen(s));
+		w_istrstream	tmp(s);
 		typedef ios::fmtflags  fmtflags;
 		fmtflags f = tmp.flags();
 		f = f & ~(ios::basefield);

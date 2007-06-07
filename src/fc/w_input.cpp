@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: w_input.cpp,v 1.10 2003/09/02 19:51:28 bolo Exp $
+ $Id: w_input.cpp,v 1.13 2007/05/18 21:38:25 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -34,8 +34,8 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #define W_SOURCE
 
 #include <w_base.h>
-#include <ctype.h>
-#include <istream.h>
+#include <cctype>
+#include <iostream>
 
 enum states {   start, sgned, leadz,  
 		new_hex, new_oct, new_dec,
@@ -243,6 +243,13 @@ static enum states table_base10[no_charclass][no_state] =
 #define	IOS_FAIL(stream)	stream.setstate(ios_base::failbit)
 #endif
 
+/* XXX shouldn't replicate this from somewhere else */
+#ifdef _MSC_VER
+typedef long  ios_fmtflags;
+#else
+typedef ios::fmtflags  ios_fmtflags;
+#endif
+
 #include <unix_error.h>
 
 /*
@@ -282,7 +289,7 @@ w_base_t::uint8_t	thresh_oct_signed =
 istream &
 w_base_t::_scan_uint8(
 	istream& i, 
-	uint8_t &u8, 
+	w_base_t::uint8_t &u8, 
 	bool chew_white, // true if coming from istream operator
 	bool is_signed, // if true, we have to return an error for overflow
 	bool&	range_err // set to true if range error occurred  
@@ -291,7 +298,7 @@ w_base_t::_scan_uint8(
     w_base_t::uint8_t	thresh=0, 
 	thresh2=0 /* thresh2, thresh3, thresh4 for decimal only */, 
 		thresh3=0, thresh4=0;
-    uint8_t 	value = 0;
+    w_base_t::uint8_t 	value = 0;
 
     bool 	negate = false;
     int		e=0;
@@ -304,15 +311,8 @@ w_base_t::_scan_uint8(
 
     range_err = false;
     {
-#ifdef _MSC_VER
-	typedef long  fmtflags;
-
-#else
-	typedef ios::fmtflags  fmtflags;
-
-#endif
 	// Get the base from the stream
-	fmtflags old = i.flags();
+	ios_fmtflags old = i.flags();
 	skip_white = ((old & ios::skipws) != 0);
 	switch(old & ios::basefield) {
 	    case 0:
@@ -376,14 +376,6 @@ w_base_t::_scan_uint8(
 		if(!skip_white) {
 		    s = end;
 		}
-#ifdef notdef
-		if(chew_white) {
-		    ell_start = i.tellg();
-		    // should be safe to ++ because
-		    // we can't get into start state
-		    // once we've left it.
-		}
-#endif
 		tell_start += chewamt; 
 		break;
 

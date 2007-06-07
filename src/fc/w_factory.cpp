@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: w_factory.cpp,v 1.17 2003/06/19 22:59:56 bolo Exp $
+ $Id: w_factory.cpp,v 1.20 2007/05/18 21:38:24 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -42,9 +42,9 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #include <w_stream.h>
 
 #include "w_base.h"
-#include <stddef.h>
-#include <new.h>
-#include <memory.h>
+#include <cstddef>
+#include <new>
+#include <cstring>
 #undef W_FASTNEW_H
 #include "w_factory.h"
 

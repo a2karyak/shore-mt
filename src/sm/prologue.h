@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='PROLOGUE_H'>
 
- $Id: prologue.h,v 1.46 1999/08/20 18:29:02 nhall Exp $
+ $Id: prologue.h,v 1.47 2005/12/01 02:52:51 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -166,7 +166,6 @@ prologue_rc_t::prologue_rc_t(xct_state_t is_in_xct, int pin_cnt_change) :
 }
 
 
-inline
 prologue_rc_t::~prologue_rc_t()
 {
     if (_xct_state == in_xct || _xct_state == abortable_xct) {

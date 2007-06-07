@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='NCRTRACEEVENTS_H'>
 
- $Id: ncrTraceEvents.h,v 1.12 1999/08/25 01:09:31 kupsch Exp $
+ $Id: ncrTraceEvents.h,v 1.13 2006/03/14 05:31:24 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -39,6 +39,8 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 
 #include "piextern.h"
 #include "tormsg_gen.h"
+
+#include "w_strstream.h"
 
 #define TOR_TRACE(x) do {x;} while (0)
 #define TOR_EVENT(x) do {x;} while (0)
@@ -81,11 +83,10 @@ do {							\
     w_rc_t e__ = (x);					\
     if (e__)  {						\
 	RC_AUGMENT(e__);				\
-	ostrstream os;					\
+	w_ostrstream os;				\
 	os << e__;					\
 	os << ends;					\
-	ncr_crash(os.str(), __FILE__, __LINE__, torSmFatalError);	\
-	delete [] os.str();				\
+	ncr_crash(os.c_str(), __FILE__, __LINE__, torSmFatalError);	\
     }							\
 } while (0)
 #endif
@@ -94,10 +95,9 @@ do {							\
 #undef W_PRINT_ASSERT
 #define W_PRINT_ASSERT(m)				\
 do {							\
-    ostrstream os;					\
+    w_ostrstream os;					\
     os m << ends;					\
-    ncr_event1(os.str(), __FILE__, __LINE__, torWAssert);	\
-    delete[] os.str()					\
+    ncr_event1(os.c_str(), __FILE__, __LINE__, torWAssert);	\
 }  while (0)
 #endif
 

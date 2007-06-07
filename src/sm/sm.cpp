@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: sm.cpp,v 1.471 2003/10/20 04:01:06 bolo Exp $
+ $Id: sm.cpp,v 1.476 2007/05/18 21:43:27 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -48,6 +48,7 @@ class prologue_rc_t;
 #include "chkpt.h"
 #include "lgrec.h"
 #include "sm.h"
+#include "sm_vtable_enum.h"
 #include "prologue.h"
 #include "device.h"
 #include "vol.h"
@@ -80,7 +81,7 @@ bool	smlevel_0::do_prefetch = false;
 int	smlevel_0::dcommit_timeout = 0;
 
 #ifndef SM_LOG_WARN_EXCEED_PERCENT
-#define SM_LOG_WARN_EXCEED_PERCENT 0
+#define SM_LOG_WARN_EXCEED_PERCENT 40
 #endif
 smlevel_0::fileoff_t	smlevel_0::log_warn_exceed = 0;
 int			smlevel_0::log_warn_exceed_percent = SM_LOG_WARN_EXCEED_PERCENT;
@@ -399,7 +400,7 @@ rc_t ss_m::setup_options(option_group_t* options)
 	    "seconds after which distrib commit will give up if it cannot finish",
 	    false, option_t::set_value_long, _dcommit_timeout));
 
-    W_DO(options->add_option("sm_cc_alg", "file/page/record", "record",
+    W_DO(options->add_option("sm_cc_alg", "file/page/record/none", "record",
 	    "default locking for file data",
 	    false, option_t::set_value_charstr, _cc_alg_option));
 
@@ -627,6 +628,12 @@ ss_m::ss_m(
 {
     FUNC(ss_m::ss_m);
 
+    // For thread stats: set the largest stat ...
+    // To override this, do so in main() after initializing the
+    // storage manager.
+    global_vtable_last = smthread_last;
+
+
 #ifdef notyet
     /* notyet because this whole thing is a bad idea, plus the statics
        that the SM keeps track of are a big hazard.   Groan. */
@@ -712,6 +719,8 @@ ss_m::ss_m(
 	    cc_alg = t_cc_page;
 	} else if(strcmp(cc, "file")==0) {
 	    cc_alg = t_cc_file;
+	} else if(strcmp(cc, "none")==0) {
+	    cc_alg = t_cc_none;
 	}
     }
    /*
@@ -853,7 +862,7 @@ ss_m::ss_m(
     } else {
 	/* Run without logging at your own risk. */
 	errlog->clog << error_prio << 
-	"WARNING: Running without a logging! Do so at YOUR OWN RISK. " 
+	"WARNING: Running without logging! Do so at YOUR OWN RISK. " 
 	<< flushl;
     }
     DBG(<<"Level 2");
@@ -2847,10 +2856,11 @@ DeadlockEventPrinter::LocalDeadlockDetected(XctWaitsForLockList& waitsForList, c
 	<< " CYCLE:\n";
     bool isFirstElem = true;
     while (XctWaitsForLockElem* elem = waitsForList.pop())  {
-        char tidBuffer[80];
-        ostrstream tidStream(tidBuffer, 80);
+        w_ostrstream_buf tidStream(80);	/* XXX magic number */
         tidStream << elem->xct->tid() << ends;
-        out.form("  %7s%15s waits for ", isFirstElem ? "" : "held by", tidBuffer);
+        W_FORM(out)("  %7s%15s waits for ",
+		    isFirstElem ? "" : "held by",
+		    tidStream.c_str());
         out << elem->lockName << '\n';
         isFirstElem = false;
         delete elem;

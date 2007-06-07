@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: getopt.cpp,v 1.9 1999/06/07 19:02:43 kupsch Exp $
+ $Id: getopt.cpp,v 1.10 2006/01/29 17:32:46 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -33,7 +33,7 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 
 #include "getopt.h"
 #include <w_stream.h>
-#include <string.h>
+#include <cstring>
 
 char*		optarg = 0;
 int		optind = 1;

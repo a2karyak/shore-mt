@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: sdisk_unix.cpp,v 1.16 2002/11/19 21:16:37 bolo Exp $
+ $Id: sdisk_unix.cpp,v 1.21 2007/05/18 21:53:43 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -42,6 +42,15 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
  *   to the above author(s) and the above copyright is maintained.
  */
 
+#if defined(linux) && !defined(_GNU_SOURCE)
+/*
+ *  XXX this done to make O_DIRECT available as an I/O choice.
+ *  Unfortunately, it needs to pollute the other headers, otw
+ *  the features will be set and access won't be possible
+ */
+#define _GNU_SOURCE
+#endif
+
 #include <w.h>
 #include <sthread.h>
 #include <sdisk.h>
@@ -60,12 +69,16 @@ extern class sthread_stats SthreadStats;
 #else
 #include <unistd.h>
 #endif
-#include <fcntl.h>
-#include <errno.h>
+#include "os_fcntl.h"
+#include <cerrno>
 #include <sys/stat.h>
 
 #ifndef _WIN32
 #include <sys/uio.h>
+#endif
+
+#if defined(_WIN32) && defined(LARGEFILE_AWARE)
+#include <iostream>
 #endif
 
 #if !defined(AIX41) && !defined(SOLARIS2) && !defined(_WIN32) && !defined(OSF1) && !defined(Linux)
@@ -471,7 +484,11 @@ w_rc_t	sdisk_unix_t::stat(filestat_t &st)
 #ifdef _WIN32
 	st.st_block_size = 512;	/* XXX */
 #else
+#ifdef HAVE_STRUCT_STAT_ST_BLKSIZE
 	st.st_block_size = sys.st_blksize;
+#else
+	st.st_block_size = 512;	/* XXX */
+#endif
 #endif
 
 	st.st_device_id = sys.st_dev;

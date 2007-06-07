@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='LOG_H'>
 
- $Id: log.h,v 1.78 2001/11/27 18:11:40 bolo Exp $
+ $Id: log.h,v 1.79 2005/12/01 02:12:01 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -124,6 +124,7 @@ protected:
 
     struct _shared_log_info {
 	bool			_log_corruption_on;
+	// XXX unseen padding
 	fileoff_t _max_logsz;	// input param from cli -- partition size
 	fileoff_t  _maxLogDataSize;// _max_logsz - sizeof(skiplog record)
 
@@ -146,6 +147,13 @@ protected:
 	///////////////////////////////////////////////////////////////////////
 	fileoff_t		_space_available;// in freeable or freed partitions
 
+	_shared_log_info()
+	: _log_corruption_on(false),
+	  _max_logsz(0),
+	  _maxLogDataSize(0),
+	  _space_available(0)
+	{
+	}
     };
     static _shared_log_info	__shared;
     struct _shared_log_info	*_shared;

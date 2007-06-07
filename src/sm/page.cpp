@@ -1,31 +1,31 @@
 /*<std-header orig-src='shore'>
 
- $Id: page.cpp,v 1.139 2002/01/28 07:29:23 bolo Exp $
+  $Id: page.cpp,v 1.143 2007/05/18 21:43:26 nhall Exp $
 
-SHORE -- Scalable Heterogeneous Object REpository
+  SHORE -- Scalable Heterogeneous Object REpository
 
-Copyright (c) 1994-99 Computer Sciences Department, University of
-                      Wisconsin -- Madison
-All Rights Reserved.
+  Copyright (c) 1994-99 Computer Sciences Department, University of
+  Wisconsin -- Madison
+  All Rights Reserved.
 
-Permission to use, copy, modify and distribute this software and its
-documentation is hereby granted, provided that both the copyright
-notice and this permission notice appear in all copies of the
-software, derivative works or modified versions, and any portions
-thereof, and that both notices appear in supporting documentation.
+  Permission to use, copy, modify and distribute this software and its
+  documentation is hereby granted, provided that both the copyright
+  notice and this permission notice appear in all copies of the
+  software, derivative works or modified versions, and any portions
+  thereof, and that both notices appear in supporting documentation.
 
-THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
-OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
-"AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
-FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+  THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+  OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+  "AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+  FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 
-This software was developed with support by the Advanced Research
-Project Agency, ARPA order number 018 (formerly 8230), monitored by
-the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
-Further funding for this work was provided by DARPA through
-Rome Research Laboratory Contract No. F30602-97-2-0247.
+  This software was developed with support by the Advanced Research
+  Project Agency, ARPA order number 018 (formerly 8230), monitored by
+  the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+  Further funding for this work was provided by DARPA through
+  Rome Research Laboratory Contract No. F30602-97-2-0247.
 
-*/
+ */
 
 #include "w_defines.h"
 
@@ -42,6 +42,12 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #include <page.h>
 #include <page_h.h>
 
+/*
+NEHFIX1 5/8/06: in bookkeeping for reserved space, we have to
+subtract the total taken from nrsvd. See the comments
+below for NEHFIX1
+*/
+
 /*********************************************************************
  *
  *  page_s::space_t::_check_reserve()
@@ -51,13 +57,28 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
  *********************************************************************/
 INLINE void page_s::space_t::_check_reserve()
 {
-    if (_tid < xct_t::oldest_tid())  {
-	/*
-	 *  oldest xct to reserve space is completed 
-	 *  --- all reservations can be released.
-	 */
-	_tid = _nrsvd = _xct_rsvd = 0;
-    }
+	w_assert3(rflag());
+	w_assert3(nfree() >= nrsvd());
+	w_assert3(nrsvd() >= xct_rsvd());
+	w_assert1(nfree() >= 0 && nrsvd() >= 0 && xct_rsvd() >= 0);
+
+	if (_tid < xct_t::oldest_tid())  {
+		/*
+		 *  youngest xct to reserve space is completed and
+		 * because it's < oldest tx, this means all
+		 * tx to reserve space have completed.
+		 *  --- all reservations can be released.
+		 */
+		_tid = _nrsvd = _xct_rsvd = 0;
+#ifndef BACKOUT_NEHFIX2
+		_nrsvd_hiwat =  1; // not zero because it
+		// doubles as rflag(), and min space allocation is
+		// at least 4 bytes anyway
+#endif
+	}
+	w_assert3(nfree() >= nrsvd());
+	w_assert3(nrsvd() >= xct_rsvd());
+	w_assert1(nfree() >= 0 && nrsvd() >= 0 && xct_rsvd() >= 0);
 }
 
 /*********************************************************************
@@ -71,33 +92,48 @@ INLINE void page_s::space_t::_check_reserve()
 int
 page_s::space_t::usable(xct_t* xd) 
 {
-    if (_rflag) _check_reserve();
-    int avail = _nfree - _nrsvd;
+	w_assert3(nfree() >= nrsvd());
+	w_assert3(nrsvd() >= xct_rsvd());
+	w_assert1(nfree() >= 0 && nrsvd() >= 0 && xct_rsvd() >= 0);
 
-    if (_rflag) {
-	if(xd)  {
-	    if (xd->state() == smlevel_1::xct_aborting)  {
-		/*
-		 *  An aborting transaction can use all reserved space
-		 */
-		avail += _nrsvd;
-	    } else if (xd->tid() == _tid) {
-		/*
-		 *  An active transaction can reuse all space it freed
-		 */
-		avail += _xct_rsvd;
-	    }
-	} else if (smlevel_0::redo_tid &&
-		*smlevel_0::redo_tid == _tid) {
-	     /*
-	     *  This is the same as an active transaction (above)
-	     *  during a restart.
-	     */
-            avail += _xct_rsvd;
+	if (rflag()) _check_reserve();
+	int avail = nfree() - nrsvd();
+
+	if (rflag()) {
+		if(xd)  {
+			if (xd->state() == smlevel_1::xct_aborting)  {
+				/*
+				 *  An aborting transaction can use all reserved space
+				 */
+				avail += nrsvd();
+			} else if (xd->tid() == _tid) {
+				/*
+				 *  An active transaction can reuse all space it freed
+				 */
+				avail += xct_rsvd();
+			}
+		} else if (smlevel_0::redo_tid &&
+				*smlevel_0::redo_tid == _tid) {
+			/*
+			 *  This is the same as an active transaction (above)
+			 *  during a restart.
+			 */
+			avail += xct_rsvd();
+		}
 	}
-    }
+	w_assert3(nfree() >= nrsvd());
+	w_assert3(nrsvd() >= xct_rsvd());
+	w_assert1(nfree() >= 0 && nrsvd() >= 0 && xct_rsvd() >= 0);
 
-    return avail;
+#ifndef BACKOUT_NEHFIX2
+	// available cannot be more than larger of (nfree() - nrsvd_hiwat(), 0)
+	// (highwater can be greater than nfree because highwater
+	// doesn't shrink)
+	int maximum  = nfree() - nrsvd_hiwat(); 
+	if(maximum < 0) maximum = 0;
+	if(avail > maximum) avail = maximum;
+#endif
+	return avail;
 }
 
 
@@ -110,15 +146,67 @@ page_s::space_t::usable(xct_t* xd)
  *  are reclaimed.
  *
  *********************************************************************/
-void 
+	void 
 page_s::space_t::undo_release(int amt, xct_t* xd)
 {
-    _nfree -= amt;
-    _nrsvd -= amt;
-    if (xd && xd->tid() == _tid)
-	_xct_rsvd -= amt;
+#ifndef BACKOUT_NEHFIX2
+	DBG(<<"{space_t::undo_release  amt=" << amt 
+			<< " _tid=" << _tid
+			<< " nfree()=" << nfree()
+			<< " nrsvd()=" << nrsvd()
+			<< " xct_rsvd()=" << xct_rsvd()
+	   );
+#else
+	DBG(<<"{space_t::undo_release  amt=" << amt 
+			<< " _tid=" << _tid
+			<< " nfree()=" << nfree()
+			<< " nrsvd()=" << nrsvd()
+			<< " xct_rsvd()=" << xct_rsvd()
+	   );
+#endif
+	w_assert3(nfree() >= nrsvd());
+	w_assert3(nrsvd() >= xct_rsvd());
+	w_assert1(nfree() >= 0 && nrsvd() >= 0 && xct_rsvd() >= 0);
+
+	_nfree -= amt;
+
+	// NB: in rollback, we don't free the slot bytes, so they don't get
+	// added into the _nrsvd. Thus the _nrsvd can end up smaller than
+	// the amount that we are wanting to reacquire.  
+	_nrsvd -= amt;
+#ifndef BACKOUT_NEHFIX2
+	if(_nrsvd < 0) _nrsvd = 0;
+
+	if (xd && xd->tid() == _tid) {
+		_xct_rsvd -= amt;
+		if(_xct_rsvd < 0) _xct_rsvd = 0;
+	}
+#else
+	if (xd && xd->tid() == _tid) 
+		_xct_rsvd -= amt;
+#endif
     
-    w_assert1(_nfree >= 0 && _nrsvd >= 0 && _xct_rsvd >= 0);
+#ifndef BACKOUT_NEHFIX2
+        DBG(<<" space_t::undo_release amt=" << amt 
+			<< " _tid=" << _tid
+			<< " nfree()=" << nfree()
+			<< " nrsvd()=" << nrsvd()
+			<< " xct_rsvd()=" << xct_rsvd()
+			<< " hiwat()=" << nrsvd_hiwat()
+			<< "}"
+			);
+#else
+        DBG(<<" space_t::undo_release amt=" << amt 
+			<< " _tid=" << _tid
+			<< " nfree()=" << nfree()
+			<< " nrsvd()=" << nrsvd()
+			<< " xct_rsvd()=" << xct_rsvd()
+			<< "}"
+			);
+#endif
+    w_assert1(nfree() >= 0 && nrsvd() >= 0 && xct_rsvd() >= 0);
+    w_assert3(nrsvd() >= xct_rsvd());
+    w_assert1(nfree() >= nrsvd()); // NEW
 }
 
 
@@ -133,14 +221,44 @@ page_s::space_t::undo_release(int amt, xct_t* xd)
 void 
 page_s::space_t::undo_acquire(int amt, xct_t* xd)
 {
+    DBG(<<"{space_t::undo_acquire amt=" << amt 
+			<< " _tid=" << _tid
+			<< " nfree()=" << nfree()
+			<< " nrsvd()=" << nrsvd()
+			<< " xct_rsvd()=" << xct_rsvd()
+			);
+    w_assert3(nfree() >= nrsvd());
+    w_assert3(nrsvd() >= xct_rsvd());
+    w_assert1(nfree() >= 0 && nrsvd() >= 0 && xct_rsvd() >= 0);
+
     _nfree += amt;
     if (xd && _tid >= xd->tid())  {
-	_nrsvd += amt;
+	_nrsvd += amt; // update highwater mark below
+
 	if (_tid == xd->tid())
 	    _xct_rsvd += amt;
+
+#ifndef BACKOUT_NEHFIX2
+	// I don't think we have to bump up the highwater mark
+	// during undo. We only need to keep track of what we
+	// freed up during forward processing.
+	if(nrsvd() > 0) {
+            // it's possible to release 0 bytes for a zero-length
+	    // record
+            _nrsvd_hiwat = (nrsvd_hiwat() < nrsvd() ? nrsvd() : nrsvd_hiwat());
+	}   
+#endif
     }
-    w_assert1(_nfree >= _nrsvd);
-    w_assert1(_nrsvd >= _xct_rsvd);
+    DBG(<<"space_t::undo_acquire amt=" << amt 
+			<< " _tid=" << _tid
+			<< " nfree()=" << nfree()
+			<< " nrsvd()=" << nrsvd()
+			<< " xct_rsvd()=" << xct_rsvd()
+			<< "}"
+			);
+    w_assert3(nfree() >= nrsvd());
+    w_assert3(nrsvd() >= xct_rsvd());
+    w_assert1(nfree() >= 0 && nrsvd() >= 0 && xct_rsvd() >= 0);
 }
 
 
@@ -164,11 +282,37 @@ rc_t
 page_s::space_t::acquire(int amt, int slot_bytes, xct_t* xd,
 	bool do_it /*=true */)
 {
-    if (do_it && _rflag && xd && xd->state() == smlevel_1::xct_aborting)  {
-	/*
-	 *  For aborting transaction ...
-	 */
+#ifndef BACKOUT_NEHFIX2
+    DBG(<<"{space_t::acquire amt=" << amt << " slot_bytes=" << slot_bytes
+			<< " _tid=" << _tid
+			<< " nfree()=" << nfree()
+			<< " nrsvd()=" << nrsvd()
+			<< " xct_rsvd()=" << xct_rsvd()
+			<< " hiwat()=" << nrsvd_hiwat()
+			);
+#else
+    DBG(<<"{space_t::acquire amt=" << amt << " slot_bytes=" << slot_bytes
+			<< " _tid=" << _tid
+			<< " nfree()=" << nfree()
+			<< " nrsvd()=" << nrsvd()
+			<< " xct_rsvd()=" << xct_rsvd()
+			);
+#endif
+    w_assert3(nfree() >= nrsvd());
+    w_assert3(nrsvd() >= xct_rsvd());
+    w_assert1(nfree() >= 0 && nrsvd() >= 0 && xct_rsvd() >= 0);
+
+    if (do_it && rflag() && xd && xd->state() == smlevel_1::xct_aborting)  {
+		/*
+		 *  For aborting transaction ...
+		 */
+        DBG(<<"aborting tx. undo release of " << amt << "}" );
 	undo_release(amt, xd);
+
+        w_assert3(nfree() >= nrsvd());
+        w_assert3(nrsvd() >= xct_rsvd());
+        w_assert1(nfree() >= 0 && nrsvd() >= 0 && xct_rsvd() >= 0);
+
 	return RCOK;
     }
     
@@ -176,32 +320,85 @@ page_s::space_t::acquire(int amt, int slot_bytes, xct_t* xd,
     int total = amt + slot_bytes;
 
     if (avail < total)  {
+        DBG(<<"eRECWONTFIT }" );
 	return RC(smlevel_0::eRECWONTFIT);
     }
-    if( !do_it) return RCOK;
+    if( !do_it)  return RCOK;
     
     /*
      *  Consume the space
      */
-    w_assert1(_nfree >= total);
+    w_assert1(nfree() >= total);
     _nfree -= total;
-    if (_rflag && xd && xd->tid() == _tid) {
-	w_assert1(_nrsvd >= _xct_rsvd);
-	if (amt > _xct_rsvd) {
+
+#ifndef BACKOUT_NEHFIX1
+    // Q: Why are we not subtracting total below?
+    // A: because the slot_bytes space cannot be re-used.
+    // See comment above head of method.
+    // But that comment really applies to the amount
+    // released when we delete a record. The calling
+    // method figures out what we free.  If the slot is
+    // the last one on the page, presumably it can free
+    // the slot_bytes too (but only if we know that
+    // all slots after this one are either freed by this tx
+    // or by a committed tx -- we don't keep track of that
+    // at the moment).
+    // In any case, we take the TOTAL amount acquired
+    // out of the reserved bytes, and put back only
+    // what we can. That maintains the proper invariants
+    // that nfree >= nrsvd >= xct_rsvd.
+#endif
+    if (rflag() && xd && xd->tid() == _tid) {
+	w_assert1(nrsvd() >= xct_rsvd());
+#ifndef BACKOUT_NEHFIX1
+	if (total > xct_rsvd())  // NEW
+#else
+	if (amt > xct_rsvd())  // OLD
+#endif
+	{
 	    /*
-	     *  Use all of _xct_rsvd
+	     *  Use all of xct_rsvd()
 	     */
-	    _nrsvd -= _xct_rsvd;
+	    _nrsvd -= xct_rsvd();
 	    _xct_rsvd = 0;
 	} else {
 	    /*
-	     *  Use portion of _xct_rsvd
+	     *  Use portion of xct_rsvd()
 	     */
+#ifndef BACKOUT_NEHFIX1
+	    _nrsvd -= total; // NEW
+	    _xct_rsvd -= total; // NEW
+#else
 	    _nrsvd -= amt;
 	    _xct_rsvd -= amt;
+#endif
 	}
     }
+
+#ifndef BACKOUT_NEHFIX2
+    DBG(<<" space_t::acquire amt=" << amt 
+		        << " slot_bytes=" << slot_bytes
+			<< " _tid=" << tid()
+			<< " nfree()=" << nfree()
+			<< " nrsvd()=" << nrsvd()
+			<< " xct_rsvd()=" << xct_rsvd()
+			<< " hiwat()=" << nrsvd_hiwat()
+			<< "}"
+			);
+#else
+    DBG(<<" space_t::acquire amt=" << amt 
+		        << " slot_bytes=" << slot_bytes
+			<< " _tid=" << tid()
+			<< " nfree()=" << nfree()
+			<< " nrsvd()=" << nrsvd()
+			<< " xct_rsvd()=" << xct_rsvd()
+			<< "}"
+			);
+#endif
     
+    w_assert3(nfree() >= nrsvd());
+    w_assert3(nrsvd() >= xct_rsvd());
+    w_assert1(nfree() >= 0 && nrsvd() >= 0 && xct_rsvd() >= 0);
     return RCOK;
 }
 	
@@ -220,30 +417,68 @@ page_s::space_t::acquire(int amt, int slot_bytes, xct_t* xd,
  *********************************************************************/
 void page_s::space_t::release(int amt, xct_t* xd)
 {
-    if (_rflag && xd && xd->state() == smlevel_1::xct_aborting)  {
+    DBG(<<"{space_t::release amt=" << amt 
+			<< " _tid=" << _tid
+			<< " nfree()=" << nfree()
+			<< " nrsvd()=" << nrsvd()
+			<< " xct_rsvd()=" << xct_rsvd()
+		       );
+    w_assert3(nfree() >= nrsvd());
+    w_assert3(nrsvd() >= xct_rsvd());
+    w_assert1(nfree() >= 0 && nrsvd() >= 0 && xct_rsvd() >= 0);
+
+    if (rflag() && xd && xd->state() == smlevel_1::xct_aborting)  {
 	/*
 	 *  For aborting transaction ...
 	 */
 	undo_acquire(amt, xd);
+        w_assert3(nfree() >= nrsvd());
+        w_assert3(nrsvd() >= xct_rsvd());
+        w_assert1(nfree() >= 0 && nrsvd() >= 0 && xct_rsvd() >= 0);
+	DBG(<<" (undo_acquire) amt=" << amt 
+			<< " _tid=" << _tid
+			<< " nfree()=" << nfree()
+			<< " nrsvd()=" << nrsvd()
+			<< " xct_rsvd()=" << xct_rsvd()
+				<< "}"
+		       );
 	return;
     }
     
-    if (_rflag) _check_reserve();
+    if (rflag()) _check_reserve();
     _nfree += amt;
-    if (_rflag) {
+    if (rflag()) {
 	if (xd)  {
 	    _nrsvd += amt;	// reserve space for this xct
+#ifndef BACKOUT_NEHFIX2
+	    // update highwater mark
+	    if(nrsvd() > 0) {
+		 // it's possible to release 0 bytes for a zero-length
+		 // record
+                 _nrsvd_hiwat = 
+			 (nrsvd_hiwat() < nrsvd() ? nrsvd() : nrsvd_hiwat());
+	    }
+#endif
 	    if ( _tid == xd->tid())  {
 					// I am still the youngest...
 		_xct_rsvd += amt; 	// add to my reserved
 	    } else if ( _tid < xd->tid() ) {
 					// I am the new youngest.
-		_tid = xd->tid();		// assert: _tid >= xct()->tid
+		_tid = xd->tid();	// assert: _tid >= xct()->tid
 					// until I have completed
 		_xct_rsvd = amt;
 	    }
 	}
     }
+    DBG(<<"space_t::release amt=" << amt 
+			<< " _tid=" << _tid
+			<< " nfree()=" << nfree()
+			<< " nrsvd()=" << nrsvd()
+			<< " xct_rsvd()=" << xct_rsvd()
+			<< "}" );
+    w_assert3(nfree() >= nrsvd());
+    w_assert3(nrsvd() >= xct_rsvd());
+    w_assert1(nfree() >= 0 && nrsvd() >= 0 && xct_rsvd() >= 0);
 }
 
 
@@ -325,8 +560,18 @@ page_p::format(const lpid_t& pid, tag_t tag,
 
     /*
      *  Do the formatting...
+     *  ORIGINALLY:
      *  Note: store_flags must be valid before page is formatted
      *  unless we're in redo and DONT_TRUST_PAGE_LSN is turned on.
+     *  NOW:
+     *  store_flags are passed in. The fix() that preceded this
+     *  will have stuffed some store_flags into the page(as before)
+     *  but they could be wrong. Now that we are logging the store
+     *  flags with the page_format log record, we can force the
+     *  page to have the correct flags due to redo of the format.
+     *  What this does NOT do is fix the store flags in the st_node.
+     * See notes in bf_m::_fix
+     *
      *  The following code writes all 1's into the page (except
      *  for store-flags) in the hope of helping debug problems
      *  involving updates to pages and/or re-use of deallocated
@@ -336,7 +581,7 @@ page_p::format(const lpid_t& pid, tag_t tag,
 #if defined(SM_FORMAT_WITH_GARBAGE) || defined(PURIFY_ZERO)
     memset(_pp, '\017', sizeof(*_pp)); // trash the whole page
 #endif
-    _pp->store_flags = sf; // restore flags
+    _pp->store_flags = sf; // restore flag
     // TODO: any assertions on store_flags?
 
 #if defined(W_DEBUG)
@@ -596,6 +841,8 @@ page_p::mark_free(slotid_t idx)
 
     /*
      *  Release space and mark free
+     *  We do not release the space for the slot table entry. The
+     *  slot table is never shrunk on resverved-space pages.
      */
     _pp->space.release(int(align(_pp->slot[-idx].length)), xct());
     _pp->slot[-idx].length = 0;
@@ -620,6 +867,29 @@ page_p::mark_free(slotid_t idx)
 rc_t
 page_p::reclaim(slotid_t idx, const cvec_t& vec, bool log_it)
 {
+#ifndef BACKOUT_NEHFIX1
+{
+    xct_t* xd = xct();
+    tid_t _tid;
+    if(xd) _tid=xd->tid();
+#ifndef BACKOUT_NEHFIX2
+    DBG(<<"{reclaim  idx=" << idx << " vec.size=" << vec.size()
+			<< " _tid=" << _tid
+			<< " nfree()=" << nfree()
+			<< " nrsvd()=" << nrsvd()
+			<< " xct_rsvd()=" << xct_rsvd()
+			<< " hiwat()=" << nrsvd_hiwat()
+			);
+#else
+    DBG(<<"{reclaim  idx=" << idx << " vec.size=" << vec.size()
+			<< " _tid=" << _tid
+			<< " nfree()=" << nfree()
+			<< " nrsvd()=" << nrsvd()
+			<< " xct_rsvd()=" << xct_rsvd()
+			);
+#endif
+}
+#endif
     /*
      *  Only valid for pages that need space reservation
      */
@@ -646,7 +916,6 @@ page_p::reclaim(slotid_t idx, const cvec_t& vec, bool log_it)
 	W_DO(update_bucket_info());
     // }
 
-
     if(log_it) {
 	/*
 	 *  Log the reclaim. 
@@ -656,11 +925,19 @@ page_p::reclaim(slotid_t idx, const cvec_t& vec, bool log_it)
 	    /*
 	     *  Cannot log ... manually release the space acquired
 	     */
+	    // TODO: SHOULD THIS NOT BE need + need_slots?
+            // maybe could test this by running out of log space
+	    // allocate all pages to file, commit in many small tx
+	    // remove all but one rec on each page, commit
+	    // create many new recs to cause page reclaims
+
 	    _pp->space.undo_acquire(need, xct());
+
 	    // Always true:
 	    // if( rsvd_mode() ) {
 		W_COERCE(update_bucket_info());
 	    // }
+	    DBG(<<"log page reclaim failed at line " <<  __LINE__ );
 	    return RC_AUGMENT(rc);
 	}
     }
@@ -669,6 +946,11 @@ page_p::reclaim(slotid_t idx, const cvec_t& vec, bool log_it)
      *  Log has already been generated ... the following actions must
      *  succeed!
      */
+    // Q : why is need_slots figured in contig_space() ?
+    // A : because need_slots is 0 if we aren't allocating
+    // a new slot.
+    
+
     if (contig_space() < need + need_slots) {
 	/*
 	 *  Shift things around to get enough contiguous space
@@ -698,11 +980,36 @@ page_p::reclaim(slotid_t idx, const cvec_t& vec, bool log_it)
      */
     // make sure the slot table isn't getting overrun
     char* target = _pp->data + (s.offset = _pp->end);
-    w_assert3((caddr_t)(target + vec.size()) <= (caddr_t)&_pp->slot[-(_pp->nslots-1)]);
+    w_assert3((caddr_t)(target + vec.size()) <= 
+	      (caddr_t)&_pp->slot[-(_pp->nslots-1)]);
     vec.copy_to(target);
     _pp->end += int(align( (s.length = vec.size()) ));
 
     W_IFDEBUG(W_COERCE(check()));
+#ifndef BACKOUT_NEHFIX1
+{
+    xct_t* xd = xct();
+    tid_t _tid;
+    if(xd) _tid=xd->tid();
+#ifndef BACKOUT_NEHFIX2
+    DBG(<<" reclaim  idx=" << idx << " vec.size=" << vec.size()
+			<< " _tid=" << _tid
+			<< " nfree()=" << nfree()
+			<< " nrsvd()=" << nrsvd()
+			<< " xct_rsvd()=" << xct_rsvd()
+			<< " hiwat()=" << nrsvd_hiwat()
+			<< "}" );
+#else
+    DBG(<<" reclaim  idx=" << idx << " vec.size=" << vec.size()
+			<< " _tid=" << _tid
+			<< " nfree()=" << nfree()
+			<< " nrsvd()=" << nrsvd()
+			<< " xct_rsvd()=" << xct_rsvd()
+			<< "}" );
+#endif
+
+}
+#endif
     
     return RCOK;
 }
@@ -825,7 +1132,7 @@ rc_t
 page_p::insert_expand(slotid_t idx, int cnt, const cvec_t *vec, 
 	bool log_it, bool do_it)
 {
-    w_assert1(! rsvd_mode() );	// just added
+    w_assert1(! rsvd_mode() );	// needless to say, file pages can't do this
     w_assert1(idx >= 0 && idx <= _pp->nslots);
     w_assert1(cnt > 0);
 
@@ -1095,6 +1402,7 @@ page_p::clr_bit(slotid_t idx, int bit)
 rc_t
 page_p::splice(slotid_t idx, int cnt, splice_info_t info[])
 {
+    DBGTHRD(<<"page_p::splice idx=" <<  idx << " cnt=" << cnt);
     for (int i = cnt; i >= 0; i--)  {
 	// for now, but We should use safe-point to bail out.
 	W_COERCE(splice(idx, info[i].start, info[i].len, info[i].data));
@@ -1121,6 +1429,10 @@ rc_t
 page_p::splice(slotid_t idx, slot_length_t start, slot_length_t len, const cvec_t& vec)
 {
     FUNC(page_p::splice);
+    DBGTHRD(<<"page_p::splice idx=" <<  idx 
+		    << " start=" << start
+		    << " len=" << len
+	   );
     int vecsz = vec.size();
     w_assert1(idx >= 0 && idx < _pp->nslots);
     w_assert1(vecsz >= 0);
@@ -1139,6 +1451,7 @@ page_p::splice(slotid_t idx, slot_length_t start, slot_length_t len, const cvec_
 	/*
 	 *  Need more ... acquire the space
 	 */
+	DBG(<<"space.acquire adjustment=" <<  adjustment );
 	W_DO(_pp->space.acquire(adjustment, 0, xct()));
 	if(rsvd_mode()) {
 	    W_DO(update_bucket_info());
@@ -1170,9 +1483,9 @@ page_p::splice(slotid_t idx, slot_length_t start, slot_length_t len, const cvec_
     }
 
     /*
-    // find out if the start->start+len are all zeroes
-    // not worth it if the old data aren't larger than
-    // the additional logging info needed to save the space
+    // Find out if the start through start+len are all zeroes.
+    // Not worth this effort it if the old data aren't larger than
+    // the additional logging info needed to save the space.
     */
 #define FUDGE 0
     // check old
@@ -1195,7 +1508,7 @@ page_p::splice(slotid_t idx, slot_length_t start, slot_length_t len, const cvec_
     w_assert3(len <= smlevel_0::page_sz);
 
     /*
-     *  Log the splice
+     *  Log the splice that we're about to do.
      */
     rc_t rc;
 
@@ -1206,9 +1519,12 @@ page_p::splice(slotid_t idx, slot_length_t start, slot_length_t len, const cvec_
 		<< (vec.size()-nsave));
 	rc = log_page_splicez(*this, idx, start, len, osave, nsave, vec);
     } else {
+	DBG(<<"log splice idx=" <<  idx << " start=" << start
+	      << " len=" << len );
 	rc = log_page_splice(*this, idx, start, len, vec);
     }
     if (rc)  {
+	DBG(<<"LOG FAILURE rc=" << rc );
 	/*
 	 *  Log fail ... release any space we acquired
 	 */
@@ -1220,14 +1536,16 @@ page_p::splice(slotid_t idx, slot_length_t start, slot_length_t len, const cvec_
 	}
 	return RC_AUGMENT(rc);
     }
+    DBGTHRD(<<"adjustment =" << adjustment);
 
     if (adjustment == 0) {
 	/* do nothing */
 
     } else if (adjustment < 0)  {
 	/*
-	 *  We need less space
+	 *  We need less space: the tuple  got smaller.
 	 */
+	DBG(<<"release:  adjustment=" << adjustment );
 	_pp->space.release(-adjustment, xct());
 	if(rsvd_mode()) {
 	    W_DO(update_bucket_info());
@@ -1443,14 +1761,14 @@ page_p::split_slot(slotid_t idx, slot_offset_t off, const cvec_t& v1,
     DBG(<<"slot size: " << sizeof(slot_t));
     DBG(<<"needed " << need << " need_slots " << need_slots);
     DBG(<<" usable is now " << _pp->space.usable(xct()) );
-    DBG(<<" _nfree " << _pp->space.nfree()
-	<<" _nrsvd " << _pp->space.nrsvd()
-	<<" _xct_rsvd " << _pp->space.xct_rsvd()
-	<<" _tid " << _pp->space.tid()
-	<<" xct() " << xct()->tid()
+    DBG(<<" nfree() " << _pp->space.nfree()
+		<<" nrsvd() " << _pp->space.nrsvd()
+		<<" xct_rsvd() " << _pp->space.xct_rsvd()
+		<<" _tid " << _pp->space.tid()
+		<<" xct() " << xct()->tid()
     );
     if((int)(need + need_slots) > _pp->space.usable(xct())) {
-	return RC(smlevel_0::eRECWONTFIT);
+		return RC(smlevel_0::eRECWONTFIT);
     }
     
     /*
@@ -1459,9 +1777,9 @@ page_p::split_slot(slotid_t idx, slot_offset_t off, const cvec_t& v1,
     int idx2 = idx+1;
     W_DO(insert_expand(idx2, 1, &v2, true));
     DBG(<<" usable is now " << _pp->space.usable(xct()) );
-    DBG(<<" _nfree " << _pp->space.nfree()
-	<<" _nrsvd " << _pp->space.nrsvd()
-	<<" _xct_rsvd " << _pp->space.xct_rsvd()
+    DBG(<<" nfree() " << _pp->space.nfree()
+	<<" nrsvd() " << _pp->space.nrsvd()
+	<<" xct_rsvd() " << _pp->space.xct_rsvd()
 	<<" _tid " << _pp->space.tid()
 	<<" xct() " << xct()->tid()
     );
@@ -1488,9 +1806,9 @@ page_p::split_slot(slotid_t idx, slot_offset_t off, const cvec_t& v1,
 
     W_COERCE(page_p::shift(idx, off, s.length-off, idx2, t.length));
     DBG(<<" usable is now " << _pp->space.usable(xct()) );
-    DBG(<<" _nfree " << _pp->space.nfree()
-	<<" _nrsvd " << _pp->space.nrsvd()
-	<<" _xct_rsvd " << _pp->space.xct_rsvd()
+    DBG(<<" nfree() " << _pp->space.nfree()
+	<<" nrsvd() " << _pp->space.nrsvd()
+	<<" xct_rsvd() " << _pp->space.xct_rsvd()
 	<<" _tid " << _pp->space.tid()
 	<<" xct() " << xct()->tid()
     );

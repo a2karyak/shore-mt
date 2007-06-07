@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: timer.cpp,v 1.14 2000/01/07 07:17:05 bolo Exp $
+ $Id: timer.cpp,v 1.15 2006/01/29 18:09:01 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -32,7 +32,7 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 /*  -- do not edit anything above this line --   </std-header>*/
 
 #include <w_stream.h>
-#include <stddef.h>
+#include <cstddef>
 
 #include <w.h>
 

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: options.cpp,v 1.11 1999/06/07 19:05:56 kupsch Exp $
+ $Id: options.cpp,v 1.15 2007/05/18 21:39:18 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -37,13 +37,15 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
  */
 
 #include <w_stream.h>
-#include <string.h>
+#include <cstring>
 
 // since this file only deals with the SSM option package,
 // rather than including sm_vas.h, just include what's needed for
 // options:
+
 #include "w.h"
 #include "option.h"
+#include <w_strstream.h>
 
 /*
  * init_config_options intialized configuration options for
@@ -84,20 +86,18 @@ init_config_options(option_group_t& options,
     W_DO(options.add_class_level(prog_type));	// server or client
     W_DO(options.add_class_level(prog_name));	// program name
 
-    // read the .examplerc file to set options
+    // read the example config file to set options
     {
-	ostrstream      err_stream;
-	const char* opt_file = "exampleconfig"; 	// option config file
+	w_ostrstream      err_stream;
+	const char* opt_file = "EXAMPLE_SHORECONFIG"; 	// option config file
 	option_file_scan_t opt_scan(opt_file, &options);
 
 	// scan the file and override any current option settings
 	// options names must be spelled correctly
 	rc = opt_scan.scan(true /*override*/, err_stream, true);
 	if (rc) {
-	    char* errmsg = err_stream.str();
 	    cerr << "Error in reading option file: " << opt_file << endl;
-	    cerr << "\t" << errmsg << endl;
-	    if (errmsg) delete errmsg;
+	    cerr << "\t" << err_stream.c_str() << endl;
 	    return rc;
 	}
     }
@@ -105,28 +105,24 @@ init_config_options(option_group_t& options,
     // parce argv for options
     if (!rc) {
         // parse command line
-        ostrstream      err_stream;
+        w_ostrstream      err_stream;
         rc = options.parse_command_line((const char **)argv, argc, 2, &err_stream);
         err_stream << ends;
-        char* errmsg = err_stream.str();
         if (rc) {
             cerr << "Error on Command line " << endl;
             cerr << "\t" << w_error_t::error_string(rc.err_num()) << endl;
-            cerr << "\t" << errmsg << endl;
+            cerr << "\t" << err_stream.c_str() << endl;
 	    return rc;
         }
-        if (errmsg) delete errmsg;
     }
  
     // check required options
     {
-	ostrstream      err_stream;
+	w_ostrstream      err_stream;
 	rc = options.check_required(&err_stream);
         if (rc) {
-	    char* errmsg = err_stream.str();
             cerr << "These required options are not set:" << endl;
-            cerr << errmsg << endl;
-	    if (errmsg) delete errmsg;
+            cerr << err_stream.c_str() << endl;
 	    return rc;
         }
     } 

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='W_LIST_H'>
 
- $Id: w_list.h,v 1.48 2003/12/01 20:41:03 bolo Exp $
+ $Id: w_list.h,v 1.52 2007/05/18 21:38:25 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -37,6 +37,8 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #ifndef W_BASE_H
 #include <w_base.h>
 #endif
+
+#include <iostream>
 
 class w_list_base_t;
 template <class T> class w_list_t;
@@ -200,7 +202,7 @@ template <class T> class w_list_t;
 /*--------------------------------------------------------------*
  *  w_list_t							*
  *--------------------------------------------------------------*/
-BIND_FRIEND_OPERATOR_PART_1(T,w_list_t<T>);
+BIND_FRIEND_OPERATOR_PART_1(T,w_list_t<T>)
 
 template <class T>
 class w_list_t : public w_list_base_t {
@@ -406,6 +408,9 @@ protected:
 	return * (K*) (((const char*)&t) + _key_offset);
     }
 
+    using w_list_t<T>::_tail;
+    using w_list_t<T>::base_of;
+
 private:
     // disabled
     NORET			w_keyed_list_t(
@@ -425,6 +430,9 @@ private:
 
 template <class T, class K>
 class w_ascend_list_t : public w_keyed_list_t<T, K>  {
+    using w_keyed_list_t<T, K>::_tail;
+    using w_keyed_list_t<T, K>::base_of;
+
 public:
     NORET			w_ascend_list_t(
 	w_base_t::uint4_t 	    key_offset,
@@ -443,6 +451,9 @@ private:
 
 template <class T, class K>
 class w_descend_list_t : public w_keyed_list_t<T, K> {
+    using w_keyed_list_t<T, K>::_tail;
+    using w_keyed_list_t<T, K>::base_of;
+
 public:
     NORET			w_descend_list_t(
 	w_base_t::uint4_t 	    key_offset,
@@ -515,7 +526,7 @@ template <class T, class K>
 T*
 w_keyed_list_t<T, K>::search(const K& k)
 {
-    register w_link_t* p;
+    w_link_t	*p;
     for (p = _tail.next();
 	 p != &_tail && (key_of(*base_of(p)) != k);
 	 p = p->next());
@@ -526,7 +537,7 @@ template <class T, class K>
 T*
 w_ascend_list_t<T, K>::search(const K& k)
 {
-    register w_link_t* p;
+    w_link_t	*p;
     for (p = _tail.next();
 	 p != &_tail && (key_of(*base_of(p)) < k);
 	 p = p->next());
@@ -538,7 +549,7 @@ template <class T, class K>
 void
 w_ascend_list_t<T, K>::put_in_order(T* t)
 {
-    register w_link_t* p;
+    w_link_t	*p;
     for (p = _tail.next();
 	 p != &_tail && (key_of(*base_of(p)) <= key_of(*t));
 	 p = p->next());
@@ -554,7 +565,7 @@ template <class T, class K>
 T*
 w_descend_list_t<T, K>::search(const K& k)
 {
-    register w_link_t* p;
+    w_link_t	*p;
     for (p = _tail.next();
 	 p != &_tail && (key_of(*base_of(p)) > k);
 	 p = p->next());
@@ -566,7 +577,7 @@ template <class T, class K>
 void
 w_descend_list_t<T, K>::put_in_order(T* t)
 {
-    register w_link_t* p;
+    w_link_t	*p;
     for (p = _tail.next();
 	 p != &_tail && (key_of(*base_of(p)) >= key_of(*t));
 	 p = p->next());

@@ -1,6 +1,0 @@
-UTIL_DIR = D:/cygnus/cygwin-b20/H-i586-cygwin32
-VCPP_DIR = S:/msvs
-TCL_DIR =  S:/tcl
-BISON_DIR = $(TOOLS_DIR)/nt-i386
-FLEX_DIR = $(TOOLS_DIR)/nt-i386
-PERL_DIR = S:/std

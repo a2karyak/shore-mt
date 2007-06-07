@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: stats.cpp,v 1.15 2000/01/07 07:17:05 bolo Exp $
+ $Id: stats.cpp,v 1.16 2006/01/29 18:51:10 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -32,7 +32,7 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 /*  -- do not edit anything above this line --   </std-header>*/
 
 #ifdef _WINDOWS
-#include <time.h>
+#include <ctime>
 #endif
 
 #include <w.h>

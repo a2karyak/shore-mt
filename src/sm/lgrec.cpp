@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: lgrec.cpp,v 1.71 1999/08/24 22:50:07 nhall Exp $
+ $Id: lgrec.cpp,v 1.73 2007/05/18 21:43:25 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -631,7 +631,12 @@ lgdata_p::append(const vec_t& data, uint4_t start, uint4_t amount)
 
     // new vector at correct start and with correct size
     if(data.is_zvec()) {
+#ifndef NO_VEC_TMP_HACK
+	const zvec_t amt_vec_tmp(amount);	    
+	W_DO(splice(0, (slot_length_t) tuple_size(0), 0, amt_vec_tmp));
+#else
 	W_DO(splice(0, (slot_length_t) tuple_size(0), 0, zvec_t(amount)));
+#endif
     } else {
 	vec_t new_data(data, u4i(start), u4i(amount));
 	w_assert3(amount == new_data.size());
@@ -648,7 +653,12 @@ lgdata_p::update(uint4_t offset, const vec_t& data, uint4_t start,
 
     // new vector at correct start and with correct size
     if(data.is_zvec()) {
+#ifndef NO_VEC_TMP_HACK
+	const zvec_t amt_vec_tmp(amount);
+        W_DO(splice(0, u4i(offset), u4i(amount), amt_vec_tmp));
+#else
 	W_DO(splice(0, u4i(offset), u4i(amount), zvec_t(amount)));
+#endif
     } else {
 	vec_t new_data(data, u4i(start), u4i(amount));
 	w_assert3(amount == new_data.size());
@@ -712,6 +722,6 @@ void lgindex_p::ntoh()
     W_FATAL(eINTERNAL);
 }
 
-MAKEPAGECODE(lgdata_p, page_p);
-MAKEPAGECODE(lgindex_p, page_p);
+MAKEPAGECODE(lgdata_p, page_p)
+MAKEPAGECODE(lgindex_p, page_p)
 

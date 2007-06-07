@@ -1,35 +1,35 @@
-/*<std-header orig-src='shore'>
+	/*<std-header orig-src='shore'>
 
- $Id: logrec.cpp,v 1.144 2003/08/24 14:10:09 bolo Exp $
+	 $Id: logrec.cpp,v 1.150 2007/05/18 21:43:26 nhall Exp $
 
-SHORE -- Scalable Heterogeneous Object REpository
+	SHORE -- Scalable Heterogeneous Object REpository
 
-Copyright (c) 1994-99 Computer Sciences Department, University of
-                      Wisconsin -- Madison
-All Rights Reserved.
+	Copyright (c) 1994-99 Computer Sciences Department, University of
+			      Wisconsin -- Madison
+	All Rights Reserved.
 
-Permission to use, copy, modify and distribute this software and its
-documentation is hereby granted, provided that both the copyright
-notice and this permission notice appear in all copies of the
-software, derivative works or modified versions, and any portions
-thereof, and that both notices appear in supporting documentation.
+	Permission to use, copy, modify and distribute this software and its
+	documentation is hereby granted, provided that both the copyright
+	notice and this permission notice appear in all copies of the
+	software, derivative works or modified versions, and any portions
+	thereof, and that both notices appear in supporting documentation.
 
-THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
-OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
-"AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
-FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+	THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+	OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+	"AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+	FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
 
-This software was developed with support by the Advanced Research
-Project Agency, ARPA order number 018 (formerly 8230), monitored by
-the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
-Further funding for this work was provided by DARPA through
-Rome Research Laboratory Contract No. F30602-97-2-0247.
+	This software was developed with support by the Advanced Research
+	Project Agency, ARPA order number 018 (formerly 8230), monitored by
+	the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+	Further funding for this work was provided by DARPA through
+	Rome Research Laboratory Contract No. F30602-97-2-0247.
 
-*/
+	*/
 
 #include "w_defines.h"
 
-/*  -- do not edit anything above this line --   </std-header>*/
+	/*  -- do not edit anything above this line --   </std-header>*/
 
 #define SM_SOURCE
 #define LOGREC_C
@@ -38,854 +38,882 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #endif
 #include "sm_int_2.h"
 #include "logdef_gen.cpp"
-// include extent.h JUST to get stnode_p::max
+	// include extent.h JUST to get stnode_p::max
 #include "extent.h" 
-// include histo.h JUST to get histoid_t::destroyed_store declaration
+	// include histo.h JUST to get histoid_t::destroyed_store declaration
 #include "histo.h"
 
 #include "btree_p.h"
 #include "rtree_p.h"
 
 #ifdef _WIN32
-/* XXX hack for missing class type */
-typedef	long	ios_fmtflags;
+	/* XXX hack for missing class type */
+	typedef	long	ios_fmtflags;
 #else
-#include <streambuf.h>	// ios stuff for flags
-typedef	ios::fmtflags	ios_fmtflags;
+#include <iomanip>
+	typedef	ios::fmtflags	ios_fmtflags;
 #endif
 
-#include <new.h>
+#include <new>
 
-enum { 	eINTERNAL = smlevel_0::eINTERNAL,
-	eOUTOFMEMORY = smlevel_0::eOUTOFMEMORY
+	enum { 	eINTERNAL = smlevel_0::eINTERNAL,
+		eOUTOFMEMORY = smlevel_0::eOUTOFMEMORY
+		};
+
+
+	W_FASTNEW_STATIC_DECL(logrec_t, 8)  // 3 pages each!
+
+	/*********************************************************************
+	 *
+	 *  logrec_t::cat_str()
+	 *
+	 *  Return a string describing the category of the log record.
+	 *
+	 *********************************************************************/
+	const char*
+	logrec_t::cat_str() const
+	{
+	    switch (_cat)  {
+	    case t_logical:
+		return "l---";
+
+	    case t_logical | t_cpsn:
+		return "l--c";
+
+	    case t_status:
+		return "s---";
+
+	    case t_undo:
+		return "--u-";
+
+	    case t_redo:
+		return "-r--";
+
+	    case t_redo | t_cpsn:
+		return "-r-c";
+
+	    case t_undo | t_redo:
+		return "-ru-";
+
+	    case t_undo | t_redo | t_logical:
+		return "lru-";
+
+	    case t_redo | t_logical | t_cpsn:
+		return "lr_c";
+
+	    case t_redo | t_logical : // used in I/O layer 
+		return "lr__";
+
+	    case t_undo | t_logical | t_cpsn:
+		return "l_uc";
+
+	    case t_undo | t_logical : 
+		return "l-u-";
+
+#ifdef W_DEBUG
+	    case t_bad_cat:
+		// for debugging only
+		return "BAD-";
+#endif /* W_DEBUG */
+
+	    }
+#ifdef W_DEBUG
+	    cerr << "unexpected log record flags: ";
+		if( _cat & t_undo ) cerr << "t_undo ";
+		if( _cat & t_redo ) cerr << "t_redo ";
+		if( _cat & t_logical ) cerr << "t_logical ";
+		if( _cat & t_cpsn ) cerr << "t_cpsn ";
+		if( _cat & t_status ) cerr << "t_status ";
+		cerr << endl;
+#endif /* W_DEBUG */
+		
+	    W_FATAL(smlevel_0::eINTERNAL);
+	    return "????";
+	}
+
+
+	/*********************************************************************
+	 *
+	 *  logrec_t::type_str()
+	 *
+	 *  Return a string describing the type of the log record.
+	 *
+	 *********************************************************************/
+	const char* 
+	logrec_t::type_str() const
+	{
+	    switch (_type)  {
+#	include "logstr_gen.cpp"
+	    }
+
+	    /*
+	     *  Not reached.
+	     */
+	    W_FATAL(smlevel_0::eINTERNAL);
+	    return 0;
+	}
+
+
+
+
+	/*********************************************************************
+	 *
+	 *  logrec_t::fill(pid, len)
+	 *
+	 *  Fill the "pid" and "length" field of the log record.
+	 *
+	 *********************************************************************/
+	void
+	logrec_t::fill(const lpid_t* p, uint2_t tag, smsize_t l)
+	{
+	    w_assert3(hdr_sz == _data - (char*) this);
+	    w_assert3(w_base_t::is_aligned(_data));
+
+	    set_pid(lpid_t::null);
+	    _prev = lsn_t::null;
+	    _page_tag = tag;
+	    if (p) set_pid(*p);
+	    if (l != align(l)) {
+		// zero out extra space to keep purify happy
+		memset(_data+l, 0, align(l)-l);
+	    }
+	    unsigned int tmp = align(l) + hdr_sz + sizeof(lsn_t);
+	    w_assert1(tmp <= max_sz);
+	    _len = tmp;
+	    if(type() != t_skip) {
+		DBG( << "Creat log rec: " << *this 
+			<< " size: " << _len << " prevlsn: " << _prev );
+	    }
+	}
+
+
+
+	/*********************************************************************
+	 *
+	 *  logrec_t::fill_xct_attr(tid, prev_lsn)
+	 *
+	 *  Fill the transaction related fields of the log record.
+	 *  BUGBUG: should be inlined.
+	 *
+	 *********************************************************************/
+	void 
+	logrec_t::fill_xct_attr(const tid_t& tid, const lsn_t& last)
+	{
+	    _tid = tid;
+	    if(_prev) {
+		w_assert3(is_cpsn());
+	    } else {
+		_prev = last;
+	    }
+	}
+
+	/*
+	 * Determine whether the log record header looks valid
+	 */
+	bool
+	logrec_t::valid_header(const lsn_t & lsn) const
+	{
+	    if (_len < hdr_sz || _type > 100 || _cat == t_bad_cat || 
+		lsn != *_lsn_ck()) {
+		return false;
+	    }
+	    return true;
+	}
+
+
+	/*********************************************************************
+	 *
+	 *  logrec_t::redo(page)
+	 *
+	 *  Invoke the redo method of the log record.
+	 *
+	 *********************************************************************/
+	void logrec_t::redo(page_p* page)
+	{
+	    FUNC(logrec_t::redo);
+	    DBG( << "Redo  log rec: " << *this 
+		<< " size: " << _len << " prevlsn: " << _prev );
+
+	    /* XXX stupid NCR hack that doesn't truely indicate how the 
+	       system is running. */
+	    if (!smlevel_0::_did_recovery)
+		smlevel_0::_did_recovery = true;
+
+	    switch (_type)  {
+#include "redo_gen.cpp"
+	    }
+	    
+	    /*
+	     *  Page is dirty after redo.
+	     *  (not all redone log records have a page)
+	     *  NB: the page lsn in set by the caller (in restart.cpp)
+	     *  This is ok in recovery because in this phase, there
+	     *  is not a bf_cleaner thread running. (that thread asserts
+	     *  that if the page is dirty, its lsn is non-null, and we
+	     *  have a short-lived violation of that right here).
+	     */
+	    if(page) page->set_dirty();
+	}
+
+
+
+	/*********************************************************************
+	 *
+	 *  logrec_t::undo(page)
+	 *
+	 *  Invoke the undo method of the log record. Automatically tag
+	 *  a compensation lsn to the last log record generated for the
+	 *  undo operation.
+	 *
+	 *********************************************************************/
+	void
+	logrec_t::undo(page_p* page)
+	{
+	    FUNC(logrec_t::undo);
+	    DBG( << "Undo  log rec: " << *this 
+		<< " size: " << _len  << " prevlsn: " << _prev);
+	    switch (_type) {
+#include "undo_gen.cpp"
+	    }
+	    xct()->compensate_undo(_prev);
+	}
+
+	/*********************************************************************
+	 *
+	 *  logrec_t::corrupt()
+	 *
+	 *  Zero out most of log record to make it look corrupt.
+	 *  This is for recovery testing.
+	 *
+	 *********************************************************************/
+	void
+	logrec_t::corrupt()
+	{
+	    char* end_of_corruption = ((char*)this)+length();
+	    char* start_of_corruption = (char*)&_type;
+	    size_t bytes_to_corrupt = end_of_corruption - start_of_corruption;
+	    memset(start_of_corruption, 0, bytes_to_corrupt);
+	}
+
+	/*********************************************************************
+	 *
+	 *  xct_freeing_space
+	 *
+	 *  Status Log to mark the end of transaction and the beginning
+	 *  of space recovery.
+	 *  Synchronous for commit. Async for abort.
+	 *
+	 *********************************************************************/
+	xct_freeing_space_log::xct_freeing_space_log()
+	{
+	    fill(0, 0, 0);
+	}
+
+
+	/*********************************************************************
+	 *
+	 *  xct_end_log
+	 *
+	 *  Status Log to mark the end of transaction and space recovery.
+	 *
+	 *********************************************************************/
+	xct_end_log::xct_end_log()
+	{
+	    fill(0, 0, 0);
+	}
+
+
+
+	/*********************************************************************
+	 *
+	 *  xct_prepare_st_log -- start prepare info for a tx
+	 *  xct_prepare_lk_log -- add locks to the tx
+	 *  xct_prepare_fi_log -- fin prepare info for the tx
+	 *
+	 *  For 2 phase commit.
+	 *
+	 *********************************************************************/
+
+	xct_prepare_st_log::xct_prepare_st_log(const gtid_t *g, 
+		const server_handle_t &h)
+	{
+	    fill(0, 0, (new (_data) prepare_info_t(g, h))->size());
+
+	}
+	void
+	xct_prepare_st_log::redo(page_p *) 
+	{
+	    /*
+	     *  Update xct state 
+	     */
+	    const prepare_info_t* 	pt = (prepare_info_t*) _data;
+	    xct_t *			xd = xct_t::look_up(_tid);
+	    w_assert3(xd);
+	    if(pt->is_external==1) {
+		W_COERCE(xd->enter2pc(pt->g));
+	    }
+	    xd->set_coordinator(pt->h);
+	}
+
+
+	xct_prepare_lk_log::xct_prepare_lk_log(int num, 
+		lock_base_t::lmode_t mode, lockid_t *locks)
+	{
+	    fill(0, 0, (new (_data) prepare_lock_t(num, mode, locks))->size());
+	}
+
+	xct_prepare_alk_log::xct_prepare_alk_log(int num, 
+		lockid_t *locks,
+		lock_base_t::lmode_t *modes
+		)
+	{
+	    fill(0, 0, (new (_data) prepare_all_lock_t(num, locks, modes))->size());
+	}
+
+	void
+	xct_prepare_lk_log::redo(page_p *) 
+	{
+	    /*
+	     *  Acquire all the locks within. (all of same mode)
+	     *  For lm->lock() to work, we have to 
+	     *  attach the xct
+	     */
+	    const prepare_lock_t* 	pt = (prepare_lock_t*) _data;
+	    xct_t *			xd = xct_t::look_up(_tid);
+	    me()->attach_xct(xd);
+	    W_COERCE(xd->obtain_locks(pt->mode, pt->num_locks, pt->name));
+	    me()->detach_xct(xd);
+	}
+
+	void
+	xct_prepare_alk_log::redo(page_p *) 
+	{
+	    /*
+	     *  Acquire all the locks within. (different modes)
+	     *  For lm->lock() to work, we have to 
+	     *  attach the xct
+	     */
+	    const prepare_all_lock_t* 	pt = (prepare_all_lock_t*) _data;
+	    xct_t *			xd = xct_t::look_up(_tid);
+	    me()->attach_xct(xd);
+	    uint4_t i;
+	    for (i=0; i<pt->num_locks; i++) {
+		W_COERCE(xd->obtain_one_lock(pt->pair[i].mode, pt->pair[i].name));
+	    }
+	    me()->detach_xct(xd);
+	}
+
+
+	xct_prepare_fi_log::xct_prepare_fi_log(int num_ex, int num_ix, int num_six, int numextent, 
+		const lsn_t &first) 
+	{
+	    fill(0, 0, (new (_data) 
+		prepare_lock_totals_t(num_ex, num_ix, num_six, numextent, first))->size());
+	}
+	void 
+	xct_prepare_fi_log::redo(page_p *) 
+	{
+	    /*
+	     *  check that the right number of
+	     *  locks was acquired, and set the state
+	     *  -- don't set the state any earlier so that
+	     *  txs that didn't get the prepare fin logged
+	     *  are aborted during the undo phase
+	     */
+	    xct_t *			xd = xct_t::look_up(_tid);
+	    const prepare_lock_totals_t* pt = 
+		    (prepare_lock_totals_t*) _data;
+	    me()->attach_xct(xd);
+	    W_COERCE(xd->check_lock_totals(pt->num_EX, pt->num_IX, pt->num_SIX, pt->num_extents));
+	    xd->change_state(xct_t::xct_prepared);
+
+	    w_assert3( xd->first_lsn() == lsn_t::null );
+	    xd->set_first_lsn(pt->first_lsn);
+
+	    me()->detach_xct(xd);
+	    w_assert3(xd->state() == xct_t::xct_prepared);
+	}
+
+	xct_prepare_stores_log::xct_prepare_stores_log(int num, const stid_t* stids)
+	{
+	    fill(0, 0, (new (_data) prepare_stores_to_free_t(num, stids))->size());
+	}
+
+	void
+	xct_prepare_stores_log::redo(page_p *)
+	{
+	    xct_t*	xd = xct_t::look_up(_tid);
+	    const prepare_stores_to_free_t* info = (prepare_stores_to_free_t*)_data;
+	    me()->attach_xct(xd);
+	    for (uint4_t i = 0; i < info->num; i++)  {
+		xd->AddStoreToFree(info->stids[i]);
+	    }
+	    me()->detach_xct(xd);
+	    w_assert3(xd->state() == xct_t::xct_prepared);
+	}
+
+
+	/*********************************************************************
+	 *
+	 *  comment_log
+	 *
+	 *  For debugging
+	 *
+	 *********************************************************************/
+	comment_log::comment_log(const char *msg)
+	{
+	    w_assert1(strlen(msg) < sizeof(_data));
+	    memcpy(_data, msg, strlen(msg)+1);
+	    DBG(<<"comment_log: L: " << (const char *)_data);
+	    fill(0, 0, strlen(msg)+1);
+	}
+
+	void 
+	comment_log::redo(page_p * W_IFDEBUG(page))
+	{
+	    w_assert3(page == 0);
+	    DBG(<<"comment_log: R: " << (const char *)_data);
+	    ; // just for the purpose of setting breakpoints
+	}
+
+	void 
+	comment_log::undo(page_p * W_IFDEBUG(page))
+	{
+	    w_assert3(page == 0);
+	    DBG(<<"comment_log: U: " << (const char *)_data);
+	    ; // just for the purpose of setting breakpoints
+	}
+
+	/*********************************************************************
+	 *
+	 *  compensate_log
+	 *
+	 *  Needed when compensation rec is written rather than piggybacked
+	 *  on another record
+	 *
+	 *********************************************************************/
+	compensate_log::compensate_log(lsn_t rec_lsn)
+	{
+	    fill(0, 0, 0);
+	    set_clr(rec_lsn);
+	}
+
+
+	/*********************************************************************
+	 *
+	 *  skip_log partition
+	 *
+	 *  Filler log record -- for skipping to end of log partition
+	 *
+	 *********************************************************************/
+	skip_log::skip_log()
+	{
+	    fill(0, 0, 0);
+	}
+
+	/*********************************************************************
+	 *
+	 *  chkpt_begin_log
+	 *
+	 *  Status Log to mark start of fussy checkpoint.
+	 *
+	 *********************************************************************/
+	chkpt_begin_log::chkpt_begin_log(const lsn_t &lastMountLSN)
+	{
+	    new (_data) lsn_t(lastMountLSN);
+	    fill(0, 0, sizeof(lsn_t));
+	}
+
+
+
+
+	/*********************************************************************
+	 *
+	 *  chkpt_end_log(const lsn_t &master, const lsn_t& min_rec_lsn)
+	 *
+	 *  Status Log to mark completion of fussy checkpoint.
+	 *  Master is the lsn of the record that began this chkpt.
+	 *  min_rec_lsn is the lsn of the record that began this chkpt.
+	 *
+	 *********************************************************************/
+	chkpt_end_log::chkpt_end_log(const lsn_t &lsn, const lsn_t& min_rec_lsn)
+	{
+	    // initialize _data
+	    lsn_t *l = new (_data) lsn_t(lsn);
+	    l++; //grot
+	    *l = min_rec_lsn;
+
+	    fill(0, 0, 2 * sizeof(lsn_t));
+	}
+
+
+
+	/*********************************************************************
+	 *
+	 *  chkpt_bf_tab_log
+	 *
+	 *  Data Log to save dirty page table at checkpoint.
+	 *  Contains, for each dirty page, its pid and recovery lsn.
+	 *
+	 *********************************************************************/
+
+	chkpt_bf_tab_t::chkpt_bf_tab_t(
+	    int 		cnt,	// I-  # elements in pids[] and rlsns[]
+	    const lpid_t* 	pids,	// I-  id of of dirty pages
+	    const lsn_t* 	rlsns)	// I-  rlsns[i] is recovery lsn of pids[i]
+	    : count(cnt)
+	{
+	    w_assert3( SIZEOF(*this) <= logrec_t::data_sz );
+	    w_assert1(count <= max);
+	    for (uint i = 0; i < count; i++) {
+		brec[i].pid = pids[i];
+		brec[i].rec_lsn = rlsns[i];
+	    }
+	}
+
+
+	chkpt_bf_tab_log::chkpt_bf_tab_log(
+	    int 		cnt,	// I-  # elements in pids[] and rlsns[]
+	    const lpid_t* 	pid,	// I-  id of of dirty pages
+	    const lsn_t* 	rec_lsn)// I-  rlsns[i] is recovery lsn of pids[i]
+	{
+	    fill(0, 0, (new (_data) chkpt_bf_tab_t(cnt, pid, rec_lsn))->size());
+	}
+
+
+
+
+	/*********************************************************************
+	 *
+	 *  chkpt_xct_tab_log
+	 *
+	 *  Data log to save transaction table at checkpoint.
+	 *  Contains, for each active xct, its id, state, last_lsn
+	 *  and undo_nxt lsn. 
+	 *
+	 *********************************************************************/
+	chkpt_xct_tab_t::chkpt_xct_tab_t(
+	    const tid_t& 			_youngest,
+	    int 				cnt,
+	    const tid_t* 			tid,
+	    const smlevel_1::xct_state_t* 	state,
+	    const lsn_t* 			last_lsn,
+	    const lsn_t* 			undo_nxt)
+	    : youngest(_youngest), count(cnt)
+	{
+	    w_assert1(count <= max);
+	    w_assert3( SIZEOF(*this) <= logrec_t::data_sz);
+	    for (uint i = 0; i < count; i++)  {
+		xrec[i].tid = tid[i];
+		xrec[i].state = state[i];
+		xrec[i].last_lsn = last_lsn[i];
+		xrec[i].undo_nxt = undo_nxt[i];
+	    }
+	}
+	    
+	chkpt_xct_tab_log::chkpt_xct_tab_log(
+	    const tid_t& 			youngest,
+	    int 				cnt,
+	    const tid_t* 			tid,
+	    const smlevel_1::xct_state_t* 	state,
+	    const lsn_t* 			last_lsn,
+	    const lsn_t* 			undo_nxt)
+	{
+	    fill(0, 0, (new (_data) chkpt_xct_tab_t(youngest, cnt, tid, state,
+						 last_lsn, undo_nxt))->size());
+	}
+
+
+
+
+	/*********************************************************************
+	 *
+	 *  chkpt_dev_tab_log
+	 *
+	 *  Data log to save devices mounted at checkpoint.
+	 *  Contains, for each device mounted, its devname and vid.
+	 *
+	 *********************************************************************/
+	chkpt_dev_tab_t::chkpt_dev_tab_t(
+	    int 		cnt,
+	    const char 		**dev,
+	    const vid_t* 	vid)
+	    : count(cnt)
+	{
+	    w_assert3( SIZEOF(*this) <= logrec_t::data_sz );
+	    w_assert1(count <= max);
+	    for (uint i = 0; i < count; i++) {
+		// zero out everything and then set the string
+		memset(devrec[i].dev_name, 0, sizeof(devrec[i].dev_name));
+		strncpy(devrec[i].dev_name, dev[i], sizeof(devrec[i].dev_name)-1);
+		devrec[i].vid = vid[i];
+	    }
+	}
+
+	chkpt_dev_tab_log::chkpt_dev_tab_log(
+	    int 		cnt,
+	    const char 		**dev,
+	    const vid_t* 	vid)
+	{
+	    fill(0, 0, (new (_data) chkpt_dev_tab_t(cnt, dev, vid))->size());
+	}
+
+
+	/*********************************************************************
+	 *
+	 *  mount_vol_log
+	 *
+	 *  Data log to save device mounts.
+	 *
+	 *********************************************************************/
+	mount_vol_log::mount_vol_log(
+	    const char* 	dev,
+	    const vid_t& 	vid)
+	{
+	    const char		*devArray[1];
+
+	    devArray[0] = dev;
+	    DBG(<< "mount_vol_log dev_name=" << devArray[0] << " volid =" << vid);
+	    fill(0, 0, (new (_data) chkpt_dev_tab_t(1, devArray, &vid))->size());
+	}
+
+
+	void mount_vol_log::redo(page_p* W_IFDEBUG(page))
+	{
+	    w_assert3(page == 0);
+	    chkpt_dev_tab_t* dp = (chkpt_dev_tab_t*) _data;
+
+	    w_assert3(dp->count == 1);
+
+	    // this may fail since this log record is only redone on crash/restart and the
+		// user may have destroyed the volume after using, but then there won't be
+		// and pages that need to be updated on this volume.
+	    W_IGNORE(io_m::mount(dp->devrec[0].dev_name, dp->devrec[0].vid));
+	}
+
+
+	/*********************************************************************
+	 *
+	 *  dismount_vol_log
+	 *
+	 *  Data log to save device dismounts.
+	 *
+	 *********************************************************************/
+	dismount_vol_log::dismount_vol_log(
+	    const char*		dev,
+	    const vid_t& 	vid)
+	{
+	    const char		*devArray[1];
+
+	    devArray[0] = dev;
+	    DBG(<< "dismount_vol_log dev_name=" << devArray[0] << " volid =" << vid);
+	    fill(0, 0, (new (_data) chkpt_dev_tab_t(1, devArray, &vid))->size());
+	}
+
+
+	void dismount_vol_log::redo(page_p* W_IFDEBUG(page))
+	{
+	    w_assert3(page == 0);
+	    chkpt_dev_tab_t* dp = (chkpt_dev_tab_t*) _data;
+
+	    w_assert3(dp->count == 1);
+	    // this may fail since this log record is only redone on crash/restart and the
+		// user may have destroyed the volume after using, but then there won't be
+		// and pages that need to be updated on this volume.
+	    W_IGNORE(io_m::dismount(dp->devrec[0].vid, true));
+	}
+
+
+
+	/*********************************************************************
+	 *
+	 *  page_init_log
+	 *
+	 *  Log page initialization.
+	 *
+	 *********************************************************************/
+	class page_init_t {
+	public:
+	    uint2_t	tag;
+#ifdef BACKOUT_NEHFIX3
+	    fill2	filler; 
+	    uint4_t	flags; 
+
+	    page_init_t(uint2_t t, uint4_t f): 
+		tag(t), flags(f) {};
+#else
+	    uint2_t	page_flags; // page_flag_t in page.h
+	    uint4_t	store_flags; // store_flag_t  in sm_base.h
+
+	    page_init_t(uint2_t t, uint2_t pf, uint4_t sf): 
+		tag(t), page_flags(pf), store_flags(sf) {};
+#endif
+	    
+	    int size()  { return sizeof(*this); }
+	    void redo(page_p *p, const lpid_t& pid);
+	    // no undo
 	};
 
-
-W_FASTNEW_STATIC_DECL(logrec_t, 8);  // 3 pages each!
-
-/*********************************************************************
- *
- *  logrec_t::cat_str()
- *
- *  Return a string describing the category of the log record.
- *
- *********************************************************************/
-const char*
-logrec_t::cat_str() const
-{
-    switch (_cat)  {
-    case t_logical:
-	return "l---";
-
-    case t_logical | t_cpsn:
-	return "l--c";
-
-    case t_status:
-	return "s---";
-
-    case t_undo:
-	return "--u-";
-
-    case t_redo:
-	return "-r--";
-
-    case t_redo | t_cpsn:
-	return "-r-c";
-
-    case t_undo | t_redo:
-	return "-ru-";
-
-    case t_undo | t_redo | t_logical:
-	return "lru-";
-
-    case t_redo | t_logical | t_cpsn:
-	return "lr_c";
-
-    case t_redo | t_logical : // used in I/O layer 
-	return "lr__";
-
-    case t_undo | t_logical | t_cpsn:
-	return "l_uc";
-
-    case t_undo | t_logical : 
-	return "l-u-";
-
-#ifdef W_DEBUG
-    case t_bad_cat:
-	// for debugging only
-	return "BAD-";
-#endif /* W_DEBUG */
-
-    }
-#ifdef W_DEBUG
-    cerr << "unexpected log record flags: ";
-	if( _cat & t_undo ) cerr << "t_undo ";
-	if( _cat & t_redo ) cerr << "t_redo ";
-	if( _cat & t_logical ) cerr << "t_logical ";
-	if( _cat & t_cpsn ) cerr << "t_cpsn ";
-	if( _cat & t_status ) cerr << "t_status ";
-	cerr << endl;
-#endif /* W_DEBUG */
-	
-    W_FATAL(smlevel_0::eINTERNAL);
-    return "????";
-}
-
-
-/*********************************************************************
- *
- *  logrec_t::type_str()
- *
- *  Return a string describing the type of the log record.
- *
- *********************************************************************/
-const char* 
-logrec_t::type_str() const
-{
-    switch (_type)  {
-#	include "logstr_gen.cpp"
-    }
-
-    /*
-     *  Not reached.
-     */
-    W_FATAL(smlevel_0::eINTERNAL);
-    return 0;
-}
-
-
-
-
-/*********************************************************************
- *
- *  logrec_t::fill(pid, len)
- *
- *  Fill the "pid" and "length" field of the log record.
- *
- *********************************************************************/
-void
-logrec_t::fill(const lpid_t* p, uint2_t tag, smsize_t l)
-{
-    w_assert3(hdr_sz == _data - (char*) this);
-    w_assert3(w_base_t::is_aligned(_data));
-
-    set_pid(lpid_t::null);
-    _prev = lsn_t::null;
-    _page_tag = tag;
-    if (p) set_pid(*p);
-    if (l != align(l)) {
-	// zero out extra space to keep purify happy
-	memset(_data+l, 0, align(l)-l);
-    }
-    unsigned int tmp = align(l) + hdr_sz + sizeof(lsn_t);
-    w_assert1(tmp <= max_sz);
-    _len = tmp;
-    if(type() != t_skip) {
-	DBG( << "Creat log rec: " << *this 
-		<< " size: " << _len << " prevlsn: " << _prev );
-    }
-}
-
-
-
-/*********************************************************************
- *
- *  logrec_t::fill_xct_attr(tid, prev_lsn)
- *
- *  Fill the transaction related fields of the log record.
- *  BUGBUG: should be inlined.
- *
- *********************************************************************/
-void 
-logrec_t::fill_xct_attr(const tid_t& tid, const lsn_t& last)
-{
-    _tid = tid;
-    if(_prev) {
-	w_assert3(is_cpsn());
-    } else {
-	_prev = last;
-    }
-}
-
-/*
- * Determine whether the log record header looks valid
- */
-bool
-logrec_t::valid_header(const lsn_t & lsn) const
-{
-    if (_len < hdr_sz || _type > 100 || _cat == t_bad_cat || 
-	lsn != *_lsn_ck()) {
-	return false;
-    }
-    return true;
-}
-
-
-/*********************************************************************
- *
- *  logrec_t::redo(page)
- *
- *  Invoke the redo method of the log record.
- *
- *********************************************************************/
-void logrec_t::redo(page_p* page)
-{
-    FUNC(logrec_t::redo);
-    DBG( << "Redo  log rec: " << *this 
-	<< " size: " << _len << " prevlsn: " << _prev );
-
-    /* XXX stupid NCR hack that doesn't truely indicate how the 
-       system is running. */
-    if (!smlevel_0::_did_recovery)
-        smlevel_0::_did_recovery = true;
-
-    switch (_type)  {
-#include "redo_gen.cpp"
-    }
-    
-    /*
-     *  Page is dirty after redo.
-     *  (not all redone log records have a page)
-     *  NB: the page lsn in set by the caller (in restart.cpp)
-     *  This is ok in recovery because in this phase, there
-     *  is not a bf_cleaner thread running. (that thread asserts
-     *  that if the page is dirty, its lsn is non-null, and we
-     *  have a short-lived violation of that right here).
-     */
-    if(page) page->set_dirty();
-}
-
-
-
-/*********************************************************************
- *
- *  logrec_t::undo(page)
- *
- *  Invoke the undo method of the log record. Automatically tag
- *  a compensation lsn to the last log record generated for the
- *  undo operation.
- *
- *********************************************************************/
-void
-logrec_t::undo(page_p* page)
-{
-    FUNC(logrec_t::undo);
-    DBG( << "Undo  log rec: " << *this 
-	<< " size: " << _len  << " prevlsn: " << _prev);
-    switch (_type) {
-#include "undo_gen.cpp"
-    }
-    xct()->compensate_undo(_prev);
-}
-
-/*********************************************************************
- *
- *  logrec_t::corrupt()
- *
- *  Zero out most of log record to make it look corrupt.
- *  This is for recovery testing.
- *
- *********************************************************************/
-void
-logrec_t::corrupt()
-{
-    char* end_of_corruption = ((char*)this)+length();
-    char* start_of_corruption = (char*)&_type;
-    size_t bytes_to_corrupt = end_of_corruption - start_of_corruption;
-    memset(start_of_corruption, 0, bytes_to_corrupt);
-}
-
-/*********************************************************************
- *
- *  xct_freeing_space
- *
- *  Status Log to mark the end of transaction and the beginning
- *  of space recovery.
- *  Synchronous for commit. Async for abort.
- *
- *********************************************************************/
-xct_freeing_space_log::xct_freeing_space_log()
-{
-    fill(0, 0, 0);
-}
-
-
-/*********************************************************************
- *
- *  xct_end_log
- *
- *  Status Log to mark the end of transaction and space recovery.
- *
- *********************************************************************/
-xct_end_log::xct_end_log()
-{
-    fill(0, 0, 0);
-}
-
-
-
-/*********************************************************************
- *
- *  xct_prepare_st_log -- start prepare info for a tx
- *  xct_prepare_lk_log -- add locks to the tx
- *  xct_prepare_fi_log -- fin prepare info for the tx
- *
- *  For 2 phase commit.
- *
- *********************************************************************/
-
-xct_prepare_st_log::xct_prepare_st_log(const gtid_t *g, 
-	const server_handle_t &h)
-{
-    fill(0, 0, (new (_data) prepare_info_t(g, h))->size());
-
-}
-void
-xct_prepare_st_log::redo(page_p *) 
-{
-    /*
-     *  Update xct state 
-     */
-    const prepare_info_t* 	pt = (prepare_info_t*) _data;
-    xct_t *			xd = xct_t::look_up(_tid);
-    w_assert3(xd);
-    if(pt->is_external==1) {
-	W_COERCE(xd->enter2pc(pt->g));
-    }
-    xd->set_coordinator(pt->h);
-}
-
-
-xct_prepare_lk_log::xct_prepare_lk_log(int num, 
-	lock_base_t::mode_t mode, lockid_t *locks)
-{
-    fill(0, 0, (new (_data) prepare_lock_t(num, mode, locks))->size());
-}
-
-xct_prepare_alk_log::xct_prepare_alk_log(int num, 
-	lockid_t *locks,
-	lock_base_t::mode_t *modes
-	)
-{
-    fill(0, 0, (new (_data) prepare_all_lock_t(num, locks, modes))->size());
-}
-
-void
-xct_prepare_lk_log::redo(page_p *) 
-{
-    /*
-     *  Acquire all the locks within. (all of same mode)
-     *  For lm->lock() to work, we have to 
-     *  attach the xct
-     */
-    const prepare_lock_t* 	pt = (prepare_lock_t*) _data;
-    xct_t *			xd = xct_t::look_up(_tid);
-    me()->attach_xct(xd);
-    W_COERCE(xd->obtain_locks(pt->mode, pt->num_locks, pt->name));
-    me()->detach_xct(xd);
-}
-
-void
-xct_prepare_alk_log::redo(page_p *) 
-{
-    /*
-     *  Acquire all the locks within. (different modes)
-     *  For lm->lock() to work, we have to 
-     *  attach the xct
-     */
-    const prepare_all_lock_t* 	pt = (prepare_all_lock_t*) _data;
-    xct_t *			xd = xct_t::look_up(_tid);
-    me()->attach_xct(xd);
-    uint4_t i;
-    for (i=0; i<pt->num_locks; i++) {
-	W_COERCE(xd->obtain_one_lock(pt->pair[i].mode, pt->pair[i].name));
-    }
-    me()->detach_xct(xd);
-}
-
-
-xct_prepare_fi_log::xct_prepare_fi_log(int num_ex, int num_ix, int num_six, int numextent, 
-	const lsn_t &first) 
-{
-    fill(0, 0, (new (_data) 
-	prepare_lock_totals_t(num_ex, num_ix, num_six, numextent, first))->size());
-}
-void 
-xct_prepare_fi_log::redo(page_p *) 
-{
-    /*
-     *  check that the right number of
-     *  locks was acquired, and set the state
-     *  -- don't set the state any earlier so that
-     *  txs that didn't get the prepare fin logged
-     *  are aborted during the undo phase
-     */
-    xct_t *			xd = xct_t::look_up(_tid);
-    const prepare_lock_totals_t* pt = 
-	    (prepare_lock_totals_t*) _data;
-    me()->attach_xct(xd);
-    W_COERCE(xd->check_lock_totals(pt->num_EX, pt->num_IX, pt->num_SIX, pt->num_extents));
-    xd->change_state(xct_t::xct_prepared);
-
-    w_assert3( xd->first_lsn() == lsn_t::null );
-    xd->set_first_lsn(pt->first_lsn);
-
-    me()->detach_xct(xd);
-    w_assert3(xd->state() == xct_t::xct_prepared);
-}
-
-xct_prepare_stores_log::xct_prepare_stores_log(int num, const stid_t* stids)
-{
-    fill(0, 0, (new (_data) prepare_stores_to_free_t(num, stids))->size());
-}
-
-void
-xct_prepare_stores_log::redo(page_p *)
-{
-    xct_t*	xd = xct_t::look_up(_tid);
-    const prepare_stores_to_free_t* info = (prepare_stores_to_free_t*)_data;
-    me()->attach_xct(xd);
-    for (uint4_t i = 0; i < info->num; i++)  {
-        xd->AddStoreToFree(info->stids[i]);
-    }
-    me()->detach_xct(xd);
-    w_assert3(xd->state() == xct_t::xct_prepared);
-}
-
-
-/*********************************************************************
- *
- *  comment_log
- *
- *  For debugging
- *
- *********************************************************************/
-comment_log::comment_log(const char *msg)
-{
-    w_assert1(strlen(msg) < sizeof(_data));
-    memcpy(_data, msg, strlen(msg)+1);
-    DBG(<<"comment_log: L: " << (const char *)_data);
-    fill(0, 0, strlen(msg)+1);
-}
-
-void 
-comment_log::redo(page_p * W_IFDEBUG(page))
-{
-    w_assert3(page == 0);
-    DBG(<<"comment_log: R: " << (const char *)_data);
-    ; // just for the purpose of setting breakpoints
-}
-
-void 
-comment_log::undo(page_p * W_IFDEBUG(page))
-{
-    w_assert3(page == 0);
-    DBG(<<"comment_log: U: " << (const char *)_data);
-    ; // just for the purpose of setting breakpoints
-}
-
-/*********************************************************************
- *
- *  compensate_log
- *
- *  Needed when compensation rec is written rather than piggybacked
- *  on another record
- *
- *********************************************************************/
-compensate_log::compensate_log(lsn_t rec_lsn)
-{
-    fill(0, 0, 0);
-    set_clr(rec_lsn);
-}
-
-
-/*********************************************************************
- *
- *  skip_log partition
- *
- *  Filler log record -- for skipping to end of log partition
- *
- *********************************************************************/
-skip_log::skip_log()
-{
-    fill(0, 0, 0);
-}
-
-/*********************************************************************
- *
- *  chkpt_begin_log
- *
- *  Status Log to mark start of fussy checkpoint.
- *
- *********************************************************************/
-chkpt_begin_log::chkpt_begin_log(const lsn_t &lastMountLSN)
-{
-    new (_data) lsn_t(lastMountLSN);
-    fill(0, 0, sizeof(lsn_t));
-}
-
-
-
-
-/*********************************************************************
- *
- *  chkpt_end_log(const lsn_t &master, const lsn_t& min_rec_lsn)
- *
- *  Status Log to mark completion of fussy checkpoint.
- *  Master is the lsn of the record that began this chkpt.
- *  min_rec_lsn is the lsn of the record that began this chkpt.
- *
- *********************************************************************/
-chkpt_end_log::chkpt_end_log(const lsn_t &lsn, const lsn_t& min_rec_lsn)
-{
-    // initialize _data
-    lsn_t *l = new (_data) lsn_t(lsn);
-    l++; //grot
-    *l = min_rec_lsn;
-
-    fill(0, 0, 2 * sizeof(lsn_t));
-}
-
-
-
-/*********************************************************************
- *
- *  chkpt_bf_tab_log
- *
- *  Data Log to save dirty page table at checkpoint.
- *  Contains, for each dirty page, its pid and recovery lsn.
- *
- *********************************************************************/
-
-chkpt_bf_tab_t::chkpt_bf_tab_t(
-    int 		cnt,	// I-  # elements in pids[] and rlsns[]
-    const lpid_t* 	pids,	// I-  id of of dirty pages
-    const lsn_t* 	rlsns)	// I-  rlsns[i] is recovery lsn of pids[i]
-    : count(cnt)
-{
-    w_assert3( SIZEOF(*this) <= logrec_t::data_sz );
-    w_assert1(count <= max);
-    for (uint i = 0; i < count; i++) {
-	brec[i].pid = pids[i];
-	brec[i].rec_lsn = rlsns[i];
-    }
-}
-
-
-chkpt_bf_tab_log::chkpt_bf_tab_log(
-    int 		cnt,	// I-  # elements in pids[] and rlsns[]
-    const lpid_t* 	pid,	// I-  id of of dirty pages
-    const lsn_t* 	rec_lsn)// I-  rlsns[i] is recovery lsn of pids[i]
-{
-    fill(0, 0, (new (_data) chkpt_bf_tab_t(cnt, pid, rec_lsn))->size());
-}
-
-
-
-
-/*********************************************************************
- *
- *  chkpt_xct_tab_log
- *
- *  Data log to save transaction table at checkpoint.
- *  Contains, for each active xct, its id, state, last_lsn
- *  and undo_nxt lsn. 
- *
- *********************************************************************/
-chkpt_xct_tab_t::chkpt_xct_tab_t(
-    const tid_t& 			_youngest,
-    int 				cnt,
-    const tid_t* 			tid,
-    const smlevel_1::xct_state_t* 	state,
-    const lsn_t* 			last_lsn,
-    const lsn_t* 			undo_nxt)
-    : youngest(_youngest), count(cnt)
-{
-    w_assert1(count <= max);
-    w_assert3( SIZEOF(*this) <= logrec_t::data_sz);
-    for (uint i = 0; i < count; i++)  {
-	xrec[i].tid = tid[i];
-	xrec[i].state = state[i];
-	xrec[i].last_lsn = last_lsn[i];
-	xrec[i].undo_nxt = undo_nxt[i];
-    }
-}
-    
-chkpt_xct_tab_log::chkpt_xct_tab_log(
-    const tid_t& 			youngest,
-    int 				cnt,
-    const tid_t* 			tid,
-    const smlevel_1::xct_state_t* 	state,
-    const lsn_t* 			last_lsn,
-    const lsn_t* 			undo_nxt)
-{
-    fill(0, 0, (new (_data) chkpt_xct_tab_t(youngest, cnt, tid, state,
-					 last_lsn, undo_nxt))->size());
-}
-
-
-
-
-/*********************************************************************
- *
- *  chkpt_dev_tab_log
- *
- *  Data log to save devices mounted at checkpoint.
- *  Contains, for each device mounted, its devname and vid.
- *
- *********************************************************************/
-chkpt_dev_tab_t::chkpt_dev_tab_t(
-    int 		cnt,
-    const char 		**dev,
-    const vid_t* 	vid)
-    : count(cnt)
-{
-    w_assert3( SIZEOF(*this) <= logrec_t::data_sz );
-    w_assert1(count <= max);
-    for (uint i = 0; i < count; i++) {
-	// zero out everything and then set the string
-	memset(devrec[i].dev_name, 0, sizeof(devrec[i].dev_name));
-	strncpy(devrec[i].dev_name, dev[i], sizeof(devrec[i].dev_name)-1);
-	devrec[i].vid = vid[i];
-    }
-}
-
-chkpt_dev_tab_log::chkpt_dev_tab_log(
-    int 		cnt,
-    const char 		**dev,
-    const vid_t* 	vid)
-{
-    fill(0, 0, (new (_data) chkpt_dev_tab_t(cnt, dev, vid))->size());
-}
-
-
-/*********************************************************************
- *
- *  mount_vol_log
- *
- *  Data log to save device mounts.
- *
- *********************************************************************/
-mount_vol_log::mount_vol_log(
-    const char* 	dev,
-    const vid_t& 	vid)
-{
-    const char		*devArray[1];
-
-    devArray[0] = dev;
-    DBG(<< "mount_vol_log dev_name=" << devArray[0] << " volid =" << vid);
-    fill(0, 0, (new (_data) chkpt_dev_tab_t(1, devArray, &vid))->size());
-}
-
-
-void mount_vol_log::redo(page_p* W_IFDEBUG(page))
-{
-    w_assert3(page == 0);
-    chkpt_dev_tab_t* dp = (chkpt_dev_tab_t*) _data;
-
-    w_assert3(dp->count == 1);
-
-    // this may fail since this log record is only redone on crash/restart and the
-	// user may have destroyed the volume after using, but then there won't be
-	// and pages that need to be updated on this volume.
-    W_IGNORE(io_m::mount(dp->devrec[0].dev_name, dp->devrec[0].vid));
-}
-
-
-/*********************************************************************
- *
- *  dismount_vol_log
- *
- *  Data log to save device dismounts.
- *
- *********************************************************************/
-dismount_vol_log::dismount_vol_log(
-    const char*		dev,
-    const vid_t& 	vid)
-{
-    const char		*devArray[1];
-
-    devArray[0] = dev;
-    DBG(<< "dismount_vol_log dev_name=" << devArray[0] << " volid =" << vid);
-    fill(0, 0, (new (_data) chkpt_dev_tab_t(1, devArray, &vid))->size());
-}
-
-
-void dismount_vol_log::redo(page_p* W_IFDEBUG(page))
-{
-    w_assert3(page == 0);
-    chkpt_dev_tab_t* dp = (chkpt_dev_tab_t*) _data;
-
-    w_assert3(dp->count == 1);
-    // this may fail since this log record is only redone on crash/restart and the
-	// user may have destroyed the volume after using, but then there won't be
-	// and pages that need to be updated on this volume.
-    W_IGNORE(io_m::dismount(dp->devrec[0].vid, true));
-}
-
-
-
-/*********************************************************************
- *
- *  page_init_log
- *
- *  Log page initialization.
- *
- *********************************************************************/
-class page_init_t {
-public:
-    uint2_t	tag;
-    fill2	filler;
-    uint4_t	flags;
-    
-    page_init_t(uint2_t t, uint4_t f): 
-	tag(t), flags(f) {};
-    int size()  { return sizeof(*this); }
-    void redo(page_p *p, const lpid_t& pid);
-    // no undo
-};
-
-void 
-page_init_t::redo(page_p* page, const lpid_t& pid)
-{
-    // BUGBUG: 
-    // NB: if we ever resurrect page_init_t, we need to add the store
-    // flags to the format info instead of st_regular here
-    W_COERCE( page->format(pid, (page_p::tag_t) tag, flags, 
-    smlevel_0::st_regular) );
-}
-
-page_init_log::page_init_log(const page_p& p)
-{
-    w_assert3(p.pid() != lpid_t::null); // TODO: ever legit?
-
-    fill(&p.pid(), p.tag(), (new (_data) 
-	page_init_t(p.tag(), p.page_flags()))->size());
-}
-
-
-void 
-page_init_log::redo(page_p* page)
-{
-    page_init_t* dp = (page_init_t*) _data;
-    dp->redo(page, pid());
-}
-
-
-
-/*********************************************************************
- *
- *  page_link_log
- *
- *  Log a page link up operation.
- *
- *********************************************************************/
-struct page_link_t {
-    shpid_t old_prev, old_next;
-    shpid_t new_prev, new_next;
-
-    page_link_t(shpid_t op, shpid_t on, shpid_t np, shpid_t nn)  
-    : old_prev(op), old_next(on), new_prev(np), new_next(nn)   {};
-
-    int size()	{ return sizeof(*this); }
-};
-
-page_link_log::page_link_log(
-    const page_p& 	page, 
-    shpid_t 		new_prev, 
-    shpid_t 		new_next)
-{
-    fill(&page.pid(), page.tag(),
-	 (new (_data) page_link_t(page.prev(), page.next(),
-				  new_prev, new_next))->size());
-}
-
-void 
-page_link_log::redo(page_p* p)
-{
-    page_link_t* dp = (page_link_t*) _data;
-    w_assert3(p->next() == dp->old_next);
-    w_assert3(p->prev() == dp->old_prev);
-
-    W_COERCE(p->link_up(dp->new_prev, dp->new_next));
-}
-
-void 
-page_link_log::undo(page_p* p)
-{
-    page_link_t* dp = (page_link_t*) _data;
-    w_assert3(p->next() == dp->new_next);
-    w_assert3(p->prev() == dp->new_prev);
-    W_COERCE(p->link_up(dp->old_prev, dp->old_next));
-}
-
-
-
-/*********************************************************************
- *
- *  page_insert_log
- *
- *  Log insert of a record into a page.
- *
- *********************************************************************/
-class page_insert_t {
-public:
-    int2_t	idx;
-    int2_t	cnt;
-    enum { max = ((logrec_t::data_sz - 2*sizeof(uint2_t)) - sizeof(page_init_t)) };
-
-    // array of int2_t len[cnt], char data[]
-    char	data[max]; 
-
-    page_insert_t(const page_p& page, int idx, int cnt);
-    page_insert_t(int idx, int cnt, const cvec_t* vec);
-    cvec_t* unflatten(int cnt, cvec_t vec[]);
-    int size();
-    void redo(page_p* page);
-    void undo(page_p* page);
-};
-
-page_insert_t::page_insert_t(const page_p& page, int i, int c)
-    : idx(i), cnt(c)
-{
-    if(cnt) {
-	w_assert1(cnt * sizeof(int2_t) < sizeof(data));
-	int2_t* lenp = (int2_t*) data;
-	int total = 0;
-	for (i = 0; i < cnt; total += lenp[i++])  {
-	    // tuple_size yields smsize_t (for large objects)
-	    // but the slots on a small page can be at most
-	    // 65K long, so the slots contain shorts for the lengths.
-	    lenp[i] = (int2_t) page.tuple_size(idx + i);
+	void 
+	page_init_t::redo(page_p* page, const lpid_t& pid)
+	{
+	    // BUGBUG: 
+	    // NB: if we ever resurrect page_init_t, we need to add the store
+	    // flags to the format info instead of st_regular here
+	    
+
+#ifdef BACKOUT_NEHFIX3
+	    W_COERCE( page->format(pid, (page_p::tag_t) tag, flags, 
+		smlevel_0::st_regular) );
+#else
+	    w_assert3( page->is_fixed());
+	    // The fix will have set the store flags to whatever is in the
+	    // store node, which might be wrong. We trust the info in the
+	    // log records.
+	    page->persistent_part().store_flags = store_flags;
+
+	    // Sigh. The page format call ignores the sf passed in.
+	    W_COERCE( page->format(pid, (page_p::tag_t) tag, page_flags, 
+				    smlevel_0::st_bad /*ignored*/) );
+#endif
 	}
-	w_assert1(total + cnt * sizeof(int2_t) < sizeof(data));
 
-	char* p = data + sizeof(int2_t) * cnt;
-	for (i = 0; i < c; i++)  {
-	    memcpy(p, page.tuple_addr(idx + i), lenp[i]);
-	    p += lenp[i];
+	page_init_log::page_init_log(const page_p& p)
+	{
+	    w_assert3(p.pid() != lpid_t::null); // TODO: ever legit?
+
+#ifdef BACKOUT_NEHFIX3
+	    fill(&p.pid(), p.tag(), (new (_data) 
+		page_init_t(p.tag(), p.page_flags()))->size());
+#else
+	    fill(&p.pid(), p.tag(), (new (_data) 
+		page_init_t(p.tag(), p.page_flags(), p.store_flags()))->size());
+#endif
 	}
-    }
-}
 
 
-page_insert_t::page_insert_t(int i, int c, const cvec_t* v)
-    : idx(i), cnt(c)
-{
-    if(cnt) {
-	w_assert1(cnt * sizeof(int2_t) < sizeof(data));
-	int2_t* lenp = (int2_t*) data;
-	int total = 0;
-	for (i = 0; i < cnt; total += lenp[i++])  {
-	    lenp[i] = v[i].size();
+	void 
+	page_init_log::redo(page_p* page)
+	{
+	    page_init_t* dp = (page_init_t*) _data;
+	    dp->redo(page, pid());
 	}
-	w_assert1(total + cnt * sizeof(int2_t) < sizeof(data));
 
-	char* p = data + sizeof(int2_t) * cnt;
-	for (i = 0; i < c; i++)  {
-	    p += v[i].copy_to(p);
+
+
+	/*********************************************************************
+	 *
+	 *  page_link_log
+	 *
+	 *  Log a page link up operation.
+	 *
+	 *********************************************************************/
+	struct page_link_t {
+	    shpid_t old_prev, old_next;
+	    shpid_t new_prev, new_next;
+
+	    page_link_t(shpid_t op, shpid_t on, shpid_t np, shpid_t nn)  
+	    : old_prev(op), old_next(on), new_prev(np), new_next(nn)   {};
+
+	    int size()	{ return sizeof(*this); }
+	};
+
+	page_link_log::page_link_log(
+	    const page_p& 	page, 
+	    shpid_t 		new_prev, 
+	    shpid_t 		new_next)
+	{
+	    fill(&page.pid(), page.tag(),
+		 (new (_data) page_link_t(page.prev(), page.next(),
+					  new_prev, new_next))->size());
 	}
-	w_assert1((uint)(p - data) == total + cnt * sizeof(int2_t));
+
+	void 
+	page_link_log::redo(page_p* p)
+	{
+	    page_link_t* dp = (page_link_t*) _data;
+	    w_assert3(p->next() == dp->old_next);
+	    w_assert3(p->prev() == dp->old_prev);
+
+	    W_COERCE(p->link_up(dp->new_prev, dp->new_next));
+	}
+
+	void 
+	page_link_log::undo(page_p* p)
+	{
+	    page_link_t* dp = (page_link_t*) _data;
+	    w_assert3(p->next() == dp->new_next);
+	    w_assert3(p->prev() == dp->new_prev);
+	    W_COERCE(p->link_up(dp->old_prev, dp->old_next));
+	}
+
+
+
+	/*********************************************************************
+	 *
+	 *  page_insert_log
+	 *
+	 *  Log insert of a record into a page.
+	 *
+	 *********************************************************************/
+	class page_insert_t {
+	public:
+	    int2_t	idx;
+	    int2_t	cnt;
+	    enum { max = ((logrec_t::data_sz - 2*sizeof(uint2_t)) - sizeof(page_init_t)) };
+
+	    // array of int2_t len[cnt], char data[]
+	    char	data[max]; 
+
+	    page_insert_t(const page_p& page, int idx, int cnt);
+	    page_insert_t(int idx, int cnt, const cvec_t* vec);
+	    cvec_t* unflatten(int cnt, cvec_t vec[]);
+	    int size();
+	    void redo(page_p* page);
+	    void undo(page_p* page);
+	};
+
+	page_insert_t::page_insert_t(const page_p& page, int i, int c)
+	    : idx(i), cnt(c)
+	{
+	    if(cnt) {
+		w_assert1(cnt * sizeof(int2_t) < sizeof(data));
+		int2_t* lenp = (int2_t*) data;
+		int total = 0;
+		for (i = 0; i < cnt; total += lenp[i++])  {
+		    // tuple_size yields smsize_t (for large objects)
+		    // but the slots on a small page can be at most
+		    // 65K long, so the slots contain shorts for the lengths.
+		    lenp[i] = (int2_t) page.tuple_size(idx + i);
+		}
+		w_assert1(total + cnt * sizeof(int2_t) < sizeof(data));
+
+		char* p = data + sizeof(int2_t) * cnt;
+		for (i = 0; i < c; i++)  {
+		    memcpy(p, page.tuple_addr(idx + i), lenp[i]);
+		    p += lenp[i];
+		}
+	    }
+	}
+
+
+	page_insert_t::page_insert_t(int i, int c, const cvec_t* v)
+	    : idx(i), cnt(c)
+	{
+	    if(cnt) {
+		w_assert1(cnt * sizeof(int2_t) < sizeof(data));
+		int2_t* lenp = (int2_t*) data;
+		int total = 0;
+		for (i = 0; i < cnt; total += lenp[i++])  {
+		    lenp[i] = v[i].size();
+		}
+		w_assert1(total + cnt * sizeof(int2_t) < sizeof(data));
+
+		char* p = data + sizeof(int2_t) * cnt;
+		for (i = 0; i < c; i++)  {
+		    p += v[i].copy_to(p);
+		}
+		w_assert1((uint)(p - data) == total + cnt * sizeof(int2_t));
     }
 }
 
@@ -1007,11 +1035,23 @@ void page_remove_log::undo(page_p* page)
  *  Log a mark operation on a record in page. The record is
  *  marked as removed.
  *
+ * XXX	This may be sized incorrectly -- the data is dependent upon
+ *	the page size, not the log record size.   Currently, with 
+ *	a page size of 32k, the data area is ~32k larger than 64k,
+ *	which is the largest amount 'len' can indicate.   Something
+ *	needs to be fixed here.
+ *
  *********************************************************************/
 class page_mark_t {
 public:
     int2_t idx;
     uint2_t len;
+
+    /* XXX this is wrong.   If it is an entry on a page, this should
+       be page sized based, not log size based.   The data being
+       stuffed in has to fit on the page ... not the 3x page which
+       a log record needs.   If it can be larger, then int2_t can't
+       be used, since 32k pages-> 17 bits are needed.  */
 
     enum { max = ((logrec_t::data_sz - 2*sizeof(uint2_t)) - sizeof(page_init_t)) };
     char data[max];
@@ -1021,7 +1061,7 @@ public:
 	memcpy(data, d, l);
     }
     page_mark_t(int i, const cvec_t& v) : idx(i), len((uint2_t)v.size()) {
-	w_assert1(len <= sizeof(data));
+	w_assert1(v.size() <= sizeof(data));
 	if(len>0) {
 	    v.copy_to(data);
 	}
@@ -1240,8 +1280,13 @@ page_splice_log::redo(page_p* page)
     w_assert1(memcmp(dp->old_image(), p, dp->old_len) == 0);
 #endif /*W_DEBUG*/
 
+#ifndef NO_VEC_TMP_HACK
+    const vec_t new_vec_tmp(dp->new_image(), dp->new_len);
+    W_COERCE(page->splice(dp->idx, dp->start, dp->old_len, new_vec_tmp));
+#else
     W_COERCE(page->splice(dp->idx, dp->start, dp->old_len,
 			vec_t(dp->new_image(), dp->new_len)));
+#endif
 }
 
 void
@@ -1260,8 +1305,13 @@ page_splice_log::undo(page_p* page)
     w_assert3(dp->old_len <= smlevel_0::page_sz);
 #endif /*W_DEBUG*/
 
+#ifndef NO_VEC_TMP_HACK
+    const vec_t old_vec_tmp(dp->old_image(), dp->old_len);
+    W_COERCE(page->splice(dp->idx, dp->start, dp->new_len, old_vec_tmp));
+#else
     W_COERCE(page->splice(dp->idx, dp->start, dp->new_len,
 			vec_t(dp->old_image(), dp->old_len)));
+#endif
 }
 
 /*********************************************************************
@@ -1383,7 +1433,12 @@ page_splicez_log::redo(page_p* page)
     vec_t z;
 
     if(dp->nlen == 0) {
+#ifndef NO_VEC_TMP_HACK
+	const zvec_t new_vec_tmp(dp->new_len);
+	z.set(new_vec_tmp);
+#else
 	z.set(zvec_t(dp->new_len));
+#endif
     } else {
 	z.set(dp->new_image(), dp->new_len);
     }
@@ -1432,7 +1487,12 @@ page_splicez_log::undo(page_p* page)
 
     vec_t z;
     if(dp->olen == 0) {
+#ifndef NO_VEC_TMP_HACK
+	const zvec_t old_vec_tmp(dp->old_len);
+	z.set(old_vec_tmp);
+#else
 	z.set(zvec_t(dp->old_len));
+#endif
     } else {
 	z.set(dp->old_image(), dp->old_len);
     }
@@ -2211,6 +2271,16 @@ operator<<(ostream& o, const logrec_t& l)
 		    o << (const char *)l._data;
 		}
 		break;
+#ifndef BACKOUT_NEHFIX3
+	case t_page_format:
+		{
+		    page_init_t* info = (page_init_t*)l._data;
+		    o << " tag=" << info->tag
+		      << " page flags=" << info->page_flags
+		      << " store flags=" << info->store_flags;
+		}
+		break;
+#endif
 	case t_page_reclaim : 
 	case t_page_mark : 
 	 	{ 
@@ -2297,15 +2367,29 @@ public:
     page_reclaim_t*   reclaim() { return (page_reclaim_t *)&data; }
 
     // version for init/insert_expand:
+#ifdef BACKOUT_NEHFIX3
     page_format_t(  uint2_t tag, uint4_t flag, 
-		    int idx, int cnt, const cvec_t* vec) : _init(tag, flag) {
+		    int idx, int cnt, const cvec_t* vec) : _init(tag, flag) 
+#else
+    page_format_t(  uint2_t tag, uint4_t page_flag, uint4_t store_flag,
+		    int idx, int cnt, const cvec_t* vec) : 
+	   _init(tag, page_flag, store_flag) 
+#endif
+       {
 	   w_assert3(tag != page_p::t_file_p);
 	   new (data) page_insert_t(idx, cnt, vec);
        }
 
     // version for init/reclaim (file_p):
-    page_format_t(  uint2_t tag, uint4_t flag,
-		    int idx,  const cvec_t* vec) : _init(tag, flag) {
+#ifdef BACKOUT_NEHFIX3
+    page_format_t(  uint2_t tag, uint4_t flag, 
+		    int idx,  const cvec_t* vec) : _init(tag, flag) 
+#else
+    page_format_t(  uint2_t tag, uint4_t page_flag, uint4_t store_flag,
+		    int idx,  const cvec_t* vec) : 
+	   _init(tag, page_flag, store_flag) 
+#endif
+       {
 	   w_assert3(tag == page_p::t_file_p);
 	   zvec_t zv;
 	   if(vec==0) vec = &zv;
@@ -2357,7 +2441,11 @@ page_format_log::page_format_log(const page_p& p,
 
 	fill(&p.pid(), p.tag(), 
 	    (new (_data) 
+#ifdef BACKOUT_NEHFIX3
 		page_format_t( p.tag(), p.page_flags(), idx, vec)
+#else
+		page_format_t( p.tag(), p.page_flags(), p.store_flags(), idx, vec)
+#endif
 	    ) ->size());
 
     } else {
@@ -2378,7 +2466,11 @@ page_format_log::page_format_log(const page_p& p,
 	);
 
 	fill(&p.pid(), p.tag(), (new (_data) 
+#ifdef BACKOUT_NEHFIX3
 	    page_format_t( p.tag(), p.page_flags(), idx,cnt,vec)
+#else
+	    page_format_t( p.tag(), p.page_flags(), p.store_flags(), idx,cnt,vec)
+#endif
 	) ->size());
     }
 }

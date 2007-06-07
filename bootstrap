@@ -1,0 +1,52 @@
+#/bin/sh
+
+/bin/rm -f config/shore-config.h
+
+# aclocal: find macros needed by automake
+# output: aclocal.m4 files
+echo aclocal  --force  ...
+aclocal  --force 
+
+# autoheader:  create template file o #define statements
+# for ./configure to use.
+# input: configure.ac
+# output: config/shore-config-h.in
+#       (unfortunately for debugging, the output is in alphabetic order)
+echo autoheader  --force  ...
+autoheader  --force 
+
+# autoconf: produce the shore-config.h file for make to use
+# input: configure.ac
+# input: config/shore-config-h.in
+# output: config/shore-config.h
+# output: ./configure, ./configure.status (slave)
+echo autoconf --force  ...
+autoconf --force 
+
+# automake: create the Makefile.in files
+# input: configure.ac
+# input: <dirs>/Makefile.am
+# output: <dirs>/Makefile.in
+echo automake  -a ...
+automake  -a
+
+# configure: generate the Makefiles
+# input: ./configure.status
+# input: <dirs>/Makefile.in
+#
+echo ------------------------------------------------------------
+echo
+echo Run
+echo     ./configure 
+echo or
+echo     ./configure --enable-debug 
+echo or
+echo     ./configure --help 
+echo
+echo After you configure, run
+echo     make
+echo 
+echo then, optionally,
+echo     make check 
+echo
+echo ------------------------------------------------------------

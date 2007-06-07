@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: w_form.cpp,v 1.6 1999/06/07 19:02:53 kupsch Exp $
+ $Id: w_form.cpp,v 1.9 2007/05/18 21:38:25 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -66,8 +66,8 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
  *			prevents the buffer from being written past its end.
  */
 
-#include <stdarg.h>
-#include <stdio.h>
+#include <cstdarg>
+#include <cstdio>
 
 
 #define	BUF_SLOTS	16
@@ -110,7 +110,12 @@ const char *form(const char *format, ...)
 #ifdef HAVE_VSNPRINTF
 	vsnprintf(buffer, MAX_BUFFER, format, ap);
 #else
+#ifdef HAVE_VPRINTF
 	vsprintf(buffer, format, ap);
+#else
+#error need vsprintf
+#endif
+
 #endif
 	va_end(ap);
 

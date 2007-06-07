@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: sfile_handler_poll.cpp,v 1.9 1999/06/07 19:06:06 kupsch Exp $
+ $Id: sfile_handler_poll.cpp,v 1.13 2007/05/18 21:53:43 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -44,11 +44,10 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
  *   to the above authors and the above copyright is maintained.
  */
 
-#include <w_strstream.h>
 #include <w_workaround.h>
-#include <stdlib.h>
+#include <cstdlib>
 #include <unistd.h>
-#include <string.h>
+#include <cstring>
 
 #include <poll.h>
 
@@ -78,7 +77,6 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #pragma implementation "sfile_handler_poll.h"
 #endif
 
-#define W_INCL_LIST
 #include <w.h>
 #include <w_debug.h>
 

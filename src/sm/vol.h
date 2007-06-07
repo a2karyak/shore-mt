@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='VOL_H'>
 
- $Id: vol.h,v 1.93 1999/06/07 19:04:47 kupsch Exp $
+ $Id: vol.h,v 1.94 2007/05/18 21:43:30 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -47,7 +47,7 @@ class volhdr_t {
     // For compatibility checking, we record a version number
     // number of the Shore SM version which formatted the volume.
     // This number is called volume_format_version in sm_base.h.
-    uint4_t			_format_version;
+    w_base_t::uint4_t		_format_version;
 #ifdef SM_ODS_COMPAT_13
     sthread_base_t::base_stat_t	_device_quota_KB;
 #else
@@ -59,9 +59,9 @@ class volhdr_t {
     shpid_t			_spid;		// store pid
     extnum_t			_num_exts;
     extnum_t			_hdr_exts;
-    uint4_t			_page_sz;	// page size in bytes
+    w_base_t::uint4_t		_page_sz;	// page size in bytes
 public:
-    uint4_t			format_version() const { 
+    w_base_t::uint4_t		format_version() const { 
 				    return _format_version; }
     void			set_format_version(uint v) { 
 					_format_version = v; }
@@ -92,18 +92,18 @@ public:
     extnum_t			hdr_exts() const {  return _hdr_exts; }
     void			set_hdr_exts(extnum_t n) {  _hdr_exts = n; }
 
-    uint4_t			page_sz() const {  return _page_sz; }
-    void			set_page_sz(uint4_t n) {  _page_sz = n; }
+    w_base_t::uint4_t		page_sz() const {  return _page_sz; }
+    void			set_page_sz(w_base_t::uint4_t n) {  _page_sz = n; }
 
 };
 
 class vol_stats_t
 {
   public:
-    uint4_t         vol_writes;
-    uint4_t         vol_blks_written;
-    uint4_t         vol_reads;
-    uint4_t         vol_blks_read;
+    w_base_t::uint4_t         vol_writes;
+    w_base_t::uint4_t         vol_blks_written;
+    w_base_t::uint4_t         vol_reads;
+    w_base_t::uint4_t         vol_blks_read;
 
     vol_stats_t() : vol_writes(0), vol_blks_written(0),
                     vol_reads(0), vol_blks_read(0) {};
@@ -186,8 +186,8 @@ public:
 	extnum_t 		    exts[],
 	int& 			    found,
 	extnum_t		    first_ext = 0);
-    rc_t			num_free_exts(uint4_t& cnt);
-    rc_t			num_used_exts(uint4_t& cnt);
+    rc_t			num_free_exts(w_base_t::uint4_t& cnt);
+    rc_t			num_used_exts(w_base_t::uint4_t& cnt);
     rc_t			alloc_exts(
 	snum_t 			    num,
 	extnum_t 		    prev,
@@ -263,10 +263,10 @@ public:
     rc_t                 	get_volume_meta_stats(
         SmVolumeMetaStats&          volume_stats);
     rc_t                 	get_file_meta_stats(
-        uint4_t                       num_files,
+        w_base_t::uint4_t                       num_files,
         SmFileMetaStats*            file_stats);
     rc_t                 	get_file_meta_stats_batch(
-        uint4_t                       max_store,
+        w_base_t::uint4_t                       max_store,
         SmStoreMetaStats**          mapping);
     rc_t			get_store_meta_stats(
 	snum_t			    snum,
@@ -291,8 +291,8 @@ public:
     rc_t 			next_page_with_space(lpid_t& pid, 
 				    space_bucket_t needed);
 
-    rc_t			num_pages(snum_t fnum, uint4_t& cnt);
-    rc_t			num_exts(snum_t fnum, uint4_t& cnt);
+    rc_t			num_pages(snum_t fnum, w_base_t::uint4_t& cnt);
+    rc_t			num_exts(snum_t fnum, w_base_t::uint4_t& cnt);
     bool 			is_raw() { return _is_raw; };
 
     rc_t			sync();
@@ -331,7 +331,7 @@ public:
 
     void            vtable_collect(vtable_info_t &);
 
-    NORET			W_FASTNEW_CLASS_DECL(vol_t);
+    NORET			W_FASTNEW_CLASS_DECL(vol_t)
 private:
     char 			_devname[max_devname];
     int				_unix_fd;
@@ -380,7 +380,7 @@ private:
  */
 
 
-inline vol_t::vol_t() : _unix_fd(-1), _min_free_ext_num(1), _mutex("vol")  {};
+inline vol_t::vol_t() : _unix_fd(-1), _min_free_ext_num(1), _mutex("vol")  {}
 
 inline vol_t::~vol_t() 			{ w_assert1(_unix_fd == -1); }
 

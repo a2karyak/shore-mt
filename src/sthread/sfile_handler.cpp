@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: sfile_handler.cpp,v 1.23 2003/06/24 16:39:44 bolo Exp $
+ $Id: sfile_handler.cpp,v 1.27 2007/05/18 21:53:43 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -49,7 +49,6 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #pragma implementation "sfile_handler.h"
 #endif
 
-#define W_INCL_LIST
 #include <w.h>
 #include <w_strstream.h>
 #include <sthread.h>
@@ -333,8 +332,7 @@ sfile_safe_hdl_t::sfile_safe_hdl_t(int fd, int mode)
 : sfile_hdl_base_t(fd, mode),
   _shutdown(false)
 {
-	char buf[20];
-	ostrstream s(buf, sizeof(buf));
+	w_ostrstream_buf s(20);
 	s << fd << "_";
 	if (_mode & rd)
 		s << "R";
@@ -343,8 +341,7 @@ sfile_safe_hdl_t::sfile_safe_hdl_t(int fd, int mode)
 	if (_mode & ex)
 		s << "X";
 	s << ")" << ends;
-	buf[sizeof(buf)-1] = '\0';
-	sevsem.setname("sfile(", buf);
+	sevsem.setname("sfile(", s.c_str());
 }
 
 
@@ -357,8 +354,7 @@ w_rc_t	sfile_safe_hdl_t::change(int new_fd)
 {
 	W_DO(sfile_hdl_base_t::change(new_fd));
 
-	char buf[40];
-	ostrstream s(buf, sizeof(buf));
+	w_ostrstream_buf s(40);
 	s << fd << "_";
 	if (_mode & rd)
 		s << "R";
@@ -367,8 +363,7 @@ w_rc_t	sfile_safe_hdl_t::change(int new_fd)
 	if (_mode & ex)
 		s << "X";
 	s << ")" << ends;
-	buf[sizeof(buf)-1] = '\0';
-	sevsem.setname("sfile(", buf);
+	sevsem.setname("sfile(", s.c_str());
 
 	return RCOK;
 }

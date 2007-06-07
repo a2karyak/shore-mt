@@ -1,6 +1,0 @@
-UTIL_DIR = C:/cygnus/cygwin-b20/H-i586-cygwin32
-VCPP_DIR = C:/Program Files/DevStudio/VC
-TCL_DIR = $(UTIL_DIR)/tcl
-BISON_DIR = $(TOOLS_DIR)/nt-i386
-FLEX_DIR = $(TOOLS_DIR)/nt-i386
-PERL_DIR = C:/perl

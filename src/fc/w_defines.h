@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='W_DEFINES_H' no-defines='true'>
 
- $Id: w_defines.h,v 1.1 1999/06/07 19:02:51 kupsch Exp $
+ $Id: w_defines.h,v 1.2 2007/05/18 21:38:24 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -33,7 +33,17 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 /*  -- do not edit anything above this line --   </std-header>*/
 
 #include "shore.def"
-#include "PlatformDefines_gen.h"
+/* shore-config.h does not have duplicate-include protection, but
+   this file does, and we don't include shore-config.h anywhere else*/
+#include "shore-config.h"
+
+/* Adapt shore to namespaces */
+#if defined(__cplusplus) && !defined(USE_CPP_NAMESPACE_NO)
+#ifdef _MSC_VER
+namespace std {};
+#endif
+using namespace std;
+#endif
 
 /*<std-footer incl-file-exclusion='W_DEFINES_H'>  -- do not edit anything below this line -- */
 

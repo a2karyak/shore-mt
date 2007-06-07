@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: btree_p.cpp,v 1.32 1999/06/22 20:02:37 nhall Exp $
+ $Id: btree_p.cpp,v 1.33 2007/05/18 21:43:24 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -932,7 +932,7 @@ btree_p::clr_delete() {
     }
 }
 
-MAKEPAGECODE(btree_p, zkeyed_p);
+MAKEPAGECODE(btree_p, zkeyed_p)
 
 void
 btree_p::print(
@@ -961,7 +961,7 @@ btree_p::print(
 		cout 	<< "<key = " << r.key() ;
 	    } break;
 	case sortorder::kt_i8: {
-		int8_t value;
+		w_base_t::int8_t value;
 		key_type_s k(key_type_s::i, 0, 8);
 		W_COERCE(btree_m::_unscramble_key(real_key, r.key(), 1, &k));
 		real_key->copy_to(&value, sizeof(value));

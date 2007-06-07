@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='LOGREC_H'>
 
- $Id: logrec.h,v 1.62 1999/11/02 02:44:23 kupsch Exp $
+ $Id: logrec.h,v 1.63 2007/05/18 21:43:26 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -381,7 +381,7 @@ struct prepare_lock_t {
 
 	lockid_t	name[max_locks_logged];
 
-	prepare_lock_t(uint4_t num, lock_base_t::mode_t _mode, 
+	prepare_lock_t(uint4_t num, lock_base_t::lmode_t _mode, 
 		lockid_t *locks){
 		num_locks = num;
 		mode =  _mode;

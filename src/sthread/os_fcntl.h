@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='OS_FCNTL_H'>
 
- $Id: os_fcntl.h,v 1.6 1999/06/07 19:06:00 kupsch Exp $
+ $Id: os_fcntl.h,v 1.7 2007/05/18 21:53:42 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -42,7 +42,7 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 /*
  * fcntl.h:
  */
-#if defined(SOLARIS2) || defined(_WINDOWS)
+#if HAVE_FCNTL_H
 #include <fcntl.h>
 #else
 #include <sys/fcntl.h>

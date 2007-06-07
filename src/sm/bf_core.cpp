@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: bf_core.cpp,v 1.59 2003/06/19 22:39:34 bolo Exp $
+ $Id: bf_core.cpp,v 1.64 2007/05/18 21:43:23 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -43,7 +43,7 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #pragma implementation "bf_core.h"
 #endif
 
-#include <stdlib.h>
+#include <cstdlib>
 #include "sm_int_0.h"
 
 #include "bf_s.h"
@@ -365,10 +365,9 @@ bf_core_m::grab(
 	    p->old_pid_valid = !is_new;
 #if defined(W_DEBUG) || defined(W_DEBUG_NAMES)
 	    {
-		char buf[64];
-		ostrstream s(buf, 64);
+		w_ostrstream_buf s(64);		// XXX magic number
 		s << "bf(pid=" << pid << ")" << ends;
-		p->latch.setname(buf);
+		p->latch.setname(s.c_str());
 	    }
 #endif
 	    _transit->push(p);
@@ -1140,7 +1139,7 @@ operator<<(ostream& out, const bf_core_m& mgr)
 }
 
 #include <vtable_info.h>
-#include <vtable_enum.h>
+#include <sm_vtable_enum.h>
 #ifdef __GNUG__
 template class vtable_func<bfcb_t>;
 #endif /* __GNUG__ */
@@ -1152,7 +1151,7 @@ bfcb_t::vtable_collect(vtable_info_t &t)
 	{
 	    // circumvent with const-ness
 	    char *p = (char *)t[bp_pid_attr];
-	    ostrstream o(p,vtable_info_t::vtable_value_size);
+	    w_ostrstream o(p,vtable_info_t::vtable_value_size);
 	    o << pid <<  ends;
 	}
 

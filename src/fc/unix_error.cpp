@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: unix_error.cpp,v 1.6 1999/06/07 19:02:47 kupsch Exp $
+ $Id: unix_error.cpp,v 1.8 2007/05/18 21:38:24 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -36,7 +36,7 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 
 #include <unix_error.h>
 
-#include <string.h>
+#include <cstring>
 
 
 int last_unix_error()
@@ -46,7 +46,11 @@ int last_unix_error()
 
 void format_unix_error(int err, char *buf, int bufsize)
 {
+#ifdef HAVE_STRERROR
 	char	*s = strerror(err);
+#else
+	char	*s = "No strerror function. Cannot format unix error.";
+#endif
 	strncpy(buf, s, bufsize);
 	buf[bufsize-1] = '\0';
 }

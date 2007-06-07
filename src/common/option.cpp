@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: option.cpp,v 1.52 2003/06/19 22:39:27 bolo Exp $
+ $Id: option.cpp,v 1.54 2006/01/29 17:40:44 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -37,8 +37,8 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #endif
 
 #include "w.h"
-#include <string.h>
-#include <ctype.h>
+#include <cstring>
+#include <cctype>
 #include "w_autodel.h"
 #include "option.h"
 #include "w_debug.h"

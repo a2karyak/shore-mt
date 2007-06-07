@@ -1,6 +1,0 @@
-UTIL_DIR = /s
-VCPP_DIR =
-TCL_DIR = /s/tcl/
-BISON_DIR = /usr/bin
-FLEX_DIR = /usr/bin
-PERL_DIR = $(UTIL_DIR)/perl

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='SFILE_HANDLER_H'>
 
- $Id: sfile_handler.h,v 1.13 1999/06/07 19:06:05 kupsch Exp $
+ $Id: sfile_handler.h,v 1.14 2004/10/05 23:19:59 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -54,7 +54,7 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #include <w.h>
 #endif
 
-class ostream;
+#include <iosfwd>
 
 #ifdef __GNUC__
 #pragma interface

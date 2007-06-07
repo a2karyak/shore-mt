@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: except.cpp,v 1.3 2003/12/29 20:41:31 bolo Exp $
+ $Id: except.cpp,v 1.9 2007/05/18 21:52:30 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -31,10 +31,11 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 
 /*  -- do not edit anything above this line --   </std-header>*/
 
-#include <w_stream.h>
-#include <iomanip.h>
-#include <assert.h>
-#include <memory.h>
+#include <iostream>
+#include <w_strstream.h>
+
+#include <cassert>
+#include <os_memory.h>
 #include <getopt.h>
 
 #include <w.h>
@@ -74,11 +75,9 @@ except_thread_t::except_thread_t(int fid, bool _do_catch)
 : id(fid),
   do_catch(_do_catch)
 {
-	char buf[40];
-
-	ostrstream s(buf, sizeof(buf));
+	w_ostrstream_buf s(40);		// XXX magic number
 	s << "except[" << id << "]" << ends;
-	rename(buf);
+	rename(s.c_str());
 
 	W_COERCE(set_use_float(false));
 }

@@ -1,6 +1,6 @@
 /*<std-header orig-src='regex'>
 
- $Id: regexec.cpp,v 1.12 1999/06/07 19:02:31 kupsch Exp $
+ $Id: regexec.cpp,v 1.18 2006/01/29 22:27:29 bolo Exp $
 
 
 */
@@ -57,11 +57,11 @@ to the following restrictions:
  * representations for state sets.
  */
 #include <os_types.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <limits.h>
-#include <ctype.h>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <climits>
+#include <cctype>
 #include <regex.h>
 
 #include "regex_utils.h"
@@ -174,7 +174,7 @@ regexec(const regex_t *preg, const char *string, size_t nmatch, regmatch_t pmatc
 
 	if (preg->re_magic != MAGIC1 || g->magic != MAGIC2)
 		return(REG_BADPAT);
-	assert(!(g->iflags&BAD));
+	re_assert(!(g->iflags&BAD));
 	if (g->iflags&BAD)		/* backstop for no-debug case */
 		return(REG_BADPAT);
 	eflags = GOODFLAGS(eflags);

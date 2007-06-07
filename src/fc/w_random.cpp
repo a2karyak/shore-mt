@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: w_random.cpp,v 1.10 1999/06/07 19:02:54 kupsch Exp $
+ $Id: w_random.cpp,v 1.12 2007/05/18 21:38:25 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -58,14 +58,15 @@ extern "C" {
      mrand48() returns signed long integers uni-
      formly distributed over the interval [-2**31 ~2**31).
 */
-    double drand48();
-    long lrand48(); // non-negative
-    long mrand48(); // may be negative
+// stdlib declares these (with different exceptions, depending on compiler)
+    // double drand48();
+    // long lrand48(); // non-negative
+    // long mrand48(); // may be negative
 
-    void srand48(long ); // compatibility with ::srand(int)
+    // void srand48(long ); // compatibility with ::srand(int)
 			// to change the seed
 
-    unsigned short *seed48( unsigned short arg[3] );
+    // unsigned short *seed48( unsigned short arg[3] );
 
 }
 #endif
@@ -227,7 +228,7 @@ random_generator::rand() const
 }
 
 
-#include <fstream.h>
+#include <fstream>
 
 void
 random_generator::read(const char *fname)

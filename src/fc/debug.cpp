@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: debug.cpp,v 1.12 1999/06/07 19:02:42 kupsch Exp $
+ $Id: debug.cpp,v 1.17 2007/05/18 21:38:23 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -52,16 +52,13 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
  */
 
 #include <w_stream.h>
-#include <iostream.h>
-#include <string.h>
-#include <stdlib.h>
-#ifndef _WINDOWS
-#include <unistd.h>
-#endif
+#include <iostream>
+#include <cstring>
+#include <cstdlib>
 #include "w_debug.h"
 
 #ifdef W_TRACE
-__debug _debug("debug", getenv("DEBUG_FILE"));
+w_debug _w_debug("debug", getenv("DEBUG_FILE"));
 #endif
 
 
@@ -75,12 +72,12 @@ extern "C" {
 
 
 #ifdef USE_REGEX
-bool		__debug::re_ready = false;
-regex_t		__debug::re_posix_re;
-char*		__debug::re_error_str = "Bad regular expression";
+bool		_w_debug::re_ready = false;
+regex_t		_w_debug::re_posix_re;
+char*		_w_debug::re_error_str = "Bad regular expression";
 #endif /* USE_REGEX */
 
-__debug::__debug(const char *n, const char *f) : 
+w_debug::w_debug(const char *n, const char *f) : 
 	ErrLog(n, log_to_unix_file, f?f:"-")
 {
 #ifdef FC_DEBUG_WIN32_LOCK
@@ -131,7 +128,7 @@ __debug::__debug(const char *n, const char *f) :
     assert( !( none() && all() ) );
 }
 
-__debug::~__debug()
+w_debug::~w_debug()
 {
 	if(_flags) delete [] _flags;
 	_flags = NULL;
@@ -142,7 +139,7 @@ __debug::~__debug()
 }
 
 void
-__debug::setflags(const char *newflags)
+w_debug::setflags(const char *newflags)
 {
 #ifdef FC_DEBUG_WIN32_LOCK
 	EnterCriticalSection(&_crit);
@@ -179,7 +176,7 @@ __debug::setflags(const char *newflags)
 
 #ifdef USE_REGEX
 int 
-__debug::re_exec_debug(const char* string)
+w_debug::re_exec_debug(const char* string)
 {
 	if (!re_ready)  {
 	    cerr << __LINE__ 
@@ -188,20 +185,11 @@ __debug::re_exec_debug(const char* string)
 	    return 0;
 	}
 	int match = (re_exec_posix(string)==1);
-#ifdef notdef
-	if(!match) {
-	    cerr << __LINE__ 
-	    << " " << __FILE__ 
-	    << " No match in re_exec_debug" 
-		<< " for string " << string
-		<< endl;
-	}
-#endif
 	return  match;
 }
 
 char* 
-__debug::re_comp_debug(const char* pattern)
+w_debug::re_comp_debug(const char* pattern)
 {
 	if (re_ready)
 		regfree(&re_posix_re);
@@ -220,7 +208,7 @@ __debug::re_comp_debug(const char* pattern)
 
 
 int
-__debug::flag_on(
+w_debug::flag_on(
     const char *fn,
     const char *file
 )
@@ -259,7 +247,7 @@ __debug::flag_on(
 
 /* This function prints a hex dump of (len) bytes at address (p) */
 void
-__debug::memdump(void *p, int len)
+w_debug::memdump(void *p, int len)
 {
 	register int i;
 	char *c = (char *)p;

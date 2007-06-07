@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: bitmap.cpp,v 1.26 2000/02/02 03:01:34 bolo Exp $
+ $Id: bitmap.cpp,v 1.27 2006/01/29 18:24:56 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -37,7 +37,7 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #pragma implementation "bitmap.h"
 #endif
 
-#include <stdlib.h>
+#include <cstdlib>
 #include <w_stream.h>
 #include "basics.h" 
 #include "bitmap.h" 

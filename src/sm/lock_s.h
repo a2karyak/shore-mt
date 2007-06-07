@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='LOCK_S_H'>
 
- $Id: lock_s.h,v 1.68 2001/06/26 16:48:46 bolo Exp $
+ $Id: lock_s.h,v 1.69 2007/05/18 21:43:26 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -50,25 +50,25 @@ public:
 	t_aborted_convert = 16
     };
 
-    typedef lock_mode_t mode_t;
+    typedef lock_mode_t lmode_t;
 
     typedef lock_duration_t duration_t;
 
     enum {
 	MIN_MODE = NL, MAX_MODE = EX,
-	NUM_MODES = MAX_MODE - MIN_MODE + 1,
+	NUM_MODES = MAX_MODE - MIN_MODE + 1
     };
 
     static const char* const 	mode_str[NUM_MODES];
     static const char* const 	duration_str[t_num_durations];
     static const bool 		compat[NUM_MODES][NUM_MODES];
-    static const mode_t 	supr[NUM_MODES][NUM_MODES];
+    static const lmode_t 	supr[NUM_MODES][NUM_MODES];
 };
 
 #ifndef LOCK_S
 /*
 typedef lock_base_t::duration_t lock_duration_t;
-// typedef lock_base_t::mode_t lock_mode_t; lock_mode_t defined in basics.h
+// typedef lock_base_t::lmode_t lock_mode_t; lock_mode_t defined in basics.h
 typedef lock_base_t::status_t status_t;
 
 #define LOCK_NL 	lock_base_t::NL

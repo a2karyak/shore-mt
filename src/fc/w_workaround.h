@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='W_WORKAROUND_H'>
 
- $Id: w_workaround.h,v 1.55 2003/12/01 20:41:03 bolo Exp $
+ $Id: w_workaround.h,v 1.58 2006/01/29 18:09:00 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -316,6 +316,15 @@ extern const char *form(const char *, ...);
 
 #ifdef _MSC_VER
 
+	/* _MSC_VER contains a number which equates to visual c++ versions:
+	 * _MSC_VER is 1100 for VC++ 5.0
+	 * _MSC_VER is 1200 for VC++ 6.0
+	 * _MSC_VER is 1300 for VC++ 7.0
+	 * _MSC_VER is 1310 for VC++ 7.1
+	 */
+
+#define	W_MSC_VER(maj,min)	((maj+6)*100 + (min)*10)
+
 /******************************************************************************
  *
  * Migration to standard C++
@@ -452,6 +461,19 @@ extern const char *form(const char *, ...);
 #define VCPP_BUG_1 
 #endif
 
+/*
+ * Try to use the system definition of offsetof, provide one
+ * if the system's isn't in the standard place.
+ * This is probably the best argument for moving offstof to w_base.h,
+ * since it drags in junk ... and for w_form above, since it drags
+ * in the evil microsoft everything header.
+ */
+#ifndef offsetof
+#include <cstddef>
+#endif
+#ifndef offsetof
+#define offsetof(type,member)	((size_t)((&(type *)0)->member))
+#endif
 
 #ifndef w_offsetof
 #define	w_offsetof(class,member)	offsetof(class,member)

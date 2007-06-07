@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: sdisk_diskrw.cpp,v 1.19 2002/01/02 23:51:57 bolo Exp $
+ $Id: sdisk_diskrw.cpp,v 1.29 2007/05/18 21:53:43 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -47,7 +47,6 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 
 #define	SDISK_DISKRW_C
 
-#define W_INCL_LIST
 #define W_INCL_SHMEM
 #define W_INCL_TIMER
 #include <w.h>
@@ -56,14 +55,14 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #include <w_stream.h>
 #include <w_strstream.h>
 #include <w_signal.h>
-#include <stdlib.h>
+#include <cstdlib>
 #ifndef _WINDOWS
 #include <unistd.h>
 #endif
-#include <string.h>
+#include <cstring>
 
 #ifdef _WINDOWS
-#include <time.h>
+#include <ctime>
 #else
 #include <sys/time.h>
 #endif
@@ -71,25 +70,26 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #ifndef _WINDOWS
 #include <sys/wait.h>
 #endif
-#include <new.h>
+#include <new>
 
 #include <sys/stat.h>
 #include <w_rusage.h>
 
-#if defined(Sparc) && !defined(SOLARIS2)
-#include <vfork.h>
+#ifdef HAVE_VFORK_H
+#  include <vfork.h>
+#else
+#  ifdef HAVE_WORKING_VFORK
+// defined in unistd.h -- what to do when it's not there?
+// extern "C" int vfork();
+#  endif
 #endif
 
-#if defined(Mips) && !defined(Irix)	/* aka ultrix? */
-extern "C" int vfork();
-#endif
-
-#if defined(Mips) && defined(Irix)
-#define vfork fork
-#endif
-
-#if defined(AIX32) && !defined(AIX41)
-#define	vfork	fork
+#ifndef HAVE_WORKING_VFORK
+#   ifdef HAVE_WORKING_FORK
+#      define vfork fork
+#   else
+#      error Need a working fork
+#   endif
 #endif
 
 #include <w_statistics.h>
@@ -134,11 +134,16 @@ const int	stNOTIMPLEMENTED = sthread_base_t::stNOTIMPLEMENTED;
 #include <sdisk_unix.h>
 #include <sdisk_diskrw.h>
 
-#include <fcntl.h>
+#include <os_fcntl.h>
+
+/* Provide a reasonable default for older shore config files. */
+#ifndef SDISK_DISKRW_ALIGN
+#define	SDISK_DISKRW_ALIGN	8192
+#endif
 
 extern class sthread_stats SthreadStats;
 
-#if defined(SOLARIS2) || defined(Linux) || defined(__NetBSD__) || defined(OSF1) || defined(HPUX8)
+#if defined(SOLARIS2) || defined(Linux) || defined(__NetBSD__) || defined(OSF1) || defined(HPUX8) || defined(MacOSX)
 #define	EXECVP_AV(x)	((char * const *)(x))
 #else
 #define	EXECVP_AV(x)	(x)
@@ -819,8 +824,57 @@ w_rc_t sdisk_handler_t::init_shared(unsigned size)
 	 * stupid 'fill' member is in svcport_t.
 	 */
 	int _extra = sizeof(svcport_t) + sizeof(diskport_t)*open_max;
-	if (_extra & 0x7)	/* XXX align */
+	if (_extra & 0x7)	/* XXX alignto */
 		_extra += 8 - (_extra & 0x7);
+
+#ifdef SDISK_DISKRW_ALIGN
+	/*
+	 * Align the I/O buffers to some decent boundaries so I/O 
+	 * can be aligned and take advantage of page mapping in the
+	 * kernel, allow aligned I/O requirements, etc.
+	 *
+	 * If an "allocation mechanism" for the shared memory segment
+	 * is added, this alignment should be kept track of and used
+	 * for handing out aligned allocations.
+	 * For example, buffer pool, log, overhead, multiple different
+	 * threads wanting I/O in non-integrated fashion, etc.
+	 */
+
+	unsigned io_align;
+
+	if (SDISK_DISKRW_ALIGN < 0)
+		io_align = 0;
+	else
+		io_align = SDISK_DISKRW_ALIGN;
+
+	const char *sa = getenv("SDISK_DISKRW_ALIGN");
+	if (sa && *sa) {
+		int	n = atoi(sa);
+		if (n < 0)
+			io_align = 0;
+		if (n > 0)
+			io_align = n;
+	}
+
+#ifdef notyet
+	if (check_pow2_alignment_of(io_align)) {
+		cerr << "sdisk_diskrw: SDISK_DISKRW_ALIGN: "
+		     << io_align
+		     << " not aligned to power-of-2"
+		     << endl;
+		// XXX could have gracefull fallback, but
+		// don't have a good way of indicating
+		// that thinsg aren't as good as they could
+		// be, but it will work ... maybe (aka other
+		// features requiring the alignment).
+		W_FATAL(fcINTERNAL);
+	}
+#endif
+
+	if (io_align > 0 && (_extra & (io_align - 1)))	/* XXX alignto */
+	    _extra += io_align - (_extra & (io_align - 1));
+#endif
+
 	const int extra = _extra;	// to void gcc vfork warning
 
 	/*
@@ -850,20 +904,18 @@ w_rc_t sdisk_handler_t::init_shared(unsigned size)
 	 *  Fork a dummy diskrw process that monitors longevity of
 	 *  this process.
 	 */
-	char arg[20];	/* shared memory ID */
-	ostrstream s(arg, sizeof(arg));
-	s << shmem_seg.id() << ends;
+	w_ostrstream_buf arg_id(20);	/* shared memory ID */
+	arg_id << shmem_seg.id() << ends;
 
-	char arg2[20];	/* offset of svcport */
-	ostrstream s2(arg2, sizeof(arg2));
-	s2 << (char*)svcport - (char*)shmem_seg.base()  << ends;
+	w_ostrstream_buf arg_svcport(20); /* offset of svcport */
+	arg_svcport << (char*)svcport - (char*)shmem_seg.base()  << ends;
 
 	const char *av[5];
 	int	ac = 0;
 
 	av[ac++] = _diskrw;
-	av[ac++] = arg;
-	av[ac++] = arg2;
+	av[ac++] = arg_id.c_str();
+	av[ac++] = arg_svcport.c_str();
 	av[ac++] = 0;
 
 
@@ -1063,47 +1115,42 @@ w_rc_t sdisk_handler_t::open(const char *path, int flags, int mode,
 	 *  Set up arguments for diskrw
 	 */
 
-	char arg1[100];
-	ostrstream s1(arg1, sizeof(arg1));
-	s1 << shmem_seg.id() << ends;
+	w_ostrstream_buf arg_id(100);
+	arg_id << shmem_seg.id() << ends;
 
-	char arg2[20];
-	ostrstream s2(arg2, sizeof(arg2));
-	s2 << (char*)svcport - (char*)shmem_seg.base()  << ends;
+	w_ostrstream_buf arg_svcport(20);
+	arg_svcport << (char*)svcport - (char*)shmem_seg.base()  << ends;
 
-	char arg3[20];
-	ostrstream s3(arg3, sizeof(arg3));
-	s3 << (char*)p - (char*)shmem_seg.base() << ends;
+	w_ostrstream_buf arg_disk(20);
+	arg_disk << (char*)p - (char*)shmem_seg.base() << ends;
 
-	char arg4[20];
-	ostrstream s4(arg4, sizeof(arg4));
+	w_ostrstream_buf arg_flags(20);
 	/* diskrw process takes unix flags for now */
-	s4 << sdisk_unix_t::convert_flags(flags) << ends;
+	arg_flags << sdisk_unix_t::convert_flags(flags) << ends;
 
-	char arg5[20];
-	ostrstream s5(arg5, sizeof(arg5));
-	s5 << mode << ends;
+	w_ostrstream_buf arg_mode(20);
+	arg_mode << mode << ends;
 
 
 #ifdef _WIN32
 	p->_args = cmdArgs; // keep a ptr around for cleanup in ~diskport_t
 
 	*cmdArgs += _diskrw;
-	*cmdArgs += arg1;
-	*cmdArgs += arg2;
-	*cmdArgs += arg3;
-	*cmdArgs += arg4;
-	*cmdArgs += arg5;
+	*cmdArgs += arg_id.c_str();
+	*cmdArgs += arg_svcport.c_str();
+	*cmdArgs += arg_disk.c_str();
+	*cmdArgs += arg_flags.c_str();
+	*cmdArgs += arg_mode.c_str();
 	*cmdArgs += path;
 #else
 	const	char *av[8];
 	int	ac = 0;
 	av[ac++] = _diskrw;
-	av[ac++] = arg1;
-	av[ac++] = arg2;
-	av[ac++] = arg3;
-	av[ac++] = arg4;
-	av[ac++] = arg5;
+	av[ac++] = arg_id.c_str();
+	av[ac++] = arg_svcport.c_str();
+	av[ac++] = arg_disk.c_str();
+	av[ac++] = arg_flags.c_str();
+	av[ac++] = arg_mode.c_str();
 	av[ac++] = path;
 	av[ac++] = 0;
 #endif /* _WINDOWS */

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: vtable_sthread.cpp,v 1.12 1999/06/07 19:06:17 kupsch Exp $
+ $Id: vtable_sthread.cpp,v 1.15 2007/05/18 21:53:44 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -41,12 +41,12 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #include <w.h>
 #include <w_debug.h>
 #include <w_stream.h>
-#include <stdlib.h>
-#include <string.h>
+#include <cstdlib>
+#include <cstring>
 #include "sthread.h"
 
 #include "vtable_info.h"
-#include "vtable_enum.h"
+#include "sthread_vtable_enum.h"
 
 
 #ifdef EXPLICIT_TEMPLATE
@@ -72,7 +72,12 @@ sthread_t::collect(vtable_info_array_t &v)
     }
 */
 #endif
-    if(v.init(nt, thread_last)) return -1;
+
+    // Account for the executable's largest thread stats enum;
+    // It's not known until run time.
+
+
+    if(v.init(nt, global_vtable_last)) return -1;
 
     vtable_func<sthread_t> f(v);
     {

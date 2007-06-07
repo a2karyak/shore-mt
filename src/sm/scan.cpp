@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: scan.cpp,v 1.152 2003/08/27 23:59:19 bolo Exp $
+ $Id: scan.cpp,v 1.154 2007/05/18 21:43:27 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -44,10 +44,10 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #include <btcursor.h>
 #include <rtree_p.h>
 
-#include <new.h>
+#include <new>
 
-W_FASTNEW_STATIC_DECL(scan_index_i, 32); 
-W_FASTNEW_STATIC_DECL(scan_file_i, 32); 
+W_FASTNEW_STATIC_DECL(scan_index_i, 32)
+W_FASTNEW_STATIC_DECL(scan_file_i, 32)
 
 #define SCAN_METHOD_PROLOGUE1		        \
 	w_rc_t rc = error_code();	\

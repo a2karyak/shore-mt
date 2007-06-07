@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: lexify.cpp,v 1.33 2002/02/18 20:10:57 bolo Exp $
+ $Id: lexify.cpp,v 1.35 2007/05/18 21:43:25 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -339,16 +339,16 @@ sortorder::int_unlexify(
 #ifdef BIGLONG
     switch(len) {
     case 8:
-	((int8_t *)res)[0] = ((int8_t *)str)[0] ^ 0x8000000000000000;
+	((w_base_t::int8_t *)res)[0] = ((int8_t *)str)[0] ^ 0x8000000000000000;
 	break;
     case 4:
-	((int4_t *)res)[0] = ((int4_t *)str)[0] ^ 0x80000000;
+	((w_base_t::int4_t *)res)[0] = ((int4_t *)str)[0] ^ 0x80000000;
 	break;
     case 2:
-	((int2_t *)res)[0] = ((int2_t *)str)[0] ^ 0x8000;
+	((w_base_t::int2_t *)res)[0] = ((int2_t *)str)[0] ^ 0x8000;
 	break;
     case 1:
-	((int1_t *)res)[0] = ((int1_t *)str)[0] ^ 0x80;
+	((w_base_t::int1_t *)res)[0] = ((int1_t *)str)[0] ^ 0x80;
 	break;
     }
 #else
@@ -691,6 +691,10 @@ sortorder::unlexify(
 	    // should be at least 4-byte aligned
 	    // architectures' alignment requirements
 	    // for doubles might differ.
+#ifdef BOLO_DEBUG
+	    if (((ptrdiff_t)res & ALIGN_MASK_F8))
+		cerr << "f8 unaligned " << res << endl;
+#endif
 	    w_assert3(((ptrdiff_t)res & ALIGN_MASK_F8) == 0x0);
 	    dbl_unlexify(str, Dperm, (f8_t *)res);
 	    break;

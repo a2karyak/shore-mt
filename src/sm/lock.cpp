@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: lock.cpp,v 1.145 1999/10/25 18:34:14 bolo Exp $
+ $Id: lock.cpp,v 1.147 2007/05/18 21:43:25 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -44,7 +44,7 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #include <lock_x.h>
 #include <lock_core.h>
 
-#include <new.h>
+#include <new>
 
 #define W_VOID(x) x
 
@@ -61,8 +61,8 @@ template class w_list_t<XctWaitsForLockElem>;
 template class w_list_i<XctWaitsForLockElem>;
 #endif
 
-W_FASTNEW_STATIC_DECL(XctWaitsForLockElem, 16);
-W_FASTNEW_STATIC_DECL(lockid_t, 100);
+W_FASTNEW_STATIC_DECL(XctWaitsForLockElem, 16)
+W_FASTNEW_STATIC_DECL(lockid_t, 100)
 
 
 
@@ -156,7 +156,7 @@ lock_m::get_parent(const lockid_t& c, lockid_t& p)
 
 rc_t lock_m::query(
     const lockid_t&     n,
-    mode_t&             m,
+    lmode_t&             m,
     const tid_t&        tid,
     bool		implicit)
 {
@@ -228,7 +228,7 @@ rc_t lock_m::query(
 
 rc_t lock_m::_query_implicit(
     const lockid_t&     n,
-    mode_t&		m,
+    lmode_t&		m,
     const tid_t&        tid)
 {
     w_assert1(tid != tid_t::null);
@@ -256,7 +256,7 @@ rc_t lock_m::_query_implicit(
 	for (int curr = pathlen-1; curr >= 0; curr--) {
 	    if (path[curr].lspace() <= lockid_t::t_page) {
 	        if (lock_cache_elem_t* e = theLockInfo->cache[path[curr].lspace()].search(path[curr]))  {
-		    mode_t cm = e->mode;
+		    lmode_t cm = e->mode;
 		    if (curr == 0) {
 			w_assert3(path[curr] == n);
 			if (SIX_found)
@@ -371,9 +371,9 @@ lock_m::close_quark(bool release_locks)
 rc_t
 lock_m::_lock(
     const lockid_t& 	_n,
-    mode_t 		m,
-    mode_t&		prev_mode,
-    mode_t&		prev_pgmode,
+    lmode_t 		m,
+    lmode_t&		prev_mode,
+    lmode_t&		prev_pgmode,
     duration_t 		duration,
     timeout_in_ms	timeout, 
     bool 		force,
@@ -439,7 +439,7 @@ lock_m::_lock(
 	// check to see if the exact lock we need is in the cache, if so we are done.
 	if (n.lspace() <= lockid_t::t_page && xd->lock_cache_enabled()) {
 	    if (lock_cache_elem_t* e = theLockInfo->cache[n.lspace()].search(n))  {
-	        mode_t cm = e->mode;
+	        lmode_t cm = e->mode;
 	        if (cm == supr[m][cm]) {
 		    prev_mode = cm;
 		    if (n.lspace() == lockid_t::t_page)  {
@@ -456,8 +456,8 @@ lock_m::_lock(
 	w_assert3(h);
 	h[0] = n;
 
-	mode_t pmode = parent_mode[m];
-	mode_t* hmode[lockid_t::NUMLEVELS];
+	lmode_t pmode = parent_mode[m];
+	lmode_t* hmode[lockid_t::NUMLEVELS];
 	hmode[0] = 0;
 
 	// check to see if the correct lock is held on the parent(n) to volume(n) in the cache.
@@ -492,7 +492,7 @@ lock_m::_lock(
 			    prev_pgmode = *hmode[i];
     
 		        if (! force)  {
-			    mode_t held = *hmode[i];
+			    lmode_t held = *hmode[i];
 			    if (held == SH || held == EX || held == UD || (held == SIX && m == SH))  {
 			        if (held == SIX && n.lspace() > h[i].lspace()) {
 				    // need to release the mutex, since _query_implicit acquires it
@@ -556,8 +556,8 @@ lock_m::_lock(
 	// held in the correct mode from the cache.  so obtain locks on names h[i-1] to
 	// h[0] (which is n).
 	for (int j = i - 1; j >= 0; j--)  {
-	    mode_t		ret;
-	    mode_t		need = (j == 0 ? m : pmode);
+	    lmode_t		ret;
+	    lmode_t		need = (j == 0 ? m : pmode);
 	    lock_request_t*	req = 0;
 
 	    do {
@@ -599,8 +599,8 @@ lock_m::_lock(
 		        if (threshold < dontEscalate && theLastLockReq->numChildren >= threshold)  {
 			    // time to escalate, get the parent in the proper explicit mode
 			    // do it by adjusting the pmode and j, and continuing.
-			    mode_t new_pmode = (m == SH || m == IS) ? SH : EX;
-			    mode_t new_prev_mode = NL;
+			    lmode_t new_pmode = (m == SH || m == IS) ? SH : EX;
+			    lmode_t new_prev_mode = NL;
 
 			    if (!force || new_pmode != supr[new_pmode][theLastLockReq->mode])  {
 				// don't do  for the case where we already have the parent
@@ -795,8 +795,8 @@ rc_t lock_m::dont_escalate(const lockid_t& n, bool passOnToDescendants)
     DBGTHRD( << "lock_m::dont_escalate(" << n << ", " << passOnToDescendants << ")" );
 
     xct_t*		xd = xct();
-    mode_t		prev_mode;
-    mode_t		ret;
+    lmode_t		prev_mode;
+    lmode_t		ret;
     lock_request_t*	req;
 
     if (xd)  {
@@ -835,11 +835,11 @@ lock_m::stats(
 rc_t
 lock_m::lock(
     const lockid_t&	n, 
-    mode_t 		m,
+    lmode_t 		m,
     duration_t 		duration,
     timeout_in_ms	timeout,
-    mode_t*		prev_mode,
-    mode_t*             prev_pgmode,
+    lmode_t*		prev_mode,
+    lmode_t*             prev_pgmode,
     lockid_t**		nameInLockHead)
 {
 #ifdef W_DEBUG
@@ -859,8 +859,8 @@ lock_m::lock(
     /* do usual thing for extents */
 #endif
 
-    mode_t _prev_mode;
-    mode_t _prev_pgmode;
+    lmode_t _prev_mode;
+    lmode_t _prev_pgmode;
     rc_t rc = _lock(n, m, _prev_mode, _prev_pgmode, duration, timeout, false, nameInLockHead);
     if (prev_mode != 0)
 	*prev_mode = _prev_mode;
@@ -872,11 +872,11 @@ lock_m::lock(
 rc_t
 lock_m::lock_force(
     const lockid_t&	n, 
-    mode_t 		m,
+    lmode_t 		m,
     duration_t 		duration,
     timeout_in_ms	timeout,
-    mode_t*		prev_mode,
-    mode_t*             prev_pgmode,
+    lmode_t*		prev_mode,
+    lmode_t*             prev_pgmode,
     lockid_t**		nameInLockHead)
 {
 #ifdef TURN_OFF_LOCKING
@@ -891,8 +891,8 @@ lock_m::lock_force(
     }
     /* do usual thing for extents */
 #endif
-    mode_t _prev_mode;
-    mode_t _prev_pgmode;
+    lmode_t _prev_mode;
+    lmode_t _prev_pgmode;
     rc_t rc = _lock(n, m, _prev_mode, _prev_pgmode, duration, timeout, true, nameInLockHead);
     if (prev_mode != 0)
 	*prev_mode = _prev_mode;

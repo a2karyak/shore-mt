@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: devid_t.cpp,v 1.15 1999/06/07 19:02:23 kupsch Exp $
+ $Id: devid_t.cpp,v 1.16 2006/01/29 18:24:56 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -37,7 +37,7 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #pragma implementation
 #endif
 
-#include <stdlib.h>
+#include <cstdlib>
 #include <w_stream.h>
 #include <w_base.h>
 #include "basics.h"

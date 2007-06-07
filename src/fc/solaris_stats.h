@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='SOLARIS_STATS_H'>
 
- $Id: solaris_stats.h,v 1.12 2001/10/13 17:47:41 bolo Exp $
+ $Id: solaris_stats.h,v 1.13 2004/10/05 23:19:54 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -48,7 +48,7 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #include <os_types.h>
 #include <sys/procfs.h>
 
-class ostream;
+#include <iosfwd>
 
 /*
  * unix_stats objects are meant to be used as follows:

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: opaque.cpp,v 1.15 2003/06/24 19:46:22 bolo Exp $
+ $Id: opaque.cpp,v 1.17 2006/01/29 22:27:32 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -32,10 +32,10 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 /*  -- do not edit anything above this line --   </std-header>*/
 
 #include <basics.h>
-#include <assert.h>
-#include <w_debug.h>
+#include <cassert>
 #include <tid_t.h>
-#include <w_strstream.h>
+
+#include <iostream>
 
 #ifdef __GNUG__
 template ostream &operator<<(ostream &, const opaque_quantity<max_server_handle_len> &);

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='SORT_H'>
 
- $Id: sort.h,v 1.27 1999/06/07 19:04:42 kupsch Exp $
+ $Id: sort.h,v 1.28 2007/05/18 21:43:29 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -53,7 +53,7 @@ struct s_chunk  {
     s_chunk* next;
 
     NORET s_chunk() { data = 0; next = 0; };
-    NORET s_chunk(uint4_t size, s_chunk* tail) { 
+    NORET s_chunk(w_base_t::uint4_t size, s_chunk* tail) { 
 		      data = new char[size];
 		      next = tail;
 		};
@@ -81,7 +81,7 @@ public:
 
     void  reset() { _free_all(); head = 0; };
 
-    void* alloc(uint4_t size) {
+    void* alloc(w_base_t::uint4_t size) {
 	      s_chunk* curr = new s_chunk(size, head);
 	      head = curr;
  	      return (void*) curr->data;
@@ -101,7 +101,8 @@ public:
 #ifndef PFCDEFINED
 
 #define PFCDEFINED
-typedef int  (*PFC) PROTOTYPE((uint4_t kLen1, const void* kval1, uint4_t kLen2, const void* kval2));
+typedef int  (*PFC) PROTOTYPE((w_base_t::uint4_t kLen1, 
+	    const void* kval1, w_base_t::uint4_t kLen2, const void* kval2));
 
 #endif
 
@@ -139,7 +140,7 @@ class sort_stream_i : public smlevel_top, public xct_dependent_t {
 				_property = prop; _logical_id = lid; }
     rc_t	file_put(const cvec_t& key, const void* rec, uint rlen,
 				uint hlen, const rectag_t* tag);
-    rc_t	file_get_next(vec_t& key, vec_t& elem, uint4_t& blen, bool& eof);
+    rc_t	file_get_next(vec_t& key, vec_t& elem, w_base_t::uint4_t& blen, bool& eof);
 
     rc_t        flush_run();		// sort and flush one run
 
@@ -168,7 +169,7 @@ class sort_stream_i : public smlevel_top, public xct_dependent_t {
     int2_t*		heap;	   	// heap array
     int			heap_size; 	// heap size
     run_scan_t* 	sc;	   	// scan descriptor array	
-    uint4_t 		num_runs;  	// # of runs for each merge
+    w_base_t::uint4_t 	num_runs;  	// # of runs for each merge
     int			r;	   	// run index
 
     chunk_mgr_t		buf_space;	// in-memory storage

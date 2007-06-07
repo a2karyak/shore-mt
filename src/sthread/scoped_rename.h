@@ -1,7 +1,7 @@
 
 /*<std-header orig-src='shore' incl-file-exclusion='SCOPED_RENAME_H'>
 
- $Id: scoped_rename.h,v 1.1 1999/11/11 21:02:12 bolo Exp $
+ $Id: scoped_rename.h,v 1.2 2005/12/01 01:58:03 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -35,6 +35,9 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 
 /*  -- do not edit anything above this line --   </std-header>*/
 
+/* XXX this doesn't provide includes -- by definition it can only be
+   used in places where all the things required are already provided. */
+
 class ScopedRename {
 private:
 	sthread_named_base_t	&me;
@@ -49,7 +52,12 @@ public:
 		size_t	need = strlen(name) + 1;
 		if (need > sizeof(_default_name)) {
 			old_name = new char[need];
-			TOR_CHECK_ALLOC(old_name);
+			/* A more graceful failure that is reliable isn't
+			   possible here.   If the name isn't set right,
+			   bzzt.  Best to increase the size of the default
+			   name, since that will be auto allocated. */
+			if (!old_name)
+				W_FATAL(fcOUTOFMEMORY);
 		}
 		strcpy(old_name, name);
 

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: hash_lru.cpp,v 1.28 2003/12/01 20:41:00 bolo Exp $
+ $Id: hash_lru.cpp,v 1.29 2006/01/29 18:24:56 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -34,7 +34,7 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #ifndef HASH_LRU_C
 #define HASH_LRU_C
 
-#include <stdlib.h>
+#include <cstdlib>
 #include <w_debug.h>
 
 template <class TYPE, class KEY>

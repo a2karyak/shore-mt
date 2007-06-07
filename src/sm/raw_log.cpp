@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: raw_log.cpp,v 1.53 2003/10/18 02:53:33 bolo Exp $
+ $Id: raw_log.cpp,v 1.56 2006/03/14 05:31:26 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -37,7 +37,7 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #   pragma implementation
 #endif
 
-#include <stdlib.h>
+#include <cstdlib>
 #include "sm_int_1.h"
 #include "logdef_gen.cpp"
 #include "logtype_gen.h"
@@ -66,7 +66,7 @@ raw_log::_make_master_name(
     int			_bufsz)
 {
     FUNC(raw_log::_make_master_name);
-    ostrstream s(_buf, (int) _bufsz);
+    w_ostrstream s(_buf, (int) _bufsz);
     lsn_t 	array[max_open_log];
     array[0] = master_lsn;
     array[1] = min_chkpt_rec_lsn;
@@ -350,7 +350,7 @@ raw_log::raw_log(
 
     if(reformat) {
 	smlevel_0::errlog->clog << error_prio 
-	    << "Reformatting log..." << flushl;
+	    << "Reformatting raw log..." << flushl;
 	int i;
 	for (i=0; i < max_open_log; i++)  {
 	    _part[i].destroy();
@@ -627,7 +627,7 @@ raw_log::_read_master(
     /* XXX Possible loss of bits in cast */
     w_assert1(readbufsize() < fileoff_t(w_base_t::int4_max));
     { 
-	istrstream s(readbuf(), int(readbufsize()));
+	w_istrstream s(readbuf(), int(readbufsize()));
 	lsn_t tmp; lsn_t tmp1;
 
 	bool  old_style;
@@ -653,7 +653,7 @@ raw_log::_read_master(
 
     if( *REST != '\0' ) {
 	rc_t rc;
-	istrstream s(REST, int(readbufsize()) - (REST - readbuf()));
+	w_istrstream s(REST, int(readbufsize()) - (REST - readbuf()));
 	rc = parse_master_chkpt_contents(s, listlength, lsnlist);
 	if (rc != RCOK) {
 	    smlevel_0::errlog->clog << error_prio 
@@ -697,7 +697,7 @@ raw_log::_write_master(
 	    }
 	}
 	if(j > 0) {
-	    ostrstream s(_ptr, CHKPT_META_BUF);
+	    w_ostrstream s(_ptr, CHKPT_META_BUF);
 	    create_master_chkpt_contents(s, j, array);
 	} else {
 	    memset(_ptr, '\0', 1);

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='LOCK_CORE_H'>
 
- $Id: lock_core.h,v 1.39 2001/06/26 18:33:55 bolo Exp $
+ $Id: lock_core.h,v 1.41 2007/05/18 21:43:26 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -39,21 +39,24 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #endif
 
 
-class LockCoreFunc
-{
-    public:
+class LockCoreFunc {
+ public:
+	virtual ~LockCoreFunc();
+
 	virtual void operator()(const xct_t* xct) = 0;
 };
 
 
-class bucket_t; // forward
+class bucket_t;
+class callback_m;
+
 class lock_core_m : public lock_base_t {
     enum { BPB=CHAR_BIT };
 
 friend class callback_m;
 
 public:
-    typedef lock_base_t::mode_t mode_t;
+    typedef lock_base_t::lmode_t lmode_t;
     typedef lock_base_t::duration_t duration_t;
 
     NORET		lock_core_m(uint sz);
@@ -98,11 +101,11 @@ public:
 				const lockid_t&		name,
 				lock_head_t*		lock,
 				lock_request_t**	request,
-				mode_t			mode,
-				mode_t&			prev_mode,
+				lmode_t			mode,
+				lmode_t&			prev_mode,
 				duration_t		duration,
 				timeout_in_ms		timeout,
-				mode_t&			ret);
+				lmode_t&			ret);
 
 #ifdef NOTDEF
     rc_t		downgrade(
@@ -110,7 +113,7 @@ public:
 				const lockid_t&		name,
 				lock_head_t*		lock,
 				lock_request_t*		request,
-				mode_t			mode,
+				lmode_t			mode,
 				bool			force);
 #endif
 
@@ -139,7 +142,7 @@ public:
 
     lock_head_t*	GetNewLockHeadFromPool(
 				const lockid_t&		name,
-				mode_t			mode);
+				lmode_t			mode);
     
     void		FreeLockHeadToPool(lock_head_t* theLockHead);
 
@@ -148,7 +151,7 @@ private:
     uint4_t		_hash(uint4_t) const;
     rc_t	_check_deadlock(xct_t* xd, bool* deadlock_found = 0);
     rc_t	_find_cycle(xct_t* self);
-    void	_update_cache(xct_t *xd, const lockid_t& name, mode_t m);
+    void	_update_cache(xct_t *xd, const lockid_t& name, lmode_t m);
 
 #ifndef NOT_PREEMPTIVE
 #define ONE_MUTEX
@@ -188,7 +191,7 @@ private:
 
 
 inline lock_head_t*
-lock_core_m::GetNewLockHeadFromPool(const lockid_t& name, mode_t mode)
+lock_core_m::GetNewLockHeadFromPool(const lockid_t& name, lmode_t mode)
 {
     LOCK_HEAD_POOL_ACQUIRE(lockHeadPoolMutex);
 

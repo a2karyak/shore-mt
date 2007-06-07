@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='W_WINDOWS_H'>
 
- $Id: w_windows.h,v 1.14 2000/01/14 19:34:40 bolo Exp $
+ $Id: w_windows.h,v 1.16 2007/05/18 21:38:25 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -71,8 +71,7 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #include <w_winsock.h>
 #include <os_types.h>
 
-#include <string.h>
-#include <memory.h>
+#include <cstring>
 
 typedef long mode_t;
 typedef void* caddr_t;

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: heap.cpp,v 1.9 1999/06/07 19:03:04 kupsch Exp $
+ $Id: heap.cpp,v 1.10 2006/01/29 17:32:47 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -33,7 +33,7 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 
 #include "w_heap.h"
 #include <w.h>
-#include <string.h>
+#include <cstring>
 
 
 template<class T> class CmpLessFunction

@@ -1,0 +1,79 @@
+# <std-header style='data' orig-src='shore'>
+#
+#  $Id: sm_stats.dat,v 1.1 2007/05/18 21:43:28 nhall Exp $
+#
+# SHORE -- Scalable Heterogeneous Object REpository
+#
+# Copyright (c) 1994-99 Computer Sciences Department, University of
+#                       Wisconsin -- Madison
+# All Rights Reserved.
+#
+# Permission to use, copy, modify and distribute this software and its
+# documentation is hereby granted, provided that both the copyright
+# notice and this permission notice appear in all copies of the
+# software, derivative works or modified versions, and any portions
+# thereof, and that both notices appear in supporting documentation.
+#
+# THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+# OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+# "AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+# FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+#
+# This software was developed with support by the Advanced Research
+# Project Agency, ARPA order number 018 (formerly 8230), monitored by
+# the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+# Further funding for this work was provided by DARPA through
+# Rome Research Laboratory Contract No. F30602-97-2-0247.
+#
+#   -- do not edit anything above this line --   </std-header>
+
+SM Storage manager = 0x00060000 sm_stats_t {
+
+    // Buffer pool performance information
+    u_long bf_one_page_write 	Single page written to volume
+    u_long bf_two_page_write 	Two-page writes to volume
+    u_long bf_three_page_write 	Three-page writes to volume
+    u_long bf_four_page_write 	Four-page writes to volume
+    u_long bf_five_page_write 	Five-page writes to volume
+    u_long bf_six_page_write 	Six-page writes to volume
+    u_long bf_seven_page_write 	Seven-page writes to volume
+    u_long bf_eight_page_write 	Eight-page writes to volume
+
+    u_long bf_cleaner_sweeps    Number of sweeps of the bf_cleaner thread
+    u_long bf_cleaner_signalled Number of sweeps initiated by a kick
+    u_long bf_kick_full 	Kicks because pool is full of dirty pages
+    u_long bf_kick_replacement 	Kicks because doing page replacement
+    u_long bf_kick_threshhold 	Kicks because dirty page threshold met
+    u_long bf_sweep_page_hot 	Page swept was not flushed because it was hot 
+    u_long bf_log_flush_all    	Number of whole-log flushes by bf_cleaner
+    u_long bf_log_flush_lsn    	Number of partial log flushes by bf_cleaner
+    u_long bf_write_out    	Pages written out in background or forced
+    u_long bf_replace_out    	Pages written out to free a frame for fixing
+    u_long bf_replaced_dirty 	Victim for page replacement is dirty
+    u_long bf_replaced_clean 	Victim for page replacement is clean
+    u_long bf_await_clean 	Times awaited a clean page for fix()
+    u_long bf_prefetch_requests Requests to prefetch a page 
+    u_long bf_prefetches  	Prefetches performed
+
+    // Operations on local data volumes
+    u_long vol_reads		Data volume read requests (from disk)
+    u_long vol_writes		Data volume write requests (to disk)
+    u_long vol_blks_written	Data volume pages written (to disk)
+
+    // Log operations -- per-server only
+    u_long log_dup_sync_cnt	Times the log was flushed superfluously
+    u_long log_sync_cnt		Times the log was flushed (and was needed)
+    u_long log_fsync_cnt	Times the fsync system call was used
+    u_long log_chkpt_cnt	Checkpoints taken
+    u_long log_fetches		Log records fetched from log (read)
+    u_long log_inserts		Log records inserted into log (written)
+
+    u_long log_bytes_active	Log bytes written by active xcts
+    u_long log_records_generated Non-xct log records written
+    u_long log_bytes_generated	Non-xct bytes written to the log
+
+    // io_manager:
+    u_long io_extent_lsearch	Linear searches through store looking for space
+    u_long io_extent_lsearch_hop	Linear search hops 
+};
+

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: latch.cpp,v 1.40 2002/11/14 02:07:11 bolo Exp $
+ $Id: latch.cpp,v 1.41 2007/05/18 21:33:42 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -39,7 +39,7 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #include "latch.h"
 #include "w_debug.h"
 
-#include <memory.h>
+#include <cstring>
 #include <w_statistics.h>
 #include <sthread_stats.h>
 

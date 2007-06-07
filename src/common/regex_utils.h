@@ -1,6 +1,6 @@
 /*<std-header orig-src='regex' incl-file-exclusion='REGEX_UTILS_H'>
 
- $Id: regex_utils.h,v 1.9 2003/06/19 19:19:48 bolo Exp $
+ $Id: regex_utils.h,v 1.10 2006/01/29 22:27:28 bolo Exp $
 
 
 */
@@ -63,11 +63,17 @@ typedef unsigned char uch;
 
 /* switch off assertions (if not already off) if no REDEBUG */
 #ifndef REDEBUG
-#ifndef NDEBUG
-#define	NDEBUG	/* no assertions please */
+#define	re_assert(EX)	do { } while(0)
+#else
+/* This is a workaround for a bug in some c++ cassert wrappers that
+   have an incorrect multiple include prevention for assert.  The
+   bug still is a problem, but at least it won't leave REDEBUG enabled
+   continously when it shouldn't be */
+/* XXX if you are having problems debuging regular expression code,
+   you may need to do an assert-by-hand below (use w_assert) */
+#include <cassert>
+#define	re_assert(EX)	assert(EX)
 #endif
-#endif
-#include <assert.h>
 
 /* for old systems with bcopy() but no memmove() */
 #ifdef USEBCOPY

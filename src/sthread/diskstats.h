@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='DISKSTATS_H'>
 
- $Id: diskstats.h,v 1.13 1999/06/07 19:05:59 kupsch Exp $
+ $Id: diskstats.h,v 1.14 2006/01/29 17:32:50 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -35,7 +35,7 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 /*  -- do not edit anything above this line --   </std-header>*/
 
 #include <unix_stats.h>
-#include <string.h>
+#include <cstring>
 
 
 struct S {

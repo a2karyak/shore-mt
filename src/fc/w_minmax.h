@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='W_MINMAX_H'>
 
- $Id: w_minmax.h,v 1.18 1999/06/07 19:02:54 kupsch Exp $
+ $Id: w_minmax.h,v 1.19 2007/05/18 21:38:25 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -56,7 +56,9 @@ min(const T x, const T y)
 #endif /* !__GNUC__ */
 
 #ifdef W_UNIX
+#if HAVE_SYS_PARAM_H
 #include <sys/param.h>
+#endif
 /*
 // on some systems, <sys/param.h> defines 
 // MIN & MAX; it invariably gets included

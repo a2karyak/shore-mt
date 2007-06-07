@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='FILE_S_H'>
 
- $Id: file_s.h,v 1.36 2003/12/01 20:41:03 bolo Exp $
+ $Id: file_s.h,v 1.37 2007/05/18 21:43:25 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -44,7 +44,7 @@ class file_p;
 enum pg_policy_t { 
     t_append		= 0x01, // retain sort order (cache 0 pages)
     t_cache		= 0x02, // look in n cached pgs 
-    t_compact		= 0x04, // scan file for space in pages 
+    t_compact		= 0x04 // scan file for space in pages 
     /* These are masks - the following combinations are supported:
      * t_append	-- preserve sort order
      * t_cache  -- look only in cache - error if no luck (not really sensible)

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='DTID_T_H'>
 
- $Id: dtid_t.h,v 1.14 1999/11/02 15:25:35 kupsch Exp $
+ $Id: dtid_t.h,v 1.15 2007/05/18 21:43:24 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -36,7 +36,7 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 
 #include <w.h>
 #include <basics.h>
-#include <memory.h>
+#include <cstring>
 #include <tid_t.h>
 
 // distributed transaction type

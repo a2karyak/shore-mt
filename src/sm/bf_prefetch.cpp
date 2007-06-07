@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: bf_prefetch.cpp,v 1.23 2003/08/27 23:59:18 bolo Exp $
+ $Id: bf_prefetch.cpp,v 1.24 2007/05/18 21:43:24 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -97,7 +97,7 @@ bf_prefetch_thread_t::_table[
 #undef FTL 
 #undef LST 
 
-W_FASTNEW_STATIC_DECL(bf_prefetch_thread_t, 32); // TODO: change to use 
+W_FASTNEW_STATIC_DECL(bf_prefetch_thread_t, 32) // TODO: change to use 
 	// a factory that avoids constructor/destructor calls
 	
 

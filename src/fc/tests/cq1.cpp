@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: cq1.cpp,v 1.17 2000/01/07 07:17:04 bolo Exp $
+ $Id: cq1.cpp,v 1.19 2006/01/29 18:09:01 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -32,7 +32,7 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 /*  -- do not edit anything above this line --   </std-header>*/
 
 #include <w_stream.h>
-#include <stddef.h>
+#include <cstddef>
 
 #define W_INCL_CIRCULAR_QUEUE
 #include <w.h>
@@ -59,7 +59,7 @@ int main()
     w_assert1( q.put(i) );
 
     for (i = 0; i < 10; i++)  {
-	int j;
+	int j = -1;
 	W_COERCE( q.get(j));
 	w_assert1(j == i);
     }
@@ -90,7 +90,7 @@ int main()
     w_assert1( q.put(i) );
 
     for (i = 0; i < 10; i++)  {
-	int j;
+	int j = -1;
 	W_COERCE( q.get(j));
 	w_assert1(j == i);
     }

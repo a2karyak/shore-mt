@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='SERIAL_T_H'>
 
- $Id: serial_t.h,v 1.61 2002/01/04 21:50:37 bolo Exp $
+ $Id: serial_t.h,v 1.62 2007/05/18 21:33:42 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -122,7 +122,7 @@ struct serial_t {
 #ifdef SERIAL_BITS64
 			data._high = 0;
 #endif
-			data._low = ondisk?mask_disk:mask_zero;
+			data._low = ondisk?uint4_t(mask_disk):uint4_t(mask_zero);
 		} 
 
 	/* NB: the next constructor is for use by the storage manager 
@@ -143,9 +143,9 @@ struct serial_t {
 			data._low = (start << 1) | mask_disk;
 
 #ifdef SERIAL_BITS64
-			data._high |= remote ? mask_remote : mask_zero; 
+			data._high |= remote ? uint4_t(mask_remote) : uint4_t(mask_zero); 
 #else
-			data._low |= remote ? mask_remote : mask_zero; 
+			data._low |= remote ? uint4_t(mask_remote) : uint4_t(mask_zero); 
 #endif
 		}
 
@@ -166,10 +166,10 @@ public:
 	// return value true indicates overflow
     bool increment(uint4_t amount); // also decrements 
 
-    bool is_remote() 	const {return (data.high() & mask_remote)==mask_remote;} 
-    bool is_local()  	const {return (data.high() & mask_remote)==0; }
-    bool is_on_disk()	const {return (data._low  & mask_disk)==mask_disk; }
-    bool is_in_memory() const {return (data._low  & mask_disk)==0; }
+    bool is_remote() 	const {return (data.high() & uint4_t(mask_remote))==uint4_t(mask_remote);} 
+    bool is_local()  	const {return (data.high() & uint4_t(mask_remote))==0; }
+    bool is_on_disk()	const {return (data._low  & uint4_t(mask_disk))==uint4_t(mask_disk); }
+    bool is_in_memory() const {return (data._low  & uint4_t(mask_disk))==0; }
 
 	// This is a little flaky, but there *are* places where
 	// we need to ignore the lowest bit (on-disk), e.g,.
@@ -180,7 +180,7 @@ public:
 #ifdef SERIAL_BITS64
 			(data._high==s.data._high) &&
 #endif
-		((data._low  & ~mask_disk)==(s.data._low & ~mask_disk));
+		((data._low  & ~uint4_t(mask_disk))==(s.data._low & ~uint4_t(mask_disk)));
 	}
     bool is_null()    const { return this->equiv(serial_t::null); }
 

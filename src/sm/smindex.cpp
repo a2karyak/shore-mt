@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: smindex.cpp,v 1.99 1999/06/07 19:04:39 kupsch Exp $
+ $Id: smindex.cpp,v 1.100 2006/06/01 16:45:56 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -199,6 +199,7 @@ ss_m::bulkld_index(
     SM_PROLOGUE_RC(ss_m::bulkld_index, in_xct, 0);
     SMSCRIPT(<<"bulkld_index " <<stid<<" " << "{NOT IMPL:sorted_stream}"<<" " << stats);
     W_DO(_bulkld_index(stid, sorted_stream, stats) );
+    DBG(<<"bulkld_index " <<stid<<" returning RCOK");
     return RCOK;
 }
 

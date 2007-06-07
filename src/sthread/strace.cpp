@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: strace.cpp,v 1.12 1999/10/25 06:12:25 bolo Exp $
+ $Id: strace.cpp,v 1.13 2006/01/29 23:27:18 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -72,7 +72,7 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 
 #include "strace.h"
 
-#include <new.h>
+#include <new>
 
 class _strace_t {
 public:

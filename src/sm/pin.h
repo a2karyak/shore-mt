@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='PIN_H'>
 
- $Id: pin.h,v 1.85 2002/01/22 21:48:09 bolo Exp $
+ $Id: pin.h,v 1.86 2007/05/18 21:43:27 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -283,7 +283,7 @@ private:
     smsize_t	_len;
     smsize_t	_start;
     record_t*	_rec;
-    uint4_t 	_flags;  // this cannot be flags_t since it uses
+    w_base_t::uint4_t 	_flags;  // this cannot be flags_t since it uses
     // | to generate new flags not in the enum 
     // _hdr_lsn is used to record the lsn on the page when
     // the page is pinned.  When compiled with -DDEBUG, all pin_i

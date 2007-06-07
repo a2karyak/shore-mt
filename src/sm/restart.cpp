@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: restart.cpp,v 1.133 2003/06/19 22:39:35 bolo Exp $
+ $Id: restart.cpp,v 1.134 2006/06/01 16:43:20 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -826,8 +826,8 @@ restart_m::redo_pass(
 		    DBG(<< "DON'T TRUST_PAGE_LSN");
 		    uint4_t page_flags = 0;
 		    if (r.type() == logrec_t::t_page_init
-					|| r.type() == logrec_t::t_page_format) {
-					page_flags = page_p::t_virgin;
+			|| r.type() == logrec_t::t_page_format) {
+			page_flags = page_p::t_virgin;
 		    }
 		    smlevel_0::store_flag_t store_flags = smlevel_0::st_bad;
 		    W_COERCE( page.fix(page_updated, 
@@ -909,6 +909,7 @@ restart_m::redo_pass(
 		    // page.unfix();
 		} else {
 		    DBG(<<"log record= " << lsn 
+			<< " page_updated=" << page_updated
 			<< " page=" << r.shpid()
 			<< " page rec_lsn=" << 
 			(lsn_t)(rec_lsn?(*rec_lsn):(lsn_t::null))

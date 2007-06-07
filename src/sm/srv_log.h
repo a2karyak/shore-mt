@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='SRV_LOG_H'>
 
- $Id: srv_log.h,v 1.31 1999/12/10 05:29:47 bolo Exp $
+ $Id: srv_log.h,v 1.32 2007/05/18 21:43:29 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -41,7 +41,7 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #endif
 
 
-typedef	uint4_t	partition_number_t;
+typedef	w_base_t::uint4_t	partition_number_t;
 typedef	int	partition_index_t;
 
 typedef enum    {  /* partition_t::_mask values */
@@ -193,14 +193,15 @@ protected: // these are common to all partition types:
 	*/
 	fileoff_t		start() const { return _start; }
 	lsn_t			first_lsn() const {
-				    return log_base::first_lsn(uint4_t(_num));
+				    return log_base::first_lsn(
+					    	w_base_t::uint4_t(_num));
 				}
 
 
 	partition_index_t	_index;
 	partition_number_t 	_num;
 	fileoff_t 		_size;
-	uint4_t			_mask;
+	w_base_t::uint4_t	_mask;
 	srv_log			*_owner;
 	lsn_t			_last_skip_lsn;
 
@@ -209,7 +210,7 @@ protected:
 	// logical end of partition is _size;
 
 public:
-	// const uint4_t		nosize = max_uint4_t;
+	// const w_base_t::uint4_t		nosize = max_uint4_t;
 	enum { nosize = -1 };
 
 	const log_buf &		writebuf() const { return *_owner->writebuf(); }
@@ -224,8 +225,8 @@ public:
 	virtual 
 	int 			fhdl_rd() const = 0;
 
-	void			set_state(uint4_t m) { _mask |= m ; }
-	void			clr_state(uint4_t m) { _mask &= ~m ; }
+	void			set_state(w_base_t::uint4_t m) { _mask |= m ; }
+	void			clr_state(w_base_t::uint4_t m) { _mask &= ~m ; }
 
 	virtual
 	void			_clear()=0;

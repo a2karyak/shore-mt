@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: sfile.cpp,v 1.24 2003/12/01 23:56:04 bolo Exp $
+ $Id: sfile.cpp,v 1.28 2007/05/18 21:53:43 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -31,12 +31,8 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 
 /*  -- do not edit anything above this line --   </std-header>*/
 
-#include <memory.h>
-#ifdef _WINDOWS
-#include <string.h>
-#else
-#include <strings.h>
-#endif
+#include <cstring>
+#include <cstring>
 #include <w.h>
 #include <sthread.h>
 
@@ -49,7 +45,7 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 
 extern "C" {
 #ifdef _WINDOWS
-#include <time.h>
+#include <ctime>
 #else
 #include <sys/time.h>
 #endif
@@ -63,7 +59,9 @@ extern "C" {
 #include <winsock2.h>
 #endif
 #else
+#ifdef HAVE_SYS_SOCKET_H
 #include <sys/socket.h>
+#endif
 #endif
 
 #ifdef SOLARIS2
@@ -100,7 +98,7 @@ int write(int x, const void *y, int z)
 
 #ifndef _WINDOWS
 
-#if !defined(SOLARIS2) && !defined(HPUX8) && !defined(AIX41) && !defined(Linux) && !defined(__NetBSD__) && !defined(OSF1)
+#if !defined(SOLARIS2) && !defined(HPUX8) && !defined(AIX41) && !defined(Linux) && !defined(__NetBSD__) && !defined(OSF1) && !defined(MacOSX)
 	extern int socket(int, int, int);
 	extern int bind(int, void *, int);
 	extern int getsockname(int, struct sockaddr *, int *);
@@ -958,7 +956,6 @@ ostream &operator<<(ostream &s, const sfile_t &sfile)
 
 #if defined(DEBUG_SFILE) || defined(DEBUG_SFILE_IO)
 #include <sys/un.h>
-#include <netinet/in.h>
 
 static ostream &operator<<(ostream &o, const struct sockaddr &addr)
 {

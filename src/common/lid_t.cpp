@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: lid_t.cpp,v 1.34 2002/01/04 21:50:37 bolo Exp $
+ $Id: lid_t.cpp,v 1.36 2007/05/18 21:33:42 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -37,9 +37,9 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #pragma implementation
 #endif
 
-#include <stdlib.h>
+#include <cstdlib>
 #include <w_stream.h>
-#include <memory.h>
+#include <cstring>
 #include "basics.h"
 #include "serial_t.h"
 #include "lid_t.h"

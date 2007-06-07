@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='SFILE_H'>
 
- $Id: sfile.h,v 1.17 2000/01/14 00:14:10 bolo Exp $
+ $Id: sfile.h,v 1.18 2007/05/18 21:53:43 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -51,8 +51,14 @@ extern "C" {
 #if defined(_WIN32)
 #include <w_winsock.h>
 #else
+#ifdef HAVE_SYS_SOCKET_H
 #include <sys/socket.h>
+#endif
+#ifdef HAVE_NETINET_IN_H
 #include <netinet/in.h>
+#else 
+#error Error expecting <netinet/in.h>
+#endif
 #endif
 }
 

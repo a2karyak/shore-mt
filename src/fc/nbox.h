@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='NBOX_H'>
 
- $Id: nbox.h,v 1.17 2001/10/13 17:46:21 bolo Exp $
+ $Id: nbox.h,v 1.18 2004/10/05 23:19:54 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -36,7 +36,7 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 
 #include <w_base.h>
 
-class ostream;
+#include <iosfwd>
 
 //
 // spatial object class: n-dimensional box 

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: ioperf.cpp,v 1.44 2003/06/19 22:30:42 bolo Exp $
+ $Id: ioperf.cpp,v 1.49 2007/05/18 21:52:30 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -32,17 +32,16 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 /*  -- do not edit anything above this line --   </std-header>*/
 
 #include <w_debug.h>
-#include <w_stream.h>
 #include <w_random.h>
 #include <os_types.h>
 #include <os_fcntl.h>
 #ifndef _WIN32
 #include <unistd.h>
 #endif
-#include <assert.h>
-#include <memory.h>
+#include <cassert>
+#include <os_memory.h>
 #include <unix_error.h>
-#include <time.h>
+#include <ctime>
 #ifdef _WIN32
 #include <sys/timeb.h>
 #include <io.h>
@@ -56,9 +55,11 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #include <sys/uio.h>
 #endif
 
+#include <iostream>
+
 #include <w_rusage.h>
 
-#if !(defined(HPUX8) && defined(_INCLUDE_XOPEN_SOURCE)) && !defined(SOLARIS2) && !defined(AIX41) && !defined(_WIN32)
+#if !(defined(HPUX8) && defined(_INCLUDE_XOPEN_SOURCE)) && !defined(SOLARIS2) && !defined(AIX41) && !defined(_WIN32) && !defined(__GNUG__)
 extern "C" {
 	int fsync(int);
 	int ftruncate(int, off_t);
@@ -82,6 +83,8 @@ bool	fastpath_io = false;
 bool	local_io = false;
 bool	keepopen_io = false;
 bool	use_random = false;
+bool	raw_io = false;
+bool	sync_io = false;
 
 class io_thread_t : public sthread_t {
 public:
@@ -237,6 +240,10 @@ DBGTHRD(<<"io_thread_t::run");
     	oflag |= OPEN_FAST;
     else if (keepopen_io)
     	oflag |= OPEN_KEEP;
+    if (raw_io)
+	oflag |= OPEN_RAW;
+    if (sync_io)
+	oflag |= OPEN_SYNC;
 
     // some systems don't like O_CREAT with device files
     if (!_is_special) {
@@ -401,7 +408,7 @@ main(int argc, char** argv)
     const char	*diskrw = "./diskrw";
 
     int	c;
-    while ((c = getopt(argc, argv, "lfks:n:crwbRD:")) != EOF) {
+    while ((c = getopt(argc, argv, "dlfks:n:crwbRD:ZS")) != EOF) {
     	switch (c) {
 	case 'l':
 		local_io = true;
@@ -431,6 +438,12 @@ main(int argc, char** argv)
 		break;
 	case 'D':
 		diskrw = optarg;
+		break;
+	case 'Z':
+		raw_io = true;
+		break;
+	case 'S':
+		sync_io = true;
 		break;
 	default:
 		errors++;

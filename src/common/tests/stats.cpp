@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: stats.cpp,v 1.14 2003/06/19 18:43:51 bolo Exp $
+ $Id: stats.cpp,v 1.16 2007/05/18 21:33:27 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -31,12 +31,6 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 
 /*  -- do not edit anything above this line --   </std-header>*/
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <w_strstream.h>
-#include <iostream.h>
-#include <stddef.h>
-#include <limits.h>
 #include <w.h>
 #include <w_base.h>
 #include <option.h>
@@ -44,6 +38,8 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 
 #include "w_statistics.h"
 #include "test_stat.h"
+
+#include <iostream>
 
 void statstest();
 
@@ -61,6 +57,10 @@ typedef w_list_i<option_t> 			gcc_kludge_0;
 #endif /* __GNUC__*/
 
 
+// make it easy to change LINENO to __LINE__
+// but have __LINE__ disabled for now because it makes it easy
+// to get false failures in testall
+#define LINENO " "
 void
 statstest()
 {
@@ -136,13 +136,13 @@ statstest()
 		} else {
 			const w_statistics_t &CUR = ST;
 
-			cout << __LINE__ <<  " :******* CUR.copy_brief(true): " << endl;
+			cout << LINENO <<  " :******* CUR.copy_brief(true): " << endl;
 			first.printf();
 			cout << endl;
 
-			cout << __LINE__ << endl;
+			cout << LINENO << endl;
 			TST.inc();
-			cout << __LINE__<< " :******* TST.inc(): " << endl;
+			cout << LINENO<< " :******* TST.inc(): " << endl;
 			CUR.printf();
 			cout << endl;
 		}
@@ -154,25 +154,25 @@ statstest()
 				cout << "Could not copy_all ST." << endl;
 			
 			} else {
-				cout << __LINE__ << endl;
+				cout << LINENO << endl;
 
-				cout << __LINE__ << endl;
+				cout << LINENO << endl;
 				last -= first;
-				cout << __LINE__ 
+				cout << LINENO 
 					<< " :******* last -= first: :" << endl;
 				cout << last << endl;
 				cout << endl;
 
-				cout << __LINE__ << endl;
+				cout << LINENO << endl;
 				last += first;
-				cout << __LINE__ 
+				cout << LINENO 
 					<< " :******* last += first: :" << endl;
 				cout << last << endl;
 				cout << endl;
 
-				cout << __LINE__ << endl;
+				cout << LINENO << endl;
 				last.zero();
-				cout << __LINE__ 
+				cout << LINENO 
 					<< " :******* last.zero(): :" << endl;
 				cout << last << endl;
 				cout << endl;

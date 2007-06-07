@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='HISTO_H'>
 
- $Id: histo.h,v 1.6 1999/12/07 22:53:30 bolo Exp $
+ $Id: histo.h,v 1.8 2007/05/18 21:43:25 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -103,8 +103,17 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 template <class T, class Cmp>
 class SearchableHeap :  public Heap<T,Cmp>
 {
+    using Heap<T,Cmp>::elements; 
+    using Heap<T,Cmp>::numElements;
+    using Heap<T,Cmp>::LeftChild;
+    using Heap<T,Cmp>::RightSibling;
+    using Heap<T,Cmp>::cmp;
+public:
+    using Heap<T,Cmp>::HeapProperty;
+
 public:
     SearchableHeap(const Cmp& cmpFunction, int initialNumElements);
+
 
     int		Search(int i, const T& t);
 		   // Find smallest element that is
@@ -156,7 +165,7 @@ protected:
 	 * Heap manip methods for holders of the histoid_t :
 	 */
 	enum { 	
-		nohook = -1, // bad hook - hook not found
+		nohook = -1 // bad hook - hook not found
 		};
 
 

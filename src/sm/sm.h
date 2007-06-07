@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='SM_H'>
 
- $Id: sm.h,v 1.301 2003/01/30 18:13:56 bolo Exp $
+ $Id: sm.h,v 1.303 2007/05/18 21:43:27 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -95,6 +95,7 @@ class option_group_t;
 class option_t;
 class prologue_rc_t;
 class rtree_m;
+class sort_stream_i;
 
 class sm_save_point_t : public lsn_t {
 public:
@@ -606,7 +607,7 @@ public:
 	concurrency_t		    cc = t_cc_none);
     static rc_t			get_file_meta_stats(
 	vid_t			    vid,
-	uint4_t			    num_files,
+	w_base_t::uint4_t	    num_files,
 	SmFileMetaStats*	    file_stats,
 	bool			    batch_calculate = false,
 	concurrency_t		    cc = t_cc_none);
@@ -1276,13 +1277,13 @@ public:
 	const lvid_t&		    lvid,
 	bool			    passOnToDescendants = true);
     static rc_t			get_escalation_thresholds(
-	int4_t&			    toPage,
-	int4_t&			    toStore,
-	int4_t&			    toVolume);
+	w_base_t::int4_t&	    toPage,
+	w_base_t::int4_t&	    toStore,
+	w_base_t::int4_t&	    toVolume);
     static rc_t			set_escalation_thresholds(
-	int4_t			    toPage,
-	int4_t			    toStore,
-	int4_t			    toVolume);
+	w_base_t::int4_t	   toPage,
+	w_base_t::int4_t	   toStore,
+	w_base_t::int4_t	   toVolume);
 
     static rc_t			query_lock(
 	const lockid_t& 	    n, 
@@ -1666,7 +1667,7 @@ private:
 
     static store_flag_t		_make_store_flag(store_property_t property);
     // reverse function:
-    // static store_property_t	_make_store_property(uint4_t flag);
+    // static store_property_t	_make_store_property(w_base_t::uint4_t flag);
     // is in dir_vol_m
 
     static rc_t			_add_lid_volume(vid_t vid);
@@ -1687,7 +1688,7 @@ private:
 	concurrency_t		    cc);
     static rc_t			_get_file_meta_stats(
 	vid_t			    vid,
-	uint4_t			    num_files,
+	w_base_t::uint4_t	    num_files,
 	SmFileMetaStats*	    file_stats,
 	bool			    batch_calculate,
 	concurrency_t		    cc);
@@ -1712,7 +1713,7 @@ public:
     snum_t	large_store;	// store for large record pages of t_file
     shpid_t	root;		// root page (of index)
     serial_t	logical_id;     // zero if no logical ID
-    uint4_t	nkc;		// # components in key
+    w_base_t::uint4_t	nkc;		// # components in key
 
     int		keydescrlen;	// size of array below
     char        *keydescr;	// variable length string:

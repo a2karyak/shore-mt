@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='LATCH_H'>
 
- $Id: latch.h,v 1.30 1999/06/07 19:02:26 kupsch Exp $
+ $Id: latch.h,v 1.31 2004/10/05 23:19:52 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -71,7 +71,7 @@ enum latch_mode_t { LATCH_NL = 0, LATCH_SH = 1, LATCH_EX = 2 };
    release(share)
 */   
 
-class ostream;
+#include <iosfwd>
 
 class latch_t : public sthread_named_base_t {
 

@@ -1,6 +1,6 @@
 # <std-header style='data' orig-src='shore'>
 #
-#  $Id: sthread_stats.dat,v 1.18 2000/04/12 17:08:27 bolo Exp $
+#  $Id: sthread_stats.dat,v 1.19 2007/05/18 21:53:44 nhall Exp $
 #
 # SHORE -- Scalable Heterogeneous Object REpository
 #
@@ -26,22 +26,6 @@
 # Rome Research Laboratory Contract No. F30602-97-2-0247.
 #
 #   -- do not edit anything above this line --   </std-header>
-
-/*
- * 
- * In shore.def, the cpp macro EXCLUDE_SHMSTATS determines
- * whether or not the shmc_stats below are kept. 
- */
-diskrw Diskrw/Server communications  = 0x00040000  shmc_stats {
-	int alarm ALRM signals received
-	int notify Notified by server (SIGUSR1 or PIPE read)
-	int kicks Kicked server (SIGUSR2 or PIPE write)
-	int falarm Found msg because of ALRM
-	int fnotify Found msg because notified
-	int found Found msg by looking at queue
-	int lastsig Last signal received
-	int spins Busy waits on spin lock
-};
 
 
 sthread Threads = 0x00050000 sthread_stats {

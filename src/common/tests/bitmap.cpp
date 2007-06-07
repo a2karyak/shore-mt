@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: bitmap.cpp,v 1.10 2000/01/13 18:49:22 bolo Exp $
+ $Id: bitmap.cpp,v 1.11 2004/10/05 23:19:53 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -34,10 +34,11 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #include <w.h>
 #include <w_base.h>
 #include <getopt.h>
-#include <w_strstream.h>
 #include <basics.h>
-#include <assert.h>
 #include <bitmap.h>
+
+#include <iostream>
+
 
 #ifdef notdef
 // egcs issues warning (error) if this isn't used

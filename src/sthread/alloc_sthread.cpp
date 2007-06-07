@@ -1,7 +1,7 @@
 
 /*<std-header orig-src='shore'>
 
- $Id: alloc_sthread.cpp,v 1.4 1999/06/07 19:05:57 kupsch Exp $
+ $Id: alloc_sthread.cpp,v 1.6 2007/05/18 21:53:42 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -33,9 +33,8 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 /*  -- do not edit anything above this line --   </std-header>*/
 
 
-#include <stdlib.h>
+#include <cstdlib>
 
-#define W_INCL_LIST
 #include <w.h>
 
 #include <sthread.h>

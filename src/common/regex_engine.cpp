@@ -1,6 +1,6 @@
 /*<std-header orig-src='regex'>
 
- $Id: regex_engine.cpp,v 1.11 1999/06/07 19:02:30 kupsch Exp $
+ $Id: regex_engine.cpp,v 1.12 2006/01/29 22:27:28 bolo Exp $
 
 
 */
@@ -176,13 +176,13 @@ matcher(struct re_guts *g, char *string, size_t nmatch, regmatch_t pmatch[],
 			break;		/* no further info needed */
 
 		/* where? */
-		assert(m->coldp != NULL);
+		re_assert(m->coldp != NULL);
 		for (;;) {
 			NOTE("finding start");
 			endp = slow(m, m->coldp, stop, gf, gl);
 			if (endp != NULL)
 				break;
-			assert(m->coldp < m->endp);
+			re_assert(m->coldp < m->endp);
 			m->coldp++;
 		}
 		if (nmatch == 1 && !g->backrefs)
@@ -217,8 +217,8 @@ matcher(struct re_guts *g, char *string, size_t nmatch, regmatch_t pmatch[],
 			break;
 
 		/* uh-oh... we couldn't find a subexpression-level match */
-		assert(g->backrefs);	/* must be back references doing it */
-		assert(g->nplus == 0 || m->lastpos != NULL);
+		re_assert(g->backrefs);	/* must be back references doing it */
+		re_assert(g->nplus == 0 || m->lastpos != NULL);
 		for (;;) {
 			if (dp != NULL || endp <= m->coldp)
 				break;		/* defeat */
@@ -229,21 +229,21 @@ matcher(struct re_guts *g, char *string, size_t nmatch, regmatch_t pmatch[],
 			/* try it on a shorter possibility */
 #ifndef NDEBUG
 			for (i = 1; i <= m->g->nsub; i++) {
-				assert(m->pmatch[i].rm_so == -1);
-				assert(m->pmatch[i].rm_eo == -1);
+				re_assert(m->pmatch[i].rm_so == -1);
+				re_assert(m->pmatch[i].rm_eo == -1);
 			}
 #endif
 			NOTE("backoff dissect");
 			dp = backref(m, m->coldp, endp, gf, gl, (sopno)0);
 		}
-		assert(dp == NULL || dp == endp);
+		re_assert(dp == NULL || dp == endp);
 		if (dp != NULL)		/* found a shorter one */
 			break;
 
 		/* despite initial appearances, there is no match here */
 		NOTE("false alarm");
 		start = m->coldp + 1;	/* recycle starting later */
-		assert(start <= stop);
+		re_assert(start <= stop);
 	}
 
 	/* fill in the details if requested */
@@ -252,7 +252,7 @@ matcher(struct re_guts *g, char *string, size_t nmatch, regmatch_t pmatch[],
 		pmatch[0].rm_eo = endp - m->offp;
 	}
 	if (nmatch > 1) {
-		assert(m->pmatch != NULL);
+		re_assert(m->pmatch != NULL);
 		for (i = 1; i < nmatch; i++)
 			if (i <= m->g->nsub)
 				pmatch[i] = m->pmatch[i];
@@ -312,7 +312,7 @@ dissect(struct match *m, char *start, char *stop, sopno startst, sopno stopst)
 		/* figure out what it matched */
 		switch (OP(m->g->strip[ss])) {
 		case OEND:
-			assert(nope);
+			re_assert(nope);
 			break;
 		case OCHAR:
 			sp++;
@@ -328,7 +328,7 @@ dissect(struct match *m, char *start, char *stop, sopno startst, sopno stopst)
 			break;
 		case OBACK_:
 		case O_BACK:
-			assert(nope);
+			re_assert(nope);
 			break;
 		/* cases where length of match is hard to find */
 		case OQUEST_:
@@ -336,23 +336,23 @@ dissect(struct match *m, char *start, char *stop, sopno startst, sopno stopst)
 			for (;;) {
 				/* how long could this one be? */
 				rest = slow(m, sp, stp, ss, es);
-				assert(rest != NULL);	/* it did match */
+				re_assert(rest != NULL);	/* it did match */
 				/* could the rest match the rest? */
 				tail = slow(m, rest, stop, es, stopst);
 				if (tail == stop)
 					break;		/* yes! */
 				/* no -- try a shorter match for this one */
 				stp = rest - 1;
-				assert(stp >= sp);	/* it did work */
+				re_assert(stp >= sp);	/* it did work */
 			}
 			ssub = ss + 1;
 			esub = es - 1;
 			/* did innards match? */
 			if (slow(m, sp, rest, ssub, esub) != NULL) {
 				dp = dissect(m, sp, rest, ssub, esub);
-				assert(dp == rest);
+				re_assert(dp == rest);
 			} else		/* no */
-				assert(sp == rest);
+				re_assert(sp == rest);
 			sp = rest;
 			break;
 		case OPLUS_:
@@ -360,14 +360,14 @@ dissect(struct match *m, char *start, char *stop, sopno startst, sopno stopst)
 			for (;;) {
 				/* how long could this one be? */
 				rest = slow(m, sp, stp, ss, es);
-				assert(rest != NULL);	/* it did match */
+				re_assert(rest != NULL);	/* it did match */
 				/* could the rest match the rest? */
 				tail = slow(m, rest, stop, es, stopst);
 				if (tail == stop)
 					break;		/* yes! */
 				/* no -- try a shorter match for this one */
 				stp = rest - 1;
-				assert(stp >= sp);	/* it did work */
+				re_assert(stp >= sp);	/* it did work */
 			}
 			ssub = ss + 1;
 			esub = es - 1;
@@ -385,10 +385,10 @@ dissect(struct match *m, char *start, char *stop, sopno startst, sopno stopst)
 				sep = ssp;
 				ssp = oldssp;
 			}
-			assert(sep == rest);	/* must exhaust substring */
-			assert(slow(m, ssp, sep, ssub, esub) == rest);
+			re_assert(sep == rest);	/* must exhaust substring */
+			re_assert(slow(m, ssp, sep, ssub, esub) == rest);
 			dp = dissect(m, ssp, sep, ssub, esub);
-			assert(dp == sep);
+			re_assert(dp == sep);
 			sp = rest;
 			break;
 		case OCH_:
@@ -396,34 +396,34 @@ dissect(struct match *m, char *start, char *stop, sopno startst, sopno stopst)
 			for (;;) {
 				/* how long could this one be? */
 				rest = slow(m, sp, stp, ss, es);
-				assert(rest != NULL);	/* it did match */
+				re_assert(rest != NULL);	/* it did match */
 				/* could the rest match the rest? */
 				tail = slow(m, rest, stop, es, stopst);
 				if (tail == stop)
 					break;		/* yes! */
 				/* no -- try a shorter match for this one */
 				stp = rest - 1;
-				assert(stp >= sp);	/* it did work */
+				re_assert(stp >= sp);	/* it did work */
 			}
 			ssub = ss + 1;
 			esub = ss + OPND(m->g->strip[ss]) - 1;
-			assert(OP(m->g->strip[esub]) == OOR1);
+			re_assert(OP(m->g->strip[esub]) == OOR1);
 			for (;;) {	/* find first matching branch */
 				if (slow(m, sp, rest, ssub, esub) == rest)
 					break;	/* it matched all of it */
 				/* that one missed, try next one */
-				assert(OP(m->g->strip[esub]) == OOR1);
+				re_assert(OP(m->g->strip[esub]) == OOR1);
 				esub++;
-				assert(OP(m->g->strip[esub]) == OOR2);
+				re_assert(OP(m->g->strip[esub]) == OOR2);
 				ssub = esub + 1;
 				esub += OPND(m->g->strip[esub]);
 				if (OP(m->g->strip[esub]) == OOR2)
 					esub--;
 				else
-					assert(OP(m->g->strip[esub]) == O_CH);
+					re_assert(OP(m->g->strip[esub]) == O_CH);
 			}
 			dp = dissect(m, sp, rest, ssub, esub);
-			assert(dp == rest);
+			re_assert(dp == rest);
 			sp = rest;
 			break;
 		case O_PLUS:
@@ -431,25 +431,25 @@ dissect(struct match *m, char *start, char *stop, sopno startst, sopno stopst)
 		case OOR1:
 		case OOR2:
 		case O_CH:
-			assert(nope);
+			re_assert(nope);
 			break;
 		case OLPAREN:
 			i = OPND(m->g->strip[ss]);
-			assert(0 < i && i <= m->g->nsub);
+			re_assert(0 < i && i <= m->g->nsub);
 			m->pmatch[i].rm_so = sp - m->offp;
 			break;
 		case ORPAREN:
 			i = OPND(m->g->strip[ss]);
-			assert(0 < i && i <= m->g->nsub);
+			re_assert(0 < i && i <= m->g->nsub);
 			m->pmatch[i].rm_eo = sp - m->offp;
 			break;
 		default:		/* uh oh */
-			assert(nope);
+			re_assert(nope);
 			break;
 		}
 	}
 
-	assert(sp == stop);
+	re_assert(sp == stop);
 	return(sp);
 }
 
@@ -539,7 +539,7 @@ backref(struct match *m, char *start, char *stop,
 			ss++;
 			s = m->g->strip[ss];
 			do {
-				assert(OP(s) == OOR2);
+				re_assert(OP(s) == OOR2);
 				ss += OPND(s);
 			} while (OP(s = m->g->strip[ss]) != O_CH);
 			/* note that the ss++ gets us past the O_CH */
@@ -561,12 +561,12 @@ backref(struct match *m, char *start, char *stop,
 	switch (OP(s)) {
 	case OBACK_:		/* the vilest depths */
 		i = OPND(s);
-		assert(0 < i && i <= m->g->nsub);
+		re_assert(0 < i && i <= m->g->nsub);
 		if (m->pmatch[i].rm_eo == -1)
 			return(NULL);
-		assert(m->pmatch[i].rm_so != -1);
+		re_assert(m->pmatch[i].rm_so != -1);
 		len = m->pmatch[i].rm_eo - m->pmatch[i].rm_so;
-		assert(stop - m->beginp >= len);
+		re_assert(stop - m->beginp >= len);
 		if (sp > stop - len)
 			return(NULL);	/* not enough left to match */
 		ssp = m->offp + m->pmatch[i].rm_so;
@@ -583,8 +583,8 @@ backref(struct match *m, char *start, char *stop,
 		return(backref(m, sp, stop, ss+OPND(s)+1, stopst, lev));
 		break;
 	case OPLUS_:
-		assert(m->lastpos != NULL);
-		assert(lev+1 <= m->g->nplus);
+		re_assert(m->lastpos != NULL);
+		re_assert(lev+1 <= m->g->nplus);
 		m->lastpos[lev+1] = sp;
 		return(backref(m, sp, stop, ss+1, stopst, lev+1));
 		break;
@@ -602,7 +602,7 @@ backref(struct match *m, char *start, char *stop,
 	case OCH_:		/* find the right one, if any */
 		ssub = ss + 1;
 		esub = ss + OPND(s) - 1;
-		assert(OP(m->g->strip[esub]) == OOR1);
+		re_assert(OP(m->g->strip[esub]) == OOR1);
 		for (;;) {	/* find first matching branch */
 			dp = backref(m, sp, stop, ssub, esub, lev);
 			if (dp != NULL)
@@ -611,18 +611,18 @@ backref(struct match *m, char *start, char *stop,
 			if (OP(m->g->strip[esub]) == O_CH)
 				return(NULL);	/* there is none */
 			esub++;
-			assert(OP(m->g->strip[esub]) == OOR2);
+			re_assert(OP(m->g->strip[esub]) == OOR2);
 			ssub = esub + 1;
 			esub += OPND(m->g->strip[esub]);
 			if (OP(m->g->strip[esub]) == OOR2)
 				esub--;
 			else
-				assert(OP(m->g->strip[esub]) == O_CH);
+				re_assert(OP(m->g->strip[esub]) == O_CH);
 		}
 		break;
 	case OLPAREN:		/* must undo assignment if rest fails */
 		i = OPND(s);
-		assert(0 < i && i <= m->g->nsub);
+		re_assert(0 < i && i <= m->g->nsub);
 		offsave = m->pmatch[i].rm_so;
 		m->pmatch[i].rm_so = sp - m->offp;
 		dp = backref(m, sp, stop, ss+1, stopst, lev);
@@ -633,7 +633,7 @@ backref(struct match *m, char *start, char *stop,
 		break;
 	case ORPAREN:		/* must undo assignment if rest fails */
 		i = OPND(s);
-		assert(0 < i && i <= m->g->nsub);
+		re_assert(0 < i && i <= m->g->nsub);
 		offsave = m->pmatch[i].rm_eo;
 		m->pmatch[i].rm_eo = sp - m->offp;
 		dp = backref(m, sp, stop, ss+1, stopst, lev);
@@ -643,12 +643,12 @@ backref(struct match *m, char *start, char *stop,
 		return(NULL);
 		break;
 	default:		/* uh oh */
-		assert(nope);
+		re_assert(nope);
 		break;
 	}
 
 	/* "can't happen" */
-	assert(nope);
+	re_assert(nope);
 	/* NOTREACHED */
 	return NULL;
 }
@@ -724,14 +724,14 @@ fast(struct match *m, char *start, char *stop, sopno startst, sopno stopst)
 		/* no, we must deal with this character */
 		ASSIGN(tmp, st);
 		ASSIGN(st, fresh);
-		assert(c != REGEX_OUT);
+		re_assert(c != REGEX_OUT);
 		st = step(m->g, startst, stopst, tmp, c, st);
 		SP("aft", st, c);
-		assert(EQ(step(m->g, startst, stopst, st, NOTHING, st), st));
+		re_assert(EQ(step(m->g, startst, stopst, st, NOTHING, st), st));
 		p++;
 	}
 
-	assert(coldp != NULL);
+	re_assert(coldp != NULL);
 	m->coldp = coldp;
 	if (ISSET(st, stopst))
 		return(p+1);
@@ -810,10 +810,10 @@ slow(struct match *m, char *start, char *stop, sopno startst, sopno stopst)
 		/* no, we must deal with this character */
 		ASSIGN(tmp, st);
 		ASSIGN(st, empty);
-		assert(c != REGEX_OUT);
+		re_assert(c != REGEX_OUT);
 		st = step(m->g, startst, stopst, tmp, c, st);
 		SP("saft", st, c);
-		assert(EQ(step(m->g, startst, stopst, st, NOTHING, st), st));
+		re_assert(EQ(step(m->g, startst, stopst, st, NOTHING, st), st));
 		p++;
 	}
 
@@ -849,11 +849,11 @@ step(struct re_guts *g, sopno start, sopno stop, states bef, int ch, states aft)
 		s = g->strip[pc];
 		switch (OP(s)) {
 		case OEND:
-			assert(pc == stop-1);
+			re_assert(pc == stop-1);
 			break;
 		case OCHAR:
 			/* only characters can match */
-			assert(!NONCHAR(ch) || ch != (char)OPND(s));
+			re_assert(!NONCHAR(ch) || ch != (char)OPND(s));
 			if (ch == (char)OPND(s))
 				FWD(aft, bef, 1);
 			break;
@@ -912,7 +912,7 @@ step(struct re_guts *g, sopno start, sopno stop, states bef, int ch, states aft)
 			break;
 		case OCH_:		/* mark the first two branches */
 			FWD(aft, aft, 1);
-			assert(OP(g->strip[pc+OPND(s)]) == OOR2);
+			re_assert(OP(g->strip[pc+OPND(s)]) == OOR2);
 			FWD(aft, aft, OPND(s));
 			break;
 		case OOR1:		/* done a branch, find the O_CH */
@@ -920,14 +920,14 @@ step(struct re_guts *g, sopno start, sopno stop, states bef, int ch, states aft)
 				for (look = 1;
 						OP(s = g->strip[pc+look]) != O_CH;
 						look += OPND(s))
-					assert(OP(s) == OOR2);
+					re_assert(OP(s) == OOR2);
 				FWD(aft, aft, look);
 			}
 			break;
 		case OOR2:		/* propagate OCH_'s marking */
 			FWD(aft, aft, 1);
 			if (OP(g->strip[pc+OPND(s)]) != O_CH) {
-				assert(OP(g->strip[pc+OPND(s)]) == OOR2);
+				re_assert(OP(g->strip[pc+OPND(s)]) == OOR2);
 				FWD(aft, aft, OPND(s));
 			}
 			break;
@@ -935,7 +935,7 @@ step(struct re_guts *g, sopno start, sopno stop, states bef, int ch, states aft)
 			FWD(aft, aft, 1);
 			break;
 		default:		/* ooooops... */
-			assert(nope);
+			re_assert(nope);
 			break;
 		}
 	}

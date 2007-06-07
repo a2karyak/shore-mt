@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='SM_VAS_H'>
 
- $Id: sm_vas.h,v 1.28 1999/06/07 19:02:31 kupsch Exp $
+ $Id: sm_vas.h,v 1.29 2006/01/29 18:08:57 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -38,7 +38,7 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
  * sm_vas.h is the include file that all value added servers should
  * to get access to the Shore Server storage manager interface.
  */
-#include <stddef.h>
+#include <cstddef>
 #include <w_stream.h>
 
 #include "w.h"

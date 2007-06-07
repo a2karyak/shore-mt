@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: diskrw.cpp,v 1.125 2003/12/09 13:52:58 bolo Exp $
+ $Id: diskrw.cpp,v 1.134 2007/05/18 21:53:42 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -44,20 +44,20 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #define DBGTHRD(arg) DBG(arg)
 #endif
 
-#include <stdio.h>
+#include <cstdio>
 #include <w_stream.h>
 #include <w_strstream.h>
 #include <w.h>
 #include <w_statistics.h>
 #include <w_signal.h>
-#include <stdlib.h>
+#include <cstdlib>
 
 #ifndef _WINDOWS
 #include <unistd.h>
 #endif /* !_WINDOWS */
 #include <sys/stat.h>
 
-#include <string.h>
+#include <cstring>
 #include <w_rusage.h>
 
 #ifdef _WINDOWS
@@ -100,7 +100,7 @@ extern "C" {
 #ifndef _WIN32
 #include <sys/uio.h>
 #endif
-#include <fcntl.h>
+#include <os_fcntl.h>
 
 
 #include <os_interface.h>
@@ -113,6 +113,8 @@ extern "C" {
 #define	O_BINARY	0
 #endif
 
+/* XXX this is braindead, should use flock if available, lockf 
+   if desperate, and maybe a link lock if really desperate. */
 #if defined(SOLARIS2) || defined(Linux)
 #define	DISKRW_LOCK_LOCKF
 #endif
@@ -481,6 +483,25 @@ writebuf_t::deposit(const wbufdatum_t& d, int print_error)
 static writebuf_t* wbuf = 0;
 
 
+ostream &operator<<(ostream &o, const iovec &v)
+{
+	o << "base " << v.iov_base << ", len " << v.iov_len;
+	return o;
+}
+
+void print_iov(ostream &o, iovec *iov, unsigned iovcnt)
+{
+	unsigned	i;
+	unsigned	len = 0;
+
+	for (i = 0; i < iovcnt; i++)
+		len += iov[i].iov_len;
+
+	o << "IOVEC: count " << iovcnt << " length " << len << endl;
+	for (i = 0; i < iovcnt; i++)
+		o << '\t' << '[' << i << ']' << iov[i] << endl;
+}
+
 /*********************************************************************
  *
  *  flush_wbuf(fd)
@@ -589,7 +610,7 @@ int    main(int argc, char* argv[])
      *  Attach to shared memory segment.
      */
     const char* arg1 = argv[1];
-    istrstream(VCPP_BUG_1 arg1) >> i;
+    w_istrstream(arg1) >> i;
 
 #ifndef _WINDOWS
 #define HANDLE int
@@ -743,7 +764,7 @@ int    main(int argc, char* argv[])
      * because we happen never to open files read-only without 
      * also * opening them for write.
      */
-    if((fd >= 0) && (fflags != O_RDONLY)) {
+    if ((fd >= 0) && ((O_ACCMODE & fflags) != O_RDONLY)) {
 	int is_fatal=0;
 	int e = os_lockf(fd, F_TLOCK, 0);
 	if(e<0) {
@@ -869,8 +890,8 @@ int    main(int argc, char* argv[])
 	iovcnt = 0;
 	totalcc = 0;
 	switch (m.op) {
-	case m.t_read:
-	case m.t_write:
+	case diskmsg_t::t_read:
+	case diskmsg_t::t_write:
 		iovcnt = m.dv_cnt;
 		for (i = 0; i < m.dv_cnt; i++) {
 		    w_assert3((uint)diskv->bfoff < shmem_seg->size());
@@ -889,7 +910,7 @@ int    main(int argc, char* argv[])
 	DBGTHRD(<<"processing " << int(m.op) << " on fd " << fd );
 
 	switch (m.op)  {
-	case m.t_trunc:
+	case diskmsg_t::t_trunc:
 	    /* the wbuf contents might overlap the truncated area */	
 	    if (wbuf)
 		flush_wbuf(fd);
@@ -905,7 +926,7 @@ int    main(int argc, char* argv[])
 	    } 
 	    break;
 
-	case m.t_close:
+	case diskmsg_t::t_close:
 	    if (wbuf)
 		flush_wbuf(fd);
 
@@ -918,7 +939,7 @@ int    main(int argc, char* argv[])
 	    do_clean_shutdown = true;
 	    break;
 
-	case m.t_sync:
+	case diskmsg_t::t_sync:
 	    w_assert3(m.dv_cnt == 0);
 	    if (wbuf) flush_wbuf(fd);
 
@@ -948,7 +969,7 @@ int    main(int argc, char* argv[])
 	    s.fsyncs++;
 	    break;
 
-	case m.t_read:
+	case diskmsg_t::t_read:
 	    w_assert3(m.dv_cnt > 0);
 	    if (wbuf) flush_wbuf(fd);
 	    {
@@ -994,7 +1015,7 @@ int    main(int argc, char* argv[])
 	    }
 	    break;
 
-	case m.t_write:
+	case diskmsg_t::t_write:
 
 	    if (wbuf && iovcnt > 1)  {
 		diskrw_off_t off = m.off;
@@ -1046,6 +1067,7 @@ int    main(int argc, char* argv[])
 				<< totalcc << " @ " << m.off
 				<< ")==" << cc << ":" << endl
 				<< e << endl;
+			print_iov(cerr,iov, iovcnt);
 			fatal(__LINE__);
 		}
 		s.bwritten += totalcc;
@@ -1197,7 +1219,7 @@ clean_shutdown(int DBG_ONLY(why))
 	char key[40];
 
 	while(n==7) {
-#if defined(Linux) || defined(__NetBSD__) || defined(OSF1) || defined(HPUX8)	/* pid_t is a int */
+#if defined(Linux) || defined(__NetBSD__) || defined(OSF1) || defined(HPUX8) || defined(MacOSX)	/* pid_t is a int */
 	    n = fscanf(res, "m %d %s %s %s %s %d %d\n",
 		&id, key, perm,  person, group, &owner, &last);
 #else

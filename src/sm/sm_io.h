@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='SM_IO_H'>
 
- $Id: sm_io.h,v 1.19 1999/06/07 19:04:37 kupsch Exp $
+ $Id: sm_io.h,v 1.20 2007/05/18 21:43:28 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -179,6 +179,15 @@ private:
 };
 
 
+extern
+rc_t io_lock_force( const lockid_t&	    n, 
+			    lock_mode_t		    m, 
+			    lock_duration_t         d, 
+			    timeout_in_ms	    timeout,  
+			    lock_mode_t*	    prev_mode = 0, 
+			    lock_mode_t*	    prev_pgmode = 0, 
+			    lockid_t**		    nameInLockHead = 0 
+			    );
 /*
  * IO Manager.
  */
@@ -251,7 +260,7 @@ public:
 	vid_t 			    vid, 
 	smksize_t&		    quota_KB, 
 	smksize_t&		    quota_used_KB,
-	uint4_t&		    	    exts_used
+	w_base_t::uint4_t&	    exts_used
 	);
     
     static rc_t			alloc_pages(
@@ -308,11 +317,11 @@ public:
 	SmVolumeMetaStats&	    volume_stats);
     static rc_t			get_file_meta_stats(
 	vid_t			    vid,
-	uint4_t			    num_files,
+	w_base_t::uint4_t	    num_files,
 	SmFileMetaStats*	    file_stats);
     static rc_t			get_file_meta_stats_batch(
 	vid_t			    vid,
-	uint4_t			    max_store,
+	w_base_t::uint4_t	    max_store,
 	SmStoreMetaStats**	    mapping);
     static rc_t			get_store_meta_stats(
 	stid_t			    snum,
@@ -351,7 +360,7 @@ public:
     // This function sets a milli_sec delay to occur before 
     // each disk read/write operation.  This is useful in discovering
     // thread sync bugs
-    static rc_t			set_disk_delay(uint4_t milli_sec)
+    static rc_t			set_disk_delay(w_base_t::uint4_t milli_sec)
 		{ _msec_disk_delay = milli_sec; return RCOK; }
   
     //
@@ -406,7 +415,7 @@ private:
     static smutex_t		_mutex;
     static int			vol_cnt;
     static vol_t* 		vol[max_vols];
-    static uint4_t		_msec_disk_delay;
+    static w_base_t::uint4_t	_msec_disk_delay;
     static lsn_t		_lastMountLSN;
 
 protected:
@@ -425,16 +434,15 @@ protected:
 				    lockid_t**		    nameInLockHead = 0
 				    );
 
-    friend
-    rc_t		        io_lock_force(
-				    const lockid_t&	    n,
-				    lock_mode_t		    m,
-				    lock_duration_t         d,
-				    timeout_in_ms	    timeout, 
-				    lock_mode_t*	    prev_mode = 0,
-				    lock_mode_t*	    prev_pgmode = 0,
-				    lockid_t**		    nameInLockHead = 0
-				    );
+    friend 
+	rc_t io_lock_force( const lockid_t&	    , 
+			    lock_mode_t		    , 
+			    lock_duration_t         , 
+			    timeout_in_ms	    ,  
+			    lock_mode_t*	    , 
+			    lock_mode_t*	    , 
+			    lockid_t**		    
+			    );
 
 public:
     //
@@ -538,7 +546,7 @@ private:
 	vid_t 			    vid, 
 	smksize_t&		    quota_KB, 
 	smksize_t&		    quota_used_KB,
-	uint4_t&		    	    exts_used
+	w_base_t::uint4_t&	    exts_used
 	);
     
     static rc_t			_check_disk(vid_t vid);
@@ -567,11 +575,11 @@ private:
         SmVolumeMetaStats&          volume_stats);
     static rc_t                 _get_file_meta_stats(
 	vid_t			    vid,
-        uint4_t                       num_files,
+        w_base_t::uint4_t           num_files,
         SmFileMetaStats*            file_stats);
     static rc_t                 _get_file_meta_stats_batch(
         vid_t                       vid,
-        uint4_t                       max_store,
+        w_base_t::uint4_t           max_store,
         SmStoreMetaStats**          mapping);
     static rc_t			_first_page(
 	const stid_t&		    stid,
@@ -759,7 +767,7 @@ io_m::get_volume_quota(
 	vid_t 			    vid, 
 	smksize_t&		    quota_KB, 
 	smksize_t&		    quota_used_KB,
-	uint4_t&		    	    ext_used
+	w_base_t::uint4_t&    	    ext_used
 	)
 {
     enter();
@@ -836,7 +844,8 @@ io_m::get_volume_meta_stats(vid_t vid, SmVolumeMetaStats& volume_stats)
 }
 
 inline rc_t
-io_m::get_file_meta_stats(vid_t vid, uint4_t num_files, SmFileMetaStats* file_stats)
+io_m::get_file_meta_stats(vid_t vid, w_base_t::uint4_t num_files, 
+	SmFileMetaStats* file_stats)
 {
     enter();
     rc_t r = _get_file_meta_stats(vid, num_files, file_stats);
@@ -845,7 +854,8 @@ io_m::get_file_meta_stats(vid_t vid, uint4_t num_files, SmFileMetaStats* file_st
 }
 
 inline rc_t
-io_m::get_file_meta_stats_batch(vid_t vid, uint4_t max_store, SmStoreMetaStats** mapping)
+io_m::get_file_meta_stats_batch(vid_t vid, w_base_t::uint4_t max_store, 
+	SmStoreMetaStats** mapping)
 {
     enter();
     rc_t r = _get_file_meta_stats_batch(vid, max_store, mapping);

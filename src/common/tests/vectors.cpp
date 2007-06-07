@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: vectors.cpp,v 1.23 2000/01/13 18:49:23 bolo Exp $
+ $Id: vectors.cpp,v 1.25 2006/03/14 05:31:24 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -32,13 +32,14 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 /*  -- do not edit anything above this line --   </std-header>*/
 
 #include <w.h>
-#include <w_strstream.h>
 #include <basics.h>
 #include <serial_t.h>
-#include <assert.h>
 #include <vec_t.h>
 #include <zvec_t.h>
 #include <w_debug.h>
+
+#include <iostream>
+#include <w_strstream.h>
 
 const char *d = "dddddddddd";
 const char *djunk = "Djunk";
@@ -77,8 +78,7 @@ void V(const vec_t &a, int b, int c, vec_t &d)
 void
 P(const char *s) 
 {
-	int len = strlen(s);
-	istrstream anon(VCPP_BUG_1 s,len);
+	w_istrstream anon(s);
 
 	vec_t	t;
 	cout << "P:" << s << endl;

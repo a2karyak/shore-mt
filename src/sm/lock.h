@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='LOCK_H'>
 
- $Id: lock.h,v 1.62 1999/06/07 19:04:10 kupsch Exp $
+ $Id: lock.h,v 1.63 2007/05/18 21:43:25 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -51,7 +51,7 @@ friend class remote_lock_m;
 friend class GatherThreadWaitFors;
 public:
 
-    typedef lock_base_t::mode_t mode_t;
+    typedef lock_base_t::lmode_t lmode_t;
     typedef lock_base_t::duration_t duration_t;
     typedef lock_base_t::status_t status_t;
 
@@ -71,26 +71,26 @@ public:
 				    float & std_bucket_len
 				    ) const;
 
-    static const mode_t 	parent_mode[NUM_MODES];
+    static const lmode_t 	parent_mode[NUM_MODES];
 
     bool                      	get_parent(const lockid_t& c, lockid_t& p);
 
     rc_t			lock(
 	const lockid_t& 	    n, 
-	mode_t 			    m,
+	lmode_t 		    m,
 	duration_t 		    duration = t_long,
 	timeout_in_ms		    timeout = WAIT_SPECIFIED_BY_XCT,
-	mode_t*			    prev_mode = 0,
-	mode_t*			    prev_pgmode = 0,
+	lmode_t* 		    prev_mode = 0,
+	lmode_t*		    prev_pgmode = 0,
 	lockid_t**		    nameInLockHead = 0);
      
     rc_t			lock_force(
 	const lockid_t& 	    n,
-	mode_t 			    m,
+	lmode_t 			    m,
 	duration_t 		    duration = t_long,
 	timeout_in_ms		    timeout = WAIT_SPECIFIED_BY_XCT,
-	mode_t*			    prev_mode = 0,
-	mode_t*			    prev_pgmode = 0,
+	lmode_t*			    prev_mode = 0,
+	lmode_t*			    prev_pgmode = 0,
 	lockid_t**		    nameInLockHead = 0);
 
     rc_t			unlock(const lockid_t& n);
@@ -106,7 +106,7 @@ public:
 
     rc_t			query(
 	const lockid_t& 	    n, 
-	mode_t& 		    m, 
+	lmode_t& 		    m, 
 	const tid_t& 		    tid = tid_t::null,
 	bool			    implicit = false);
    
@@ -131,9 +131,9 @@ public:
 private:
     rc_t			_lock(
 	const lockid_t& 	    n, 
-	mode_t 			    m,
-	mode_t&			    prev_mode,
-	mode_t&			    prev_pgmode,
+	lmode_t 			    m,
+	lmode_t&			    prev_mode,
+	lmode_t&			    prev_pgmode,
 	duration_t 		    duration,
 	timeout_in_ms		    timeout,
 	bool 			    force,
@@ -141,7 +141,7 @@ private:
 
     rc_t			_query_implicit(
 	const lockid_t&		    n,
-	mode_t&			    m,
+	lmode_t&			    m,
 	const tid_t&		    tid);
 
     lock_core_m* _core;
@@ -149,7 +149,7 @@ private:
 };
 
 
-inline bool is_valid(lock_base_t::mode_t m)
+inline bool is_valid(lock_base_t::lmode_t m)
 {
     return ((int(m)==lock_base_t::MIN_MODE || 
 	int(m) > lock_base_t::MIN_MODE) &&

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='W_BASE_H'>
 
- $Id: w_base.h,v 1.68 2002/01/28 07:27:58 bolo Exp $
+ $Id: w_base.h,v 1.77 2007/05/18 21:38:24 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -39,10 +39,8 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 /* (in w_defines.h above).                             */
 #include <w_windows.h>
 /*
- * WARNING: we turned on ON and OFF in shore.def
- * but we MUST turn them off as soon as configuration
- * stuff has been read, because ON and OFF are re-defined
- * elsewhere as enums
+ * WARNING: if ON and OFF are defined, we must turn them off asap
+ * because ON and OFF are re-definedelsewhere as enums
  */
 #ifdef ON
 #undef ON
@@ -63,13 +61,13 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #pragma interface
 #endif
 
-#include <stddef.h>
-#include <stdlib.h>
+#include <cstddef>
+#include <cstdlib>
 #include <w_stream.h>
 
-#include <limits.h>
+#include <climits>
 
-#if defined(W_UNIX) && !defined(_WIN32)
+#if defined(HAVE_UNISTD_H)
 #include <unistd.h>
 #endif
 
@@ -180,10 +178,12 @@ public:
 #    else
 #	error Compiler does not support int8_t (__int64).
 #    endif
-
+#elif defined(ARCH_LP64)
+	typedef	long			int8_t;
+	typedef unsigned long		uint8_t;
 #elif defined(__GNUG__)
-    	typedef long long		int8_t;
-    	typedef unsigned long long	uint8_t;
+    	typedef long long               int8_t;
+    	typedef unsigned long long      uint8_t;
 #else
 #error int8_t Not supported for this compiler.
 #endif
@@ -270,6 +270,18 @@ public:
     static bool		is_infinite_or_nan(const f8_t x);
 
     /*
+     * Endian conversions that don't require any non-shore headers.
+     * These may not be inlined, but that is the portability tradeoff.
+     * w_ prefix due to typical macro problems with the names.
+     * Why not use overloaded args?   Great idea, but unintentional
+     * conversions could be a big problem with this stuff.
+     */
+    static uint2_t	w_ntohs(uint2_t);
+    static uint2_t	w_htons(uint2_t);
+    static uint4_t	w_ntohl(uint4_t);
+    static uint4_t	w_htonl(uint4_t);
+
+    /*
      *  standard streams
      */
     friend ostream&		operator<<(
@@ -286,11 +298,36 @@ public:
 
 /* XXX compilers+environment that need this operator defined */
 #if defined(_MSC_VER)  
-ostream &operator<<(ostream &o, const w_base_t::int8_t &t);
-ostream &operator<<(ostream &o, const w_base_t::uint8_t &t);
-istream &operator>>(istream &i, w_base_t::int8_t &t);
-istream &operator>>(istream &i, w_base_t::uint8_t &t);
+extern ostream &operator<<(ostream &o, const w_base_t::int8_t &t);
+extern ostream &operator<<(ostream &o, const w_base_t::uint8_t &t);
+extern istream &operator>>(istream &i, w_base_t::int8_t &t);
+extern istream &operator>>(istream &i, w_base_t::uint8_t &t);
 #endif
+
+/* Allow a ostrstream to be reused.  Some, once a pointer is
+   made available through ::str(), don't allow changes until
+   the streem is unfrozen. */
+
+/* This works for the shore w_strstream.   But, wait, why
+   is it different for visual c++?  It doesn't need to be?
+   It is different so you can reset an ordinary strstream 
+   with it also.    A better solution for w_strstreams and
+   strstreams would be something overloaded instead of a macro. */
+
+#ifdef _MSC_VER
+#define	w_reset_strstream(s)		\
+	do {				\
+		s.rdbuf()->freeze(0);	\
+		s.seekp(ios::beg);	\
+	} while (0)
+#else
+#define	w_reset_strstream(s)		\
+	do {				\
+		s.freeze(0);		\
+		s.seekp(ios::beg);	\
+	} while (0)
+#endif
+
 
 /*--------------------------------------------------------------*
  *  w_base_t::align()						*

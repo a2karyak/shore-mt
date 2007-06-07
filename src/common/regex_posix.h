@@ -1,6 +1,6 @@
 /*<std-header orig-src='regex' incl-file-exclusion='REGEX_POSIX_H'>
 
- $Id: regex_posix.h,v 1.4 1999/06/07 19:02:30 kupsch Exp $
+ $Id: regex_posix.h,v 1.5 2006/01/29 22:27:28 bolo Exp $
 
 
 */
@@ -26,7 +26,7 @@ extern "C" {
 }
 #endif /*!_WINDOWS */
 
-#    include <assert.h>
+#include <cassert>
 
 #    define re_comp re_comp_posix
 #    define re_exec re_exec_posix

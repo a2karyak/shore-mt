@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: pin.cpp,v 1.137 1999/10/25 18:34:16 bolo Exp $
+ $Id: pin.cpp,v 1.138 2006/01/29 23:27:12 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -43,7 +43,7 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #include <lgrec.h>
 #include <sm.h>
 
-#include <new.h>
+#include <new>
 
 /* delegate is used in debug case */
 #define RETURN_RC( _err) \

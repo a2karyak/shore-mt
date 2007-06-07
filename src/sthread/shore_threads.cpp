@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: shore_threads.cpp,v 1.9 2002/02/04 18:24:15 bolo Exp $
+ $Id: shore_threads.cpp,v 1.10 2006/01/29 23:27:17 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -43,7 +43,7 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #include "pure_threads.h"
 
 #include "sthread.h"
-#include <new.h>
+#include <new>
 
 #ifdef __cplusplus
 /* Make the external linkage as "C" for purify */

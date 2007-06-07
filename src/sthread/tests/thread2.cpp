@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: thread2.cpp,v 1.52 2003/02/03 16:11:04 bolo Exp $
+ $Id: thread2.cpp,v 1.59 2007/05/18 21:52:31 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -31,7 +31,6 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 
 /*  -- do not edit anything above this line --   </std-header>*/
 
-#include <w_stream.h>
 #include <os_types.h>
 #include <os_fcntl.h>
 #ifdef _WIN32
@@ -40,7 +39,7 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #else
 #include <unistd.h>
 #endif
-#include <memory.h>
+#include <os_memory.h>
 
 #include <w.h>
 #include <w_statistics.h>
@@ -48,9 +47,12 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #include <sthread_stats.h>
 
 #include <vtable_info.h>
-#include <vtable_enum.h>
+#include <sthread_vtable_enum.h>
 
 #include <getopt.h>
+
+#include <iostream>
+#include <w_strstream.h>
 
 #ifdef _WIN32
 #define	IO_DIR	"."
@@ -99,6 +101,7 @@ bool	local_io = false;
 bool	keepopen_io = false;
 bool	fastpath_io = false;
 bool	raw_io = false;
+bool	sync_io = true;
 bool	histograms = false;
 bool	verbose = false;
 
@@ -138,11 +141,10 @@ io_thread_t::io_thread_t(int i, char *bf)
   idx(i),
   buf(bf)
 {
-	char buf[40];
-	ostrstream s(buf, sizeof(buf));
+	w_ostrstream_buf s(40);		// XXX magic number
 
 	s << "io[" << idx << "]" << ends;
-	rename(buf);
+	rename(s.c_str());
 }
 
 
@@ -152,14 +154,14 @@ void io_thread_t::run()
 		<< NumIOs << " I/Os "
 		<< endl;
 
-	char fname[40];
-	ostrstream f(fname, sizeof(fname));
+	w_ostrstream_buf f(40);	/* XXX sb maxpathlen? */
 
 	f << io_dir << '/' << "sthread." << getpid() << '.' << idx << ends;
+	const char *fname = f.c_str();
     
 	int fd;
 	w_rc_t rc;
-	int flags = OPEN_RDWR | OPEN_SYNC | OPEN_CREATE;
+	int flags = OPEN_RDWR | OPEN_CREATE;
 	if (local_io)
 		flags |= OPEN_LOCAL;
 	else if (fastpath_io)
@@ -169,6 +171,8 @@ void io_thread_t::run()
 	
 	if (raw_io)
 		flags |= OPEN_RAW;
+	if (sync_io)
+		flags |= OPEN_SYNC;
 
 	rc = sthread_t::open(fname, flags, 0666, fd);
 	if (rc) {
@@ -273,7 +277,7 @@ int main(int argc, char **argv)
     if (s && *s)
     	io_dir = s;
 
-    while ((c = getopt(argc, argv, "i:n:b:t:d:klfvV:hRD")) != EOF) {
+    while ((c = getopt(argc, argv, "i:n:b:t:d:klfvV:hRD:S")) != EOF) {
 	   switch (c) {
 	   case 'i':
 	   case 'n':
@@ -299,6 +303,9 @@ int main(int argc, char **argv)
 		   break;
 	   case 'R':
 	   	   raw_io = true;
+		   break;
+	   case 'S':
+		   sync_io = false;
 		   break;
 	   case 'V':
 		   vec_size = atoi(optarg);

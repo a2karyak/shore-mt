@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='SDESC_H'>
 
- $Id: sdesc.h,v 1.45 2002/01/29 05:54:25 bolo Exp $
+ $Id: sdesc.h,v 1.46 2007/05/18 21:43:27 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -95,7 +95,7 @@ public:
     snum_t	large_store;	// store for large record pages
     shpid_t	root;		// root page (of main index)
     serial_t	logical_id;     // zero if no logical ID
-    uint4_t	nkc;		// # components in key
+    w_base_t::uint4_t	nkc;		// # components in key
     key_type_s	kc[smlevel_0::max_keycomp];
 
     sinfo_s()	{};
@@ -103,7 +103,8 @@ public:
 	    u_char eff_, 
 	    smlevel_0::ndx_t ntype_, u_char cc_, 
 	    const shpid_t& root_,
-	    const serial_t& lid_, uint4_t nkc_, const key_type_s* kc_) 
+	    const serial_t& lid_, 
+	    w_base_t::uint4_t nkc_, const key_type_s* kc_) 
     :   store(store_), stype(stype_), ntype(ntype_),
 	cc(cc_), eff(eff_),
 #ifndef SM_ODS_COMPAT_14
@@ -237,21 +238,22 @@ public:
 private:
     void	_serialize() const;
     void	_endserial() const;
-    uint4_t	_num_buckets() const { return _numValidBuckets; }
-    uint4_t	_num_allocated_buckets() const { return _bucketArraySize; }
-    uint4_t	_elems_in_bucket(int i) const { return min_sdesc << i; }
-    void	_AllocateBucket(uint4_t bucket);
+    w_base_t::uint4_t	_num_buckets() const { return _numValidBuckets; }
+    w_base_t::uint4_t	_num_allocated_buckets() const { 
+				return _bucketArraySize; }
+    w_base_t::uint4_t	_elems_in_bucket(int i) const { return min_sdesc << i; }
+    void	_AllocateBucket(w_base_t::uint4_t bucket);
     void	_AllocateBucketArray(int newSize);
     void	_DoubleBucketArray();
 
     sdesc_t**	_sdescsBuckets;		// array of cached sdesc_t
-    uint4_t	_bucketArraySize;	// # entries in the malloced array
-    uint4_t	_numValidBuckets;	// # valid entries
-    uint4_t	_minFreeBucket;
-    uint4_t	_minFreeBucketIndex;
+    w_base_t::uint4_t	_bucketArraySize;// # entries in the malloced array
+    w_base_t::uint4_t	_numValidBuckets;// # valid entries
+    w_base_t::uint4_t	_minFreeBucket;
+    w_base_t::uint4_t	_minFreeBucketIndex;
 
-    uint4_t	_lastAccessBucket;	// last sdesc allocated
-    uint4_t	_lastAccessBucketIndex;	// last sdesc allocated
+    w_base_t::uint4_t	_lastAccessBucket;// last sdesc allocated
+    w_base_t::uint4_t	_lastAccessBucketIndex;	// last sdesc allocated
 };
 
 /*<std-footer incl-file-exclusion='SDESC_H'>  -- do not edit anything below this line -- */

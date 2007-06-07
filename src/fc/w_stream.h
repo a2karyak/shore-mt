@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='W_STREAM_H'>
 
- $Id: w_stream.h,v 1.7 1999/06/07 19:02:58 kupsch Exp $
+ $Id: w_stream.h,v 1.8 2004/10/05 23:19:55 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -76,14 +76,10 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 
 #	endif /* _OLD_IOSTREAM_LIBRARIES */
 #else
-#	include <streambuf.h>
-#	include <fstream.h>
-#	include <iomanip.h>
-#	include <iostream.h>
-#	include <istream.h>
-#	include <ostream.h>
-#	include <strstream.h>
-#	include <stream.h>
+#	include <fstream>
+#	include <iomanip>
+#	include <iostream>
+#	include <w_strstream.h>
 #endif
 
 /*<std-footer incl-file-exclusion='W_STREAM_H'>  -- do not edit anything below this line -- */

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='W_SIGNAL_H'>
 
- $Id: w_signal.h,v 1.19 2002/01/25 00:37:05 bolo Exp $
+ $Id: w_signal.h,v 1.21 2006/01/29 21:34:45 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -51,8 +51,8 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #define	POSIX_SIGNALS
 #endif
 
-#include <stdlib.h>
-#include <signal.h>
+#include <cstdlib>
+#include <csignal>
 
 #ifdef GNUG_BUG_8
 #undef signal

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: serial_t.cpp,v 1.35 2002/01/04 21:50:37 bolo Exp $
+ $Id: serial_t.cpp,v 1.37 2007/05/18 21:33:42 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -38,7 +38,7 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #pragma implementation "serial_t_data.h"
 #endif
 
-#include <stdlib.h>
+#include <cstdlib>
 #include <w_stream.h>
 #include "basics.h"
 #include "serial_t.h"
@@ -130,11 +130,11 @@ serial_t::increment(uint4_t amount)
 	dual_assert3(amount < max_inc); 
 
 #ifdef SERIAL_BITS64
-	bool	 was_remote = ((data._high & mask_remote)==mask_remote);
+	bool	 was_remote = ((data._high & uint4_t(mask_remote))==uint4_t(mask_remote));
 #else
-	bool	 was_remote = ((data._low & mask_remote)==mask_remote);
+	bool	 was_remote = ((data._low & uint4_t(mask_remote))==uint4_t(mask_remote));
 #endif
-	bool	 was_ondisk = ((data._low & mask_disk)==mask_disk);
+	bool	 was_ondisk = ((data._low & uint4_t(mask_disk))==uint4_t(mask_disk));
 
 	// don't change this if overflow occurs; use temp variables
 	uint4_t	l, h, overflow;
@@ -142,10 +142,10 @@ serial_t::increment(uint4_t amount)
 	// turn off remote
 #ifdef SERIAL_BITS64
 	h = data._high;
-	data._high &= ~mask_remote;
+	data._high &= ~uint4_t(mask_remote);
 #else
 	h = data._low;
-	data._low &= ~mask_remote;
+	data._low &= ~uint4_t(mask_remote);
 #endif
 
 	// get low half, shifted
@@ -171,15 +171,15 @@ serial_t::increment(uint4_t amount)
 	}
 
 // nooverflow:
-	data._low = ((l<<1)&~mask_disk);
+	data._low = ((l<<1)&~uint4_t(mask_disk));
 	if(was_ondisk) {
-		data._low |= mask_disk;
+		data._low |= uint4_t(mask_disk);
 	}
 	if(was_remote) {
 #ifdef SERIAL_BITS64
-		data._high |= mask_remote;
+		data._high |= uint4_t(mask_remote);
 #else
-		data._low |= mask_remote;
+		data._low |= uint4_t(mask_remote);
 #endif
 	}
 	dual_assert3(was_remote == is_remote());
@@ -189,13 +189,13 @@ serial_t::increment(uint4_t amount)
 _overflow:
 	// clean up even though there was an error
 	if(was_ondisk) {
-		data._low |= mask_disk;
+		data._low |= uint4_t(mask_disk);
 	}
 	if(was_remote) {
 #ifdef SERIAL_BITS64
-		data._high |= mask_remote;
+		data._high |= uint4_t(mask_remote);
 #else
-		data._low |= mask_remote;
+		data._low |= uint4_t(mask_remote);
 #endif
 	}
 	dual_assert3(was_remote == is_remote());

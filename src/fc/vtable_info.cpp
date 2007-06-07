@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: vtable_info.cpp,v 1.12 2000/02/01 23:34:42 bolo Exp $
+ $Id: vtable_info.cpp,v 1.14 2007/05/18 21:38:24 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -43,7 +43,7 @@ vtable_info_t::set_uint(int a, unsigned int v) {
 	w_assert1(a < N);
 	// check attribute not already set
 	w_assert3(strlen(_get_const(a)) == 0); 
-	ostrstream o(_get(a), vtable_info_t::vtable_value_size);
+	w_ostrstream o(_get(a), vtable_info_t::vtable_value_size);
 	o << v << ends;
 }
 void 
@@ -52,7 +52,7 @@ vtable_info_t::set_base(w_base_t::base_stat_t a, int v) {
 	w_assert3(a < w_base_t::base_stat_t(N));
 	// check attribute not already set
 	w_assert3(strlen(_get_const(int(a))) == 0); 
-	ostrstream o(_get(int(a)), vtable_info_t::vtable_value_size);
+	w_ostrstream o(_get(int(a)), vtable_info_t::vtable_value_size);
 	o << v << ends;
 }
 void 
@@ -61,7 +61,7 @@ vtable_info_t::set_int(int a, int v) {
 	w_assert3(a < N);
 	// check attribute not already set
 	w_assert3(strlen(_get_const(a)) == 0); 
-	ostrstream o(_get(a), vtable_info_t::vtable_value_size);
+	w_ostrstream o(_get(a), vtable_info_t::vtable_value_size);
 	o << v << ends;
 }
 void 
@@ -89,6 +89,7 @@ vtable_info_t::operator<<(ostream &o) {
 
 int 
 vtable_info_array_t::init(int e, int s) {
+
     _entries_filled = 0;
     _entries = e;
     _entrysize = s;
@@ -173,3 +174,4 @@ cerr << "vtable_info_array_t::realloc() from "
     return 0;
 }
 
+int global_vtable_last (0);

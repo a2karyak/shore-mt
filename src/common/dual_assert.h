@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='DUAL_ASSERT_H'>
 
- $Id: dual_assert.h,v 1.14 1999/06/07 19:02:24 kupsch Exp $
+ $Id: dual_assert.h,v 1.16 2006/01/29 19:03:13 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -40,8 +40,8 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
  * 	manager and other levels of Shore.
  */
 #ifndef RPCGEN
-#include <stdio.h>
-#include <stdlib.h>
+#include <cstdio>
+#include <cstdlib>
 #endif
 
 /* assert1 is always fatal */

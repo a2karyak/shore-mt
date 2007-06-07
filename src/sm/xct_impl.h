@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='XCT_IMPL_H'>
 
- $Id: xct_impl.h,v 1.24 2003/06/19 22:39:36 bolo Exp $
+ $Id: xct_impl.h,v 1.25 2007/05/18 21:43:30 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -51,7 +51,7 @@ class stid_list_elem_t  {
 		if (_link.member_of() != NULL)
 		    _link.detach();
 	    }
-	static uint4_t	link_offset()
+	static w_base_t::uint4_t	link_offset()
 	    {
 		return W_LIST_ARG(stid_list_elem_t, _link);
 	    }
@@ -147,12 +147,15 @@ public:
  private: // disabled for now
     // void			invalidate_logbuf();
 
-    int4_t			escalationThresholds[lockid_t::NUMLEVELS-1];
+    w_base_t::int4_t		escalationThresholds[lockid_t::NUMLEVELS-1];
  public:
-    void			SetEscalationThresholds(int4_t toPage, int4_t toStore, int4_t toVolume);
+    void			SetEscalationThresholds(w_base_t::int4_t toPage,
+		   			w_base_t::int4_t toStore, 							w_base_t::int4_t toVolume);
     void			SetDefaultEscalationThresholds();
-    void			GetEscalationThresholds(int4_t &toPage, int4_t &toStore, int4_t &toVolume);
-    const int4_t*			GetEscalationThresholdsArray();
+    void			GetEscalationThresholds(w_base_t::int4_t &toPage, 
+		    			w_base_t::int4_t &toStore, 
+					w_base_t::int4_t &toVolume);
+    const w_base_t::int4_t*	GetEscalationThresholdsArray();
     void			AddStoreToFree(const stid_t& stid);
     void			AddLoadStore(const stid_t& stid);
     
@@ -198,7 +201,7 @@ private:
     // use faster new/delete
     NORET			W_FASTNEW_CLASS_DECL(xct_impl);
 
-    rc_t			_commit(uint4_t flags);
+    rc_t			_commit(w_base_t::uint4_t flags);
     static void 		xct_stats(
 	u_long& 		    begins,
 	u_long& 		    commits,
@@ -350,7 +353,7 @@ operator>(const xct_t& x1, const xct_t& x2)
 }
 
 inline void
-xct_impl::SetEscalationThresholds(int4_t toPage, int4_t toStore, int4_t toVolume)
+xct_impl::SetEscalationThresholds(w_base_t::int4_t toPage, w_base_t::int4_t toStore, w_base_t::int4_t toVolume)
 {
     if (toPage != dontModifyThreshold)
 	escalationThresholds[2] = toPage;
@@ -371,14 +374,14 @@ xct_impl::SetDefaultEscalationThresholds()
 }
 
 inline void
-xct_impl::GetEscalationThresholds(int4_t &toPage, int4_t &toStore, int4_t &toVolume)
+xct_impl::GetEscalationThresholds(w_base_t::int4_t &toPage, w_base_t::int4_t &toStore, w_base_t::int4_t &toVolume)
 {
     toPage = escalationThresholds[2];
     toStore = escalationThresholds[1];
     toVolume = escalationThresholds[0];
 }
 
-inline const int4_t *
+inline const w_base_t::int4_t *
 xct_impl::GetEscalationThresholdsArray()
 {
     return escalationThresholds;

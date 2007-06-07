@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='DISKRW_H'>
 
- $Id: diskrw.h,v 1.69 2001/11/13 21:11:15 bolo Exp $
+ $Id: diskrw.h,v 1.71 2007/05/18 21:53:42 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -33,6 +33,9 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #include "w_defines.h"
 
 /*  -- do not edit anything above this line --   </std-header>*/
+
+#include <w_strstream.h>
+
 
 // define this to volatile if the compiler supports it
 #define VOLATILE 
@@ -385,7 +388,7 @@ public:
 	_completed(0),
 	_awakened(0) {
 		/* diskrw[-1] means it wasn't labelled. */
-		ostrstream s(name, sizeof(name));
+		w_ostrstream s(name, sizeof(name));
 		s << "diskrw[" << id << "]" << ends;
     };
 
@@ -613,7 +616,8 @@ const char *shmc_stats::stat_names[1]; // not used by diskrw
 #endif
 #endif /* DISKRW_C */
 
-#if !(defined(HPUX8) && defined(_INCLUDE_XOPEN_SOURCE))
+// added !defined(__GNUG__) because gcc has these defined in unistd.h
+#if !(defined(HPUX8) && defined(_INCLUDE_XOPEN_SOURCE)) && !defined(__GNUG__)
 	extern "C" {
 		int fsync(int);
 		int ftruncate(int, off_t);

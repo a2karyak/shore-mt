@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: regfree.cpp,v 1.9 1999/06/07 19:02:31 kupsch Exp $
+ $Id: regfree.cpp,v 1.11 2006/01/29 19:03:14 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -71,8 +71,8 @@ to the following restrictions:
 */
 
 #include <os_types.h>
-#include <stdio.h>
-#include <stdlib.h>
+#include <cstdio>
+#include <cstdlib>
 #include <w_debug.h>
 #include <regex.h>
 

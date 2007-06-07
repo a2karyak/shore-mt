@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: lock_core.cpp,v 1.103 2003/06/19 22:39:35 bolo Exp $
+ $Id: lock_core.cpp,v 1.109 2007/05/18 21:43:25 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -55,8 +55,8 @@ template class w_auto_delete_array_t<unsigned>;
 #endif
 
 
-W_FASTNEW_STATIC_DECL(lock_request_t, 2048);
-W_FASTNEW_STATIC_DECL(lock_head_t, 256);
+W_FASTNEW_STATIC_DECL(lock_request_t, 2048)
+W_FASTNEW_STATIC_DECL(lock_head_t, 256)
 
 
 /*********************************************************************
@@ -65,7 +65,7 @@ W_FASTNEW_STATIC_DECL(lock_head_t, 256);
  *	e.g. parent_mode[EX] is IX.
  *
  *********************************************************************/
-const lock_base_t::mode_t lock_m::parent_mode[NUM_MODES] = {
+const lock_base_t::lmode_t lock_m::parent_mode[NUM_MODES] = {
     NL, IS, IX, IS, IX, IX, IX
 };
 
@@ -116,7 +116,7 @@ const bool lock_base_t::compat
  *	supr[i][j] returns the supremum of two lock modes i, j.
  *
  *********************************************************************/
-const lock_base_t::mode_t lock_base_t::supr[NUM_MODES][NUM_MODES] = {
+const lock_base_t::lmode_t lock_base_t::supr[NUM_MODES][NUM_MODES] = {
     { NL,   IS,   IX,   SH,   SIX,  UD,   EX },
     { IS,   IS,   IX,   SH,   SIX,  UD,   EX },
     { IX,   IX,   IX,   SIX,  SIX,  EX,   EX },
@@ -125,6 +125,11 @@ const lock_base_t::mode_t lock_base_t::supr[NUM_MODES][NUM_MODES] = {
     { UD,   UD,   EX,   UD,   SIX,  UD,   EX },
     { EX,   EX,   EX,   EX,   EX,   EX,   EX }
 };
+
+LockCoreFunc::~LockCoreFunc()
+{
+}
+
 
 class bucket_t {
 public:
@@ -421,13 +426,13 @@ lockid_t::truncate(name_space_t space)
  *   The lock request "exclude" is specifically neglected.
  *
  *********************************************************************/
-inline lock_base_t::mode_t
+inline lock_base_t::lmode_t
 lock_head_t::granted_mode_other(const lock_request_t* exclude)
 {
     w_assert3(!exclude || exclude->status() == lock_m::t_granted ||
 			  exclude->status() == lock_m::t_converting);
 
-    lock_base_t::mode_t gmode = NL;
+    lock_base_t::lmode_t gmode = NL;
     w_list_i<lock_request_t> iter(queue);
     lock_request_t* f;
     while ((f = iter.next())) {
@@ -455,7 +460,7 @@ lock_head_t::granted_mode_other(const lock_request_t* exclude)
  *
  *********************************************************************/
 inline NORET
-lock_request_t::lock_request_t(xct_t* x, mode_t m, duration_t d)
+lock_request_t::lock_request_t(xct_t* x, lmode_t m, duration_t d)
 :
     state(0),
     mode(m),
@@ -673,11 +678,11 @@ lock_core_m::acquire(
     const lockid_t&	name,
     lock_head_t* 	lock,
     lock_request_t**	reqPtr,
-    mode_t 		mode,
-    mode_t&		prev_mode,
+    lmode_t 		mode,
+    lmode_t&		prev_mode,
     duration_t		duration,
     timeout_in_ms 	timeout,
-    mode_t&		ret)
+    lmode_t&		ret)
 {
     FUNC(lock_core_m::acquire);
     lock_request_t*	req = reqPtr ? *reqPtr : 0;
@@ -760,7 +765,7 @@ lock_core_m::acquire(
 	    }
 	    INC_TSTAT(lock_conversion_cnt);
     
-	    mode_t granted_mode_other = lock->granted_mode_other(req);
+	    lmode_t granted_mode_other = lock->granted_mode_other(req);
 	    w_assert3(lock->granted_mode == supr[granted_mode_other][req->mode]);
     
 	    if (compat[mode][granted_mode_other]) {
@@ -885,19 +890,17 @@ lock_core_m::acquire(
 	    if (xd->is_extern2pc() && timeout == WAIT_FOREVER && global_deadlock_client)  {
                 const char* blockname = "gxct-lock";
 #if defined(W_DEBUG) || defined(W_DEBUG_NAMES)
-                char buf[64];
-                ostrstream s(buf, 64);
+                w_ostrstream_buf s(64);		/* XXX magic number */
                 s << "gxct-lock(name=" << name << ")" << ends;
-                blockname = buf;
+                blockname = s.c_str();
 #endif
 		rc = global_deadlock_client->GlobalXctLockWait(req, blockname);
 	    }  else  {
                 const char* blockname = "lock";
 #if defined(W_DEBUG) || defined(W_DEBUG_NAMES)
-                char buf[64];
-                ostrstream s(buf, 64);
+                w_ostrstream_buf s(64);		/* XXX magic number */
                 s << "lock(name=" << name << ")" << ends;
-                blockname = buf;
+                blockname = s.c_str();
 #endif /* W_DEBUG */
                 rc = me()->block(timeout, 0, blockname);
 	    }
@@ -1176,7 +1179,7 @@ lock_core_m::downgrade(
         const lockid_t&         name,
         lock_head_t*            lock,
         lock_request_t*         request,
-        mode_t                  mode,
+        lmode_t                  mode,
         bool                    force)
 {
     w_assert3(MUTEX_IS_MINE(xd->lock_info()->mutex));
@@ -1259,7 +1262,7 @@ lock_core_m::wakeup_waiters(lock_head_t*& lock)
 
         switch (request->status()) {
 	case lock_m::t_converting: {
-            mode_t gmode = lock->granted_mode_other(request);
+            lmode_t gmode = lock->granted_mode_other(request);
 	    w_assert3(lock->granted_mode == supr[gmode][request->mode]);
             wake_up = compat[request->convert_mode][gmode];
             if (wake_up)
@@ -1641,7 +1644,7 @@ lock_core_m::_find_cycle(xct_t* self)
 	/*
 	 *  look at everyone that holds the lock
 	 */
-	mode_t my_mode = self->lock_info()->wait->convert_mode;
+	lmode_t my_mode = self->lock_info()->wait->convert_mode;
 	while ((them = iter.next()))  {
 	    if (them->xd == self) continue;
 	    if (them->status() == lock_m::t_aborted) continue;
@@ -1682,7 +1685,7 @@ lock_core_m::_find_cycle(xct_t* self)
 	/*
 	 *  look at everyone ahead of me
 	 */
-	mode_t my_mode = self->lock_info()->wait->mode;
+	lmode_t my_mode = self->lock_info()->wait->mode;
 	while ((them = iter.next())) {
 	    if (them->xd == self) break;
 	    if (them->status() == lock_m::t_aborted) continue;
@@ -1734,7 +1737,7 @@ lock_core_m::_find_cycle(xct_t* self)
  *
  *********************************************************************/
 void
-lock_core_m::_update_cache(xct_t *xd, const lockid_t& name, mode_t m)
+lock_core_m::_update_cache(xct_t *xd, const lockid_t& name, lmode_t m)
 {
     if (xd->lock_cache_enabled()) {
         if (name.lspace() <= lockid_t::t_page) {
@@ -1924,58 +1927,58 @@ operator<<(ostream& o, const lockid_t& i)
 {
     o << "L(";
     switch (i.lspace())  {
-    case i.t_vol:
+    case lockid_t::t_vol:
 	o << i.vid();
 	break;
-    case i.t_store: {
+    case lockid_t::t_store: {
 	stid_t s;
 	i.extract_stid(s);
 	o << s;
 	}
 	break;
-    case i.t_extent: {
+    case lockid_t::t_extent: {
 	extid_t e;
 	i.extract_extent(e);
 	o << e << (i.ext_has_page_alloc() ? "[PageAllocs]" : "[NoPageAllocs]");
 	}
 	break;
-    case i.t_page: {
+    case lockid_t::t_page: {
 	lpid_t p;
 	i.extract_lpid(p);
 	o << p;
 	}
 	break;
-    case i.t_kvl: {
+    case lockid_t::t_kvl: {
 	kvl_t k;
 	i.extract_kvl(k);
 	o << k;
 	}
 	break;
-    case i.t_record: {
+    case lockid_t::t_record: {
 	rid_t r;
 	i.extract_rid(r);
 	o << r;
 	}
 	break;
-    case i.t_user1: {
+    case lockid_t::t_user1: {
 	lockid_t::user1_t u;
 	i.extract_user1(u);
 	o << u;
 	}
 	break;
-    case i.t_user2: {
+    case lockid_t::t_user2: {
 	lockid_t::user2_t u;
 	i.extract_user2(u);
 	o << u;
 	}
 	break;
-    case i.t_user3: {
+    case lockid_t::t_user3: {
 	lockid_t::user3_t u;
 	i.extract_user3(u);
 	o << u;
 	}
 	break;
-    case i.t_user4: {
+    case lockid_t::t_user4: {
 	lockid_t::user4_t u;
 	i.extract_user4(u);
 	o << u;
@@ -2337,7 +2340,7 @@ lock_core_m::_hash(uint4_t id) const
 #endif
 
 #include <vtable_info.h>
-#include <vtable_enum.h>
+#include <sm_vtable_enum.h>
 
 int
 lock_core_m::collect( vtable_info_array_t& res) 
@@ -2406,7 +2409,7 @@ lock_request_t::vtable_collect(vtable_info_t &t)
     const lock_head_t 		*lh = get_lock_head();
 
     {
-	ostrstream o(t[lock_name_attr], vtable_info_t::vtable_value_size);
+	w_ostrstream o(t[lock_name_attr], vtable_info_t::vtable_value_size);
 	o<< lh->name <<ends;
     }
     t.set_string(lock_mode_attr, lock_base_t::mode_str[mode]);
@@ -2414,7 +2417,7 @@ lock_request_t::vtable_collect(vtable_info_t &t)
     t.set_int(lock_children_attr, numChildren);
 
     {
-	ostrstream o(t[lock_tid_attr], vtable_info_t::vtable_value_size);
+	w_ostrstream o(t[lock_tid_attr], vtable_info_t::vtable_value_size);
 	o << xd->tid() <<  ends;
     }
 

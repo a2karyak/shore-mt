@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: fastnew.cpp,v 1.20 2001/09/18 16:16:30 bolo Exp $
+ $Id: fastnew.cpp,v 1.21 2007/05/18 21:35:44 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -87,7 +87,7 @@ public:
     W_FASTNEW_CLASS_PTR_DECL(felem_t);
 private:
 };
-W_FASTNEW_STATIC_PTR_DECL(felem_t);
+W_FASTNEW_STATIC_PTR_DECL(felem_t)
 
 class fxelem_t {
 public:
@@ -96,7 +96,7 @@ public:
     W_FASTNEW_CLASS_PTR_DECL(fxelem_t);
 private:
 };
-W_FASTNEW_STATIC_PTR_DECL(fxelem_t);
+W_FASTNEW_STATIC_PTR_DECL(fxelem_t)
 
 class fnelem_t {
 public:
@@ -105,7 +105,7 @@ public:
     W_FASTNEW_CLASS_PTR_DECL(fnelem_t);
 private:
 };
-W_FASTNEW_STATIC_PTR_DECL(fnelem_t);
+W_FASTNEW_STATIC_PTR_DECL(fnelem_t)
 
 class elem_t {
 public:

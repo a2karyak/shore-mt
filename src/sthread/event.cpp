@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: event.cpp,v 1.20 2002/01/25 00:15:18 bolo Exp $
+ $Id: event.cpp,v 1.25 2007/05/18 21:53:42 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -50,7 +50,6 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
  * from the NewThreads implementation wrapped up as c++ objects.
  */
 
-#define W_INCL_LIST
 #define W_INCL_SHMEM
 #define W_INCL_TIMER
 #include <w.h>
@@ -58,14 +57,14 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #include <w_debug.h>
 #include <w_stream.h>
 #include <w_signal.h>
-#include <stdlib.h>
+#include <cstdlib>
 #ifndef _WINDOWS
 #include <unistd.h>
 #endif
-#include <string.h>
+#include <cstring>
 
 #ifdef _WINDOWS
-#include <time.h>
+#include <ctime>
 #else
 #include <sys/time.h>
 #endif
@@ -73,7 +72,7 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #ifndef _WINDOWS
 #include <sys/wait.h>
 #endif
-#include <new.h>
+#include <new>
 
 #include <sys/stat.h>
 #include <w_rusage.h>

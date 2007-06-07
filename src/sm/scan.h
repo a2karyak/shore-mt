@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='SCAN_H'>
 
- $Id: scan.h,v 1.87 2002/01/22 21:48:09 bolo Exp $
+ $Id: scan.h,v 1.88 2007/05/18 21:43:27 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -354,7 +354,7 @@ private:
     scan_file_i&		operator=(const scan_file_i&);
 };
 
-#include <memory.h>
+#include <cstring>
 #ifndef SDESC_H
 #include "sdesc.h"
 #endif

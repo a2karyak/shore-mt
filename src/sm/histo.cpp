@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: histo.cpp,v 1.13 2003/06/19 22:39:34 bolo Exp $
+ $Id: histo.cpp,v 1.15 2007/05/18 21:43:25 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -147,7 +147,7 @@ template class w_list_i<histoid_t>;
 
 typedef class w_hash_i<histoid_t, stid_t> w_hash_i_histoid_t_stid_t_iterator;
 
-W_FASTNEW_STATIC_DECL(histoid_t, 20);
+W_FASTNEW_STATIC_DECL(histoid_t, 20)
 
 
 smutex_t			histoid_t::htab_mutex("histoid_table");
@@ -886,7 +886,7 @@ histoid_update_t::histoid_update_t(sdesc_t *sd)
     _info.set(0,0); // unknown size
     _old_space = 0; // unknown
 #ifdef W_TRACE
-    if(_debug.flag_on("histoid_update_t",__FILE__)) {
+    if(_w_debug.flag_on("histoid_update_t",__FILE__)) {
 	DBGTHRD(<<"CONSTRUCT histoid_update_t: " << *this);
     }
 #endif /* W_TRACE */
@@ -942,7 +942,7 @@ histoid_update_t::histoid_update_t(file_p& pg)
     }
 
 #ifdef W_TRACE
-    if(_debug.flag_on("histoid_update_t",__FILE__)) {
+    if(_w_debug.flag_on("histoid_update_t",__FILE__)) {
 	DBGTHRD(<<"CONSTRUCT histoid_update_t: " << *this);
     }
 #endif /* W_TRACE */
@@ -953,7 +953,7 @@ histoid_update_t::~histoid_update_t()
 {
     DBGTHRD(<<"~histoid_update_t");
 #ifdef W_TRACE
-    if(_debug.flag_on("histoid_update_t",__FILE__)) {
+    if(_w_debug.flag_on("histoid_update_t",__FILE__)) {
 	DBGTHRD(<<"DESTRUCT histoid_update_t: " << *this);
     }
 #endif /* W_TRACE */

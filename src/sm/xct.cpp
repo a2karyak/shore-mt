@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: xct.cpp,v 1.204 2003/08/24 23:47:54 bolo Exp $
+ $Id: xct.cpp,v 1.207 2007/05/18 21:43:30 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -38,7 +38,7 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #pragma implementation "xct.h"
 #endif
 
-#include <new.h>
+#include <new>
 #include "sm_int_1.h"
 #include "sdesc.h"
 
@@ -99,7 +99,7 @@ const char* 			xct_t::_1thread_xct_name = "1thX";
  *  allocate many at a time.
  *
  *********************************************************************/
-W_FASTNEW_STATIC_DECL(xct_t, 32);
+W_FASTNEW_STATIC_DECL(xct_t, 32)
 
 /*********************************************************************
  *
@@ -1287,7 +1287,7 @@ xct_t::set_timeout(timeout_in_ms t)
 }
 
 #include <vtable_info.h>
-#include <vtable_enum.h>
+#include <sm_vtable_enum.h>
 
 #ifdef __GNUG__ 
 template class vtable_func<xct_t>;
@@ -1324,22 +1324,20 @@ xct_t::vtable_collect(vtable_info_t &t)
     t.set_int(xct_nthreads_attr, num_threads());
 
     if(is_extern2pc()) {
-	ostrstream	s;
+	w_ostrstream	s;
 	s << *gtid() << ends;
-	t.set_string(xct_gtid_attr, s.str());
-	delete [] s.str();
+	t.set_string(xct_gtid_attr, s.c_str());
     }
     {
 	char *p = (char *)t[xct_state_attr];
-	ostrstream o(p, vtable_info_t::vtable_value_size);
+	w_ostrstream o(p, vtable_info_t::vtable_value_size);
 	o << state() << ends;
     }
 
     if(state() == xct_prepared) {
-	ostrstream	s;
+	w_ostrstream	s;
 	s << get_coordinator() << ends;
-	t.set_string(xct_coordinator_attr, s.str());
-	delete [] s.str();
+	t.set_string(xct_coordinator_attr, s.c_str());
     }
 
     t.set_string(xct_forced_readonly_attr, 
@@ -1347,7 +1345,7 @@ xct_t::vtable_collect(vtable_info_t &t)
 
     {
 	char *p = (char *)t[xct_tid_attr];
-	ostrstream o(p, vtable_info_t::vtable_value_size);
+	w_ostrstream o(p, vtable_info_t::vtable_value_size);
 	o << tid() << ends;
     }
 }

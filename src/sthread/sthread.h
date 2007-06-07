@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='STHREAD_H'>
 
- $Id: sthread.h,v 1.188 2003/12/23 01:41:22 bolo Exp $
+ $Id: sthread.h,v 1.191 2006/01/29 21:34:48 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -61,8 +61,8 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 class sthread_t;
 class smthread_t;
 
-#include <signal.h>
-#include <setjmp.h>
+#include <csignal>
+#include <csetjmp>
 
 /* The setjmp() / longjmp() used should NOT restore the signal mask.
    If sigsetjmp() / siglongjmp() is available, use them, as they
@@ -300,6 +300,17 @@ class ThreadFunc
 
 #include "strace.h"
 class _strace_t;
+
+class sthread_init_t;
+class sthread_priority_list_t;
+class sthread_main_t;
+class sthread_timer_t;
+class smutex_t;
+class scond_t;
+class diskport_t;
+class sdisk_handler_t;
+class IOmonitor;
+    
 
 /*
  *  Thread Structure

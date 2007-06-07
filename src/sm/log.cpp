@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: log.cpp,v 1.126 2003/08/27 23:59:19 bolo Exp $
+ $Id: log.cpp,v 1.127 2006/03/14 05:31:26 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -109,7 +109,7 @@ log_m::log_m(
     DBGTHRD(<< "_shared->_min_chkpt_rec_lsn = " 
 	<<  _shared->_min_chkpt_rec_lsn);
 
-    //_peer = srv_log::new_log_m(s1.str(), s2.str(), reformat);
+    //_peer = srv_log::new_log_m(s1.c_str(), s2.c_str(), reformat);
     w_rc_t	e;
     srv_log	*slog;
     e = srv_log::new_log_m(slog, path,

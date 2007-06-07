@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='UNIX_LOG_H'>
 
- $Id: unix_log.h,v 1.18 1999/12/10 05:29:48 bolo Exp $
+ $Id: unix_log.h,v 1.19 2007/05/18 21:43:29 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -51,7 +51,7 @@ public:
 	int			seekend_app();
 	void			open_for_append(partition_number_t n);
 	void			open_for_read(partition_number_t n, bool err=true);
-	int			seeklsn_rd(uint4_t offset);
+	int			seeklsn_rd(w_base_t::uint4_t offset);
 #ifdef OLD
 	w_rc_t                  write(const logrec_t &r, const lsn_t &ll);
 	void			flush(bool force = false);

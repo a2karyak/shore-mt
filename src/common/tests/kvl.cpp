@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: kvl.cpp,v 1.13 2002/01/15 22:46:22 bolo Exp $
+ $Id: kvl.cpp,v 1.15 2006/03/14 05:31:23 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -32,14 +32,13 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 /*  -- do not edit anything above this line --   </std-header>*/
 
 #include <w.h>
-#include <w_strstream.h>
 #include <basics.h>
-#include <serial_t.h>
-#include <assert.h>
 #include <vec_t.h>
 #include <kvl_t.h>
 #include <zvec_t.h>
-#include <w_debug.h>
+
+#include <iostream>
+#include <w_strstream.h>
 
 int main(int argc, const char *argv[])
 {
@@ -53,7 +52,7 @@ int main(int argc, const char *argv[])
 	int v;
 	int st;
 	{
-	    istrstream anon(VCPP_BUG_1 argv[1],strlen(argv[1]));
+	    w_istrstream anon(argv[1]);
 	    char dot;
 	    anon >> v;
 	    anon >> dot;

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: sm_io.cpp,v 1.32 2002/01/04 05:47:18 bolo Exp $
+ $Id: sm_io.cpp,v 1.34 2007/05/18 21:43:28 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -51,8 +51,9 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #include "crash.h"
 #include "vol.h"
 
-#include <new.h>
+#include <new>
 
+#include "sm_vtable_enum.h"
 #include "vtable_info.h"
 
 class extnum_struct_t {
@@ -885,9 +886,11 @@ io_m::read_page(const lpid_t& pid, page_s& buf)
      */
 #ifdef W_DEBUG
     if (buf.lsn1 == lsn_t::null)  {
-	w_assert3(buf.pid.page == 0);
+		if(smlevel_1::log && smlevel_0::logging_enabled) {
+			w_assert3(buf.pid.page == 0);
+		}
     } else {
-	w_assert3(buf.pid.page == pid.page && buf.pid.vol() == pid.vol());
+		w_assert3(buf.pid.page == pid.page && buf.pid.vol() == pid.vol());
     }
     DBG(<<"buf.pid.page=" << buf.pid.page << " buf.lsn1=" << buf.lsn1);
 #endif /* W_DEBUG */
@@ -1309,8 +1312,7 @@ io_m::_alloc_pages(
 		    W_FATAL(fcNOTIMPLEMENTED);
 		}
 		cerr << "Ran out of space on disk at line "
-			<< __LINE__ 
-		        << " of file " << __FILE__ 
+			<< __LINE__ << " of file " << __FILE__ 
 		        << endl;
 		return RC_AUGMENT(rc);
 	    }

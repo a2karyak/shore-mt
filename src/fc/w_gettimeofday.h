@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='W_GETTIMEOFDAY_H'>
 
- $Id: w_gettimeofday.h,v 1.9 2001/09/18 20:14:35 bolo Exp $
+ $Id: w_gettimeofday.h,v 1.11 2007/05/18 21:38:25 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -35,8 +35,10 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 /*  -- do not edit anything above this line --   </std-header>*/
 
 #ifdef _WINDOWS
-#include <time.h>
+#include <ctime>
+#ifdef HAVE_SYS_TIME_B_H
 #include <sys/timeb.h>
+#endif
 #else
 #include <sys/time.h>
 #endif

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='W_HASH_H'>
 
- $Id: w_hash.h,v 1.33 2003/06/19 22:39:32 bolo Exp $
+ $Id: w_hash.h,v 1.34 2007/05/18 21:38:25 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -67,7 +67,7 @@ inline w_base_t::uint4_t w_hash(w_base_t::int2_t i)   {
     return CAST(w_base_t::int2_t, i);
 }
 
-BIND_FRIEND_OPERATOR_PART_1B(T,K,w_hash_t<T,K>);
+BIND_FRIEND_OPERATOR_PART_1B(T,K,w_hash_t<T,K>)
 
 
 template <class T, class K>

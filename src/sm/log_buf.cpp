@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: log_buf.cpp,v 1.30 2002/02/13 17:27:26 bolo Exp $
+ $Id: log_buf.cpp,v 1.33 2006/05/11 22:24:29 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -43,7 +43,7 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #include "logdef_gen.cpp"
 #include "crash.h"
 
-#include <new.h>
+#include <new>
 
 log_stats_t log_m::stats;
 
@@ -204,10 +204,13 @@ log_buf::write_to(int fd)
     w_rc_t e = me()->write(fd, buf, xfersize);
     if (e) {
 	smlevel_0::errlog->clog << error_prio 
-	  << "ERROR: could not flush log buf, xfersize=" 
-	  << xfersize 
-	  << ",  rc= " << e
-	  << ",  cc= " << cc
+	  << "ERROR: could not flush log buf:"
+	  << " fd=" << fd
+	  << " b=" << b
+	  << " xfersize=" << xfersize
+	  << " cc= " << cc
+	  << ":" << endl
+	  << e
 	  << flushl;
 	W_COERCE(e);
     }
@@ -482,7 +485,7 @@ operator<<(ostream &o, const log_buf &l)
 #ifdef SERIOUS_DEBUG
     if(l.firstbyte().hi() > 0 && l.firstbyte().lo() == srv_log::zero) {
 	// go forward
-	_debug.clog << "FORWARD:" <<  flushl;
+	_w_debug.clog << "FORWARD:" <<  flushl;
 	int 	  i=0;
 	char      *b;
 	lsn_t 	  pos =  l.firstbyte();
@@ -492,13 +495,13 @@ operator<<(ostream &o, const log_buf &l)
 	while(pos.lo() < l.len() && i++ < 10) {
 	    b = l.buf + pos.lo();
 	    r = (logrec_t *)b;
-	    _debug.clog << "pos: " << pos << " -- contains " << *r << flushl;
+	    _w_debug.clog << "pos: " << pos << " -- contains " << *r << flushl;
 
 	    b += r->length();
 	    pos.advance(r->length()); 
 	}
     } else if(l.lastrec() != lsn_t::null) {
-        _debug.clog << "BACKWARD: " << flushl;
+        _w_debug.clog << "BACKWARD: " << flushl;
 
 	char      *b = l.buf + l.len() - (int)sizeof(lsn_t);
 	lsn_t 	  pos =  *(lsn_t *)b;
@@ -519,7 +522,7 @@ operator<<(ostream &o, const log_buf &l)
 
 	    w_assert3(lsn_ck == pos || r->type() == logrec_t::t_skip);
 
-	    _debug.clog << "pos: " << pos << " -- contains " << *r << flushl;
+	    _w_debug.clog << "pos: " << pos << " -- contains " << *r << flushl;
 
 	    b -=  sizeof(lsn_t);
 	    pos = *((lsn_t *) b);

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: newsort.cpp,v 1.37 2002/02/18 20:10:56 bolo Exp $
+ $Id: newsort.cpp,v 1.42 2006/01/29 23:27:11 bolo Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -41,7 +41,7 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 
 #include <w_heap.h>
 #include <umemcmp.h>
-#include <new.h>
+#include <new>
 
 #ifdef USE_PURIFY
 #include <purify.h>
@@ -82,6 +82,24 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 /* This is sort of a generic catch-all, because the f8 comparisons existed
    long before the i8 problems. */
 #define	STRICT_F8_ALIGNMENT
+#endif
+
+#if 1
+/* XXX needed with 4.0.2 _WITH_ optimization, and not without! */
+/* This is left in the source in case the problem springs to life again.
+   I believe that the kc_buf alignment "hack" may have eliminated the
+   problem, since that was a major cause of unalignment on aligned boxes. */
+/* XXX some of these alignment issues could be keyed off of shore record
+   alignments and the configurations which control them.   See also the
+   lexify code. */
+
+#if defined(Sparc) && defined(__GNUG__)
+#if W_GCC_THIS_VER >= W_GCC_VER(3,2) || W_GCC_THIS_VER < W_GCC_VER(2,95)
+/* XXX something is going wrong with gcc-3.2 compiled shores which
+   is breaking an alignment guarantee somewhere. */
+#define STRICT_INT8_ALIGNMENT
+#endif
+#endif
 #endif
 
 /* XXX only used to verify proper alignment when strict alignment is
@@ -1037,9 +1055,9 @@ public:
 		 * the size of booleans_t.
 		 */
 		uint4_t tmp;
-		tmp = _persistent::_must_compare_in_pieces << max_keys_handled-1;
+		tmp = _persistent::_must_compare_in_pieces << (max_keys_handled-1);
 		_persistent::booleans_t boo;
-		boo = _persistent::_must_compare_in_pieces << max_keys_handled-1;
+		boo = _persistent::_must_compare_in_pieces << (max_keys_handled-1);
 		w_assert3(uint4_t(boo) == tmp);
 	    }
 #endif

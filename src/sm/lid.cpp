@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: lid.cpp,v 1.151 2003/06/19 22:39:34 bolo Exp $
+ $Id: lid.cpp,v 1.152 2007/05/18 21:43:25 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -44,15 +44,16 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #include "auto_release.h"
 
 #ifdef SOLARIS2
-#define	USE_UTSNAME
-#include <sys/utsname.h>
+#	define	USE_UTSNAME
+#	include <sys/utsname.h>
 #else
-#include <hostname.h>
+#	include <hostname.h>
 #endif
+
 #ifdef _WIN32
-#include <w_winsock.h>
+#	include <w_winsock.h>
 #else
-#include <netdb.h>	/* XXX really should be included for all */
+#	include <netdb.h>	/* XXX really should be included for all */
 #endif
 
 
