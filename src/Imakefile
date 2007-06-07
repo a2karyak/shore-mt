@@ -1,6 +1,6 @@
 /*<std-header style='imakefile' orig-src='shore'>
 
- $Id: Imakefile,v 1.16 1999/08/25 01:40:17 kupsch Exp $
+ $Id: Imakefile,v 1.8 1999/06/07 19:02:21 kupsch Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -27,38 +27,20 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 
   -- do not edit anything above this line --   </std-header>*/
 
-POST_SUBDIRS =				\
-	$(SMLAYER_BUILD_DIR)
-
-#if !defined(BUILD_SMLAYER_ONLY)
-
-#if defined(USE_EXTERNAL_TRACE_EVENTS)
-POST_SUBDIRS += $(TRACE_EVENTS_BUILD_DIR)
-#else
-nondefault_subdirs($(TRACE_EVENTS_BUILD_DIR))
+COMM_SYSTEM =
+#ifdef USE_OCOMM
+COMM_SYSTEM = $(OCOMM_SYSTEM_BUILD_DIR)
 #endif
 
-#if defined(PARA_COMPRESS)
-/* Must make ZLIB_LIB an optional library first */
-POST_SUBDIRS +=	$(ZLIB_BUILD_DIR)
-#endif
+POST_SUBDIRS = \
+	$(FC_BUILD_DIR)			\
+	$(STHREAD_BUILD_DIR)		\
+	$(COMMON_BUILD_DIR)		\
+	$(COMM_SYSTEM)			\
+	$(SM_BUILD_DIR)
 
-POST_SUBDIRS += 			\
-	$(UTILS_BUILD_DIR)		\
-	$(PARA_THREADS_BUILD_DIR)	\
-	$(COMM_BUILD_DIR)		\
-	$(ADT_BUILD_DIR)		\
-	$(CATALOG_BUILD_DIR)		\
-	$(OPERATORS_BUILD_DIR)		\
-	$(PARSE_OPT_BUILD_DIR)		\
-	$(SCHEDULER_BUILD_DIR)		\
-	$(STREAMS_BUILD_DIR)		\
-	$(TUPLE_PROC_BUILD_DIR)		\
-	$(CLIENT_API_BUILD_DIR)		\
-	$(SERVER_BUILD_DIR) 		\
-	$(APPLICATIONS_BUILD_DIR)	\
-	$(DEBUGGING_BUILD_DIR)
+init_file_group(smlayer)
 
-#endif
+smlayer.other += SHORE_COPYRIGHT
 
-install_copy(include, $(CONFIG_BUILD_DIR)/shore.def)
+used_group(smlayer)
