@@ -9,7 +9,7 @@ Configuration and build were tested with:
 aclocal  1.9.4 and 1.8.5
 automake 1.9.4 and 1.8.5
 autoheader,autoconf 2.59
-gcc 3.4.4
+gcc 3.4.4 (see also README.compilers)
 
 RedHat    Linux 2.6.9-42.0.8.ELsmp #1 SMP Tue Jan 30 12:33:47 EST 2007 i686 
 Slackware Linux 2.4.26 #6 Mon Jun 14 19:07:27 PDT 2004                 i686
@@ -46,6 +46,8 @@ then
 	./configure
 -----------------------------------------------------------------------------
    
+
+See also README.cppmacros
 
 
 

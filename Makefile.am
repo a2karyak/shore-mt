@@ -2,5 +2,5 @@
 MAINTAINERCLEANFILES = \
 	installed/include/*.h installed/lib/*.a installed/bin/*
 SUBDIRS = src 
-DIST_SUBDIRS = tools config $(SUBDIRS)
+DIST_SUBDIRS = doc tools config $(SUBDIRS)
 EXTRA_DIST = bootstrap Makefile.local Makefile.generic COPYRIGHT-NOTICE README ChangeLog

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: sthread_cpu.cpp,v 1.10 2006/01/29 22:35:17 bolo Exp $
+ $Id: sthread_cpu.cpp,v 1.11 2007/06/28 21:23:41 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -83,7 +83,7 @@ void	sthread_t::_reset_cpu()
 #elif defined(I386) && defined(Linux)
 	/* changing FPU mods breaks the C library */
 
-#elif defined(I386) && defined(__GNUG__)
+#elif defined(I386) && defined(__GNUG__) && !defined(MacOSX)
 	/* XXX If this breaks your C runtime, it will need to be disabled */
 	
 	/* Form a 80387 floating point control word to have the

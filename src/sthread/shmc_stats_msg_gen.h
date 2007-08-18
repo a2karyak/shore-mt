@@ -2,7 +2,7 @@
 #define SHMC_STATS_MSG_GEN_H
 
 /* DO NOT EDIT --- GENERATED from shmc_stats.dat by stats.pl
-		   on Fri May 18 19:31:47 2007
+		   on Sat Aug 18 14:25:50 2007
 
 <std-header orig-src='shore' genfile='true'>
 

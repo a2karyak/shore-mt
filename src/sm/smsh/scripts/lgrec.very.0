@@ -1,0 +1,152 @@
+# <std-header style='tcl' orig-src='shore'>
+#
+#  $Id: lgrec.very.0,v 1.5 1999/06/07 19:05:32 kupsch Exp $
+#
+# SHORE -- Scalable Heterogeneous Object REpository
+#
+# Copyright (c) 1994-99 Computer Sciences Department, University of
+#                       Wisconsin -- Madison
+# All Rights Reserved.
+#
+# Permission to use, copy, modify and distribute this software and its
+# documentation is hereby granted, provided that both the copyright
+# notice and this permission notice appear in all copies of the
+# software, derivative works or modified versions, and any portions
+# thereof, and that both notices appear in supporting documentation.
+#
+# THE AUTHORS AND THE COMPUTER SCIENCES DEPARTMENT OF THE UNIVERSITY
+# OF WISCONSIN - MADISON ALLOW FREE USE OF THIS SOFTWARE IN ITS
+# "AS IS" CONDITION, AND THEY DISCLAIM ANY LIABILITY OF ANY KIND
+# FOR ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
+#
+# This software was developed with support by the Advanced Research
+# Project Agency, ARPA order number 018 (formerly 8230), monitored by
+# the U.S. Army Research Laboratory under contract DAAB07-91-C-Q518.
+# Further funding for this work was provided by DARPA through
+# Rome Research Laboratory Contract No. F30602-97-2-0247.
+#
+#   -- do not edit anything above this line --   </std-header>
+
+#
+#	Helper script for lgrec.very.n, where n > 0
+#	This does the work; the calling scripts set nrecs and recsz
+#
+#	We create the file starting about at the page given by $cluster_page
+#
+
+
+if { $logging==0 } {
+    echo "Logging off: script not run. "
+} else {
+
+verbose gathering volume stats
+dstats $volid
+sm begin_xct
+set f1 [sm create_file $volid tmp $cluster_page]
+verbose f1 = $f1
+
+verbose dstats after create
+dstats $f1
+
+
+set data zvec$recsz
+set last_few 10
+set near_end [expr {$recsz - $last_few}]
+
+verbose recsz=$recsz last_few=$last_few near_end=$near_end
+
+sm commit_xct
+for {set i 1} {$i <= $nrecs} {incr i} {
+    sm begin_xct
+    verbose creating record number $i of size $recsz
+    set r($i) [sm create_rec $f1 hdr1 $recsz $data]
+    verbose $i = $r($i)
+
+    verbose reading $last_few bytes from $near_end 
+    set read_result [sm read_rec $r($i) $near_end $last_few]
+    verbose read of $r($i) : $read_result
+    sm commit_xct
+}
+
+for {set i 1} {$i <= $nrecs} {incr i} {
+    sm begin_xct
+    verbose appending to record number $i = $r($i)
+    sm append_rec $r($i) abcd
+    set last_few [expr { $last_few + 4 } ]
+    verbose reading $last_few bytes from $near_end 
+    verbose check of append $r($i): [sm read_rec $r($i) $near_end $last_few]
+    sm commit_xct
+}
+
+sm begin_xct
+verbose Attempting scan ...
+set scan [sm scan_file_create $f1 t_cc_record]
+set pin [sm scan_file_next $scan 0]
+while {$pin != "NULL"} {
+    verbose found record [sm pin_rid $pin]
+    set pin [sm scan_file_next $scan 0]
+}
+sm scan_file_destroy $scan
+verbose scan done
+
+
+dstats $f1
+sm commit_xct
+
+
+sm begin_xct
+set catcherr 1
+catch {sm get_du_statistics $f1} 
+sm commit_xct
+
+sm begin_xct
+
+verbose destroying all records through a scan...
+set scan [sm scan_file_create $f1 t_cc_record]
+set pin [sm scan_file_next $scan 0]
+while {$pin != "NULL"} {
+    sm destroy_rec [sm pin_rid $pin]
+    set pin [sm scan_file_next $scan 0]
+}
+sm scan_file_destroy $scan
+
+sm destroy_file $f1
+verbose Verifying file destroy -- THIS SHOULD GENERATE 2 ERRORS
+
+catch {sm scan_recs $f1} catcherr
+verbose (EXPECTED) scan_recs error: $catcherr
+catch {sm read_rec $r(2) 0 0} catcherr
+verbose (EXPECTED) read_rec error: $catcherr
+
+verbose aborting file destroy
+sm abort_xct
+
+verbose "re-scanning file"
+
+sm begin_xct
+catch {sm scan_recs $f1} catcherr
+sm destroy_file $f1
+verbose committing file destroy
+sm commit_xct
+
+sm begin_xct
+verbose Verifying file destroy -- THIS SHOULD GENERATE 2 ERRORS
+
+catch {sm scan_recs $f1} catcherr
+verbose (EXPECTED) scan_recs error: $catcherr
+catch {sm read_rec $r(2) 0 0} catcherr
+verbose (EXPECTED) read_rec error: $catcherr
+
+sm commit_xct
+verbose committed last xct
+
+
+unset i r 
+unset read_result
+unset pin scan
+unset f1
+unset catcherr
+unset last_few near_end
+}
+
+

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: diskrw.cpp,v 1.134 2007/05/18 21:53:42 nhall Exp $
+ $Id: diskrw.cpp,v 1.135 2007/06/28 21:23:41 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -80,7 +80,7 @@ struct iovec {
 	void	*iov_base;
 	int	iov_len;
 };
-#elif !defined(AIX41) && !defined(SOLARIS2) && !defined(OSF1) && !defined(Linux)
+#elif !defined(AIX41) && !defined(SOLARIS2) && !defined(OSF1) && !defined(Linux) && !defined(MacOSX)
 extern "C" {
 	extern int writev(int, const struct iovec *, int);
 	extern int readv(int, const struct iovec *, int);

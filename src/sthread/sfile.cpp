@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: sfile.cpp,v 1.28 2007/05/18 21:53:43 nhall Exp $
+ $Id: sfile.cpp,v 1.29 2007/06/28 21:23:41 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -177,6 +177,9 @@ int write(int x, const void *y, int z)
 /* XXX same hack, but not certain it applies to all solarii versions.
    Solaris  5.8 for certain, 5.7 looks like it has it also */
 #define	SFILE_HACK_SIZE_T(int_ptr)	((unsigned int *)(int_ptr))
+#elif defined(MacOSX)
+/* It looks like MacOS X uses socklen_t* which is unsigned int* */
+#define	SFILE_HACK_SIZE_T(int_ptr)	((socklen_t *)(int_ptr))
 #else
 #define	SFILE_HACK_SIZE_T(int_ptr)	(int_ptr)
 #endif

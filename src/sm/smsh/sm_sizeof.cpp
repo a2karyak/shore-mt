@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: sm_sizeof.cpp,v 1.9 2007/05/18 21:50:59 nhall Exp $
+ $Id: sm_sizeof.cpp,v 1.10 2007/06/28 21:40:01 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -35,6 +35,7 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #include <iostream>
 
 #include "page_s.h"
+#include "lock_x.h"
 #if 0
 #define SM_SOURCE
 #include "sm_int_2.h"

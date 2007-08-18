@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: stime.cpp,v 1.37 2006/01/29 18:51:07 bolo Exp $
+ $Id: stime.cpp,v 1.38 2007/06/28 21:18:14 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -200,7 +200,7 @@ static inline int sign(const int i)
 }
 
 
-#if !defined(HPUX8) && !defined(__xlC__) && !defined(_WIN32) && !defined(Linux) && !defined(SOLARIS2) && !defined(OSF1)
+#if !defined(HPUX8) && !defined(__xlC__) && !defined(_WIN32) && !defined(Linux) && !defined(SOLARIS2) && !defined(OSF1) && !defined(MacOSX)
 static inline int abs(const int i)
 {
 	return i >= 0 ? i : -i;

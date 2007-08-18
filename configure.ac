@@ -2,7 +2,7 @@
 # Process this file with autoconf to produce a configure script.
 
 AC_PREREQ(2.59)
-AC_INIT(Shore-Storage-Manager, 5.0, Noone._Sadly-_this_is_unsupported_software.)
+AC_INIT(Shore-Storage-Manager, 5.0.1, Noone._Sadly-_this_is_unsupported_software.)
 AC_CONFIG_HEADERS([config/shore-config.h:config/shore-config-h.in])
 AC_CONFIG_SRCDIR([config/shore.def])
 AC_COPYRIGHT(COPYRIGHT-NOTICE)
@@ -499,6 +499,21 @@ AC_MSG_RESULT([mac osx powerpc])
 ],
 [])
 
+AC_PREPROC_IFELSE([AC_LANG_PROGRAM(
+[[#if defined(__i386__) && defined(__APPLE__)
+#else
+#error not this architecture
+#endif
+]])], 
+[AC_DEFINE(I386,,[])
+AC_DEFINE(MacOSX,,[])
+AC_DEFINE(__MacOSX__)
+AC_DEFINE(IS_I386_MACOSX,1,[i386 macosx])
+AC_DEFINE(IS_MACOSX,1,[apple mac osx])
+AC_MSG_RESULT([mac osx i386])
+],
+[])
+
 ## -------------- IS NT OR UNIX
 
 AH_VERBATIM([IS_UNIX],[/*simply !IS_NT*/
@@ -923,16 +938,25 @@ AM_CONDITIONAL([PURECOV], [test x$purecov = xtrue])
 AC_CONFIG_FILES([Makefile])
 AC_CONFIG_FILES([config/Makefile])
 AC_CONFIG_FILES([tools/Makefile])
+
 AC_CONFIG_FILES([src/Makefile])
+
 AC_CONFIG_FILES([src/fc/Makefile])
 AC_CONFIG_FILES([src/fc/tests/Makefile])
+
 AC_CONFIG_FILES([src/sthread/Makefile])
 AC_CONFIG_FILES([src/sthread/tests/Makefile])
+
 AC_CONFIG_FILES([src/common/Makefile])
 AC_CONFIG_FILES([src/common/tests/Makefile])
+
 AC_CONFIG_FILES([src/sm/Makefile])
 AC_CONFIG_FILES([src/sm/tests/Makefile])
 AC_CONFIG_FILES([src/sm/smsh/Makefile])
+AC_CONFIG_FILES([src/sm/smsh/scripts/Makefile])
+AC_CONFIG_FILES([src/sm/smsh/lib/Makefile])
+
+AC_CONFIG_FILES([doc/Makefile])
 
 
 AC_OUTPUT

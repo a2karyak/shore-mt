@@ -168,6 +168,9 @@
 /* i386 linux */
 #undef IS_I386_LINUX
 
+/* i386 macosx */
+#undef IS_I386_MACOSX
+
 /* i386 netbsd */
 #undef IS_I386_NETBSD
 

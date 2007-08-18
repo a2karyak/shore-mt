@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: sdisk_unix.cpp,v 1.21 2007/05/18 21:53:43 nhall Exp $
+ $Id: sdisk_unix.cpp,v 1.22 2007/06/28 21:23:41 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -81,7 +81,7 @@ extern class sthread_stats SthreadStats;
 #include <iostream>
 #endif
 
-#if !defined(AIX41) && !defined(SOLARIS2) && !defined(_WIN32) && !defined(OSF1) && !defined(Linux)
+#if !defined(AIX41) && !defined(SOLARIS2) && !defined(_WIN32) && !defined(OSF1) && !defined(Linux) && !defined(MacOSX)
 extern "C" {
 	extern int writev(int, const struct iovec *, int);
 	extern int readv(int, const struct iovec *, int);

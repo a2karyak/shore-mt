@@ -1,8 +1,9 @@
 ## Process this file with automake to produce Makefile.in
+SUBDIRS = scripts lib
 include $(top_srcdir)/Makefile.generic 
 EXTRA_DIST = test-short testall testall.maintainer \
 	    .shoreconfig.example .smshrc.example runsmsh \
-	    README README.2PC runtest run.cd.perf
+	    README README.2PC README.how-to-start runtest run.cd.perf 
 
 AM_CXXFLAGS          += -I$(top_srcdir)/src/fc \
 		       -I$(top_srcdir)/src/sthread \
