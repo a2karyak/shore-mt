@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: sort_funcs2.cpp,v 1.21 2007/05/18 21:50:59 nhall Exp $
+ $Id: sort_funcs2.cpp,v 1.22 2007/08/21 19:46:14 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -327,9 +327,15 @@ test_scanrt(
     nbox_t::sob_cmp_t op,
     const nbox_t&	thekey,
     bool 	nullsok,
+#ifdef USE_LID
     bool 	use_logical,
+/* end USE_LID*/
+#endif
     stid_t&	stid,	
+#ifdef USE_LID
     lrid_t&	lidx,
+/* end USE_LID*/
+#endif
     char *	stringbuffer,
     vec_t&	zeroes,
     bool	verbose
@@ -339,13 +345,17 @@ test_scanrt(
     scan_rt_i* scanp = 0;
     deleter	d4; // auto_delete for scan_index_i
 
+#ifdef USE_LID
     if (use_logical)  {
 	scanp = new scan_rt_i(lidx.lvid, lidx.serial, 
 			  op,
 			  thekey,
 			  nullsok
 			  );
-    } else {
+    } else 
+/* end USE_LID*/
+#endif
+    {
 	scanp = new scan_rt_i(stid,
 		      op,
 		      thekey,
@@ -360,22 +370,33 @@ test_scanrt(
     w_rc_t 	rc;
     int 	i;
     pin_i	handle;
+#ifdef USE_LID
     lrid_t	lrid;
+/* end USE_LID*/
+#endif
     rid_t	rid;
     nbox_t 	key;
     smsize_t    elen;
     char *	el = stringbuffer;
     bool 	eof;
+#ifdef USE_LID
     if(use_logical) {
 	elen = sizeof(lrid);
-    } else {
+    } else 
+/* end USE_LID*/
+#endif
+    {
 	elen = sizeof(rid);
     }
     for (i = 0; (!(rc = scanp->next(key, el, elen, eof)) && !eof) ; i++)  {
+#ifdef USE_LID
 	if(use_logical) {
 	    w_assert1(elen == smsize_t(sizeof(lrid_t)));
 	    memcpy(&lrid, el, elen);
-	} else {
+	} else 
+/* end USE_LID*/
+#endif
+	{
 	    w_assert1(elen == smsize_t(sizeof(rid_t)));
 	    memcpy(&rid, el, elen);
 	}
@@ -406,11 +427,15 @@ test_scanrt(
 	 * Now verify that this is really the key of that object
 	 */
 	smsize_t tail=0;
+#ifdef USE_LID
 	if(use_logical) {
 	    tail = sizeof(lrid_t);
 	    W_DO(handle.pin(lrid.lvid, lrid.serial, zeroes.size()));
 	    DBG(<<"Pinning " << lrid.lvid << "." << lrid.serial);
-	} else {
+	} else 
+/* end USE_LID*/
+#endif
+	{
 	    tail = sizeof(rid_t);
 	    W_DO(handle.pin(rid, zeroes.size()));
 	    DBG(<<"Pinning " << rid << " size=" << zeroes.size());
@@ -460,6 +485,7 @@ test_scanrt(
 	    memcpy( ((char *)(&bodykey._u))+amt, handle.body(), l);
 	}
 
+#ifdef USE_LID
 	if(use_logical) {
 	    lrid_t	oid;
 	    if(klen == 0) {
@@ -474,7 +500,10 @@ test_scanrt(
 			<<endl;
 		stop();
 	    }
-	} else {
+	} else 
+/* end USE_LID*/
+#endif
+	{
 	    rid_t	oid;
 	    if(klen == 0) {
 		// oid is already in stringbuffer
@@ -507,9 +536,13 @@ test_scanrt(
 
 	if(klen == 0) {
 	    if(verbose) {
+#ifdef USE_LID
 		if(use_logical) {
 		    cerr << "NULL key, object id is " << lrid <<endl;
-		} else {
+		} else 
+/* end USE_LID*/
+#endif
+		{
 		    cerr << "NULL key, object id is " << rid << endl;
 		}
 	    }
@@ -521,27 +554,39 @@ test_scanrt(
 	    if(bodyk == kk) {
 		// OK
 		if(verbose) {
+#ifdef USE_LID
 		    if(use_logical) {
 			cerr << "Matched key, object id is " << lrid <<endl;
-		    } else {
+		    } else 
+/* end USE_LID*/
+#endif
+		    {
 			cerr << "Matched key, object id is " << rid << endl;
 		    }
 		}
 	    } else if(bodyk == duplicate_values[0]) {
 		// duplicate value
 		if(verbose) {
+#ifdef USE_LID
 		    if(use_logical) {
 			cerr << "Duplicate key, object id is " << lrid <<endl;
-		    } else {
+		    } else 
+/* end USE_LID*/
+#endif
+		    {
 			cerr << "Duplicate key, object id is " << rid << endl;
 		    }
 		}
 	    } else  {
 		cerr << "Mismatched key, object" <<endl;
 		cerr << "...index key is " << kk <<endl; 
+#ifdef USE_LID
 		if(use_logical) {
 		    cerr << "...object id is " << lrid <<endl;
-		} else {
+		} else 
+/* end USE_LID*/
+#endif
+		{
 		    cerr << "...object id is " << rid << endl;
 		}
 		cerr << "...key in body is " << bodyk <<endl;
@@ -719,11 +764,15 @@ t_test_bulkload_rtree(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 	deleter	    d1; // auto-delete
 	deleter	    d2; // auto-delete
 
+#ifdef USE_LID
 	lfid_t      lfid; // logical case
 	lstid_t     lidx; // logical case
+/* end USE_LID*/
+#endif
 	stid_t 	    stid; // phys case
 	stid_t 	    fid;  // phys case
 	vid_t  	    vid;  // phys case
+#ifdef USE_LID
 	if (use_logical)  {
 	    w_istrstream anon(av[vid_arg]); 
 		    anon >> lidx.lvid;
@@ -742,7 +791,10 @@ t_test_bulkload_rtree(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 	    DO( sm->create_file(lfid.lvid, lfid.serial, ss_m::t_load_file) );
 	    DBG(<<"d2.set " << lfid); 
 	    d2.set(lfid);
-	} else {
+	} else 
+/* end USE_LID*/
+#endif
+	{
 	    DO( sm->create_md_index(
 			atoi(av[vid_arg]), 
 			sm->t_rtree,  // non-unique
@@ -763,7 +815,10 @@ t_test_bulkload_rtree(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 	    /* Create the records in the original file */
 	    int		record_number=1;
 	    int 	i;	
+#ifdef USE_LID
 	    lrid_t  	lrid;
+/* end USE_LID*/
+#endif
 	    rid_t   	rid;
 	    for (i = 0; i < n; i++)  {
 		int kk = i - h;
@@ -818,6 +873,7 @@ t_test_bulkload_rtree(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 			box.print(cout, 0/*level*/);
 		}
 #endif
+#ifdef USE_LID
 		if (use_logical)  {
 		    vec_t oid(&lrid, sizeof(lrid));
 		    DO( sm->create_rec( lfid.lvid, lfid.serial, 
@@ -833,7 +889,10 @@ t_test_bulkload_rtree(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 
 		    DO( sm->append_rec(lrid.lvid, lrid.serial, oid) );
 		    /* APPEND OID */
-		} else {
+		} else 
+/* end USE_LID*/
+#endif
+		{
 		    vec_t oid(&rid, sizeof(rid));
 		    DO( sm->create_rec( fid, 
 				    hdr,
@@ -854,20 +913,33 @@ t_test_bulkload_rtree(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 
 	{   // Sort the file, preparing a file of key/oid 
 	    // pairs for bulk-ld
+#ifdef USE_LID
 	    lfid_t  olfid; // logical case
+/* end USE_LID*/
+#endif
 	    stid_t  ofid;  // physical case
 	    deleter d3;    // auto-delete
 
+#ifdef USE_LID
 	    if (use_logical)  {
 		DO( sm->create_file(olfid.lvid, olfid.serial, ss_m::t_load_file) );
 		DBG(<<"d3.set " << olfid);
 		d3.set(olfid); // auto-delete
-	    } else {
-		DO( sm->create_file(vid, ofid, ss_m::t_load_file, serial_t::null) );
+	    } else 
+/* end USE_LID*/
+#endif
+	    {
+		DO( sm->create_file(vid, ofid, ss_m::t_load_file
+#ifdef USE_LID
+			    , serial_t::null
+/* end USE_LID*/
+#endif
+			    ) );
 		DBG(<<"d3.set " << fid);
 		d3.set(ofid); // auto-delete
 	    }
 
+#ifdef USE_LID
 	    if (use_logical)  {
 		DO( sm->sort_file(lfid.lvid, lfid.serial,
 				olfid.lvid,
@@ -877,7 +949,10 @@ t_test_bulkload_rtree(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 				len_hint,
 				runsize,
 				runsize*page_sz));
-	    } else {
+	    } else 
+/* end USE_LID*/
+#endif
+	    {
 		DO( sm->sort_file(fid, ofid,
 				1, &vid,
 				kl,
@@ -909,6 +984,7 @@ t_test_bulkload_rtree(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 #endif
 
 	    sm_du_stats_t stats;
+#ifdef USE_LID
 	    if (use_logical)  {
 		w_rc_t rc =
 		sm->bulkld_md_index(lidx.lvid, lidx.serial,
@@ -932,7 +1008,10 @@ t_test_bulkload_rtree(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 		<< stats.rtree.entry_cnt
 		<<endl;
 		*/
-	    } else {
+	    } else 
+/* end USE_LID*/
+#endif
+	    {
 		w_rc_t rc =  sm->bulkld_md_index(stid, 1, &ofid, stats);
 		if(rc) {
 		    if(rc.err_num() == ss_m::eDUPLICATE) {
@@ -971,26 +1050,58 @@ t_test_bulkload_rtree(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 	// should return "num_duplicate_box" in both cases.
 	W_DO(test_scanrt(
 		num_duplicate_box, nbox_t::t_exact, duplicate_box, false,
+#ifdef USE_LID
 		use_logical, 
-		stid, lidx, stringbuffer, zeroes,
+/* end USE_LID*/
+#endif
+		stid, 
+#ifdef USE_LID
+		lidx, 
+/* end USE_LID*/
+#endif
+		stringbuffer, zeroes,
 		linked.verbose_flag));
 	W_DO(test_scanrt(
 		num_duplicate_box, nbox_t::t_exact, duplicate_box, true,
+#ifdef USE_LID
 		use_logical, 
-		stid, lidx, stringbuffer, zeroes,
+/* end USE_LID*/
+#endif
+		stid, 
+#ifdef USE_LID
+		lidx, 
+/* end USE_LID*/
+#endif
+		stringbuffer, zeroes,
 		linked.verbose_flag));
 
 	// scan  == Null
 	// should return #nulls or 0, depending on if nulls allowed
 	W_DO(test_scanrt(
 		numnulls, nbox_t::t_exact, nbox_t::Null, true,
+#ifdef USE_LID
 		use_logical, 
-		stid, lidx, stringbuffer, zeroes,
+/* end USE_LID*/
+#endif
+		stid, 
+#ifdef USE_LID
+		lidx, 
+/* end USE_LID*/
+#endif
+		stringbuffer, zeroes,
 		linked.verbose_flag));
 	W_DO(test_scanrt(
 		0, nbox_t::t_exact, nbox_t::Null, false,
+#ifdef USE_LID
 		use_logical, 
-		stid, lidx, stringbuffer, zeroes,
+/* end USE_LID*/
+#endif
+		stid, 
+#ifdef USE_LID
+		lidx, 
+/* end USE_LID*/
+#endif
+		stringbuffer, zeroes,
 		linked.verbose_flag));
 
 	// scan: universe overlaps
@@ -998,47 +1109,102 @@ t_test_bulkload_rtree(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 	// or all-numnulls
 	W_DO(test_scanrt(
 		n, nbox_t::t_overlap, universe, true,
+#ifdef USE_LID
 		use_logical, 
-		stid, lidx, stringbuffer, zeroes,
+/* end USE_LID*/
+#endif
+		stid, 
+#ifdef USE_LID
+		lidx, 
+/* end USE_LID*/
+#endif
+		stringbuffer, zeroes,
 		linked.verbose_flag));
 	W_DO(test_scanrt(
 		(n-numnulls), nbox_t::t_overlap, universe, false,
+#ifdef USE_LID
 		use_logical, 
-		stid, lidx, stringbuffer, zeroes,
+/* end USE_LID*/
+#endif
+		stid, 
+#ifdef USE_LID
+		lidx, 
+/* end USE_LID*/
+#endif
+		stringbuffer, zeroes,
 		linked.verbose_flag));
 
 	// scan: Null covers nothing except Null
 	// so should return numnulls or 0
 	W_DO(test_scanrt(
 		numnulls, nbox_t::t_cover, nbox_t::Null, true,
+#ifdef USE_LID
 		use_logical, 
-		stid, lidx, stringbuffer, zeroes,
+/* end USE_LID*/
+#endif
+		stid, 
+#ifdef USE_LID
+		lidx, 
+/* end USE_LID*/
+#endif
+		stringbuffer, zeroes,
 		linked.verbose_flag));
 	W_DO(test_scanrt(
 		0, nbox_t::t_cover, nbox_t::Null, false,
+#ifdef USE_LID
 		use_logical, 
-		stid, lidx, stringbuffer, zeroes,
+#endif
+		stid, 
+#ifdef USE_LID
+		lidx, 
+/* end USE_LID*/
+#endif
+		stringbuffer, zeroes,
 		linked.verbose_flag));
 
 	// scan: universe covers all
 	// should return all or all-numnulls
 	W_DO(test_scanrt(
 		(n-numnulls), nbox_t::t_cover, universe, false,
+#ifdef USE_LID
 		use_logical, 
-		stid, lidx, stringbuffer, zeroes,
+/* end USE_LID*/
+#endif
+		stid, 
+#ifdef USE_LID
+		lidx, 
+/* end USE_LID*/
+#endif
+		stringbuffer, zeroes,
 		linked.verbose_flag));
 	W_DO(test_scanrt(
 		n, nbox_t::t_cover, universe, true,
+#ifdef USE_LID
 		use_logical, 
-		stid, lidx, stringbuffer, zeroes,
+/* end USE_LID*/
+#endif
+		stid, 
+#ifdef USE_LID
+		lidx, 
+/* end USE_LID*/
+#endif
+		stringbuffer, zeroes,
 		linked.verbose_flag));
 
 	// scan: Null inside
 	// Null is inside everything, including Null
 	W_DO(test_scanrt(
 		n, nbox_t::t_inside, nbox_t::Null, true,
+#ifdef USE_LID
 		use_logical, 
-		stid, lidx, stringbuffer, zeroes,
+/* end USE_LID*/
+#endif
+		stid, 
+#ifdef USE_LID
+		lidx, 
+/* end USE_LID*/
+#endif
+		stringbuffer, zeroes,
 		linked.verbose_flag));
 
 	// This is rather flaky: if nulls aren't allowed
@@ -1047,8 +1213,16 @@ t_test_bulkload_rtree(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 	// ONLY to results, not to keys
 	W_DO(test_scanrt(
 		(n-numnulls), nbox_t::t_inside, nbox_t::Null, false,
+#ifdef USE_LID
 		use_logical, 
-		stid, lidx, stringbuffer, zeroes,
+/* end USE_LID*/
+#endif
+		stid, 
+#ifdef USE_LID
+		lidx, 
+/* end USE_LID*/
+#endif
+		stringbuffer, zeroes,
 		linked.verbose_flag));
 
 

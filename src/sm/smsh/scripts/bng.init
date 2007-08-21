@@ -1,6 +1,6 @@
 # <std-header style='tcl' orig-src='shore'>
 #
-#  $Id: bng.init,v 1.11 2007/05/18 21:49:00 nhall Exp $
+#  $Id: bng.init,v 1.12 2007/08/21 19:43:59 nhall Exp $
 #
 # SHORE -- Scalable Heterogeneous Object REpository
 #
@@ -56,11 +56,7 @@ if {$volid == 0} {
 	    set force_arg noforce
 
 	    set err 0
-	    if {$Use_logical_id} {
-		catch {sm mount_dev $dev} err
-	    } else {
-		catch {sm mount_dev $dev $vol} err
-	    }
+	    catch {sm mount_dev $dev $vol} err
 	    if {$err == 1} {
 		set force_arg noforce
 		verbose Result of mount: $err ...
@@ -77,11 +73,7 @@ if {$volid == 0} {
 
 	verbose "mounting " $dev "..."
 	set err 0
-	if {$Use_logical_id} {
-	    sm mount_dev $dev
-	} else {
-	    sm mount_dev $dev $vol
-	}
+	sm mount_dev $dev $vol
 	set vol_list [sm list_volumes $dev]
 	assert {expr [llength $vol_list] == 0}
 
@@ -96,15 +88,7 @@ if {$volid == 0} {
 	if { $existing == 0 } {
 	    verbose sm create_vol $dev $vol $size
 	    sm create_vol $dev $vol $size
-	    if {$Use_logical_id} {
-		verbose add logical id index on $vol
-		sm add_logical_id_index $vol 100
-	    }
-	    if {$Use_logical_id} {
-		assert {expr [string compare [sm has_logical_id_index $vol] TRUE] == 0}
-	    } else {
-		assert {expr [string compare [sm has_logical_id_index $vol] TRUE]}
-	    }
+	    assert {expr [string compare [sm has_logical_id_index $vol] TRUE]}
 	}
 
 	set quota [sm get_device_quota $dev]
@@ -134,13 +118,8 @@ if {$volid == 0} {
 	set vol  [lindex $i 2]
 
 	set err 0
-	if {$Use_logical_id} {
-	    verbose "mounting " $dev 
-	    catch {sm mount_dev $dev} err
-	} else {
-	    verbose "mounting " $dev $vol
-	    catch {sm mount_dev $dev $vol} err
-	}
+	verbose "mounting " $dev $vol
+	catch {sm mount_dev $dev $vol} err
 	if {$err == 1} {
 	    verbose Result of mount: $err ...
 	}

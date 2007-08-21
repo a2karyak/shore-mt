@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='LID_H'>
 
- $Id: lid.h,v 1.64 1999/06/07 19:04:09 kupsch Exp $
+ $Id: lid.h,v 1.65 2007/08/21 19:50:42 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -134,46 +134,27 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 class lid_m : public smlevel_4 {
 public:
 
-    // define vol_lid_info_t entry_type_t, and lid_entry_t
-#   ifdef HP_CC_BUG_3
-	typedef ::lid_entry_t lid_entry_t;
-	enum entry_type_t { t_invalid	= ::t_invalid,
-			    t_rid	= ::t_rid,
-			    t_store	= ::t_store,
-			    t_page	= ::t_page,
-			    t_lid	= ::t_lid,
-			    t_max	= ::t_max
-        };
-	typedef ::vol_lid_info_t vol_lid_info_t;
+
+#ifdef HP_CC_BUG_3
+    typedef ::vol_lid_info_t vol_lid_info_t;
 #   else
 #ifndef LID_S_H
 #   	include <lid_s.h>
 #endif
 #   endif
 
-    // ref_type_t is used for calls which need to know whether a 
-    // serial number points to a local or remote object
-    enum ref_type_t {
-	local_ref = vol_lid_info_t::local_ref, 
-	remote_ref = vol_lid_info_t::remote_ref
-    };
+
     
-    // various restrictions on volume lookups
-    enum vol_restrict_t {
-		local_volumes_only = 1, // only locally mounted 
-		volumes_mounted,	// mounted whether local or not
-		volumes_anywhere};	// any volume anywhere
 
     NORET			lid_m(
-	int 			    max_vols,
-	int 			    max_lid_cache);
+	int 			    max_vols
+	);
     NORET			~lid_m();
 
     rc_t			add_local_volume(
 	vid_t 			    vid, 
-	const lvid_t& 		    lvid, 
-	const lpid_t& 		    lid_index,
-	const lpid_t& 		    remote_index);
+	const lvid_t& 		    lvid
+	);
     rc_t			add_remote_volume(
 	vid_t 			    vid, 
 	const lvid_t& 		    lvid);
@@ -182,147 +163,37 @@ public:
 
     bool			is_mounted(const lvid_t& lvid);
 
-    // looking up a rid or stid returns a new serial# (id) which
-    // is the serial number of the object for the volume on which
-    // it resides.
-    rc_t			lookup(lid_t& lid, rid_t& rid);
-    rc_t			lookup(lid_t& lid, stid_t& stid);
-    rc_t			lookup(lid_t& lid, stpgid_t& stpgid);
     rc_t			lookup(const lvid_t& lvid, vid_t& vid);
-    rc_t			lookup(lid_t& lid, lid_entry_t& lid_entry, vid_t& vid);
-
-    // for use by remote_m in handling rpc
-    rc_t			lookup_srv(lid_t& lid, lid_entry_t& lid_entry);
 
     rc_t			get_lvid(
 	const vid_t& 		    vid, 
 	lvid_t& 		    lvid);
 
-    // lookup_local converts a logical ID referencing something
-    // on a remote volume into the ID local to the remote volume
-    rc_t			lookup_local(lid_t& lid);
-
-    //
-    // The associate functions map a logical ID to some physical or
-    // other id.  If the "replace" parameter is false,
-    // the the id is assumed to be a new entry.  If true,
-    // the the id is assumes to already be in the index and should
-    // be replaced.
-    //
-    rc_t			associate(
-	const lvid_t& 		    lvid,
-	const serial_t& 	    id,
-	const rid_t& 		    rid,
-	bool 			    replace = false);
-    rc_t			associate(
-	const lvid_t& 		    lvid,
-	const serial_t& 	    id,
-	const stid_t& 		    stid,
-	bool 			    replace = false);
-    rc_t			associate(
-	const lvid_t& 		    lvid,
-	const serial_t& 	    id,
-	const stpgid_t& 	    stpgid,
-	bool 			    replace = false);
-    rc_t			associate(
-	const lvid_t& 		    lvid, 
-	const serial_t& 	    id,
-	const lvid_t& 		    remote_lvid,
-	const serial_t& 	    remote_serial);
-    			
-				// remove lid from index and cache
-    rc_t			remove(const lvid_t& lvid, const serial_t& id);
-				// remove lid from cache
-    void			cache_remove(const lid_t& id);
-
-    rc_t			generate_new_serials(
-	const lvid_t&		    lvid,
-	vid_t& 			    vid,
-	int 			    count,  // number to generate
-	serial_t& 		    start,  // first serial# generated
-	ref_type_t 		    ref_type);
-
-    rc_t			print_index(const lvid_t& lvid);
-
-    bool& 			cache_enable()
-    {return _id_cache_enable;}
 
     rc_t			generate_new_volid(lvid_t& lvid);
-    rc_t			check_duplicate_remote(
-	const lid_t& 		    remote_id, 
-	const lvid_t& 		    local_lvid,
-	serial_t& 		    local_id, 
-	bool& 		    found);
-
-    rc_t			test_cache(const lvid_t& lvid, int num_add);
-    int 			cache_size();
-
-    /*
-     *  Various root_index entries for logical ID infor on a volume
-     */
-    static const char* 		local_index_key;
-    static const char* 		remote_index_key;
 
 private:
 
-    rc_t			_lookup(
-	lid_t& 			    lid,
-	bool			    snap_only, 
-	lid_entry_t& 		    entry,
-	vid_t&			    vid,
-	bool& 		    found, 
-	bool& 		    cache_hit);
-    rc_t			_associate(
-	const lvid_t& 		    lvid,
-	const serial_t& 	    id, 
-	const lid_entry_t& 	    entry,
-	bool			    replace);
-    rc_t			_get_serials_from_server(
-	vol_lid_info_t& 	    vol_info, 
-	ref_type_t 		    ref_type, 
-	int 			    count); 
    
-    // table of volumes with logical IDs
+    // Now, without LIDs, it is just the association of
+    // logical id and physical id volume ids
     w_hash_t<vol_lid_info_t, lvid_t>* _vol_table;
     int				_num_vols;
     smutex_t			_vol_mutex;
 
-    // operations on the table
-    rc_t			_get_index_id(
-	const lvid_t& 		    lvid,
-	lpid_t& 		    lid_iid,
-	lpid_t&            	    remote_iid,
-	vol_restrict_t		    vol_restrict);
     rc_t			_get_vol_info(
 	const lvid_t& 	            lvid, 
 	vol_lid_info_t& 	    vol_info);
     rc_t			_add_volume(
 	vid_t 			    vid,
-	const lvid_t& 		    lvid,
-	const lpid_t& 		    lid_index,
-	const lpid_t& 		    remote_index);
+	const lvid_t& 		    lvid
+	);
     rc_t			_remove_volume(lvid_t lvid);
     rc_t			_get_lvid(const vid_t& vid, lvid_t& lvid);
-    rc_t			_generate_new_serials(
-	const lvid_t&		    lvid, 
-	vid_t& 			    vid,
-	int			    count,
-	serial_t& 		    start,
-	ref_type_t 		    ref_type);
-
-    /*
-     * cache of recent lid lookups
-     */
-    hash_lru_t<lid_cache_entry_t, lid_cache_key_t>* _id_cache;
-    bool			_id_cache_enable;  
-    void 			_add_to_cache(
-	const lid_t& 		    lid,
-	const lid_entry_t& 	    entry,
-	vid_t 			    vid);
 
     vol_lid_info_t* 		_lookup_lvid(
-	const lvid_t&		    lvid,
-	vol_restrict_t		    vol_restrict);
+	const lvid_t&		    lvid
+	);
 
     // disabled
     NORET			lid_m(const lid_m&);
@@ -408,11 +279,11 @@ private:
 inline rc_t
 lid_m::add_local_volume(
     vid_t 		vid, 
-    const lvid_t& 	lvid, 
-    const lpid_t& 	lid_index,
-    const lpid_t& 	remote_index)
+    const lvid_t& 	lvid
+    )
 {
-    return _add_volume(vid, lvid, lid_index, remote_index);
+    return _add_volume(vid, lvid
+	    );
 }
 
 inline rc_t
@@ -422,7 +293,8 @@ lid_m::add_remote_volume(
 {
     lpid_t	dummy_lid_index;
     dummy_lid_index._stid.vol = vid;  // mark as volume on remote site
-    return _add_volume(vid, lvid, dummy_lid_index, dummy_lid_index);
+    return _add_volume(vid, lvid
+		);
 }
 
 inline rc_t
@@ -433,58 +305,6 @@ lid_m::get_lvid(
     return _get_lvid(vid, lvid);
 }
 
-inline rc_t
-lid_m::generate_new_serials(
-    const lvid_t&	lvid,
-    vid_t& 		vid,
-    int 		count,  // number to generate
-    serial_t& 		start,  // first serial# generated
-    ref_type_t 		ref_type)
-{
-    return _generate_new_serials(lvid, vid, count, start, ref_type);
-}
-
-inline rc_t
-lid_m::associate(const lvid_t& lvid, const serial_t& serial, const rid_t& rid, bool replace)
-{
-    lid_entry_t      entry(rid);
-    return _associate(lvid, serial, entry, replace);
-}
-
-inline int
-lid_m::cache_size()
-{
-    return _id_cache->size();
-}
-
-inline rc_t
-lid_m::associate(const lvid_t& lvid, const serial_t& serial, const stid_t& stid, bool replace)
-{
-    lid_entry_t	entry(stid.store);
-    return _associate(lvid, serial, entry, replace);
-}
-
-inline rc_t
-lid_m::associate(const lvid_t& lvid, const serial_t& serial, const stpgid_t& stpgid, bool replace)
-{
-    lid_entry_t	entry;
-    if (stpgid.is_stid()) {
-	entry = lid_entry_t(stpgid.store());
-    } else {
-	spid_t pg(stpgid.lpid);
-	entry = lid_entry_t(pg);
-    }
-    return _associate(lvid, serial, entry, replace);
-}
-
-inline rc_t 
-lid_m::associate(const lvid_t& lvid, const serial_t& serial,
-                      const lvid_t& remote_lvid, const serial_t& remote_serial)
-{
-    lid_t       id(remote_lvid, remote_serial);
-    lid_entry_t entry(id);
-    return _associate(lvid, serial, entry, false);
-}
 
 /*<std-footer incl-file-exclusion='LID_H'>  -- do not edit anything below this line -- */
 

@@ -2,7 +2,7 @@
 #define STHREAD_STATS_COLLECT_ENUM_GEN_H
 
 /* DO NOT EDIT --- GENERATED from sthread_stats.dat by stats.pl
-		   on Sat Aug 18 14:25:50 2007
+		   on Tue Aug 21 15:07:55 2007
 
 <std-header orig-src='shore' genfile='true'>
 

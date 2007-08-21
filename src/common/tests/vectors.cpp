@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: vectors.cpp,v 1.25 2006/03/14 05:31:24 bolo Exp $
+ $Id: vectors.cpp,v 1.26 2007/08/21 19:50:07 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -33,7 +33,6 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 
 #include <w.h>
 #include <basics.h>
-#include <serial_t.h>
 #include <vec_t.h>
 #include <zvec_t.h>
 #include <w_debug.h>

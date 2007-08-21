@@ -16,7 +16,7 @@ EXTRA_DIST =  \
 	btree.2all btree.2all.print btree.3 btree.30 btree.31 btree.32 \
 	btree.33 btree.3a btree.4 btree.5 btree.6 btree.6int \
 	btree.7 btree.8 btree.9 btree.all btree.big.1 \
-	btree.big.1.keys btree.convert.1 btree.destroy.1 \
+	btree.big.1.keys btree.destroy.1 \
 	btree.err.1 btree.err.2 btree.err.3 btree.err.4 \
 	btree.load btree.load.multi btree.long.all \
 	btree.simple.1 btree_split.1 \
@@ -34,12 +34,11 @@ EXTRA_DIST =  \
 	file.all file.long.all file.many file.many.perf  \
 	file.perf file.perf2 file.perf3 \
 	file.undo.1 file.undo.2 file_destroy.1 \
-	forward.1 \
 	free.all free_ext free_page freepage.bug \
 	lgrec.1 lgrec.2 lgrec.3 lgrec.4 lgrec.5 lgrec.6 \
 	lgrec.all lgrec.long.all \
 	lgrec.very.0 lgrec.very.1 lgrec.very.2 lgrec.very.3 \
-	lid.1 lid.all lid.perf loadrec.perf  \
+	loadrec.perf  \
 	lock.1 lock.all lock.hier lock.hier_sm \
 	lock.perf lock.upgrade lockfile_sm lockrec_pin lockrec_sm \
 	long.all \
@@ -61,6 +60,6 @@ EXTRA_DIST =  \
 	thread.1 thread_fork_example \
 	tmpfile.1 tmpfile.2 tmpfile.3 trans.1 \
 	trans.2 trans.3 trans.4 trans.all trans.lib \
-	vol.1 vol.2 vol.3 vol.all vol.init \
+	vol.1 vol.3 vol.all vol.init \
 	write.perf write.perf.restart
 

@@ -8,7 +8,7 @@ EXTRA_DIST = test_stat.dat testall
 check_HEADERS     = test_stat.h
 
 check_PROGRAMS     = bitmap$(EXEEXT)  kvl$(EXEEXT) opaque$(EXEEXT) \
-		   stats$(EXEEXT) testserial$(EXEEXT) vectors$(EXEEXT)\
+		   stats$(EXEEXT) vectors$(EXEEXT)\
 		   errcodes$(EXEEXT) 
 TESTS = testall
 
@@ -23,8 +23,6 @@ kvl_SOURCES      = kvl.cpp
 opaque_SOURCES      = opaque.cpp
 
 stats_SOURCES      = test_stat.cpp stats.cpp
-
-testserial_SOURCES      = testserial.cpp
 
 vectors_SOURCES      = vectors.cpp
 

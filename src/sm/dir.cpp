@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: dir.cpp,v 1.105 2000/02/02 03:57:28 bolo Exp $
+ $Id: dir.cpp,v 1.106 2007/08/21 19:50:42 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -440,7 +440,8 @@ dir_vol_m::_create_dir(vid_t vid)
 
     // add the directory index to the directory index
     sinfo_s sinfo(stid.store, t_index, 100, t_uni_btree, t_cc_none,
-		  root.page, serial_t::null, 0, NULL);
+		  root.page, 
+		  0, NULL);
     vec_t key, el;
     key.put(&sinfo.store, sizeof(sinfo.store));
     el.put(&sinfo, sizeof(sinfo));

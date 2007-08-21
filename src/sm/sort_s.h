@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='SORT_S_H'>
 
- $Id: sort_s.h,v 1.30 2007/05/18 21:43:29 nhall Exp $
+ $Id: sort_s.h,v 1.31 2007/08/21 19:50:44 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -38,8 +38,6 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #pragma interface
 #endif
 
-#define OLDSORT_COMPATIBILITY
-#ifdef OLDSORT_COMPATIBILITY
 
 //
 // info on keys
@@ -80,27 +78,24 @@ struct key_info_t {
     }
 };
 
+
 //
 // sort parameter
 //
 struct sort_parm_t {
     uint2_t run_size;		// size for each run (# of pages)
     vid_t   vol;		// volume for files
-    serial_t logical_id;	// logical oid
     bool   unique;		// result unique ?
     bool   ascending;		// ascending order ?
     bool   destructive;	// destroy the input file at the end ?
-    bool   keep_lid;		// preserve logical oid for recs in sorted
-				// file -- only for destructive sort
-    lvid_t   lvid;		// logical volume id
     smlevel_3::sm_store_property_t property; // temporary file ?
 
     sort_parm_t() : run_size(10), unique(false), ascending(true),
-		    destructive(false), keep_lid(false),
-		    lvid(lvid_t::null), property(smlevel_3::t_regular) {}
+		    destructive(false), 
+		    property(smlevel_3::t_regular) {}
 };
 
-#endif /* OLDSORT_COMPATIBILITY */
+#define OLDSORT_COMPATIBILITY
 
 /*
  * For new sort:

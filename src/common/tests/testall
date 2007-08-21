@@ -2,7 +2,7 @@
 
 # <std-header style='shell' orig-src='shore'>
 #
-#  $Id: testall,v 1.1 2007/05/18 21:33:27 nhall Exp $
+#  $Id: testall,v 1.2 2007/08/21 19:50:06 nhall Exp $
 #
 # SHORE -- Scalable Heterogeneous Object REpository
 #
@@ -76,7 +76,6 @@ rm -f /tmp/all*.out
 execute bitmap $outf bitmap.out
 execute errcodes $outf
 execute opaque $outf opaque.out
-execute testserial $outf testserial.out
 execute vectors $outf vectors.out
 execute stats $outf stats.out
 execute run_kvl $outf kvl.out

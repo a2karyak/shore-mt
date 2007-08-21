@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: file.cpp,v 1.195 2007/05/18 21:43:25 nhall Exp $
+ $Id: file.cpp,v 1.196 2007/08/21 19:50:42 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -51,17 +51,6 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 /* Used in sort.cpp, btree_bl.cpp */
 template class w_auto_delete_array_t<file_p>;
 #endif
-
-// This macro is used to verify correct serial numbers on records.
-// If "serial" is non-null then it is checked to make sure it
-// matches the serial number in the record.
-#define VERIFY_SERIAL(serial, rec)				\
-        if ((serial) != serial_t::null && 			\
-	    (rec)->tag.serial_no != serial) {			\
-	    DBG(<<"VERIFY_SERIAL: " ); 				\
-            return RC(eBADLOGICALID);				\
-        }                               
-
 
 lpid_t 
 record_t::last_pid(const file_p& page) const
@@ -180,7 +169,6 @@ file_m::create_rec(
     smsize_t		len_hint,
     const vec_t& 	hdr,
     const vec_t& 	data,
-    const serial_t&	serial_no, // output
     sdesc_t&		sd,
     rid_t& 		rid // output
     // no forward_alloc
@@ -192,7 +180,7 @@ file_m::create_rec(
     DBG(<<"create_rec store " << fid);
 
     W_DO(_create_rec( fid, pg_policy_t(policy), 
-	len_hint, sd, hdr, data, serial_no,
+	len_hint, sd, hdr, data, 
 	rid, page));
     DBG(<<"create_rec created " << rid);
     return RCOK;
@@ -204,7 +192,6 @@ file_m::create_rec_at_end(
 	uint4_t 	len_hint,
 	const vec_t& 	hdr,
 	const vec_t& 	data,
-	const serial_t& serial_no, // out
 	sdesc_t& 	sd, 
 	rid_t& 		rid	// out
 )
@@ -218,7 +205,8 @@ file_m::create_rec_at_end(
 
     DBG(<<"create_rec_at_end store " << fid);
     W_DO(_create_rec(fid, t_append, len_hint,
-	sd, hdr, data, serial_no, rid, page));
+	sd, hdr, data, 
+	rid, page));
     DBG(<<"create_rec_at_end created " << rid);
     return RCOK;
 }
@@ -234,7 +222,6 @@ file_m::_create_rec(
     sdesc_t&		sd,
     const vec_t& 	hdr,
     const vec_t& 	data,
-    const serial_t&	serial_no,
     rid_t& 		rid,
     file_p&		page	// in-output
 )
@@ -326,7 +313,7 @@ file_m::_create_rec(
 	// so we don't run into double-acquiring it in append_rec.
 
 	W_DO(_create_rec_in_slot(page, slot, rec_impl, 
-	    serial_no, hdr, data, sd, false,
+	    hdr, data, sd, false,
 	    rid));
 
 	w_assert3(page.is_fixed() && page.latch_mode() == LATCH_EX);
@@ -336,7 +323,8 @@ file_m::_create_rec(
     } // close scope for hu
 
     if(rec_impl == t_large_0) {
-	W_DO(append_rec(rid, data, sd, false, serial_t::null));
+	W_DO(append_rec(rid, data, sd, false
+		    ));
     }
     return RCOK;
 }
@@ -570,7 +558,6 @@ file_m::_create_rec_in_slot(
     file_p 	&page,
     slotid_t	slot,
     recflags_t 	rec_impl, 	
-    const serial_t& serial_no,
     const vec_t& hdr,
     const vec_t& data,
     sdesc_t&	sd,
@@ -594,7 +581,6 @@ file_m::_create_rec_in_slot(
     rc_t	rc;
     rectag_t 	tag;
     tag.hdr_len = hdr.size();
-    tag.serial_no = serial_no;
 
     switch (rec_impl) {
     case t_small:
@@ -626,7 +612,8 @@ file_m::_create_rec_in_slot(
 
 	    // now append the data to the record
 	    if(do_append) {
-		W_DO(append_rec(rid, data, sd, false, serial_t::null));
+		W_DO(append_rec(rid, data, sd, false
+			    ));
 	    }
 
 	}
@@ -641,7 +628,8 @@ file_m::_create_rec_in_slot(
 }
 
 rc_t
-file_m::destroy_rec(const rid_t& rid, const serial_t& verify)
+file_m::destroy_rec(const rid_t& rid
+	)
 {
     file_p    page;
     record_t*	    rec;
@@ -657,7 +645,6 @@ file_m::destroy_rec(const rid_t& rid, const serial_t& verify)
 
     W_DO( page.get_rec(rid.slot, rec) );
     DBGTHRD(<<"got rec for rid " << rid);
-    VERIFY_SERIAL(verify, rec);
 
     if (rec->is_small()) {
 	// nothing special
@@ -685,7 +672,8 @@ file_m::destroy_rec(const rid_t& rid, const serial_t& verify)
 }
 
 rc_t
-file_m::update_rec(const rid_t& rid, uint4_t start, const vec_t& data, const serial_t& verify)
+file_m::update_rec(const rid_t& rid, uint4_t start, const vec_t& data
+	)
 {
     file_p    page;
     record_t*	    rec;
@@ -694,7 +682,6 @@ file_m::update_rec(const rid_t& rid, uint4_t start, const vec_t& data, const ser
     W_DO(_locate_page(rid, page, LATCH_EX));
 
     W_DO( page.get_rec(rid.slot, rec) );
-    VERIFY_SERIAL(verify, rec);
 
     /*
      *	Do some parameter checking
@@ -722,7 +709,8 @@ file_m::update_rec(const rid_t& rid, uint4_t start, const vec_t& data, const ser
 
 rc_t
 file_m::append_rec(const rid_t& rid, const vec_t& data,
-		   const sdesc_t& sd, bool allow_forward, const serial_t& verify)
+		   const sdesc_t& sd, bool allow_forward
+		   )
 {
     file_p    	page;
     record_t*	rec;
@@ -740,7 +728,6 @@ file_m::append_rec(const rid_t& rid, const vec_t& data,
     histoid_update_t hu(page);
 
     W_DO( page.get_rec(rid.slot, rec));
-    VERIFY_SERIAL(verify, rec);
 
     orig_size = rec->body_size();
 
@@ -818,7 +805,8 @@ file_m::append_rec(const rid_t& rid, const vec_t& data,
 }
 
 rc_t
-file_m::truncate_rec(const rid_t& rid, uint4_t amount, bool& should_forward, const serial_t& verify)
+file_m::truncate_rec(const rid_t& rid, uint4_t amount, bool& should_forward
+	)
 {
     FUNC(file_m::truncate_rec);
     file_p	page;
@@ -835,7 +823,6 @@ file_m::truncate_rec(const rid_t& rid, uint4_t amount, bool& should_forward, con
     histoid_update_t hu(page);
 
     W_DO(page.get_rec(rid.slot, rec));
-    VERIFY_SERIAL(verify, rec);
 
     if (amount > rec->body_size()) 
 	return RC(eRECUPDATESIZE);
@@ -1004,7 +991,8 @@ file_m::read_rec(const rid_t& s_rid,
 }
 
 rc_t
-file_m::splice_hdr(rid_t rid, slot_length_t start, slot_length_t len, const vec_t& hdr_data, const serial_t& verify)
+file_m::splice_hdr(rid_t rid, slot_length_t start, slot_length_t len, const vec_t& hdr_data
+	)
 {
     file_p page;
     DBGTHRD(<<"splice_hdr");
@@ -1012,7 +1000,6 @@ file_m::splice_hdr(rid_t rid, slot_length_t start, slot_length_t len, const vec_
 
     record_t* rec;
     W_DO( page.get_rec(rid.slot, rec) );
-    VERIFY_SERIAL(verify, rec);
 
     // currently header realignment (rec hdr must always
     // have an alignedlength) is not supported
@@ -1652,23 +1639,6 @@ file_p::get_rec(slotid_t idx, record_t*& rec)
     return RCOK;
 }
 
-// return slot with this serial number (0 if not found)
-slotid_t file_p::serial_slot(const serial_t& s)
-{
-    slotid_t 	curr = 0;
-    record_t*	rec = 0;
-
-    curr = next_slot(curr); 
-    while(curr != 0) {
-	W_COERCE( get_rec(curr, rec) );
-	if (rec->tag.serial_no == s) {
-	    break;
-	}
-	curr = next_slot(curr); 
-    }
-
-    return curr;
-}
 
 rc_t
 file_p::set_hdr(const file_p_hdr_t& new_hdr)

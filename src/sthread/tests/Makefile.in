@@ -424,6 +424,7 @@ W_WARNINGS = $(WARN_FLAGS) -Wno-deprecated
 @PURECOV_TRUE@	     -cache-dir=$(PURE_CACHE_DIR)
 
 EXTRA_DIST = testall
+CLEANFILES = diskrw
 TESTS = testall
 LDADD = ../libsthread.a ../../fc/libfc.a $(LOCALLDADD)
 thread1_SOURCES = thread1.cpp
@@ -695,6 +696,7 @@ install-strip:
 mostlyclean-generic:
 
 clean-generic:
+	-test -z "$(CLEANFILES)" || rm -f $(CLEANFILES)
 
 distclean-generic:
 	-test -z "$(CONFIG_CLEAN_FILES)" || rm -f $(CONFIG_CLEAN_FILES)

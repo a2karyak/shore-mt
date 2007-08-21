@@ -1,6 +1,6 @@
 # <std-header style='tcl' orig-src='shore'>
 #
-#  $Id: smsh.tcl,v 1.1 2007/05/18 21:46:25 nhall Exp $
+#  $Id: smsh.tcl,v 1.2 2007/08/21 19:44:37 nhall Exp $
 #
 # SHORE -- Scalable Heterogeneous Object REpository
 #
@@ -98,15 +98,10 @@ proc set_config_info {} {
 
 proc _restart { a } {
     global smsh_device_list
-    global Use_logical_id
     sm restart $a
     foreach i $smsh_device_list {
 	verbose remounting [lindex $i 0]
-	if {$Use_logical_id} {
-	    sm mount_dev [lindex $i 0]
-	} else {
-	    sm mount_dev [lindex $i 0] [lindex $i 2]
-	}
+	sm mount_dev [lindex $i 0] [lindex $i 2]
    } 
 }
 proc restart { } {
@@ -467,15 +462,13 @@ proc runscripts { scr } {
 	    pecho "-->TIME for $script:"  $tm
 	    unset tm
 
-	    if { $Use_logical_id == 0 } {
-		if {$volid != 0} {
-		    sm begin_xct
-		    set vms [sm get_volume_meta_stats $volid]
-		    sm commit_xct
+	    if {$volid != 0} {
+		sm begin_xct
+		set vms [sm get_volume_meta_stats $volid]
+		sm commit_xct
 
-		    echo -->VOLUME_META_STATS after $script: $vms
-		    unset vms
-		}
+		echo -->VOLUME_META_STATS after $script: $vms
+		unset vms
 	    }
      
 	    #echo MEM_STATS after $script: [sm mem_stats]

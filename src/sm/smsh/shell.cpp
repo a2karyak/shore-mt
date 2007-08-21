@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: shell.cpp,v 1.330 2007/05/18 21:50:58 nhall Exp $
+ $Id: shell.cpp,v 1.331 2007/08/21 19:46:14 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -157,6 +157,7 @@ const char *check_compress_flag(const char *kd)
     return _result;
 }
 
+// Used only when we're doing physical-id sm calls
 vid_t 
 make_vid_from_lvid(const char* lv)
 {
@@ -168,9 +169,19 @@ make_vid_from_lvid(const char* lv)
 
 	return vid;
     }
+#ifdef USE_LID
     lvid_t lvid;
     w_istrstream anon(lv); anon >> lvid;
     return vid_t((uint2_t)lvid.low);
+#else
+    uint2_t vid;
+    w_istrstream anon(lv); anon >> vid;
+    std::cerr << "Trying to create vid from " << lv 
+	<< " result=" << vid
+	<< std::endl;
+    return vid_t(vid);
+/*end USE_LID*/
+#endif
 }
 
 int	tcl_scan_bool(const char *rep, bool &result)
@@ -332,8 +343,13 @@ cvt2lockid_t(const char *str, lockid_t &n)
 }
 
 bool 
-use_logical_id(Tcl_Interp* ip)
+use_logical_id(Tcl_Interp* 
+#ifdef USE_LID
+	ip
+#endif
+	)
 {
+#ifdef USE_LID
     extern const char* Logical_id_flag_tcl; // from smsh.cpp
 
     TCL_GETX char* value = Tcl_GetVar(ip, TCL_CVBUG Logical_id_flag_tcl, TCL_GLOBAL_ONLY); 
@@ -352,6 +368,9 @@ use_logical_id(Tcl_Interp* ip)
 	W_FATAL(fcINTERNAL);
     }
     return ret;
+#else
+    return false;
+#endif
 }
 
 /*
@@ -892,6 +911,7 @@ t_force_vol_hdr_buffers(Tcl_Interp* ip, int ac, TCL_AV char* av[])
     lvid_t lvid;
     w_istrstream anon(av[1]); anon >> lvid;
     DO( sm->force_vol_hdr_buffers(lvid) );
+    // TODO: convert to physical version?
     return TCL_OK;
 }
  
@@ -1062,6 +1082,7 @@ t_vol_root_index(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 	return TCL_ERROR;
 
 
+#ifdef USE_LID
     if (use_logical_id(ip)) {
 	lstid_t	 iid;
 
@@ -1070,7 +1091,9 @@ t_vol_root_index(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 	w_reset_strstream(tclout);
 	tclout << iid << ends;
 
-    } else {
+    } else 
+#endif
+    {
 	vid_t   vid;
 	stid_t iid;
 
@@ -1091,10 +1114,12 @@ t_get_volume_meta_stats(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 	return TCL_ERROR;
     }
 
+#ifdef USE_LID
     if (use_logical_id(ip))  {
 	Tcl_AppendResult(ip, "logical id not supported", 0);
 	return TCL_ERROR;
     }
+#endif
 
     vid_t vid;
     w_istrstream anon(av[1]); anon >> vid;
@@ -1136,10 +1161,12 @@ t_get_file_meta_stats(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 	return TCL_ERROR;
     }
 
+#ifdef USE_LID
     if (use_logical_id(ip))  {
 	Tcl_AppendResult(ip, "logical id not supported", 0);
 	return TCL_ERROR;
     }
+#endif
 
     vid_t vid;
     w_istrstream anon(av[1]); anon >> vid;
@@ -1253,15 +1280,19 @@ t_mount_dev(Tcl_Interp* ip, int ac, TCL_AV char* av[])
     u_int volume_count=0;
     devid_t devid;
 
+#ifdef USE_LID
     if (use_logical_id(ip)) {
 	if (ac != 2) return TCL_ERROR;
 	DO( sm->mount_dev(av[1], volume_count, devid));
 	w_reset_strstream(tclout);
 	tclout << volume_count << ends;
-    } else {
+    } else 
+#endif
+    {
 	if (ac == 3) {
 	    DO( sm->mount_dev(av[1], volume_count, devid, make_vid_from_lvid(av[2])));
-	} else {
+	} else 
+	{
 	    DO( sm->mount_dev(av[1], volume_count, devid));
 	}
 	w_reset_strstream(tclout);
@@ -1343,6 +1374,7 @@ t_list_volumes(Tcl_Interp* ip, int ac, TCL_AV char* av[])
     return TCL_OK;
 }
 
+#ifdef USE_LID
 static int
 t_generate_new_lvid(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
@@ -1361,6 +1393,7 @@ t_generate_new_lvid(Tcl_Interp* ip, int ac, TCL_AV char* av[])
     w_reset_strstream(tclout);
     return TCL_OK;
 }
+#endif
 
 static int
 t_create_vol(Tcl_Interp* ip, int ac, TCL_AV char* av[])
@@ -1375,10 +1408,15 @@ t_create_vol(Tcl_Interp* ip, int ac, TCL_AV char* av[])
     bool skip_raw_init = false;
     if (av[4] && streq(av[4], "skip_raw_init")) skip_raw_init = true;
 
+#ifdef USE_LID
     if (use_logical_id(ip)) {
 	DO( sm->create_vol(av[1], lvid, quota, skip_raw_init));
-    } else {
-	DO( sm->create_vol(av[1], lvid, quota, skip_raw_init, make_vid_from_lvid(av[2])));
+    } else 
+#endif
+    {
+	DO( sm->create_vol(av[1], lvid, quota, skip_raw_init
+		    , make_vid_from_lvid(av[2])
+		    ));
     }
     return TCL_OK;
 }
@@ -1395,6 +1433,7 @@ t_destroy_vol(Tcl_Interp* ip, int ac, TCL_AV char* av[])
     return TCL_OK;
 }
 
+#ifdef USE_LID
 static int
 t_add_logical_id_index(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
@@ -1407,11 +1446,19 @@ t_add_logical_id_index(Tcl_Interp* ip, int ac, TCL_AV char* av[])
     DO(sm->add_logical_id_index(lvid, reserved, reserved));
     return TCL_OK;
 }
+/* end USE_LID*/
+#endif
 
 static int
-t_has_logical_id_index(Tcl_Interp* ip, int ac, TCL_AV char* av[])
+t_has_logical_id_index(Tcl_Interp* ip, int ac, TCL_AV char* 
+#ifdef USE_LID
+	av
+/* end USE_LID*/
+#endif
+	[])
 {
     if (check(ip, "lvid", ac, 2)) return TCL_ERROR;
+#ifdef USE_LID
    
     lvid_t lvid;
     w_istrstream anon(av[1]); anon >> lvid;
@@ -1421,6 +1468,11 @@ t_has_logical_id_index(Tcl_Interp* ip, int ac, TCL_AV char* av[])
     Tcl_AppendResult(ip, tcl_form_bool(has_index), 0);
 
     return TCL_OK;
+#else
+    Tcl_AppendResult(ip, tcl_form_bool(false), 0);
+    return TCL_OK;
+/* end USE_LID*/
+#endif
 }
 
 static int
@@ -1460,6 +1512,7 @@ t_get_du_statistics(Tcl_Interp* ip, int ac, TCL_AV char* av[])
     TCL_AV char* str = av[1];
     int len = strlen(av[1]);
 
+#ifdef USE_LID
     if (use_logical_id(ip)) {
 	lstid_t stid;
 	lvid_t vid;
@@ -1473,7 +1526,9 @@ t_get_du_statistics(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 	    // assume v is correct
 	    DO( sm->get_du_statistics(vid, stats, audit) );
 	}
-    } else {
+    } else 
+#endif
+    {
 	stid_t stid;
 	vid_t vid;
 
@@ -1581,11 +1636,14 @@ t_set_store_property(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 
     ss_m::store_property_t property = cvt2store_property(av[2]);
 
+#ifdef USE_LID
     if (use_logical_id(ip))  {
 	lstid_t fid;
 	w_istrstream anon(av[1]); anon >> fid;
 	DO( sm->set_store_property(fid.lvid, fid.serial, property) );
-    } else {
+    } else
+#endif
+    {
 	stid_t fid;
 	w_istrstream anon(av[1]); anon >> fid;
 	DO( sm->set_store_property(fid, property) );
@@ -1602,11 +1660,14 @@ t_get_store_property(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 
     ss_m::store_property_t property;
 
+#ifdef USE_LID
     if (use_logical_id(ip))  {
 	lstid_t fid;
 	w_istrstream anon(av[1]); anon >> fid;
 	DO( sm->get_store_property(fid.lvid, fid.serial, property) );
-    } else {
+    } else 
+#endif
+    {
 	stid_t fid;
 	w_istrstream anon(av[1]); anon >> fid;
 	DO( sm->get_store_property(fid, property) );
@@ -1655,7 +1716,10 @@ t_create_index(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 
     const char *keydescr="b*1000";
 
+#ifdef USE_LID
     bool small = false;
+/* end USE_LID*/
+#endif
     ss_m::store_property_t property = ss_m::t_regular;
     if (ac > 3) {
 	property = cvt2store_property(av[3]);
@@ -1683,12 +1747,18 @@ t_create_index(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 	if(cc == ss_m::t_cc_bad) {
 	    if(::strcmp(av[5],"small")==0) {
 		cc = ss_m::t_cc_none;
+#ifdef USE_LID
 		small = true;
 		if (! use_logical_id(ip)) {
 		   cerr 
 		   << "smsh shell.cpp: not using logical ids; 6th argument ignored"
 		<< endl;
 		}
+#else
+	   cerr 
+	   << "smsh shell.cpp: not supporting logical ids; 6th argument ignored"
+	    << endl;
+#endif
 	    }
 	}
     }
@@ -1698,15 +1768,21 @@ t_create_index(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 	       "create_index: 5th argument must be \"small\" or empty", 0);
 	    return TCL_ERROR;
 	}
+#ifdef USE_LID
 	small = true;
 	if (! use_logical_id(ip)) {
 	   cerr << "smsh shell.cpp: not using logical ids; 6th argument ignored"
 		<< endl;
 	}
+#else
+       cerr << "smsh shell.cpp: not supporting logical ids; 6th argument ignored"
+	<< endl;
+#endif
     }
     const char *kd = check_compress_flag(keydescr);
     ss_m::ndx_t ndx = cvt2ndx_t(av[2]);
 
+#ifdef USE_LID
     if (use_logical_id(ip)) {
 	lstid_t lstid;
 	w_istrstream anon(av[1]); 
@@ -1717,7 +1793,9 @@ t_create_index(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 			     lstid.serial) );
 	w_reset_strstream(tclout);
 	tclout << lstid << ends;
-    } else {
+    } else 
+#endif
+    {
 	stid_t stid;
         vid_t  volid = vid_t(atoi(av[1]));
 	DO( sm->create_index(
@@ -1739,11 +1817,14 @@ t_destroy_md_index(Tcl_Interp* ip, int ac, TCL_AV char* av[])
     if (check(ip, "fid", ac, 2))
         return TCL_ERROR;
     
+#ifdef USE_LID
     if (use_logical_id(ip)) {
 	lstid_t fid;
 	w_istrstream anon(av[1]); anon >> fid;
 	DO( sm->destroy_md_index(fid.lvid, fid.serial) );
-    } else {
+    } else 
+#endif
+    {
 	stid_t fid;
 	w_istrstream anon(av[1]); anon >> fid;
 	DO( sm->destroy_md_index(fid) );
@@ -1757,11 +1838,14 @@ t_destroy_index(Tcl_Interp* ip, int ac, TCL_AV char* av[])
     if (check(ip, "fid", ac, 2))
         return TCL_ERROR;
     
+#ifdef USE_LID
     if (use_logical_id(ip)) {
 	lstid_t fid;
 	w_istrstream anon(av[1]); anon >> fid;
 	DO( sm->destroy_index(fid.lvid, fid.serial) );
-    } else {
+    } else 
+#endif
+    {
 	stid_t fid;
 	w_istrstream anon(av[1]); anon >> fid;
 	DO( sm->destroy_index(fid) );
@@ -1886,6 +1970,7 @@ prepare_for_blkld(sort_stream_i& s_stream,
     sp.destructive = true;
     scan_file_i* f_scan = 0;
 
+#ifdef USE_LID
     if (use_logical_id(ip)) {
 	lstid_t l_stid;
 	w_istrstream anon(fid); anon >> l_stid;
@@ -1893,7 +1978,9 @@ prepare_for_blkld(sort_stream_i& s_stream,
 	W_DO( sm->lvid_to_vid(l_stid.lvid, tmp_vid));
         sp.vol = tmp_vid;
 	f_scan = new scan_file_i(l_stid.lvid, l_stid.serial, ss_m::t_cc_file);
-    } else {
+    } else 
+#endif
+    {
 	stid_t stid;
 	w_istrstream anon(fid); anon >> stid;
         sp.vol = stid.vol;
@@ -1999,6 +2086,7 @@ t_blkld_ndx(Tcl_Interp* ip, int ac, TCL_AV char* av[])
             DO( prepare_for_blkld(s_stream, ip, av[first_src], typearg, universearg) );
 	}
 
+#ifdef USE_LID
 	if (use_logical_id(ip)) {
 	    lstid_t l_stid;
 	    w_istrstream anon(av[stid_arg]); 
@@ -2006,7 +2094,9 @@ t_blkld_ndx(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 	    DBG(<<"bulkld_index 3 " );
 	    DO( sm->bulkld_index(l_stid.lvid, l_stid.serial,
 				s_stream,  stats) );
-	} else {
+	} else 
+#endif
+	{
 	    stid_t stid;
 	    w_istrstream anon(av[stid_arg]); 
 	    anon >> stid;
@@ -2016,6 +2106,7 @@ t_blkld_ndx(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 	}
     } else {
 	// input file[s] already sorted
+#ifdef USE_LID
 	if (use_logical_id(ip)) {
 	    lstid_t l_stid;
 	    w_istrstream anon(av[stid_arg]); 
@@ -2039,7 +2130,9 @@ t_blkld_ndx(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 	    delete[] serials;
 	    DO(rc);
 
-	} else {
+	} else 
+#endif
+	{
 	    stid_t stid;
 	    stid_t* srcs = new stid_t[nsrcs];
 	    w_istrstream anon(av[stid_arg]); 
@@ -2083,6 +2176,7 @@ t_blkld_md_ndx(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 
     DO( prepare_for_blkld(s_stream, ip, av[2], type, av[5]) );
 
+#ifdef USE_LID
     if (use_logical_id(ip)) {
 	lstid_t l_stid;
 	w_istrstream anon(av[1]); anon >> l_stid;
@@ -2090,7 +2184,9 @@ t_blkld_md_ndx(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 				  s_stream, stats,
 				  // hff,      hef,         universe
 				  atoi(av[3]), atoi(av[4]), &univ) );
-    } else {
+    } else 
+#endif
+    {
 	stid_t stid;
 	w_istrstream anon(av[1]); anon >> stid;
 	DO( sm->bulkld_md_index(stid, s_stream, stats,
@@ -2114,11 +2210,14 @@ t_print_index(Tcl_Interp* ip, int ac, TCL_AV char* av[])
     if (check(ip, "stid", ac, 2))
 	return TCL_ERROR;
 
+#ifdef USE_LID
     if (use_logical_id(ip)) {
 	lstid_t stid;
 	w_istrstream anon(av[1]); anon >> stid;
 	DO( sm->print_index(stid.lvid, stid.serial) );
-    } else {
+    } else 
+#endif
+    {
 	stid_t stid;
 	w_istrstream anon(av[1]); anon >> stid;
 	DO( sm->print_index(stid) );
@@ -2133,11 +2232,14 @@ t_print_md_index(Tcl_Interp* ip, int ac, TCL_AV char* av[])
     if (check(ip, "stid", ac, 2))
 	return TCL_ERROR;
 
+#ifdef USE_LID
     if (use_logical_id(ip)) {
 	lstid_t stid;
 	w_istrstream anon(av[1]); anon >> stid;
 	DO( sm->print_md_index(stid.lvid, stid.serial) );
-    } else {
+    } else 
+#endif
+    {
 	stid_t stid;
 	w_istrstream anon(av[1]); anon >> stid;
 	DO( sm->print_md_index(stid) );
@@ -2244,16 +2346,23 @@ t_create_file(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 	property = cvt2store_property(av[2]);
     }
 
+#ifdef USE_LID
     if (use_logical_id(ip)) {
 	lfid_t lfid;
 	w_istrstream anon(av[1]) ; anon >> lfid.lvid;
 	DO( sm->create_file(lfid.lvid, lfid.serial, property, cluster_page) );
 	w_reset_strstream(tclout);
 	tclout << lfid << ends;
-    } else {
+    } else 
+#endif
+    {
 	stid_t stid;
         int volumeid = atoi(av[1]);
-	DO( sm->create_file(vid_t(volumeid), stid, property, serial_t::null,
+	DO( sm->create_file(vid_t(volumeid), stid, property,
+#ifdef USE_LID
+		    serial_t::null,
+/* end USE_LID*/
+#endif
                 cluster_page) );
 
 	w_reset_strstream(tclout);
@@ -2271,11 +2380,14 @@ t_destroy_file(Tcl_Interp* ip, int ac, TCL_AV char* av[])
     if (check(ip, "fid", ac, 2))
         return TCL_ERROR;
     
+#ifdef USE_LID
     if (use_logical_id(ip)) {
 	lstid_t fid;
 	w_istrstream anon(av[1]); anon >> fid;
 	DO( sm->destroy_file(fid.lvid, fid.serial) );
-    } else {
+    } else 
+#endif
+    {
 	stid_t fid;
 	w_istrstream anon(av[1]); anon >> fid;
 	DO( sm->destroy_file(fid) );
@@ -2383,12 +2495,15 @@ t_create_scan(Tcl_Interp* ip, int ac, TCL_AV char* av[])
     DBG(<<"cc = " << W_ENUM(cc));
 
     scan_index_i* s;
+#ifdef USE_LID
     if (use_logical_id(ip)) {
 	lstid_t stid;
 	w_istrstream anon(av[1]); anon >> stid;
 	s = new scan_index_i(stid.lvid, stid.serial, 
 			     c1, *bound1, c2, *bound2, false, cc);
-    } else {
+    } else 
+#endif
+    {
 	stid_t stid;
 	w_istrstream anon(av[1]); anon >> stid;
 	s = new scan_index_i(stid, c1, *bound1, c2, *bound2, false, cc);
@@ -2560,6 +2675,7 @@ t_create_multi_recs(Tcl_Interp* ip, int ac, TCL_AV char* av[])
     register int i;
     int count = atoi(av[5]); //count -- can't be > signed#
 
+#ifdef USE_LID
     if (use_logical_id(ip)) {
         lstid_t  stid;
         lrid_t   rid;
@@ -2572,7 +2688,9 @@ t_create_multi_recs(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 //      rid.lvid = stid.lvid;
 //      tclout << rid << ends;
 
-    } else {
+    } else 
+#endif
+    {
         stid_t  stid;
         rid_t   rid;
 
@@ -2611,12 +2729,15 @@ t_multi_file_append(Tcl_Interp* ip, int ac, TCL_AV char* av[])
     register int i;
     int count = atoi(av[5]); // count - can't be > signed int
 
+#ifdef USE_LID
     if (use_logical_id(ip)) {
         lrid_t   lrid;
 
         for (i=0; i<count; i++)
                 DO( s->create_rec(hdr, len_hint,  data, lrid) );
-    } else {
+    } else 
+#endif
+    {
         rid_t   rid;
 	stime_t start(stime_t::now());
         for (i=0; i<count; i++)
@@ -2679,6 +2800,7 @@ t_create_rec(Tcl_Interp* ip, int ac, TCL_AV char* av[])
     hdr.set(parse_vec(av[2], strlen(av[2])));
     data.set(parse_vec(av[4], strlen(av[4])));
 
+#ifdef USE_LID
     if (use_logical_id(ip)) {
 	lstid_t  stid;
 	lrid_t   lrid;
@@ -2693,7 +2815,9 @@ t_create_rec(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 	w_reset_strstream(tclout);
 	tclout << lrid << ends;
 
-    } else {
+    } else 
+#endif
+    {
 	stid_t  stid;
 	rid_t   rid;
 	
@@ -2715,13 +2839,16 @@ t_destroy_rec(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 	return TCL_ERROR;
     
 
+#ifdef USE_LID
     if (use_logical_id(ip)) {
 	lrid_t   rid;
 
 	w_istrstream anon(av[1]); anon >> rid;
 	DO( sm->destroy_rec(rid.lvid, rid.serial) );
 
-    } else {
+    } else 
+#endif
+    {
 	rid_t   rid;
 
 	DBG(<< av[0] << " " << av[1]);
@@ -2751,6 +2878,7 @@ t_read_rec_1(Tcl_Interp* ip, int ac, TCL_AV char* av[], bool dump_body_too)
 
     w_reset_strstream(tclout);
 
+#ifdef USE_LID
     if (use_logical_id(ip)) {
 	lrid_t   rid;
 	w_istrstream anon(av[1]); anon >> rid;
@@ -2762,7 +2890,9 @@ t_read_rec_1(Tcl_Interp* ip, int ac, TCL_AV char* av[], bool dump_body_too)
 	DO(handle.pin(rid.lvid, rid.serial, start));
 	tclout << "rid=" << rid << ends;
 
-    } else {
+    } else 
+#endif
+    {
 	rid_t   rid;
 	w_istrstream anon(av[1]); anon >> rid;
 
@@ -2827,6 +2957,7 @@ t_print_rec(Tcl_Interp* ip, int ac, TCL_AV char* av[])
     smsize_t   length = objectsize(av[3]);
     pin_i   handle;
 
+#ifdef USE_LID
     if (use_logical_id(ip)) {
 	lrid_t   rid;
 	w_istrstream anon(av[1]); anon >> rid;
@@ -2835,7 +2966,9 @@ t_print_rec(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 	if (linked.verbose_flag)  {
 	    cout << "rid=" << rid << " "; 
 	}
-    } else {
+    } else 
+#endif
+    {
 	rid_t   rid;
 	w_istrstream anon(av[1]); anon >> rid;
 
@@ -2872,12 +3005,15 @@ t_read_rec_body(Tcl_Interp* ip, int ac, TCL_AV char* av[])
     smsize_t length = (ac >= 4) ? objectsize(av[3]) : 0;
     pin_i handle;
 
+#ifdef USE_LID
     if (use_logical_id(ip)) {
         lrid_t   rid;
 	w_istrstream anon(av[1]); anon >> rid;
 
         DO(handle.pin(rid.lvid, rid.serial, start));
-    } else {
+    } else 
+#endif
+    {
         rid_t   rid;
 	w_istrstream anon(av[1]); anon >> rid;
 
@@ -2926,13 +3062,16 @@ t_update_rec(Tcl_Interp* ip, int ac, TCL_AV char* av[])
     data.set(parse_vec(av[3], strlen(av[3])));
     start = objectsize(av[2]);    
 
+#ifdef USE_LID
     if (use_logical_id(ip)) {
 	lrid_t   rid;
 
 	w_istrstream anon(av[1]); anon >> rid;
 	DO( sm->update_rec(rid.lvid, rid.serial, start, data) );
 
-    } else {
+    } else 
+#endif
+    {
 	rid_t   rid;
 
 	w_istrstream anon(av[1]); anon >> rid;
@@ -2955,13 +3094,16 @@ t_update_rec_hdr(Tcl_Interp* ip, int ac, TCL_AV char* av[])
     hdr.set(parse_vec(av[3], strlen(av[3])));
     start = objectsize(av[2]);    
 
+#ifdef USE_LID
     if (use_logical_id(ip)) {
 	lrid_t   rid;
 
 	w_istrstream anon(av[1]); anon >> rid;
 	DO( sm->update_rec_hdr(rid.lvid, rid.serial, start, hdr) );
 
-    } else {
+    } else 
+#endif
+    {
 	rid_t   rid;
 
 	w_istrstream anon(av[1]); anon >> rid;
@@ -2981,12 +3123,15 @@ t_append_rec(Tcl_Interp* ip, int ac, TCL_AV char* av[])
     vec_t   data;
     data.set(parse_vec(av[2], strlen(av[2])));
 
+#ifdef USE_LID
     if (use_logical_id(ip)) {
 	lrid_t   rid;
 	w_istrstream anon(av[1]); anon >> rid;
 	DO( sm->append_rec(rid.lvid, rid.serial, data) );
 
-    } else {
+    } else 
+#endif
+    {
 	rid_t   rid;
 	w_istrstream anon(av[1]); anon >> rid;
 	DO( sm->append_rec(rid, data, false) );
@@ -3004,11 +3149,14 @@ t_truncate_rec(Tcl_Interp* ip, int ac, TCL_AV char* av[])
  
     smsize_t amount = objectsize(av[2]);
      
+#ifdef USE_LID
     if (use_logical_id(ip)) {
 	lrid_t   rid;
 	w_istrstream anon(av[1]); anon >> rid;
 	DO( sm->truncate_rec(rid.lvid, rid.serial, amount) );
-    } else {
+    } else 
+#endif
+    {
 	rid_t   rid;
 	w_istrstream anon(av[1]); anon >> rid;
 	DO( sm->truncate_rec(rid, amount) );
@@ -3246,9 +3394,13 @@ t_scan_recs(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 	return TCL_ERROR;
     
     rc_t    rc;
+#ifdef USE_LID
     bool  use_logical = use_logical_id(ip);
+/* end USE_LID*/
+#endif
     scan_file_i *scan;
 
+#ifdef USE_LID
     if (use_logical) {
 	lrid_t   rid;
 	lstid_t  fid;
@@ -3265,7 +3417,9 @@ t_scan_recs(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 	    w_assert1(scan->error_code() || 
 		    fid.lvid == scan->lvid() && fid.serial == scan->lfid());
 	}
-    } else {
+    } else 
+#endif
+    {
 	rid_t   rid;
 	stid_t  fid;
 
@@ -3296,10 +3450,14 @@ t_scan_rids(Tcl_Interp* ip, int ac, TCL_AV char* av[])
     pin_i*      pin;
     bool      eof;
     rc_t	rc;
+#ifdef USE_LID
     bool      use_logical = use_logical_id(ip);
+/* end USE_LID*/
+#endif
     scan_file_i *scan = NULL;
 
     Tcl_ResetResult(ip);
+#ifdef USE_LID
     if (use_logical) {
         lrid_t   rid;
         lstid_t  fid;
@@ -3326,7 +3484,9 @@ t_scan_rids(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 	    Tcl_AppendResult(ip, tclout.c_str(), " ", 0);
 	    w_reset_strstream(tclout);
         }
-    } else {
+    } else 
+#endif
+    {
         rid_t   rid;
         stid_t  fid;
 
@@ -3410,13 +3570,16 @@ t_pin_pin(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 	}
     }
 
+#ifdef USE_LID
     if (use_logical_id(ip)) {
 	lrid_t   rid;
 	w_istrstream anon2(av[2]); anon2 >> rid;
 
 	DO(p->pin(rid.lvid, rid.serial, start, lmode));
 
-    } else {
+    } else 
+#endif
+    {
 	rid_t   rid;
 	w_istrstream anon2(av[2]); anon2 >> rid;
 
@@ -3612,10 +3775,13 @@ t_pin_rid(Tcl_Interp* ip, int ac, TCL_AV char* av[])
     if (read_ptr(ip, av[1], p)) return TCL_ERROR;
 
     w_reset_strstream(tclout);
+#ifdef USE_LID
     if (use_logical_id(ip)) {
 	lrid_t rid(p->lvid(), p->serial_no());
 	tclout << rid << ends;
-    } else {
+    } else 
+#endif
+    {
 	tclout << p->rid() << ends;
     }
     Tcl_AppendResult(ip, tclout.c_str(), 0);
@@ -3702,6 +3868,7 @@ t_scan_file_create(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 
     scan_file_i* s = NULL;
 
+#ifdef USE_LID
     if (use_logical_id(ip)) {
         if (check(ip, "fileid concurrency_t [start_rid]", ac, 3,4))
 	   return TCL_ERROR;
@@ -3729,7 +3896,9 @@ t_scan_file_create(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 	}
 
 	TCL_HANDLE_FSCAN_FAILURE(s);
-    } else {
+    } else 
+#endif
+    {
         if (check(ip, "fileid concurrency_t [prefetch(Boolean) [start_rid]]", 
 		ac, 3,4,5))
 	     return TCL_ERROR;
@@ -3879,15 +4048,22 @@ t_scan_file_append(Tcl_Interp* ip, int ac, TCL_AV char* av[])
     hdr.set(parse_vec(av[2], strlen(av[2])));
     data.set(parse_vec(av[4], strlen(av[4])));
 
+#ifdef USE_LID
     lrid_t   lrid;
+/* end USE_LID*/
+#endif
     rid_t    rid;
 
     w_reset_strstream(tclout);
 
+#ifdef USE_LID
     if(s->is_logical()) {
 	DO( s->create_rec(hdr, objectsize(av[3]), data, lrid) );
 	tclout << lrid << ends;
-    } else {
+    } else 
+/* end USE_LID*/
+#endif
+    {
 	DO( s->create_rec(hdr, objectsize(av[3]), data, rid) );
 	tclout << rid << ends;
     }
@@ -3914,13 +4090,17 @@ t_create_assoc(Tcl_Interp* ip, int ac, TCL_AV char* av[])
     el.put(av[3], strlen(av[3]));
 
     ss_m::concurrency_t cc = ss_m::t_cc_kvl;
+#ifdef USE_LID
     lrid_t lrid;
+/* end USE_LID*/
+#endif
     rid_t rid;
     if (ac == 6) {
 	cc = cvt2concurrency_t(av[5]);
 	if(cc == ss_m::t_cc_im ) {
 	    // Interpret the element as a rid
 
+#ifdef USE_LID
 	    if (use_logical_id(ip)) {
 		w_istrstream anon(av[3]); anon >> lrid;
 		DO( sm->serial_to_rid(lrid.lvid, lrid.serial, rid));
@@ -3930,7 +4110,9 @@ t_create_assoc(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 			<< " to physical rids " 
 			<< " before insertion in index " << endl;
 		}
-	    } else {
+	    } else 
+#endif
+	    {
 		w_istrstream anon2(av[3]); anon2 >> rid;
 	    }
 	    el.reset().put(&rid, sizeof(rid));
@@ -3985,11 +4167,14 @@ t_create_assoc(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 	}
     }
 
+#ifdef USE_LID
     if (use_logical_id(ip)) {
 	lstid_t stid;
 	w_istrstream anon(av[1]); anon >> stid;
 	DO( sm->create_assoc(stid.lvid, stid.serial, key, el) );
-    } else {
+    } else 
+#endif
+    {
 	stid_t stid;
 	w_istrstream anon(av[1]); anon >> stid;
 	DO( sm->create_assoc(stid, key, el) );
@@ -4036,11 +4221,14 @@ t_destroy_assoc(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 	}
     }
 
+#ifdef USE_LID
     if (use_logical_id(ip)) {
 	lstid_t stid;
 	w_istrstream anon(av[1]); anon >> stid;
 	DO( sm->destroy_assoc(stid.lvid, stid.serial, key, el) );
-    } else {
+    } else 
+#endif
+    {
 	stid_t stid;
 	w_istrstream anon(av[1]); anon >> stid;
 	DO( sm->destroy_assoc(stid, key, el) );
@@ -4059,11 +4247,14 @@ t_destroy_all_assoc(Tcl_Interp* ip, int ac, TCL_AV char* av[])
     key.put(av[2], strlen(av[2]));
 
     int num_removed;
+#ifdef USE_LID
     if (use_logical_id(ip)) {
 	lstid_t stid;
 	w_istrstream anon(av[1]); anon >> stid;
 	DO( sm->destroy_all_assoc(stid.lvid, stid.serial, key, num_removed) );
-    } else {
+    } else 
+#endif
+    {
 	stid_t stid;
 	w_istrstream anon(av[1]); anon >> stid;
 	DO( sm->destroy_all_assoc(stid, key, num_removed) );
@@ -4119,11 +4310,14 @@ t_find_assoc(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 
     w_rc_t ___rc;
 
+#ifdef USE_LID
     if (use_logical_id(ip)) {
 	lstid_t stid;
 	w_istrstream anon(av[1]); anon >> stid;
 	___rc = sm->find_assoc(stid.lvid, stid.serial, key, el, elen, found);
-    } else {
+    } else 
+#endif
+    {
 	stid_t stid;
 	w_istrstream anon(av[1]); anon >> stid;
 	___rc = sm->find_assoc(stid, key, el, elen, found);
@@ -4157,6 +4351,7 @@ t_create_md_index(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 
     int2_t dim = atoi(av[2]);
 
+#ifdef USE_LID
     if (use_logical_id(ip)) {
 	lstid_t stid;
 	w_istrstream anon(av[1]); anon >> stid.lvid;
@@ -4164,7 +4359,9 @@ t_create_md_index(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 				ss_m::t_regular, stid.serial, dim) );
 	w_reset_strstream(tclout);
 	tclout << stid << ends;
-    } else {
+    } else 
+#endif
+    {
 	stid_t stid;
 	DO( sm->create_md_index(atoi(av[1]), cvt2ndx_t(av[3]),
 				ss_m::t_regular, stid, dim) );
@@ -4186,11 +4383,14 @@ t_create_md_assoc(Tcl_Interp* ip, int ac, TCL_AV char* av[])
     nbox_t key(av[2]);
 
     el.put(av[3], strlen(av[3]) + 1);
+#ifdef USE_LID
     if (use_logical_id(ip)) {
 	lstid_t stid;
 	w_istrstream anon(av[1]); anon >> stid;
 	DO( sm->create_md_assoc(stid.lvid, stid.serial, key, el) );
-    } else {
+    } else 
+#endif
+    {
 	stid_t stid;
 	w_istrstream anon(av[1]); anon >> stid;
 	DO( sm->create_md_assoc(stid, key, el) );
@@ -4213,11 +4413,14 @@ t_find_md_assoc(Tcl_Interp* ip, int ac, TCL_AV char* av[])
     char el[ELEN_];
     smsize_t elen = sizeof(char) * ELEN_;
 
+#ifdef USE_LID
     if (use_logical_id(ip)) {
 	lstid_t stid;
 	w_istrstream anon(av[1]); anon >> stid;
 	DO( sm->find_md_assoc(stid.lvid, stid.serial, key, el, elen, found) );
-    } else {
+    } else 
+#endif
+    {
 	stid_t stid;
 	w_istrstream anon(av[1]); anon >> stid;
 	DO( sm->find_md_assoc(stid, key, el, elen, found) );
@@ -4240,11 +4443,14 @@ t_destroy_md_assoc(Tcl_Interp* ip, int ac, TCL_AV char* av[])
     nbox_t key(av[2]);
 
     el.put(av[3], strlen(av[3]) + 1);
+#ifdef USE_LID
     if (use_logical_id(ip)) {
 	lstid_t stid;
 	w_istrstream anon(av[1]); anon >> stid;
 	DO( sm->destroy_md_assoc(stid.lvid, stid.serial, key, el) );
-    } else {
+    } else 
+#endif
+    {
 	stid_t stid;
 	w_istrstream anon(av[1]); anon >> stid;
 	DO( sm->destroy_md_assoc(stid, key, el) );
@@ -4370,11 +4576,14 @@ t_draw_rtree(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 	return TCL_ERROR;	/* XXX or should it be some other error? */
     }
 
+#ifdef USE_LID
     if (use_logical_id(ip)) {
 	lstid_t stid;
 	w_istrstream anon(av[1]); anon >> stid;
 	DO( sm->draw_rtree(stid.lvid, stid.serial, DrawFile) );
-    } else {
+    } else 
+#endif
+    {
 	stid_t stid;
 	w_istrstream anon(av[1]); anon >> stid;
 	DO( sm->draw_rtree(stid, DrawFile) );
@@ -4391,11 +4600,14 @@ t_rtree_stats(Tcl_Interp* ip, int ac, TCL_AV char* av[])
     uint2_t ovp[5];
     rtree_stats_t stats;
 
+#ifdef USE_LID
     if (use_logical_id(ip)) {
 	lstid_t stid;
 	w_istrstream anon(av[1]); anon >> stid;
 	DO( sm->rtree_stats(stid.lvid, stid.serial, stats, level, ovp) );
-    } else {
+    } else 
+#endif
+    {
 	stid_t stid;
 	w_istrstream anon(av[1]); anon >> stid;
 	DO( sm->rtree_stats(stid, stats, level, ovp) );
@@ -4432,12 +4644,15 @@ t_rtree_scan(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 	cc = cvt2concurrency_t(av[4]);
     }
 
+#ifdef USE_LID
     if (use_logical_id(ip)) {
 	lstid_t stid;
 	w_istrstream anon(av[1]); anon >> stid;
 
 	s = new scan_rt_i(stid.lvid, stid.serial, cond, box, cc);
-    } else {
+    } else 
+#endif
+    {
 	stid_t stid;
 	w_istrstream anon(av[1]); anon >> stid;
 
@@ -4618,6 +4833,7 @@ t_begin_sort_stream(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 	info.derived = (atoi(av[derived_arg]) != 0);
     }
 
+#ifdef USE_LID
     if (use_logical_id(ip)) {
         lvid_t lvid;
 	w_istrstream anon(av[vid_arg]); anon >> lvid;
@@ -4625,6 +4841,7 @@ t_begin_sort_stream(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 	DO(sm->lvid_to_vid(lvid, tmp_vid));
 	sp.vol = tmp_vid;
     }
+#endif
     
     if (sort_container) delete sort_container;
     sort_container = new sort_stream_i(info, sp, atoi(av[rlen_arg]));
@@ -4786,6 +5003,7 @@ t_link_to_remote_id(Tcl_Interp* ip, int ac, TCL_AV char* av[])
     if (check(ip, "local_volume remote_id", ac, 3))
 	return TCL_ERROR;
 
+#ifdef USE_LID
     if (use_logical_id(ip)) {
 	lid_t remote_id;
 	lid_t new_id;
@@ -4797,8 +5015,10 @@ t_link_to_remote_id(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 				  remote_id.lvid, remote_id.serial));
 	w_reset_strstream(tclout);
 	tclout << new_id << ends;
-    } else {
-	cout << "WARNING: link_to_remote_id used without logical IDs" << endl;
+    } else 
+#endif
+    {
+	cout << "WARNING: link_to_remote_id not supported: no logical IDs" << endl;
 	w_reset_strstream(tclout);
 	tclout << av[2] << ends;
     }
@@ -4813,6 +5033,7 @@ t_convert_to_local_id(Tcl_Interp* ip, int ac, TCL_AV char* av[])
     if (check(ip, "remote_id", ac, 2))
 	return TCL_ERROR;
 
+#ifdef USE_LID
     if (use_logical_id(ip)) {
 	lid_t remote_id;
 	lid_t local_id;
@@ -4821,8 +5042,10 @@ t_convert_to_local_id(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 	                             local_id.lvid, local_id.serial));
 	w_reset_strstream(tclout);
 	tclout << local_id << ends;
-    } else {
-	cout << "WARNING: convert_to_local_id used without logical IDs"
+    } else 
+#endif
+    {
+	cout << "WARNING: convert_to_local_id not supported: no logical IDs"
 	     << endl;
 	w_reset_strstream(tclout);
 	tclout << av[1] << ends;
@@ -4838,6 +5061,7 @@ t_lfid_of_lrid(Tcl_Interp* ip, int ac, TCL_AV char* av[])
     if (check(ip, "lrid", ac, 2))
 	return TCL_ERROR;
 
+#ifdef USE_LID
     if (use_logical_id(ip)) {
 	lid_t lrid;
 	lid_t lfid;
@@ -4846,8 +5070,10 @@ t_lfid_of_lrid(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 	lfid.lvid = lrid.lvid;
 	w_reset_strstream(tclout);
 	tclout << lfid << ends;
-    } else {
-	cout << "WARNING: t_lfid_of_lrid used without logical IDs" << endl;
+    } else 
+#endif
+    {
+	cout << "WARNING: t_lfid_of_lrid not supported: logical IDs" << endl;
 	w_reset_strstream(tclout);
 	tclout << av[1] << ends;
     }
@@ -4856,6 +5082,7 @@ t_lfid_of_lrid(Tcl_Interp* ip, int ac, TCL_AV char* av[])
     return TCL_OK;
 }
 
+#ifdef USE_LID
 static int
 t_serial_to_rid(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
@@ -4869,7 +5096,8 @@ t_serial_to_rid(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 	DO( sm->serial_to_rid(lrid.lvid, lrid.serial, rid));
 	w_reset_strstream(tclout);
 	tclout << rid << ends;
-    } else {
+    } else 
+    {
 	cout << "WARNING: t_serial_to_rid used without logical IDs" << endl;
 	w_reset_strstream(tclout);
 	tclout << av[1] << ends;
@@ -4892,7 +5120,8 @@ t_serial_to_stid(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 	DO( sm->serial_to_stid(lstid.lvid, lstid.serial, stid));
 	w_reset_strstream(tclout);
 	tclout << stid << ends;
-    } else {
+    } else 
+    {
 	cout << "WARNING: t_serial_to_stid used without logical IDs" << endl;
 	w_reset_strstream(tclout);
 	tclout << av[1] << ends;
@@ -4901,7 +5130,10 @@ t_serial_to_stid(Tcl_Interp* ip, int ac, TCL_AV char* av[])
     w_reset_strstream(tclout);
     return TCL_OK;
 }
+/* end USE_LID*/
+#endif
 
+#ifdef USE_LID
 static int
 t_set_lid_cache_enable(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
@@ -4937,7 +5169,10 @@ t_lid_cache_enabled(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 
     return TCL_OK;
 }
+/* end USE_LID*/
+#endif
 
+#ifdef USE_LID
 static int
 t_test_lid_cache(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
@@ -4945,15 +5180,23 @@ t_test_lid_cache(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 	return TCL_ERROR;
 
     int num_add = atoi(av[2]);
+#ifdef USE_LID
     if (use_logical_id(ip)) {
 	lvid_t lvid;
 	w_istrstream anon(av[1]); anon >> lvid;
 	DO(sm->test_lid_cache(lvid, num_add));
-    } else {
+    } else 
+#endif
+    {
+	cout << "WARNING: t_test_lid_cache used without logical IDs" << endl;
+	w_reset_strstream(tclout);
+	tclout << av[1] << ends;
     }
 
     return TCL_OK;
 }
+/* end USE_LID*/
+#endif
 
 static int
 t_lock(Tcl_Interp* ip, int ac, TCL_AV char* av[])
@@ -4965,6 +5208,7 @@ t_lock(Tcl_Interp* ip, int ac, TCL_AV char* av[])
     bool use_phys = true;
     lock_mode_t mode = cvt2lock_mode(av[2]);
 
+#ifdef USE_LID
     if (use_logical_id(ip)) {
 	lid_t   id;
 	lvid_t	lvid;
@@ -5012,6 +5256,7 @@ t_lock(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 	    use_phys = false;
 	}
     }
+#endif
    
     if (use_phys) {
 	lockid_t n;
@@ -5051,6 +5296,7 @@ t_dont_escalate(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 	}
     }
 
+#ifdef USE_LID
     if (use_logical_id(ip))  {
 	return TCL_ERROR;
 
@@ -5077,6 +5323,7 @@ t_dont_escalate(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 	    }
         }
     } 
+#endif
 
     if (use_phys)  {
 	lockid_t n;
@@ -5196,6 +5443,7 @@ t_lock_many(Tcl_Interp* ip, int ac, TCL_AV char* av[])
     smsize_t i;
     lock_mode_t mode = cvt2lock_mode(av[3]);
 
+#ifdef USE_LID
     if (use_logical_id(ip)) {
 	lid_t   id;
 	w_istrstream anon2(av[2]); anon2 >> id;
@@ -5227,6 +5475,7 @@ t_lock_many(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 	    use_phys = false;
 	}
     }
+#endif
    
     if (use_phys) {
 	lockid_t n;
@@ -5259,6 +5508,7 @@ t_unlock(Tcl_Interp* ip, int ac, TCL_AV char* av[])
     rc_t rc; // return code
     bool use_phys = true;
 
+#ifdef USE_LID
     if (use_logical_id(ip)) {
 	lid_t   id;
 	w_istrstream anon(av[1]); anon >> id;
@@ -5271,6 +5521,7 @@ t_unlock(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 	    use_phys = false;
 	}
     }
+#endif
     if (use_phys) {
 	lockid_t n;
 	cvt2lockid_t(av[1], n);
@@ -5324,6 +5575,7 @@ t_query_lock(Tcl_Interp* ip, int ac, TCL_AV char* av[])
     bool use_phys = true;
     lock_mode_t m = NL;
 
+#ifdef USE_LID
     if (use_logical_id(ip)) {
 	lid_t   id;
 	w_istrstream anon(av[1]); anon >> id;
@@ -5336,6 +5588,7 @@ t_query_lock(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 	    use_phys = false;
 	}
     }
+#endif
     if (use_phys) {
 	lockid_t n;
 	cvt2lockid_t(av[1], n);
@@ -5381,6 +5634,7 @@ t_lock_cache_enabled(Tcl_Interp* ip, int ac, TCL_AV char* av[])
     return TCL_OK;
 }
 
+#ifdef USE_LID
 static int
 t_print_lid_index(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
@@ -5394,9 +5648,10 @@ t_print_lid_index(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 	return TCL_OK;
     }
     
-    Tcl_AppendResult(ip, "logical id not used", 0);
+    Tcl_AppendResult(ip, "WARNING: logical id not used", 0);
     return TCL_ERROR;
 }
+#endif
 
 static int
 t_create_many_rec(Tcl_Interp* ip, int ac, TCL_AV char* av[])
@@ -5412,6 +5667,7 @@ t_create_many_rec(Tcl_Interp* ip, int ac, TCL_AV char* av[])
     data.put(av[5], strlen(av[5]));
 
     
+#ifdef USE_LID
     if (use_logical_id(ip)) {
 	lstid_t  stid;
 	lrid_t   rid;
@@ -5434,7 +5690,9 @@ t_create_many_rec(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 	w_reset_strstream(tclout);
 	tclout << rid << ends;
 
-    } else {
+    } else 
+#endif
+    {
 	stid_t  stid;
 	rid_t   rid;
 	
@@ -5471,6 +5729,7 @@ t_update_rec_many(Tcl_Interp* ip, int ac, TCL_AV char* av[])
     data.set(parse_vec(av[4], strlen(av[4])));
     start = objectsize(av[3]);    
 
+#ifdef USE_LID
     if (use_logical_id(ip)) {
 	lrid_t   rid;
 
@@ -5479,7 +5738,9 @@ t_update_rec_many(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 	    DO( sm->update_rec(rid.lvid, rid.serial, start, data) );
 	}
 
-    } else {
+    } else 
+#endif
+    {
 	rid_t   rid;
 
 	w_istrstream anon2(av[2]); anon2 >> rid;
@@ -6240,7 +6501,10 @@ static cmd_t cmd[] = {
     { "gather_xct_stats", t_gather_xct_stats },
     { "mem_stats", t_mem_stats },
     { "snapshot_buffers", t_snapshot_buffers },
+#ifdef USE_LID
     { "print_lid_index", t_print_lid_index },
+/* end USE_LID*/
+#endif
     { "config_info", t_config_info },
     { "set_disk_delay", t_set_disk_delay },
     { "start_log_corruption", t_start_log_corruption },
@@ -6260,10 +6524,16 @@ static cmd_t cmd[] = {
     { "dismount_all", t_dismount_all },
     { "list_devices", t_list_devices },
     { "list_volumes", t_list_volumes },
+#ifdef USE_LID
     { "generate_new_lvid", t_generate_new_lvid },
+/* end USE_LID*/
+#endif
     { "create_vol", t_create_vol },
     { "destroy_vol", t_destroy_vol },
+#ifdef USE_LID
     { "add_logical_id_index", t_add_logical_id_index },
+/* end USE_LID*/
+#endif
     { "has_logical_id_index", t_has_logical_id_index },
     { "get_volume_quota", t_get_volume_quota },
     { "get_device_quota", t_get_device_quota },
@@ -6376,11 +6646,14 @@ static cmd_t cmd[] = {
     { "link_to_remote_id", t_link_to_remote_id },
     { "convert_to_local_id", t_convert_to_local_id },
     { "lfid_of_lrid", t_lfid_of_lrid },
+#ifdef USE_LID
     { "serial_to_rid", t_serial_to_rid },
     { "serial_to_stid", t_serial_to_stid },
     { "set_lid_cache_enable", t_set_lid_cache_enable },
     { "lid_cache_enabled", t_lid_cache_enabled },
     { "test_lid_cache", t_test_lid_cache },
+/* end USE_LID*/
+#endif
 
     // Lock
     { "lock", t_lock },

@@ -1,6 +1,6 @@
 # <std-header style='tcl' orig-src='shore'>
 #
-#  $Id: README,v 1.8 2006/06/01 17:09:28 nhall Exp $
+#  $Id: README,v 1.9 2007/08/21 19:43:59 nhall Exp $
 #
 # SHORE -- Scalable Heterogeneous Object REpository
 #
@@ -84,7 +84,6 @@ all --  for normal "regression" testing.
 				bt.insert.[1-4] -- uses bt.insert.0
 				bt.remove.[1-4] -- uses bt.remove.0
 					(bt.remove.0 uses bt.insertremove.0)
-				btree.convert.1 
 				btree_split.1
 				bt.insert.5
 
@@ -108,7 +107,6 @@ all --  for normal "regression" testing.
 			Runs:
 				file.[1-8]
 					(file.7 uses file.5a)
-				forward.1 
 				tmpfile.1 
 				space_recovery
 
@@ -120,10 +118,6 @@ all --  for normal "regression" testing.
 			Runs:
 				trans.[12]
 				prepare.1
-
-		lid.all	-- logical oid 
-			Runs:
-				lid.1
 
 		alloc.all -- page allocation
 			Runs:

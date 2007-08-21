@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='FILE_H'>
 
- $Id: file.h,v 1.98 1999/06/07 19:04:04 kupsch Exp $
+ $Id: file.h,v 1.99 2007/08/21 19:50:42 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -113,8 +113,6 @@ protected: // pin_i uses these
 	slot_length_t	    len,
 	const vec_t&	    data);
 
-    slotid_t		serial_slot(const serial_t& s); // find slot with serial
-
 public:	  
     // ss_m::_update_rec_hdr calls this
     rc_t		splice_hdr(
@@ -173,7 +171,6 @@ public:
 			smsize_t	len_hint,
 			const vec_t& 	hdr,
 			const vec_t& 	data,
-			const serial_t&	serial_no, // output
 			sdesc_t&	sd,
 			rid_t& 		rid // output
 			// no forward_alloc
@@ -183,7 +180,6 @@ public:
 			uint4_t 	len_hint,
 			const vec_t& 	hdr,
 			const vec_t& 	data,
-			const serial_t& serial_no, // out
 			sdesc_t& 	sd, 
 			rid_t& 		rid	// out
 		    );
@@ -192,7 +188,6 @@ public:
 			uint4_t len_hint,
 			const vec_t& hdr,
 		    	const vec_t& data,
-			const serial_t& serial_no,
 		    	sdesc_t& sd, 
 			rid_t& rid);
 
@@ -201,21 +196,24 @@ public:
 			uint4_t len_hint,
 			const vec_t& hdr,
 		    	const vec_t& data,
-			const serial_t& serial_no,
 		    	sdesc_t& sd, 
 			rid_t& rid,
 			bool forward_alloc = true
 			);
-    static rc_t destroy_rec(const rid_t& rid, const serial_t& verify);
+    static rc_t destroy_rec(const rid_t& rid
+		);
     static rc_t update_rec(const rid_t& rid, uint4_t start,
-			   const vec_t& data, const serial_t& verify);
+			   const vec_t& data
+			   );
     static rc_t append_rec(const rid_t& rid, const vec_t& data,
-			   const sdesc_t& sd, bool allow_forward,
-			   const serial_t& verify);
+			   const sdesc_t& sd, bool allow_forward
+			   );
     static rc_t truncate_rec(const rid_t& rid, uint4_t amount,
-			   bool& should_forward, const serial_t& verify);
+			   bool& should_forward
+			   );
     static rc_t splice_hdr(rid_t rid, slot_length_t start, slot_length_t len,
-			   const vec_t& hdr_data, const serial_t& verify);
+			   const vec_t& hdr_data
+			   );
     static rc_t read_rec(const rid_t& rid, int start, uint4_t& len, void* buf);
     static rc_t read_rec(const rid_t& rid, uint4_t& len, void* buf)  {
 	return read_rec(rid, 0, len, buf);
@@ -270,7 +268,6 @@ protected:
 			sdesc_t&	sd,
 			const vec_t& 	hdr,
 			const vec_t& 	data,
-			const serial_t&	serial_no,
 			rid_t& 		rid,
 			file_p&		page	// in-output
 		    );
@@ -282,7 +279,6 @@ protected:
 			uint4_t 	len_hint,
 			const vec_t& 	hdr, 
 		    	const vec_t& 	data, 
-			const serial_t& serial_no,
 		    	sdesc_t& 	sd, 
 			rid_t& 		rid,
 			bool		forward_alloc,
@@ -304,7 +300,6 @@ protected:
 			file_p&		page,
 			slotid_t 	slot,
 			recflags_t 	rec_impl,
-			const serial_t& serial_no,
 			const vec_t& 	hdr,
 			const vec_t& 	data,
 			sdesc_t&	sd,

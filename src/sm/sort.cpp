@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: sort.cpp,v 1.125 2001/09/18 22:25:58 bolo Exp $
+ $Id: sort.cpp,v 1.126 2007/08/21 19:50:43 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -967,11 +967,13 @@ sort_stream_i::flush_run()
 	// not last pass so use temp file
 	if (_once) {
 	    W_DO( SSM->_create_file(sp.vol, sd->tmp_fid, 
-				_property, _logical_id) );
+				_property
+				) );
 	    INC_TSTAT_SORT(sort_files_created);
 	} else {
 	    W_DO( SSM->_create_file(sp.vol, sd->tmp_fid, 
-				t_temporary, serial_t::null) );
+				t_temporary
+				) );
 	    INC_TSTAT_SORT(sort_files_created);
 	}
     }
@@ -1010,28 +1012,12 @@ sort_stream_i::flush_run()
 	    vec_t hdr, data(k->rec, k->rlen);
 	    if (_once) {
 		hdr.put((char*)k->hdr+k->klen, k->hlen-k->klen);
-		if (sp.keep_lid) {
-		    serial_t serial_no;
-		    memcpy(&serial_no, (char*)k->hdr+k->klen-sizeof(serial_t),
-				sizeof(serial_t));
-		    INC_TSTAT_SORT(sort_memcpy_cnt);
-		    ADD_TSTAT_SORT(sort_memcpy_bytes, sizeof(serial_t));
-	    	    W_DO ( fi->create_rec_at_end(
-			last_page,
-			k->rlen, 
-			hdr, data, 
-			serial_no, *sd->sdesc, rid) );
-
-		    INC_TSTAT_SORT(sort_tmpfile_cnt);
-		    ADD_TSTAT_SORT(sort_tmpfile_bytes, hdr.size() + data.size());
-
-		    W_DO ( lid->associate(sp.lvid, serial_no, rid) );
-		} else {
+		{
 	    	    W_DO ( fi->create_rec_at_end(
 			last_page,
 			k->rlen,
 			hdr, data, 
-			serial_t::null, *sd->sdesc, rid) );
+			*sd->sdesc, rid) );
 
 		    INC_TSTAT_SORT(sort_tmpfile_cnt);
 		    ADD_TSTAT_SORT(sort_tmpfile_bytes, hdr.size() + data.size());
@@ -1040,7 +1026,8 @@ sort_stream_i::flush_run()
 		hdr.put(k->hdr, k->hlen);
 	    	W_DO ( fi->create_rec_at_end(
 			last_page, k->rlen,
-			hdr, data, serial_t::null, *sd->sdesc, 
+			hdr, data, 
+			*sd->sdesc, 
 			rid) );
 		INC_TSTAT_SORT(sort_tmpfile_cnt);
 		ADD_TSTAT_SORT(sort_tmpfile_bytes, hdr.size() + data.size());
@@ -1060,7 +1047,8 @@ sort_stream_i::flush_run()
 	    vec_t hdr(k->val, k->klen), data(k->rec, k->rlen);
 	    W_DO ( fi->create_rec_at_end(
 		    last_page, k->rlen,
-		    hdr, data, serial_t::null, *sd->sdesc, 
+		    hdr, data, 
+		    *sd->sdesc, 
 		    rid) );
 
 	    INC_TSTAT_SORT(sort_tmpfile_cnt);
@@ -1076,7 +1064,8 @@ sort_stream_i::flush_run()
     	vec_t hdr, data((void*)&_marker_, sizeof(int));
     	W_DO( fi->create_rec_at_end(
 		last_page, sizeof(int), 
-		hdr, data, serial_t::null, *sd->sdesc, rid) );
+		hdr, data, 
+		*sd->sdesc, rid) );
 	INC_TSTAT_SORT(sort_tmpfile_cnt);
 	ADD_TSTAT_SORT(sort_tmpfile_bytes, hdr.size() + data.size());
     }
@@ -1120,7 +1109,7 @@ sort_stream_i::flush_one_rec(const record_t *rec, rid_t& rid,
 
     W_DO( fi->create_rec_at_end(
 	last_page, rlen, hdr, data, 
-	serial_t::null, *sd->sdesc, rid) );
+	*sd->sdesc, rid) );
 
     if(to_final_file) {
 	INC_TSTAT_SORT(sort_recs_created);
@@ -1206,15 +1195,15 @@ sort_stream_i::merge(bool skip_last_pass=false)
     	if (last_pass) {
 	    // last pass may not be on temporary file
             // (file should use logical_id)
-	    W_DO( SSM->_create_file(sp.vol, out_file, sp.property,
-					sp.logical_id) );
+	    W_DO( SSM->_create_file(sp.vol, out_file, sp.property
+					) );
 	    INC_TSTAT_SORT(sort_files_created);
 	    to_final_file = true;
     	} else {
 	    // not last pass so use temp file
 	    W_DO( SSM->_create_file(sp.vol, out_file, 
-					t_temporary,
-					serial_t::null) );
+					t_temporary
+					) );
 	    INC_TSTAT_SORT(sort_files_created);
 	    to_final_file = false;
     	}
@@ -1349,7 +1338,7 @@ sort_stream_i::merge(bool skip_last_pass=false)
 	    	vec_t hdr, data((void*)&_marker_, sizeof(int));
 	    	W_DO( fi->create_rec_at_end(
 			last_page, sizeof(int), hdr, data,
-			serial_t::null, *sd->sdesc, rid) );
+			*sd->sdesc, rid) );
 
 		INC_TSTAT_SORT(sort_tmpfile_cnt);
 		ADD_TSTAT_SORT(sort_tmpfile_bytes, hdr.size() + data.size());
@@ -1373,7 +1362,6 @@ sort_stream_i::sort_stream_i() : xct_dependent_t(xct())
     sd = new sort_desc_t;  // deleted in ~sort_stream_i
     record_malloc(sizeof(sort_desc_t));
     _once = false;
-    _logical_id = serial_t::null;
 }
 
 NORET
@@ -1402,7 +1390,6 @@ sort_stream_i::sort_stream_i(const key_info_t& k, const sort_parm_t& s,
 
     sd->comp = get_cmp_func(ki.type, sp.ascending);
     _once = false;
-    _logical_id = serial_t::null;
 }
 
 NORET
@@ -1814,9 +1801,7 @@ ss_m::_sort_file(const stid_t& fid, vid_t vid, stid_t& sfid,
                 sm_store_property_t property,
                 const key_info_t& key_info, int run_size,
 		bool ascending,
-                bool unique, bool destructive,
-                const serial_t& logical_id,
-		const lvid_t& logical_vid
+                bool unique, bool destructive
 		)
 {
     int i, j;
@@ -1831,10 +1816,7 @@ ss_m::_sort_file(const stid_t& fid, vid_t vid, stid_t& sfid,
     sp.unique = unique;
     sp.vol = vid;
     sp.property = property;
-    sp.logical_id = logical_id;
     sp.destructive = destructive;
-    sp.keep_lid = (sp.logical_id != serial_t::null) && destructive;
-    sp.lvid = logical_vid;
 
     bool large_obj = false;
     stid_t lg_fid;
@@ -1844,7 +1826,8 @@ ss_m::_sort_file(const stid_t& fid, vid_t vid, stid_t& sfid,
 	// HACK:
 	// create a file to hold potential large object 
 	// in a non-destructive sort.
-	W_DO ( _create_file(vid, lg_fid, property, logical_id) );
+	W_DO ( _create_file(vid, lg_fid, property
+		    ) );
 	INC_TSTAT_SORT(sort_files_created);
     	W_COERCE( dir->access(lg_fid, sdesc, NL) );
 	w_assert1(sdesc);
@@ -1890,7 +1873,8 @@ ss_m::_sort_file(const stid_t& fid, vid_t vid, stid_t& sfid,
     sort_stream_i sort_stream(kinfo, sp);
 
     if (once) {
-        sort_stream.set_file_sort_once(property, logical_id);
+        sort_stream.set_file_sort_once(property
+		);
     } else {
         sort_stream.set_file_sort();
     }
@@ -1945,7 +1929,8 @@ ss_m::_sort_file(const stid_t& fid, vid_t vid, stid_t& sfid,
 			w_assert1(sdesc);
 			W_DO ( fi->create_rec_at_end(
 				last_lg_page,
-				rlen, b_hdr, b_rec, serial_t::null, *sdesc,
+				rlen, b_hdr, b_rec, 
+				*sdesc,
 				rid) );
 			INC_TSTAT_SORT(sort_recs_created);
 			ADD_TSTAT_SORT(sort_rec_bytes,  b_hdr.size() + b_rec.size());
@@ -1998,14 +1983,6 @@ ss_m::_sort_file(const stid_t& fid, vid_t vid, stid_t& sfid,
 		    key.put(kval, (int)klen);
 		}
 
-		// for destructive sort that preserve the oid for
-		// recs: we need to record the serial number as well
-		if (sp.keep_lid) {
-		    // remove the association from lid index
-		    W_DO(lid->remove(sp.lvid, r->tag.serial_no));
-		    key.put((char*)&r->tag.serial_no, sizeof(serial_t));
-		}
-		    
 		// another hack: since the sort stream stores keys at
 		// the header of intermediate rec, we have to append 
 		// original header at end of key.
@@ -2036,12 +2013,14 @@ ss_m::_sort_file(const stid_t& fid, vid_t vid, stid_t& sfid,
 
 	if (sfid == stid_t::null) {
 	    // empty file, creating an empty file
-	    W_DO ( _create_file(vid, sfid, property, logical_id) );
+	    W_DO ( _create_file(vid, sfid, property
+			) );
 	    INC_TSTAT_SORT(sort_files_created);
 	}
     } else {
         // get sorted stream, write to the final file
-        W_DO ( _create_file(vid, sfid, property, logical_id) );
+        W_DO ( _create_file(vid, sfid, property
+		    ) );
 	INC_TSTAT_SORT(sort_files_created);
 
 	file_p last_page;
@@ -2059,9 +2038,7 @@ ss_m::_sort_file(const stid_t& fid, vid_t vid, stid_t& sfid,
 	    vec_t key, hdr, rec;
 	    W_DO ( sort_stream.file_get_next(key, rec, blen, eof) );
 
-	    uint offset = sp.keep_lid ? 
-				kinfo.len+sizeof(serial_t) : kinfo.len;
-	    serial_t serial_no = serial_t::null;
+	    uint offset = kinfo.len;
 
             W_COERCE( dir->access(sfid, sdesc, NL) );
             w_assert1(sdesc);
@@ -2091,28 +2068,19 @@ ss_m::_sort_file(const stid_t& fid, vid_t vid, stid_t& sfid,
 
 		uint hlen;
 
-		if ((hlen=(uint)(key.size()-offset))>0 || sp.keep_lid) {
+		if ((hlen=(uint)(key.size()-offset))>0 
+		) {
 	    	    key.copy_to(tmp_buf, key.size());
 		}
 		if (hlen>0) {
 	    	    hdr.put(tmp_buf+offset, hlen);
 		}
-		if (sp.keep_lid) {
-		    memcpy((char*)&serial_no, tmp_buf+kinfo.len,
-				sizeof(serial_t));
-		    INC_TSTAT_SORT(sort_memcpy_cnt);
-		    ADD_TSTAT_SORT(sort_memcpy_bytes, sizeof(serial_t));
-		} 
 		W_DO ( fi->create_rec_at_end(
 			last_page,
 			rec.size(), hdr, rec, 
-			serial_no, *sdesc, rid) );
+			*sdesc, rid) );
 		INC_TSTAT_SORT(sort_tmpfile_cnt);
 		ADD_TSTAT_SORT(sort_tmpfile_bytes,  hdr.size() + rec.size());
-
-		if (serial_no != serial_t::null) {
-		    W_DO(lid->associate(sp.lvid, serial_no, rid));
-		}
 
 		if (blen>rec.size()) {
 	    	    // HACK:
@@ -2158,7 +2126,6 @@ ss_m::sort_file(const stid_t& fid, // I - input file id
         bool ascending,		   // I - ascending?
         bool unique,		   // I - eliminate duplicates?
         bool destructive,	   // I - destroy the input file?
-        const serial_t& serial,
 	bool use_new_sort	   // I - true
 	)    // I - serial number for logical id
 {
@@ -2169,12 +2136,14 @@ ss_m::sort_file(const stid_t& fid, // I - input file id
 	run_size++;
 	return ss_m::new_sort_file(fid, vid, sfid, property,
 			key_info, run_size, ascending, 
-			unique, destructive, serial);
+			unique, destructive
+			);
     }
 
     SM_PROLOGUE_RC(ss_m::sort_file, in_xct, 0);
     W_DO(_sort_file(fid, vid, sfid, property, key_info, run_size,
-			ascending, unique, destructive, serial, lvid_t::null));
+			ascending, unique, destructive
+			));
     return RCOK;
 }
 #endif /* OLDSORT_COMPATIBILITY */

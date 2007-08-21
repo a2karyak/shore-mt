@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: file_scan.cpp,v 1.24 2007/05/18 21:39:18 nhall Exp $
+ $Id: file_scan.cpp,v 1.25 2007/08/21 19:47:57 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -57,8 +57,8 @@ w_rc_t init_config_options(option_group_t& options,
 
 struct file_info_t {
     static const char* key;
-    serial_t 	fid;
-    serial_t 	first_rid;
+    stid_t 	fid;
+    rid_t       first_rid;
     int 	num_rec;
     int 	rec_size;
 };
@@ -74,14 +74,16 @@ typedef	smlevel_0::smksize_t	smksize_t;
 rc_t
 setup_device_and_volume(const char* device_name, bool init_device,
 			smksize_t quota, lvid_t& lvid, int num_rec,
-			smsize_t rec_size, serial_t& fid,
-			serial_t& first_rid)
+			smsize_t rec_size, 
+			stid_t& fid,
+			rid_t& first_rid
+			)
 {
     devid_t	devid;
     u_int	vol_cnt;
     rc_t 	rc;
 
-    serial_t root_iid;  // root index ID
+    stid_t root_iid;  // root index ID
     file_info_t info;
     smsize_t    info_len = sizeof(info);
 
@@ -97,51 +99,57 @@ setup_device_and_volume(const char* device_name, bool init_device,
 	// create on the device
 	W_DO(ssm->generate_new_lvid(lvid));
 
+	vid_t vid(1);
 	// create the new volume 
 	cout << "Creating a new volume on the device" << endl;
 	cout << "    with a " << quota << "KB quota ..." << endl;
-	W_DO(ssm->create_vol(device_name, lvid, quota));
+	cout << "    with local handle(phys volid) " << vid << endl;
+	W_DO(ssm->create_vol(device_name, lvid, quota, false, vid));
 
+#if 0
 	// create the logical ID index on the volume, reserving no IDs
 	W_DO(ssm->add_logical_id_index(lvid, 0, 0));
+#endif
 
 	// create and fill file to scan
-	cout << "Creating a file with " << num_rec << " records of size " << rec_size << endl;
+	cout << "Creating a file with " << num_rec 
+	    << " records of size " << rec_size << endl;
 	W_DO(ssm->begin_xct());
-	    W_DO(ssm->create_file(lvid, info.fid, smlevel_3::t_regular));
-	    serial_t rid;
-	    char* dummy = new char[rec_size];
-	    memset(dummy, '\0', rec_size);
-	    vec_t data(dummy, rec_size);
-	    for (int i = 0; i < num_rec; i++) {
-#ifndef NO_VEC_TMP_HACK
-		const vec_t null_vec_tmp;
-		W_DO(ssm->create_rec(lvid, info.fid, null_vec_tmp,
-					rec_size, data, rid));
-#else		    
-		W_DO(ssm->create_rec(lvid, info.fid, vec_t(),
-					rec_size, data, rid));
-#endif
-		if (i == 0) {
-		    info.first_rid = rid;
-		}	
-	    }
-	    delete [] dummy;
-	    info.num_rec = num_rec;
-	    info.rec_size = rec_size;
 
-	    // record file info in the root index
-	    W_DO(ss_m::vol_root_index(lvid, root_iid));
+	W_DO(ssm->create_file(vid, info.fid, smlevel_3::t_regular));
+	rid_t rid;
+	char* dummy = new char[rec_size];
+	memset(dummy, '\0', rec_size);
+	vec_t data(dummy, rec_size);
+	for (int i = 0; i < num_rec; i++) {
 #ifndef NO_VEC_TMP_HACK
-	    const vec_t key_vec_tmp(file_info_t::key, strlen(file_info_t::key));
-	    const vec_t info_vec_tmp(&info, sizeof(info));
-	    W_DO(ss_m::create_assoc(lvid, root_iid,
-				    key_vec_tmp,
-				    info_vec_tmp));
+	    const vec_t null_vec_tmp;
+	    W_DO(ssm->create_rec(info.fid, null_vec_tmp,
+				    rec_size, data, rid));
+#else		    
+	    W_DO(ssm->create_rec(info.fid, vec_t(),
+				    rec_size, data, rid));
+#endif
+	    if (i == 0) {
+		info.first_rid = rid;
+	    }	
+	}
+	delete [] dummy;
+	info.num_rec = num_rec;
+	info.rec_size = rec_size;
+
+	// record file info in the root index
+	W_DO(ss_m::vol_root_index(lvid, root_iid));
+#ifndef NO_VEC_TMP_HACK
+	const vec_t key_vec_tmp(file_info_t::key, strlen(file_info_t::key));
+	const vec_t info_vec_tmp(&info, sizeof(info));
+	W_DO(ss_m::create_assoc(root_iid,
+				key_vec_tmp,
+				info_vec_tmp));
 #else
-	    W_DO(ss_m::create_assoc(lvid, root_iid,
-		    vec_t(file_info_t::key, strlen(file_info_t::key)),
-		    vec_t(&info, sizeof(info))));
+	W_DO(ss_m::create_assoc(root_iid,
+		vec_t(file_info_t::key, strlen(file_info_t::key)),
+		vec_t(&info, sizeof(info))));
 #endif
 	W_DO(ssm->commit_xct());
 
@@ -175,11 +183,11 @@ setup_device_and_volume(const char* device_name, bool init_device,
 #endif
     W_DO(ss_m::vol_root_index(lvid, root_iid));
 #ifndef NO_VEC_TMP_HACK
-    W_DO(ss_m::find_assoc(lvid, root_iid,
+    W_DO(ss_m::find_assoc(root_iid,
 			  key_vec_tmp,
 			  &info, info_len, found));
 #else
-    W_DO(ss_m::find_assoc(lvid, root_iid,
+    W_DO(ss_m::find_assoc(root_iid,
 		      vec_t(file_info_t::key, strlen(file_info_t::key)),
 		      &info, info_len, found));
 #endif
@@ -207,11 +215,11 @@ usage(option_group_t& options)
     options.print_usage(true, cerr);
 }
 
-void scan_i_scan(const lvid_t& lvid, const serial_t& fid, int num_rec,
+void scan_i_scan(const stid_t& fid, int num_rec,
 		ss_m::concurrency_t cc)
 {
     cout << "starting scan_i of " << num_rec << " records" << endl;
-    scan_file_i scan(lvid, fid, cc);
+    scan_file_i scan(fid, cc);
     pin_i* 	handle;
     bool	eof = false;
     int 	i = 0;
@@ -224,10 +232,11 @@ void scan_i_scan(const lvid_t& lvid, const serial_t& fid, int num_rec,
     cout << "scan_i scan complete" << endl;
 }
 
-void lid_scan(const lvid_t& lvid, const serial_t& start_rid, int num_rec)
+#if 0
+void lid_scan(const lvid_t& lvid, const rid_t& start_rid, int num_rec)
 {
     cout << "starting lid scan of " << num_rec << " records" << endl;
-    serial_t 	rid = start_rid;
+    rid_t 	rid = start_rid;
     pin_i 	pin;
     int 	i;
     for (i = 0, rid = start_rid; i < num_rec; i++, rid.increment(1)) {
@@ -236,8 +245,9 @@ void lid_scan(const lvid_t& lvid, const serial_t& start_rid, int num_rec)
     assert(i == num_rec);
     cout << "lid scan complete" << endl;
 }
+#endif
 
-void pys_scan(const serial_t&, int)
+void pys_scan(const stid_t&, int)
 {
     cerr << "NOT IMPLEMENTED: physical scan" << endl;
     
@@ -366,8 +376,8 @@ void smthread_user_t::run()
     smksize_t quota = strtol(opt_device_quota->value(), 0, 0);
     int num_rec = strtol(opt_num_rec->value(), 0, 0);
     smsize_t rec_size = strtol(opt_rec_size->value(), 0, 0);
-    serial_t start_rid;
-    serial_t fid;
+    rid_t start_rid;
+    stid_t fid;
 
     rc = setup_device_and_volume(opt_device_name->value(), init_device, quota, lvid, num_rec, rec_size, fid, start_rid);
 
@@ -391,15 +401,17 @@ void smthread_user_t::run()
 	    if (lock_gran[0] == 'r') {
 		cc = ss_m::t_cc_record;
 	    }
-	    scan_i_scan(lvid, fid, num_rec, cc);
+	    scan_i_scan(fid, num_rec, cc);
 	    break;
 	}
+#if 0
 	case 'l':
 	    if (lock_gran[0] == 'f') {
 		ssm->lock(lvid, fid, SH);
 	    }
 	    lid_scan(lvid, start_rid, num_rec);
 	    break;
+#endif
 	case 'p':
 	    pys_scan(fid, num_rec);
 	    break;

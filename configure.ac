@@ -2,7 +2,7 @@
 # Process this file with autoconf to produce a configure script.
 
 AC_PREREQ(2.59)
-AC_INIT(Shore-Storage-Manager, 5.0.1, Noone._Sadly-_this_is_unsupported_software.)
+AC_INIT(Shore-Storage-Manager, 5.0.2-prelim, Noone._Sadly-_this_is_unsupported_software.)
 AC_CONFIG_HEADERS([config/shore-config.h:config/shore-config-h.in])
 AC_CONFIG_SRCDIR([config/shore.def])
 AC_COPYRIGHT(COPYRIGHT-NOTICE)
@@ -47,8 +47,7 @@ AC_CHECK_HEADERS([fcntl.h])
 AC_CHECK_HEADERS([memory.h]) 
 AC_CHECK_HEADERS([string.h]) 
 
-## used in lid.cpp (logical-id manager) TODO: REMOVE LOGICAL_IDS
-## or separate them out as another library,  enable-able FEATURE
+## used in lid.cpp (logical-id manager)  for volume ids
 AC_CHECK_HEADERS([netdb.h]) 
 
 ## used in sthread lib

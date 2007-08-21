@@ -15,7 +15,7 @@
 @SET_MAKE@
 
 # rules, macros generic to all Makefile.am
-SOURCES = $(bitmap_SOURCES) $(errcodes_SOURCES) $(kvl_SOURCES) $(opaque_SOURCES) $(stats_SOURCES) $(testserial_SOURCES) $(vectors_SOURCES)
+SOURCES = $(bitmap_SOURCES) $(errcodes_SOURCES) $(kvl_SOURCES) $(opaque_SOURCES) $(stats_SOURCES) $(vectors_SOURCES)
 
 srcdir = @srcdir@
 top_srcdir = @top_srcdir@
@@ -66,8 +66,7 @@ DIST_COMMON = $(check_HEADERS) $(srcdir)/Makefile.am \
 @PURECOV_TRUE@am__append_14 = $(check_PROGRAMS:%=%.purecov)
 @PURECOV_TRUE@am__append_15 = -DPURECOV -I$(PURECOV_INCLUDE) 
 check_PROGRAMS = bitmap$(EXEEXT) kvl$(EXEEXT) opaque$(EXEEXT) \
-	stats$(EXEEXT) testserial$(EXEEXT) vectors$(EXEEXT) \
-	errcodes$(EXEEXT)
+	stats$(EXEEXT) vectors$(EXEEXT) errcodes$(EXEEXT)
 subdir = src/common/tests
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps = $(top_srcdir)/configure.ac
@@ -111,11 +110,6 @@ stats_OBJECTS = $(am_stats_OBJECTS)
 stats_LDADD = $(LDADD)
 stats_DEPENDENCIES = ../libcommon.a ../../sthread/libsthread.a \
 	../../fc/libfc.a $(am__DEPENDENCIES_7)
-am_testserial_OBJECTS = testserial.$(OBJEXT)
-testserial_OBJECTS = $(am_testserial_OBJECTS)
-testserial_LDADD = $(LDADD)
-testserial_DEPENDENCIES = ../libcommon.a ../../sthread/libsthread.a \
-	../../fc/libfc.a $(am__DEPENDENCIES_7)
 am_vectors_OBJECTS = vectors.$(OBJEXT)
 vectors_OBJECTS = $(am_vectors_OBJECTS)
 vectors_LDADD = $(LDADD)
@@ -130,11 +124,9 @@ CXXLD = $(CXX)
 CXXLINK = $(CXXLD) $(AM_CXXFLAGS) $(CXXFLAGS) $(AM_LDFLAGS) $(LDFLAGS) \
 	-o $@
 SOURCES = $(bitmap_SOURCES) $(errcodes_SOURCES) $(kvl_SOURCES) \
-	$(opaque_SOURCES) $(stats_SOURCES) $(testserial_SOURCES) \
-	$(vectors_SOURCES)
+	$(opaque_SOURCES) $(stats_SOURCES) $(vectors_SOURCES)
 DIST_SOURCES = $(bitmap_SOURCES) $(errcodes_SOURCES) $(kvl_SOURCES) \
-	$(opaque_SOURCES) $(stats_SOURCES) $(testserial_SOURCES) \
-	$(vectors_SOURCES)
+	$(opaque_SOURCES) $(stats_SOURCES) $(vectors_SOURCES)
 ETAGS = etags
 CTAGS = ctags
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
@@ -433,7 +425,6 @@ errcodes_SOURCES = errcodes.cpp
 kvl_SOURCES = kvl.cpp
 opaque_SOURCES = opaque.cpp
 stats_SOURCES = test_stat.cpp stats.cpp
-testserial_SOURCES = testserial.cpp
 vectors_SOURCES = vectors.cpp
 TEST_STAT_GENFILES = test_stat_def_gen.h test_stat_struct_gen.h 
 GENFILES = $(TEST_STAT_GENFILES)
@@ -489,9 +480,6 @@ opaque$(EXEEXT): $(opaque_OBJECTS) $(opaque_DEPENDENCIES)
 stats$(EXEEXT): $(stats_OBJECTS) $(stats_DEPENDENCIES) 
 	@rm -f stats$(EXEEXT)
 	$(CXXLINK) $(stats_LDFLAGS) $(stats_OBJECTS) $(stats_LDADD) $(LIBS)
-testserial$(EXEEXT): $(testserial_OBJECTS) $(testserial_DEPENDENCIES) 
-	@rm -f testserial$(EXEEXT)
-	$(CXXLINK) $(testserial_LDFLAGS) $(testserial_OBJECTS) $(testserial_LDADD) $(LIBS)
 vectors$(EXEEXT): $(vectors_OBJECTS) $(vectors_DEPENDENCIES) 
 	@rm -f vectors$(EXEEXT)
 	$(CXXLINK) $(vectors_LDFLAGS) $(vectors_OBJECTS) $(vectors_LDADD) $(LIBS)
@@ -508,7 +496,6 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/opaque.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/stats.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_stat.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/testserial.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/vectors.Po@am__quote@
 
 .cpp.o:

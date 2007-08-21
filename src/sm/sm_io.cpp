@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: sm_io.cpp,v 1.34 2007/05/18 21:43:28 nhall Exp $
+ $Id: sm_io.cpp,v 1.35 2007/08/21 19:50:43 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -481,30 +481,6 @@ io_m::_list_devices(
 }
 
 
-/*********************************************************************
- *
- *  io_m::_get_vid(lvid)
- *
- *********************************************************************/
-inline vid_t 
-io_m::_get_vid(const lvid_t& lvid)
-{
-    uint4_t i;
-    for (i = 0; i < max_vols; i++)  {
-	if (vol[i] && vol[i]->lvid() == lvid) break;
-    }
-
-#ifndef EGCS_BUG_1
-    // egcs 1.1.1 croaks on this stmt:
-    return (i >= max_vols) ? vid_t::null : vol[i]->vid();
-#else
-    if(i >= max_vols) {
-	return vid_t::null;
-    } else {
-	return vol[i]->vid();
-    }
-#endif
-}
 
 
 /*********************************************************************
@@ -2458,3 +2434,29 @@ io_m::dump_stores(ostream& o, vid_t vid, int start, int end)
 
     return RCOK;
 }
+
+/*********************************************************************
+ *
+ *  io_m::_get_vid(lvid)
+ *
+ *********************************************************************/
+inline vid_t 
+io_m::_get_vid(const lvid_t& lvid)
+{
+    uint4_t i;
+    for (i = 0; i < max_vols; i++)  {
+	if (vol[i] && vol[i]->lvid() == lvid) break;
+    }
+
+#ifndef EGCS_BUG_1
+    // egcs 1.1.1 croaks on this stmt:
+    return (i >= max_vols) ? vid_t::null : vol[i]->vid();
+#else
+    if(i >= max_vols) {
+	return vid_t::null;
+    } else {
+	return vol[i]->vid();
+    }
+#endif
+}
+

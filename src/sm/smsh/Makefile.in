@@ -15,6 +15,7 @@
 @SET_MAKE@
 
 # rules, macros generic to all Makefile.am
+
 SOURCES = $(random_kick_SOURCES) $(smsh_SOURCES)
 
 srcdir = @srcdir@
@@ -37,7 +38,7 @@ POST_INSTALL = :
 NORMAL_UNINSTALL = :
 PRE_UNINSTALL = :
 POST_UNINSTALL = :
-DIST_COMMON = README $(check_HEADERS) $(srcdir)/Makefile.am \
+DIST_COMMON = README $(smsh_HEADERS) $(srcdir)/Makefile.am \
 	$(srcdir)/Makefile.in $(top_srcdir)/Makefile.generic \
 	$(top_srcdir)/Makefile.local
 
@@ -121,6 +122,15 @@ RECURSIVE_TARGETS = all-recursive check-recursive dvi-recursive \
 	install-recursive installcheck-recursive installdirs-recursive \
 	pdf-recursive ps-recursive uninstall-info-recursive \
 	uninstall-recursive
+am__vpath_adj_setup = srcdirstrip=`echo "$(srcdir)" | sed 's|.|.|g'`;
+am__vpath_adj = case $$p in \
+    $(srcdir)/*) f=`echo "$$p" | sed "s|^$$srcdirstrip/||"`;; \
+    *) f=$$p;; \
+  esac;
+am__strip_dir = `echo $$p | sed -e 's|^.*/||'`;
+am__installdirs = "$(DESTDIR)$(smshdir)"
+smshHEADERS_INSTALL = $(INSTALL_HEADER)
+HEADERS = $(smsh_HEADERS)
 ETAGS = etags
 CTAGS = ctags
 DIST_SUBDIRS = $(SUBDIRS)
@@ -413,13 +423,16 @@ W_WARNINGS = $(WARN_FLAGS) -Wno-deprecated
 @PURECOV_TRUE@	     -threads -thread-stack-change=0x3000 -max_threads=64 \
 @PURECOV_TRUE@	     -cache-dir=$(PURE_CACHE_DIR)
 
+smshdir = $(top_srcdir)/src/sm/smsh
 EXTRA_DIST = test-short testall testall.maintainer \
 	    .shoreconfig.example .smshrc.example runsmsh \
-	    README README.2PC README.how-to-start runtest run.cd.perf 
+	    README README.2PC README.how-to-start runtest run.cd.perf \
+	    $(smsh_HEADERS)
 
+CLEANFILES = ./log/* ./volumes/*
 TEST = test-short
 random_kick_SOURCES = random_kick.cpp
-check_HEADERS = \
+smsh_HEADERS = \
 	shell.h sm_coord.h sm_mappings.h smsh.h smsh_error.h \
 	sort_funcs.h tcl_thread.h
 
@@ -524,6 +537,23 @@ distclean-compile:
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCXX_FALSE@	$(CXXCOMPILE) -c -o $@ `$(CYGPATH_W) '$<'`
 uninstall-info-am:
+install-smshHEADERS: $(smsh_HEADERS)
+	@$(NORMAL_INSTALL)
+	test -z "$(smshdir)" || $(mkdir_p) "$(DESTDIR)$(smshdir)"
+	@list='$(smsh_HEADERS)'; for p in $$list; do \
+	  if test -f "$$p"; then d=; else d="$(srcdir)/"; fi; \
+	  f=$(am__strip_dir) \
+	  echo " $(smshHEADERS_INSTALL) '$$d$$p' '$(DESTDIR)$(smshdir)/$$f'"; \
+	  $(smshHEADERS_INSTALL) "$$d$$p" "$(DESTDIR)$(smshdir)/$$f"; \
+	done
+
+uninstall-smshHEADERS:
+	@$(NORMAL_UNINSTALL)
+	@list='$(smsh_HEADERS)'; for p in $$list; do \
+	  f=$(am__strip_dir) \
+	  echo " rm -f '$(DESTDIR)$(smshdir)/$$f'"; \
+	  rm -f "$(DESTDIR)$(smshdir)/$$f"; \
+	done
 
 # This directory's subdirectories are mostly independent; you can cd
 # into them and run `make' without going through this Makefile.
@@ -689,12 +719,15 @@ distdir: $(DISTFILES)
 	  fi; \
 	done
 check-am: all-am
-	$(MAKE) $(AM_MAKEFLAGS) $(check_PROGRAMS) $(check_HEADERS)
+	$(MAKE) $(AM_MAKEFLAGS) $(check_PROGRAMS)
 check: $(BUILT_SOURCES)
 	$(MAKE) $(AM_MAKEFLAGS) check-recursive
-all-am: Makefile
+all-am: Makefile $(HEADERS)
 installdirs: installdirs-recursive
 installdirs-am:
+	for dir in "$(DESTDIR)$(smshdir)"; do \
+	  test -z "$$dir" || $(mkdir_p) "$$dir"; \
+	done
 install: $(BUILT_SOURCES)
 	$(MAKE) $(AM_MAKEFLAGS) install-recursive
 install-exec: install-exec-recursive
@@ -713,6 +746,7 @@ install-strip:
 mostlyclean-generic:
 
 clean-generic:
+	-test -z "$(CLEANFILES)" || rm -f $(CLEANFILES)
 
 distclean-generic:
 	-test -z "$(CONFIG_CLEAN_FILES)" || rm -f $(CONFIG_CLEAN_FILES)
@@ -742,7 +776,7 @@ info: info-recursive
 
 info-am:
 
-install-data-am:
+install-data-am: install-smshHEADERS
 
 install-exec-am:
 
@@ -769,7 +803,7 @@ ps: ps-recursive
 
 ps-am:
 
-uninstall-am: uninstall-info-am
+uninstall-am: uninstall-info-am uninstall-smshHEADERS
 
 uninstall-info: uninstall-info-recursive
 
@@ -780,11 +814,12 @@ uninstall-info: uninstall-info-recursive
 	distclean-tags distdir dvi dvi-am html html-am info info-am \
 	install install-am install-data install-data-am install-exec \
 	install-exec-am install-info install-info-am install-man \
-	install-strip installcheck installcheck-am installdirs \
-	installdirs-am maintainer-clean maintainer-clean-generic \
-	maintainer-clean-recursive mostlyclean mostlyclean-compile \
-	mostlyclean-generic mostlyclean-recursive pdf pdf-am ps ps-am \
-	tags tags-recursive uninstall uninstall-am uninstall-info-am
+	install-smshHEADERS install-strip installcheck installcheck-am \
+	installdirs installdirs-am maintainer-clean \
+	maintainer-clean-generic maintainer-clean-recursive \
+	mostlyclean mostlyclean-compile mostlyclean-generic \
+	mostlyclean-recursive pdf pdf-am ps ps-am tags tags-recursive \
+	uninstall uninstall-am uninstall-info-am uninstall-smshHEADERS
 
 
 # --------------------------------------------------------

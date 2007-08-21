@@ -1,6 +1,6 @@
 # <std-header style='tcl' orig-src='shore'>
 #
-#  $Id: sort.2,v 1.27 1999/06/07 19:05:45 kupsch Exp $
+#  $Id: sort.2,v 1.28 2007/08/21 19:44:00 nhall Exp $
 #
 # SHORE -- Scalable Heterogeneous Object REpository
 #
@@ -31,18 +31,6 @@
 #	Test sort on spatial objects (2-dimensional boxes)
 #
 
-if {$Use_logical_id} {
-    # Bug: sort file seems to leave same logical id mappings
-    # for both files -old & new - that is, if you destroy
-    # the old file, that action causes the serial#s of all the
-    # objects in the file to be removed from the LID index, 
-    # making it break when you try to destroy the new file.  The
-    # file sort needs to trash the serial#s of the old file somehow.
-    echo
-    echo "BUG BUG BUG"
-    echo "Cannot run sort.2 with logical ids due to BUG in lid support"
-    echo 
-} else {
 source $script_dir/vol.init
 
 set nrec 200
@@ -81,5 +69,4 @@ verbose commit
 sm commit_xct
 
 unset b i u f2 nrec f1
-}
 

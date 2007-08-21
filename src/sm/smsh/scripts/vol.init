@@ -1,6 +1,6 @@
 # <std-header style='tcl' orig-src='shore'>
 #
-#  $Id: vol.init,v 1.36 2007/05/18 21:49:01 nhall Exp $
+#  $Id: vol.init,v 1.37 2007/08/21 19:44:01 nhall Exp $
 #
 # SHORE -- Scalable Heterogeneous Object REpository
 #
@@ -54,6 +54,7 @@ if {$volid == 0} {
 
     verbose creating devices
     foreach i $smsh_device_list {
+	verbose "device list entry" $i "..."
 
 	set dev  [lindex $i 0]
 	set size [lindex $i 1]
@@ -66,11 +67,7 @@ if {$volid == 0} {
 	    set force_arg noforce
 
 	    set err 0
-	    if {$Use_logical_id} {
-		catch {sm mount_dev $dev} err
-	    } else {
-		catch {sm mount_dev $dev $vol} err
-	    }
+	    catch {sm mount_dev $dev $vol} err
 	    if {$err == 1} {
 		set force_arg noforce
 		verbose Result of mount: $err ...
@@ -87,20 +84,19 @@ if {$volid == 0} {
 
 	verbose "mounting " $dev "..."
 	set err 0
-	if {$Use_logical_id} {
-	    sm mount_dev $dev
-	} else {
-	    sm mount_dev $dev $vol
-	}
+	sm mount_dev $dev $vol
 	set vol_list [sm list_volumes $dev]
-	assert {expr [llength $vol_list] == 0}
+	verbose "vol list: " $vol_list "..."
 
 	set quota [sm get_device_quota $dev]
 	set size_page_align [expr ($size/($page_size/1024))*($page_size/1024)]
 
+	verbose "device quota is " $quota "; size_page_align is" $size_page_align
 	assert {expr [lindex $quota 0] == $size_page_align}
-	assert {expr [lindex $quota 1] == 0}
-	verbose device quota is $quota
+
+	# script bug:
+	# fails if we use more than one device in .smshrc device list
+	# assert {expr [lindex $quota 1] == 0}
 
 	verbose creating volume $vol size $size on $dev
 	if { $existing == 0 } {
@@ -108,15 +104,7 @@ if {$volid == 0} {
 		echo $err
 	    } else {
 
-		if {$Use_logical_id} {
-		    verbose add logical id index on $vol
-		    sm add_logical_id_index $vol 100
-		}
-		if {$Use_logical_id} {
-		    assert {expr [string compare [sm has_logical_id_index $vol] TRUE] == 0}
-		} else {
-		    assert {expr [string compare [sm has_logical_id_index $vol] TRUE]}
-		}
+		assert {expr [string compare [sm has_logical_id_index $vol] TRUE]}
 	    }
 	}
 
@@ -132,7 +120,7 @@ if {$volid == 0} {
 	verbose checking that all volumes are present on device
 	set vol_list [sm list_volumes $dev]
 	verbose volumes on $dev are $vol_list
-	assert {expr [llength $vol_list] == 1}
+	assert {expr [llength $vol_list] >= 1}
 	assert {expr [string compare [lindex $vol_list 0] $vol.0.0.0:0] == 0}
     }
 } else {
@@ -146,13 +134,8 @@ if {$volid == 0} {
 	set vol  [lindex $i 2]
 
 	set err 0
-	if {$Use_logical_id} {
-	    verbose "mounting " $dev 
-	    catch {sm mount_dev $dev} err
-	} else {
-	    verbose "mounting " $dev $vol
-	    catch {sm mount_dev $dev $vol} err
-	}
+	verbose "mounting " $dev $vol
+	catch {sm mount_dev $dev $vol} err
 	if {$err == 1} {
 	    verbose Result of mount: $err ...
 	}
@@ -160,7 +143,7 @@ if {$volid == 0} {
 
 	verbose checking that all volumes are present on device
 	set vol_list [sm list_volumes $dev]
-	assert {expr [llength $vol_list] == 1}
+	assert {expr [llength $vol_list] >= 1}
 	verbose volumes on $dev are $vol_list
 	assert {expr [string compare [lindex $vol_list 0] $vol.0.0.0:0] == 0}
 

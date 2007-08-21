@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='LID_T_H'>
 
- $Id: lid_t.h,v 1.35 2001/06/26 16:48:30 bolo Exp $
+ $Id: lid_t.h,v 1.36 2007/08/21 19:49:59 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -43,9 +43,6 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
  */
 #ifndef BASICS_H
 #include "basics.h"
-#endif
-#ifndef SERIAL_T_H
-#include "serial_t.h"
 #endif
 
 #ifdef __GNUG__
@@ -94,61 +91,11 @@ struct lvid_t {
 #endif 
 };
 
-/*
-// short logical record ID (serial number)
-// defined in serial_t.h
-*/
-
-class lid_t {
-public:
-    lvid_t	lvid;
-    serial_t    serial;
-
-#ifdef __cplusplus
-
-    lid_t() {};
-    lid_t(const lvid_t& lvid_, const serial_t& serial_) :
-		lvid(lvid_), serial(serial_)
-    {};
-
-    lid_t(uint4_t hi, uint4_t lo, uint4_t ser, bool remote) :
-		lvid(hi, lo), serial(ser, remote)
-    {};
-
-    inline bool operator==(const lid_t& s) const { 
-		return ( (lvid == s.lvid) && (serial == s.serial)) ;
-	};
-    inline bool operator!=(const lid_t& s) const {
-		return (serial != s.serial) || (lvid != s.lvid);
-	};
-
-	// in lid_t.cpp:
-    friend ostream& operator<<(ostream&, const lid_t& s);
-    friend istream& operator>>(istream&, lid_t& s);
-
-    static const lid_t null;
-
-    /* this is the key descriptor for using serial_t's as btree keys */
-    static const char* key_descr; 
-#endif
-
-};
-
-typedef	lid_t lrid_t;
-
 #ifdef __cplusplus
 
 inline w_base_t::uint4_t w_hash(const lvid_t& lv)
 {
     return lv.high + lv.low;
 }
-
-inline w_base_t::uint4_t w_hash(const lid_t& l)
-{
-    return w_hash(l.serial) * w_hash(l.lvid);
-}
 #endif /*__cplusplus*/
-
-/*<std-footer incl-file-exclusion='LID_T_H'>  -- do not edit anything below this line -- */
-
-#endif          /*</std-footer>*/
+#endif

@@ -1,9 +1,13 @@
 ## Process this file with automake to produce Makefile.in
 SUBDIRS = scripts lib
 include $(top_srcdir)/Makefile.generic 
+smshdir = $(top_srcdir)/src/sm/smsh
 EXTRA_DIST = test-short testall testall.maintainer \
 	    .shoreconfig.example .smshrc.example runsmsh \
-	    README README.2PC README.how-to-start runtest run.cd.perf 
+	    README README.2PC README.how-to-start runtest run.cd.perf \
+	    $(smsh_HEADERS)
+
+CLEANFILES = ./log/* ./volumes/*
 
 AM_CXXFLAGS          += -I$(top_srcdir)/src/fc \
 		       -I$(top_srcdir)/src/sthread \
@@ -17,7 +21,7 @@ TEST = test-short
 
 random_kick_SOURCES      =  random_kick.cpp
 
-check_HEADERS      =  \
+smsh_HEADERS      =  \
 	shell.h sm_coord.h sm_mappings.h smsh.h smsh_error.h \
 	sort_funcs.h tcl_thread.h
 

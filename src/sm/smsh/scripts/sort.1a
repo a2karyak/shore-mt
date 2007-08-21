@@ -1,6 +1,6 @@
 # <std-header style='tcl' orig-src='shore'>
 #
-#  $Id: sort.1a,v 1.14 1999/06/07 19:05:45 kupsch Exp $
+#  $Id: sort.1a,v 1.15 2007/08/21 19:44:00 nhall Exp $
 #
 # SHORE -- Scalable Heterogeneous Object REpository
 #
@@ -32,11 +32,6 @@
 #    to test multiple integer and unsigned key types.
 #    This assumed that $ktype and $nrec  are set by calling script
 #
-
-if {$Use_logical_id==1} {
-    echo BUG BUG BUG see comments in sort.2
-    echo Sort not supported for logical ids
-} else {
 
 # len hint < page size
 set lenhint 100
@@ -189,5 +184,4 @@ if {1} {
 
 unset f1 lenhint n
 
-}
 

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: pin.cpp,v 1.138 2006/01/29 23:27:12 bolo Exp $
+ $Id: pin.cpp,v 1.139 2007/08/21 19:50:42 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -78,27 +78,12 @@ rc_t pin_i::pin(const rid_t rid, smsize_t start, lock_mode_t lmode)
     SM_PROLOGUE_RC(pin_i::pin, in_xct, 2);
     if (lmode != SH && lmode != UD && lmode != EX && lmode != NL)
 	return RC(eBADLOCKMODE);
-    W_DO(_pin(rid, start, lmode, serial_t::null));
+    W_DO(_pin(rid, start, lmode
+		));
     _set_lsn();
     return RCOK;
 }
 
-rc_t pin_i::pin(const lvid_t& lvid, const serial_t& lrid, smsize_t start,
-	       lock_mode_t lmode)
-{
-    SM_PROLOGUE_RC(pin_i::pin, in_xct, 2);
-	DBG(<<"lookup lvid=" << lvid << " serial= " << lrid);
-    if (lmode!=SH && lmode!=UD && lmode!=EX && lmode!=NL)
-	return RC(eBADLOCKMODE);
-    rid_t  rid;  // physical record ID
-    lid_t  id(lvid, lrid);
-    DBG(<<"about to lookup  id= " << id);
-
-    LID_CACHE_RETRY_DO(id, rid_t, rid, _pin(rid, start, lmode, id.serial));
-
-    _lrid = id;
-    return RCOK;
-}
 
 void pin_i::unpin()
 {
@@ -201,58 +186,14 @@ pin_i::pin_cond(const rid_t& rid, smsize_t start,
         }
     }
 
-    W_DO(_pin(rid, start, lmode, serial_t::null));
+    W_DO(_pin(rid, start, lmode
+		));
     if (p) bf->unfix(p);
     pinned = true;
     _set_lsn();
     return RCOK;
 }
 
-rc_t
-pin_i::pin_cond(const lvid_t& lvid, const serial_t& lrid, smsize_t start,
-                lpid_t pid, bool& pinned, bool cond, lock_mode_t lmode)
-{
-    page_s* p = NULL;
-
-    SM_PROLOGUE_RC(pin_i::cond_pin, in_xct, 2);
-    if (lmode != SH && lmode != UD && lmode != EX) return RC(eBADLOCKMODE);
-    rid_t       rid;
-
-    // keep compiler quiet about unused parameter
-    if (lvid == lvid_t::null) {}
-
-    pinned = false;
-
-    if (cond) {
-	// if condition is set, only pin record if page is cached
-        rc_t rc = bf->fix_if_cached(p, pid, LATCH_SH);
-	if (rc)  {
-	    if (rc.err_num() == fcNOTFOUND)  {
-		// page was not cached
-		return RCOK;
-	    }
-	}
-    } else {
-	// if condition is NOT set, just use page hint to avoid
-	// loid index lookup and always pin the record
-	store_flag_t store_flags = st_bad;
-        W_COERCE( bf->fix(p, pid, page_p::t_file_p, LATCH_SH, 
-		false, store_flags) );
-    }
-
-    // find slot with lrid 
-    file_p temp(p, p->store_flags);
-    rid.pid = pid;
-    rid.slot = temp.serial_slot(lrid);
-    if (rid.slot == 0) {
-	DBG(<<"pin_cond: " );
-	return RC(eBADLOGICALID);
-    }
-
-    W_DO(_pin(rid, start, lmode, serial_t::null));
-    pinned = true;
-    return RCOK;
-}
 
 // returns eEOF if no more bytes available
 rc_t pin_i::next_bytes(bool& eof)
@@ -318,7 +259,8 @@ rc_t pin_i::update_rec(smsize_t start, const vec_t& data,
 	// if !locked, then unpin in case lock req (in update) blocks
 	if (was_pinned && _lmode != EX) unpin();
 
-	W_DO_GOTO(err, SSM->_update_rec(_rid, start, data, serial_t::null));
+	W_DO_GOTO(err, SSM->_update_rec(_rid, start, data
+				));
 	_lmode = EX;  // record is now EX locked
 	if (was_pinned) W_DO_GOTO(err, _repin(EX));
     }
@@ -396,28 +338,17 @@ rc_t pin_i::append_rec(const vec_t& data)
     DBG(<< this->_rid << " #bytes=" << data.size());
     rid_t  rid;  // local variable for phys rec id
 
-    bool rec_moved = false; // append caused forwarding which
-			      // changed physical ID
 
     // must unpin for 2 reasons:
     // 1. in case lock request (in append) blocks
     // 2. since record may move on page
     if (was_pinned) unpin();
 
-    rc_t rc = SSM->_append_rec(_rid, data, false, serial_t::null); 
+    rc_t rc = SSM->_append_rec(_rid, data, false
+		    ); 
     DBG(<<"rc=" << rc);
     if (rc) {
-	/*
-	 * If it could not be appended to for space reasons,
-	 * then the record may be forwarded if it has a logical
-	 * ID.  A logical ID is assumed if lvid != 0
-	 */
-	if (rc.err_num() == eRECWONTFIT && _lrid.lvid != lvid_t::null ) {
-	    rid = _rid; // create temp copy
-	    W_DO_GOTO(err, SSM->_forward_rec(_lrid.lvid, _lrid.serial, _rid, data, rid));
-		
-	    rec_moved = true;
-	} else {
+	{
 	    err = rc.delegate();
 	    goto failure;
 	}
@@ -426,24 +357,7 @@ rc_t pin_i::append_rec(const vec_t& data)
     // record is now EX locked
     _lmode = EX;
 
-    if (rec_moved) {
-	// must restore the physical rid
-#ifdef W_DEBUG
-	{
-	    rid_t  temp_rid;  
-	    // check our work
-	    lid_t  id(_lrid.lvid, _lrid.serial);
-	    W_COERCE(lid->lookup(id, temp_rid));
-	    w_assert3(temp_rid.pid == rid.pid && temp_rid.slot == rid.slot);
-	}
-#endif /* W_DEBUG */
-
-	W_DO_GOTO(err, _pin(rid, _start,
-			    NL, /* no lock needed since already locked
-				   by _append_rec*/
-			    serial_t::null));
-
-    } else {
+    {
 	if (was_pinned) W_DO_GOTO(err, _repin(EX));
     }
 
@@ -480,8 +394,6 @@ rc_t pin_i::truncate_rec(smsize_t amount)
     DBG(<< this->_rid << " #bytes= " << amount);
 
     rid_t  rid;  // remember phys rec id in here
-    bool rec_moved = false; // append caused forwarding which
-			      // changed physical ID
     bool should_forward;    // set by _truncate_rec
 
     // must unpin for 2 reasons:
@@ -489,39 +401,13 @@ rc_t pin_i::truncate_rec(smsize_t amount)
     // 2. since record may move on page
     if (was_pinned) unpin();
 
-    W_DO_GOTO(err, SSM->_truncate_rec(_rid, amount, should_forward, serial_t::null));
-    if (should_forward && _lrid.lvid != lvid_t::null) {
-	/*
-	 * The record is now small in size but still has a large
-	 * implementation since it cannot fit on its original page.
-	 * Also, since lvid is not null the record has a logical ID.
-	 * Therefore, we can forward it.
-	 */
-	rid = _rid; // create temp copy
-	vec_t dummy;
-	W_DO_GOTO(err, SSM->_forward_rec(_lrid.lvid, _lrid.serial, _rid, dummy, rid));
-	rec_moved = true;
-    }
+    W_DO_GOTO(err, SSM->_truncate_rec(_rid, amount, should_forward
+			    ));
 
     // record is now EX locked
     _lmode = EX;
 
-    if (rec_moved) {
-	// must restore the physical rid
-#ifdef W_DEBUG
-	{
-	    rid_t  temp_rid;  
-	    // check our work
-	    lid_t  id(_lrid.lvid, _lrid.serial);
-	    W_COERCE(lid->lookup(id, temp_rid));
-	    w_assert3(temp_rid.pid == rid.pid && temp_rid.slot == rid.slot);
-	}
-#endif /* W_DEBUG */
-	W_DO_GOTO(err, _pin(rid, _start, 
-			    NL, /* no lock needed since already
-			           locked by _append_rec*/
-			    serial_t::null));
-    } else {
+    {
 	if (was_pinned) W_DO_GOTO(err, _repin(EX));
     }
 
@@ -597,7 +483,6 @@ void pin_i::_init_constructor()
 
     _flags = pin_empty;
     _rec = NULL;
-    _lrid.lvid = lvid_t::null;
     _lmode = NL; 
     new (_hdr_page_alias) file_p();
     new (_data_page_alias) lgdata_p();
@@ -613,7 +498,8 @@ const char* pin_i::_body_large()
     return (char*) _data_page().tuple_addr(0);
 }
 
-rc_t pin_i::_pin(const rid_t rid, smsize_t start, lock_mode_t lmode, const serial_t& verify)
+rc_t pin_i::_pin(const rid_t rid, smsize_t start, lock_mode_t lmode
+	)
 {
     w_error_t*   err=0;	// must use rather than rc_t due to HP_CC_BUG_2
     bool pin_page = false;	// true indicates page needs pinning
@@ -675,14 +561,6 @@ rc_t pin_i::_pin(const rid_t rid, smsize_t start, lock_mode_t lmode, const seria
 	goto failure;
     }
 
-    // if a non-null serial number verification was passed in
-    // verify, then make sure there is a match
-    if (verify != serial_t::null && _rec->tag.serial_no != verify) {
-	unpin();
-	DBG(<<"_pin: " );
-	err = RC(eBADLOGICALID).delegate();
-	goto failure;
-    }
 
     _flags = pin_rec_pinned;
     _rid = rid;

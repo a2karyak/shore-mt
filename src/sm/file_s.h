@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='FILE_S_H'>
 
- $Id: file_s.h,v 1.37 2007/05/18 21:43:25 nhall Exp $
+ $Id: file_s.h,v 1.38 2007/08/21 19:50:42 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -78,25 +78,13 @@ struct rectag_t {
     uint2_t	flags;		// enum recflags_t
     smsize_t	body_len;	// true length of the record 
     /* 8 */
-
-    serial_t	serial_no;	// logical serial number in file
-    /* 12 or 16 */
-
-#if ALIGNON == 0x8
-#ifndef SERIAL_BITS64
-    fill4	filler;		// for 8 byte alignment with small serial#s
-#endif
-    /* 16 */
-#endif /* ALIGNON 8 bytes */
-
-
 #ifdef notdef
     fill4	cluster_id;	// cluster for this record
 				// not used at this time
 				// if you add it, be sure to adjust the alignment
 				// above
 #endif
-};
+}; // end rectag_t
 
 class record_t {
     friend class file_m;

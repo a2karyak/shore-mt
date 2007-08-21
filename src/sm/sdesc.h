@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='SDESC_H'>
 
- $Id: sdesc.h,v 1.46 2007/05/18 21:43:27 nhall Exp $
+ $Id: sdesc.h,v 1.47 2007/08/21 19:50:43 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -37,7 +37,7 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 /*
  * This file describes Store Descriptors (sdesc_t).  Store
  * descriptors consist of a persistent portion (sinfo_s) and a
- * transient portion (sinfo_transient_t).
+ * transient portion (sinfo_transient_t) <--- NOT USED/GONE.
  *
  * Also defined is a store descriptor cache (sdesc_cache_t) that
  * is located in each transaction. 
@@ -94,7 +94,6 @@ public:
      */
     snum_t	large_store;	// store for large record pages
     shpid_t	root;		// root page (of main index)
-    serial_t	logical_id;     // zero if no logical ID
     w_base_t::uint4_t	nkc;		// # components in key
     key_type_s	kc[smlevel_0::max_keycomp];
 
@@ -103,7 +102,6 @@ public:
 	    u_char eff_, 
 	    smlevel_0::ndx_t ntype_, u_char cc_, 
 	    const shpid_t& root_,
-	    const serial_t& lid_, 
 	    w_base_t::uint4_t nkc_, const key_type_s* kc_) 
     :   store(store_), stype(stype_), ntype(ntype_),
 	cc(cc_), eff(eff_),
@@ -112,7 +110,7 @@ public:
 #endif
 	large_store(0),
 	root(root_),
-	logical_id(lid_), nkc(nkc_)
+	nkc(nkc_)
     {
 	w_assert1(nkc < (sizeof(kc) / sizeof(kc[0])));
 	memcpy(kc, kc_, (unsigned int)(sizeof(key_type_s) * nkc)); 
@@ -132,7 +130,6 @@ public:
 	isf = other.isf;
 #endif
 	root = other.root; 
-	logical_id = other.logical_id;
 	nkc = other.nkc;
 	memcpy(kc, other.kc, sizeof(kc));
 	large_store = other.large_store;

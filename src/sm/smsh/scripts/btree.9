@@ -1,6 +1,6 @@
 # <std-header style='tcl' orig-src='shore'>
 #
-#  $Id: btree.9,v 1.22 2004/03/24 20:26:51 bolo Exp $
+#  $Id: btree.9,v 1.23 2007/08/21 19:43:59 nhall Exp $
 #
 # SHORE -- Scalable Heterogeneous Object REpository
 #
@@ -33,10 +33,6 @@
 # also
 #  tests btree bulk load with multiple input files
 #
-if {$Use_logical_id == 1} {
-    echo WARNING: btree.9 cannot be run (since logical IDs are turned on)
-} else {
-
 #
 # start up
 #
@@ -187,4 +183,3 @@ unset run_size ktype
 unset distinct destruct where property
 unset rec_form pr
 
-}

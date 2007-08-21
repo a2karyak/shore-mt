@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='SM_INT_4_H'>
 
- $Id: sm_int_4.h,v 1.8 1999/06/07 19:04:37 kupsch Exp $
+ $Id: sm_int_4.h,v 1.9 2007/08/21 19:50:43 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -48,6 +48,9 @@ class lid_m;
 class smlevel_4 : public smlevel_3 {
 public:
     static ss_m*	SSM;	// we will change to lower case later
+
+    // lid_m Needed even if !USE_LID because it is the generator
+    // of (logical)volume ids
     static lid_m*	lid;
 };
 typedef smlevel_4 smlevel_top;

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='PIN_H'>
 
- $Id: pin.h,v 1.86 2007/05/18 21:43:27 nhall Exp $
+ $Id: pin.h,v 1.87 2007/08/21 19:50:42 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -143,11 +143,6 @@ public:
 	const rid_t	    rid,
 	smsize_t	    start,
 	lock_mode_t 	    lmode = SH);
-    rc_t	 pin(
-	const lvid_t&	    lvid,
-	const serial_t&	    lrid,
-	smsize_t	    start,
-	lock_mode_t	    lmode = SH);
 
     void   	unpin();
     bool   	is_mine() const; // only if owning thread
@@ -178,14 +173,6 @@ public:
 	bool		    cond = true,
 	lock_mode_t	    lmode = SH);
 
-    rc_t	pin_cond(
-	const lvid_t&	    lvid,
-	const serial_t&	    lrid,
-	smsize_t	    start,
-	lpid_t		    pid,
-	bool&		    pinned,
-	bool		    cond = true,
-	lock_mode_t	    lmode = SH);
 
     // get the next range of bytes available to be pinned
     // Parameter eof is set to true if there are no more bytes to pin.
@@ -221,9 +208,6 @@ public:
     //       may be different than the ones passed in to pin the
     //       record.
     
-    const serial_t&  serial_no() const
-			{ _check_lsn(); return _lrid.serial; }
-    const lvid_t&    lvid() const { _check_lsn(); return _lrid.lvid; }
 
     const rid_t&     rid() const {_check_lsn(); return _rid;}
     const char*      hdr() const
@@ -255,7 +239,8 @@ private:
     void        _init_constructor(); // companion to constructor
     rc_t         _pin_data();
     const char* _body_large();
-    rc_t        _pin(const rid_t rid, smsize_t start, lock_mode_t m, const serial_t& verify);
+    rc_t        _pin(const rid_t rid, smsize_t start, lock_mode_t m
+	    );
     rc_t	_repin(lock_mode_t lmode, int* old_value = 0);
 
     file_p* 	_get_hdr_page_no_lsn_check() const {
@@ -279,7 +264,6 @@ private:
     const lsn_t& _get_hdr_lsn() const;
 
     rid_t	_rid;
-    lrid_t	_lrid;  // snapped logical ID if pinned this way
     smsize_t	_len;
     smsize_t	_start;
     record_t*	_rec;

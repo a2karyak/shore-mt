@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: sort_funcs.cpp,v 1.22 2007/05/18 21:50:59 nhall Exp $
+ $Id: sort_funcs.cpp,v 1.23 2007/08/21 19:46:14 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -513,9 +513,12 @@ t_test_bulkload_int_btree(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 	// (ditto for any other dup that gets eliminated)
 
     bool    use_logical = false;
+#ifdef USE_LID
     if (use_logical_id(ip))  {
 	use_logical = true;
     }
+/* end USE_LID*/
+#endif
     if (check(ip, "vid nkeys keytype nullok|notnull", ac, 5))
 	return TCL_ERROR;
 
@@ -633,11 +636,15 @@ t_test_bulkload_int_btree(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 	deleter	    d1; // auto-delete
 	deleter	    d2; // auto-delete
 
+#ifdef USE_LID
 	lfid_t  	    lfid; // logical case
 	lstid_t 	    lidx; // logical case
+/* end USE_LID*/
+#endif
 	stid_t 	    stid; // phys case
 	stid_t 	    fid;  // phys case
 	vid_t  	    vid;  // phys case
+#ifdef USE_LID
 	if (use_logical)  {
 	    w_istrstream anon(av[vid_arg]); 
 		    anon >> lidx.lvid;
@@ -654,12 +661,19 @@ t_test_bulkload_int_btree(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 	    DO( sm->create_file(lfid.lvid, lfid.serial, ss_m::t_load_file) );
 	    DBG(<<"d2.set " << lfid); 
 	    d2.set(lfid);
-	} else {
+	} else 
+/* end USE_LID*/
+#endif
+	{
 	    DO( sm->create_index(atoi(av[vid_arg]), 
 		// sm->t_uni_btree, 
 		sm->t_btree,
-		 ss_m::t_load_file, kd, ss_m::t_cc_kvl, stid,
+		 ss_m::t_load_file, kd, ss_m::t_cc_kvl, stid
+#ifdef USE_LID
+		 ,
 		 serial_t::null
+/* end USE_LID*/
+#endif
 		 ) );
 	    DBG(<<"d1.set " << stid); 
 	    d1.set(stid);
@@ -671,7 +685,10 @@ t_test_bulkload_int_btree(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 	{
 	    /* Create the records in the original file */
 	    int 	i;	
+#ifdef USE_LID
 	    lrid_t  lrid;
+/* end USE_LID*/
+#endif
 	    rid_t   rid;
 	    for (i = 0; i < n; i++)  {
 		int kk = i - h;
@@ -696,6 +713,7 @@ t_test_bulkload_int_btree(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 		    DBG(<<" .. adding key of length " << k._length);
 		    data.put(&k._u, k._length);
 		}
+#ifdef USE_LID
 		if (use_logical)  {
 		    vec_t oid(&lrid, sizeof(lrid));
 		    DO( sm->create_rec( lfid.lvid, lfid.serial, 
@@ -711,7 +729,10 @@ t_test_bulkload_int_btree(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 
 		    DO( sm->append_rec(lrid.lvid, lrid.serial, oid) );
 		    /* APPEND OID */
-		} else {
+		} else 
+/* end USE_LID*/
+#endif
+		{
 		    vec_t oid(&rid, sizeof(rid));
 		    DO( sm->create_rec( fid, 
 				    hdr,
@@ -731,20 +752,33 @@ t_test_bulkload_int_btree(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 
 	{   // Sort the file, preparing a file of key/oid 
 	    // pairs for bulk-ld
+#ifdef USE_LID
 	    lfid_t  olfid; // logical case
+/* end USE_LID*/
+#endif
 	    stid_t  ofid;  // physical case
 	    deleter d3;    // auto-delete
 
+#ifdef USE_LID
 	    if (use_logical)  {
 		DO( sm->create_file(olfid.lvid, olfid.serial, ss_m::t_load_file) );
 		DBG(<<"d3.set " << olfid);
 		d3.set(olfid); // auto-delete
-	    } else {
-		DO( sm->create_file(vid, ofid, ss_m::t_load_file, serial_t::null) );
+	    } else 
+/* end USE_LID*/
+#endif
+	    {
+		DO( sm->create_file(vid, ofid, ss_m::t_load_file
+#ifdef USE_LID
+			    , serial_t::null
+/* end USE_LID*/
+#endif
+			    ) );
 		DBG(<<"d3.set " << fid);
 		d3.set(ofid); // auto-delete
 	    }
 
+#ifdef USE_LID
 	    if (use_logical)  {
 		DO( sm->sort_file(lfid.lvid, lfid.serial,
 				olfid.lvid,
@@ -754,7 +788,10 @@ t_test_bulkload_int_btree(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 				len_hint,
 				runsize,
 				runsize*ss_m::page_sz));
-	    } else {
+	    } else 
+/* end USE_LID*/
+#endif
+	    {
 		DO( sm->sort_file(fid, ofid,
 				1, &vid,
 				kl,
@@ -778,11 +815,15 @@ t_test_bulkload_int_btree(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 
 
 	    sm_du_stats_t stats;
+#ifdef USE_LID
 	    if (use_logical)  {
 		DO( sm->bulkld_index(lidx.lvid, lidx.serial,
 			     1, &lfid.lvid, &lfid.serial,
 			     stats, false, false) );
-	    } else {
+	    } else 
+/* end USE_LID*/
+#endif
+	    {
 		DO( sm->bulkld_index(stid, 1, &ofid, stats, false, false) );
 	    }
 	    DBG(<<"Bulk load done");
@@ -799,13 +840,17 @@ t_test_bulkload_int_btree(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 	    /* verify */
 	    scan_index_i* scanp = 0;
 	    deleter	d4; // auto_delete for scan_index_i
+#ifdef USE_LID
 	    if (use_logical)  {
 		scanp = new scan_index_i(lidx.lvid, lidx.serial, 
 				  scan_index_i::gt, cvec_t::neg_inf, 
 				  scan_index_i::lt, cvec_t::pos_inf,
 				  true /* nullsok */
 				  );
-	    } else {
+	    } else 
+/* end USE_LID*/
+#endif
+	    {
 		scanp = new scan_index_i(stid,
 			      scan_index_i::gt, cvec_t::neg_inf, 
 			      scan_index_i::lt, cvec_t::pos_inf,
@@ -822,7 +867,10 @@ t_test_bulkload_int_btree(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 	    pin_i	handle;
 	    vec_t 	key;
 	    smsize_t klen, elen;
+#ifdef USE_LID
 	    lrid_t	lrid;
+/* end USE_LID*/
+#endif
 	    rid_t	rid;
 	    k._u.i8_num = 0; // just for kicks
 	    for (i = 0; (!(rc = scanp->next(eof)) && !eof) ; i++)  {
@@ -835,10 +883,14 @@ t_test_bulkload_int_btree(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 		}
 
 		vec_t el;
+#ifdef USE_LID
 		if(use_logical) {
 		    elen = sizeof(lrid);
 		    el.put(&lrid, elen);
-		} else {
+		} else 
+/* end USE_LID*/
+#endif
+		{
 		    elen = sizeof(rid);
 		    el.put(&rid, elen);
 		}
@@ -861,9 +913,13 @@ t_test_bulkload_int_btree(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 			w_assert1(klen == smsize_t(k._length));
 		    }
 		}
+#ifdef USE_LID
 		if(use_logical) {
 		    w_assert1(elen == smsize_t(sizeof(lrid_t)));
-		} else {
+		} else 
+/* end USE_LID*/
+#endif
+		{
 		    w_assert1(elen == smsize_t(sizeof(rid_t)));
 		}
 
@@ -911,10 +967,14 @@ t_test_bulkload_int_btree(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 		 * Now verify that this is really the key of that object
 		 */
 		smsize_t tail=0;
+#ifdef USE_LID
 		if(use_logical) {
 		    tail = sizeof(lrid_t);
 		    DO(handle.pin(lrid.lvid, lrid.serial, zeroes.size()));
-		} else {
+		} else 
+/* end USE_LID*/
+#endif
+		{
 		    tail = sizeof(rid_t);
 		    DO(handle.pin(rid, zeroes.size()));
 		}
@@ -959,6 +1019,7 @@ t_test_bulkload_int_btree(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 		    memcpy( (char *)(&bodykey._u)+amt, handle.body(), l);
 		}
 
+#ifdef USE_LID
 		if(use_logical) {
 		    lrid_t	oid;
 		    if(klen == 0) {
@@ -973,7 +1034,10 @@ t_test_bulkload_int_btree(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 				<< " body has " << oid 
 				<<endl;
 		    }
-		} else {
+		} else 
+/* end USE_LID*/
+#endif
+		{
 		    rid_t	oid;
 		    if(klen == 0) {
 			memcpy( &oid, stringbuffer, tail);
@@ -1001,9 +1065,13 @@ t_test_bulkload_int_btree(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 		    if(bodyk != kk) {
 			cerr << "Mismatched key, object" <<endl;
 			cerr << "...index key is " << kk <<endl; 
+#ifdef USE_LID
 			if(use_logical) {
 			    cerr << "...object id is " << lrid <<endl;
-			} else {
+			} else 
+/* end USE_LID*/
+#endif
+			{
 			    cerr << "...object id is " << rid << endl;
 			}
 			cerr << "...key in body is " << bodyk <<endl;
@@ -1017,17 +1085,29 @@ t_test_bulkload_int_btree(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 	    // d4 will delete the scan ptr
 	}
 	{   // Re-sort the file, preparing a deep copy of the orig file 
+#ifdef USE_LID
 	    lfid_t  olfid; // logical case
+/* end USE_LID*/
+#endif
 	    stid_t  ofid;  // physical case
 	    deleter d3;    // auto-delete
 
 
+#ifdef USE_LID
 	    if (use_logical)  {
 		DO( sm->create_file(olfid.lvid, olfid.serial, ss_m::t_load_file) );
 		DBG(<<"d3.set " << olfid);
 		d3.set(olfid); // auto-delete
-	    } else {
-		DO( sm->create_file(vid, ofid, ss_m::t_load_file, serial_t::null) );
+	    } else 
+/* end USE_LID*/
+#endif
+	    {
+		DO( sm->create_file(vid, ofid, ss_m::t_load_file
+#ifdef USE_LID
+			    , serial_t::null
+/* end USE_LID*/
+#endif
+			    ) );
 		DBG(<<"d3.set " << fid);
 		d3.set(ofid); // auto-delete
 	    }
@@ -1037,6 +1117,7 @@ t_test_bulkload_int_btree(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 		// TODO: test with carry_obj
 		// TODO: test set_object_marshal
 
+#ifdef USE_LID
 	    if (use_logical)  {
 		DO( sm->sort_file(lfid.lvid, lfid.serial,
 				olfid.lvid,
@@ -1046,7 +1127,10 @@ t_test_bulkload_int_btree(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 				len_hint,
 				runsize,
 				runsize*ss_m::page_sz));
-	    } else {
+	    } else 
+/* end USE_LID*/
+#endif
+	    {
 		DO( sm->sort_file(fid, ofid,
 				1, &vid,
 				kl,

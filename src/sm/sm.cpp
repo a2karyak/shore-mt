@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: sm.cpp,v 1.476 2007/05/18 21:43:27 nhall Exp $
+ $Id: sm.cpp,v 1.477 2007/08/21 19:50:43 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -229,9 +229,6 @@ option_t* ss_m::_dcommit_timeout = NULL;
 option_t* ss_m::_cc_alg_option = NULL;
 option_t* ss_m::_log_warn_percent = NULL;
 
-// Root index key for finding logical ID of the root index.
-// used to implement vol_root_index(lvid_t, serial_t&)
-const char* ss_m::_root_index_lid_key = "SSM_RESERVED_root_index_lid_key";
 
 /*
  * class sm_quark_t code
@@ -906,9 +903,8 @@ ss_m::ss_m(
      */
     SSM = this;
 
-    int max_lid_cache = strtol(_numLidCacheEntries->value(), NULL, 0);
-    w_assert3(max_lid_cache >= 0);
-    lid = new lid_m(max_vols, max_lid_cache);
+    lid = new lid_m(max_vols
+	    );
     if (! lid) {
 	W_FATAL(eOUTOFMEMORY);
     }
@@ -1080,7 +1076,6 @@ ss_m::~ss_m()
     /*
      *  Level 3
      */
-    delete lid; lid = 0;
     delete dir; dir = 0;
     delete chkpt; chkpt = 0;
 
@@ -1518,6 +1513,17 @@ ss_m::force_vol_hdr_buffers(const lvid_t& lvid)
     return RCOK;
 }
 
+rc_t
+ss_m::force_vol_hdr_buffers(const vid_t& vid)
+{
+    if (vid == vid_t::null) return RC(eBADVOL);
+    
+    // volume header is store 0
+    stid_t stid(vid, 0);
+    W_DO( bf->force_store(stid, true) );
+    return RCOK;
+}
+
 /*--------------------------------------------------------------*
  *  ss_m::force_store_buffers(const stid_t& stid)					*
  *--------------------------------------------------------------*/
@@ -1600,7 +1606,6 @@ ss_m::config_info(sm_config_info_t& info)
     info.max_small_rec = file_p::data_sz - sizeof(rectag_t);
     info.lg_rec_page_space = lgdata_p::data_sz;
     info.buffer_pool_size = bf_m::npages() * ss_m::page_sz / 1024;
-    info.lid_cache_size = lid->cache_size();
     info.max_btree_entry_size  = btree_m::max_entry_size();
     info.exts_on_page  = io->max_extents_on_page();
     info.pages_per_ext = smlevel_0::ext_sz;
@@ -1756,7 +1761,6 @@ ss_m::dismount_all()
     if (xct_t::num_active_xcts())  {
 	return RC(eCANTWHILEACTIVEXCTS);
     }  else  {
-	W_DO( lid->remove_all_volumes() );
 	W_DO( dir->dismount_all() );
     }
 
@@ -1780,7 +1784,9 @@ ss_m::list_devices(const char**& dev_list, devid_t*& devid_list, u_int& dev_cnt)
 }
 
 rc_t
-ss_m::list_volumes(const char* device, lvid_t*& lvid_list, u_int& lvid_cnt)
+ss_m::list_volumes(const char* device, 
+	lvid_t*& lvid_list, u_int& lvid_cnt
+	)
 {
     SM_PROLOGUE_RC(ss_m::list_volumes, can_be_in_xct, 0);
     SMSCRIPT(<< "list_volumes TODO" );
@@ -1904,147 +1910,6 @@ ss_m::destroy_vol(const lvid_t& lvid)
     return RCOK;
 }
 
-rc_t
-ss_m::add_logical_id_index(const lvid_t& lvid,
-			   u_int reserved_local,  u_int reserved_remote)
-{
-    SM_PROLOGUE_RC(ss_m::add_logical_id_index, not_in_xct, 0);
-    SMSCRIPT(<< "add_logical_id_index " << lvid <<" " <<reserved_local <<" " << reserved_remote);
-
-    // get info about the root index on the volume
-    stid_t  root_iid;
-    W_DO(vol_root_index(lvid, root_iid));
-    vid_t vid(root_iid.vol);
-    bool  found;
-    smsize_t    len;
-
-    if(vid.is_remote()) {
-	return RC(eNOTONREMOTEVOL);
-    }
-
-    xct_t xct;   // start a short transaction
-    xct_auto_abort_t xct_auto(&xct); // abort if not completed
-
-    // see if this volume has a logical ID index
-    vec_t   key_lindex(lid->local_index_key,
-		       strlen(lid->local_index_key));
-    snum_t lid_snum;
-    len = sizeof(lid_snum);
-    W_DO(_find_assoc(root_iid, key_lindex, (void*)&lid_snum,
-			len, found));
-
-    if (found) {
-	// already has a logical ID index
-	return RCOK;
-    }
-    
-    /*
-     * A logical record ID index needs to be created.
-     * This is added to the root index as well.
-     */
-    stpgid_t lrid_index;
-    W_DO(_create_index(vid, t_uni_btree, 
-		       t_regular, 
-		       serial_t::key_descr, t_cc_none,
-		       false, lrid_index));
-    snum_t snum = lrid_index.store();
-    vec_t   elem1(&snum, sizeof(snum));
-    W_DO(_create_assoc(root_iid, key_lindex, elem1));
-
-    /*
-     * put in first two serial #s to reserve local and remote references
-     */
-    lid_m::lid_entry_t reserve_entry(lid_m::t_max);
-    vec_t       entry_vec(&reserve_entry, reserve_entry.save_size());
-    {
-        serial_t    reserve_serial(reserved_local, false);
-        vec_t       key_vec(&reserve_serial, sizeof(reserve_serial));
-        W_DO(_create_assoc(lrid_index, key_vec, entry_vec));
-
-    }
-    {
-        serial_t    reserve_serial(reserved_remote, true);
-        vec_t       key_vec(&reserve_serial, sizeof(reserve_serial));
-        W_DO(_create_assoc(lrid_index, key_vec, entry_vec));
-
-    }
-
-    /*
-     * Now create an index for mapping from remote IDs to a
-     * local ID on this volumes.
-     */
-    stpgid_t remote_index;
-    W_DO(_create_index(vid, t_uni_btree, 
-		       t_regular,
-		       serial_t::key_descr, t_cc_none, false, remote_index));
-    vec_t   key_rem_index(lid->remote_index_key,
-			  strlen(lid->remote_index_key));
-    snum = remote_index.store();
-    vec_t   elem2(&snum, sizeof(snum));
-    W_DO(_create_assoc(root_iid, key_rem_index, elem2));
-
-    /*
-     * Now add a serial number for the root index for the volume.
-     * Then, put this serial number in the root index so
-     * vol_root_index() can find it.  That way, root index users
-     * and use the logical ID versions of the index functions
-     * when accessing the root index.
-     */
-    serial_t 	new_root_serial(reserved_local+1, false);  // serial number for root index
-    {
-	// create an lid entry for the root index
-	// we can't use lid->associate() because lid_m has not been
-	// told about the volume yet
-	lid_m::lid_entry_t root_iid_entry(root_iid.store);
-	vec_t       entry_vec(&root_iid_entry, root_iid_entry.save_size());
-        vec_t       key_vec(&new_root_serial, sizeof(new_root_serial));
-        W_DO(_create_assoc(lrid_index, key_vec, entry_vec));
-
-	// now store the serial number in the root index
-	vec_t root_serial_key(_root_index_lid_key, strlen(_root_index_lid_key));
-	vec_t root_serial_elem(&new_root_serial, sizeof(new_root_serial));
-	W_DO(_create_assoc(root_iid, root_serial_key, root_serial_elem));
-    }
-
-
-    W_DO(xct_auto.commit());   // end the short transaction
-
-    // tell the lid_m about the volume
-    W_DO(_add_lid_volume(vid));
-
-    return RCOK;
-}
-
-rc_t
-ss_m::has_logical_id_index(const lvid_t& lvid, bool& has_index)
-{
-    SM_PROLOGUE_RC(ss_m::has_logical_id_index, not_in_xct, 0);
-    RES_SMSCRIPT(<< "has_logical_id_index " << lvid );
-
-    // get info about the root index on the volume
-    stid_t  root_iid;
-    W_DO(vol_root_index(lvid, root_iid));
-
-    if(root_iid.vol.is_remote()) {
-	return RC(eNOTONREMOTEVOL);
-    }
-    smsize_t     len;
-
-    xct_t xct;   // start a short transaction
-    xct_auto_abort_t xct_auto(&xct); // abort if not completed
-
-    // see if this volume has a logical ID index
-    vec_t   key_lindex(lid->local_index_key,
-		       strlen(lid->local_index_key));
-    snum_t  lid_snum;
-    len = sizeof(lid_snum);
-    W_COERCE(_find_assoc(root_iid, key_lindex, (void*)&lid_snum,
-			len, has_index));
-
-    W_DO( xct_auto.commit() );
-    return RCOK;
-}
-
 /*--------------------------------------------------------------*
  *  ss_m::get_volume_quota()					*
  *--------------------------------------------------------------*/
@@ -2067,60 +1932,6 @@ ss_m::vol_root_index(const lvid_t& v, stid_t& iid)
     iid.store = store_id_root_index;
     return RCOK;
 }
-
-rc_t
-ss_m::vol_root_index(const lvid_t& lvid, serial_t& liid)
-{
-    SM_PROLOGUE_RC(ss_m::vol_root_index, in_xct, 0);
-    RES_SMSCRIPT(<< "vol_root_index " << lvid );
-    stid_t	root_iid;
-    W_DO(vol_root_index(lvid, root_iid));
-
-    bool	found;
-    smsize_t	len = sizeof(liid);
-    vec_t root_serial_key(_root_index_lid_key, strlen(_root_index_lid_key));
-
-    W_DO(_find_assoc(root_iid, root_serial_key, (void*)&liid, len, found));
-
-    if (!found) {
-	// there must not be a logical ID index on this volume
-	return RC(eBADVOL);
-    }
-    return RCOK;
-}
-
-
-/*--------------------------------------------------------------*
- *  ss_m::set_lid_cache_enable()				*
- *--------------------------------------------------------------*/
-rc_t
-ss_m::set_lid_cache_enable(bool enable)
-{
-    lid->cache_enable() = enable;
-    return RCOK;
-}
-
-/*--------------------------------------------------------------*
- *  ss_m::lid_cache_enabled()					*
- *--------------------------------------------------------------*/
-rc_t
-ss_m::lid_cache_enabled(bool& enable)
-{
-    enable = lid->cache_enable();
-    return RCOK;
-}
-
-/*--------------------------------------------------------------*
- *  ss_m::test_lid_cache()					*
- *--------------------------------------------------------------*/
-rc_t
-ss_m::test_lid_cache(const lvid_t& lvid, int num_add)
-{
-    W_DO(lid->test_cache(lvid, num_add));
-    return RCOK;
-}
-
-
 
 ostream& operator<<(ostream& o, const extid_t& x)
 {
@@ -2278,39 +2089,6 @@ ss_m::lock(const lockid_t& n, lock_mode_t m,
 
 
 rc_t
-ss_m::lock(const lvid_t& lvid, const serial_t& serial, lock_mode_t m,
-	   lock_duration_t d, timeout_in_ms timeout)
-{
-    SM_PROLOGUE_RC(ss_m::lock, in_xct, 0);
-    SMSCRIPT(<< "lock " << lvid <<" " <<serial 
-		<<" " <<m<<" "<<d <<" " << timeout );
-    lid_m::lid_entry_t lid_entry;
-    lid_t  id(lvid, serial);
-    lockid_t lockid;
-    vid_t vid;
-
-    W_DO(lid->lookup(id, lid_entry, vid));
-    switch(lid_entry.type()) {
-    case lid_m::t_rid:
-	lockid = rid_t(vid, lid_entry.shrid());
-	break;
-    case lid_m::t_store:
-	lockid = stid_t(vid, lid_entry.snum());
-	break;
-    case lid_m::t_page:
-	lockid = stpgid_t(vid, lid_entry.spid().store, lid_entry.spid().page);
-	break;
-    default:
-	DBG(<<"lock: " );
-    	return RC(eBADLOGICALID);	
-    }
-    W_DO( lm->lock(lockid, m, d, timeout) );
-
-    return RCOK;
-}
-
-
-rc_t
 ss_m::lock(const lvid_t& lvid, lock_mode_t m,
 	   lock_duration_t d, timeout_in_ms timeout)
 {
@@ -2337,33 +2115,6 @@ ss_m::unlock(const lockid_t& n)
     return RCOK;
 }
 
-rc_t
-ss_m::unlock(const lvid_t& lvid, const serial_t& serial)
-{
-    SM_PROLOGUE_RC(ss_m::unlock, in_xct, 0);
-    SMSCRIPT(<< "unlock " << lvid <<" " << serial ); 
-    lid_m::lid_entry_t lid_entry;
-    lid_t  id(lvid, serial);
-    lockid_t lockid;
-    vid_t    vid;
-
-    W_DO(lid->lookup(id, lid_entry, vid));
-    switch(lid_entry.type()) {
-    case lid_m::t_rid:
-	lockid = rid_t(vid, lid_entry.shrid());
-	break;
-    case lid_m::t_store:
-	lockid = stid_t(vid, lid_entry.snum());
-	break;
-    default:
-	DBG(<<"unlock: " );
-    	return RC(eBADLOGICALID);	
-    }
-    W_DO( lm->unlock(lockid) );
-
-    return RCOK;
-}
-
 
 /*--------------------------------------------------------------*
  *  ss_m::dont_escalate()					*
@@ -2378,35 +2129,7 @@ ss_m::dont_escalate(const lockid_t& n, bool passOnToDescendants)
     return RCOK;
 }
 
-rc_t
-ss_m::dont_escalate(const lvid_t& lvid, const serial_t& serial, bool passOnToDescendants)
-{
-    SM_PROLOGUE_RC(ss_m::lock, in_xct, 0);
-    SMSCRIPT(<< "dont_escalate(" << lvid << ", " << serial << ", " << passOnToDescendants << ")");
 
-    lid_m::lid_entry_t lid_entry;
-    lid_t  id(lvid, serial);
-    lockid_t lockid;
-    vid_t vid;
-
-    W_DO(lid->lookup(id, lid_entry, vid));
-    switch(lid_entry.type()) {
-    case lid_m::t_rid:
-	lockid = rid_t(vid, lid_entry.shrid());
-	break;
-    case lid_m::t_store:
-	lockid = stid_t(vid, lid_entry.snum());
-	break;
-    case lid_m::t_page:
-	lockid = stpgid_t(vid, lid_entry.spid().store, lid_entry.spid().page);
-	break;
-    default:
-	DBG(<<"dont_escalate: " );
-    	return RC(eBADLOGICALID);	
-    }
-    W_DO( lm->dont_escalate(lockid, passOnToDescendants) );
-    return RCOK;
-}
 
 rc_t
 ss_m::dont_escalate(const lvid_t& lvid, bool passOnToDescendants)
@@ -2463,34 +2186,7 @@ ss_m::query_lock(const lockid_t& n, lock_mode_t& m, bool implicit)
     return RCOK;
 }
 
-rc_t
-ss_m::query_lock(const lvid_t& lvid, const serial_t& serial,
-		 lock_mode_t& m, bool implicit)
-{
-    SM_PROLOGUE_RC(ss_m::query_lock, in_xct, 0);
-    SMSCRIPT(<< "query_lock " << lvid <<" " << serial 
-	<<" " <<m <<" " <<implicit ); 
-    lid_m::lid_entry_t lid_entry;
-    lid_t  	id(lvid, serial);
-    lockid_t 	lockid;
-    vid_t	vid;
 
-    W_DO(lid->lookup(id, lid_entry, vid));
-    switch(lid_entry.type()) {
-    case lid_m::t_rid:
-	lockid = rid_t(vid, lid_entry.shrid());
-	break;
-    case lid_m::t_store:
-	lockid = stid_t(vid, lid_entry.snum());
-	break;
-    default:
-	DBG(<<"query_lock: " );
-    	return RC(eBADLOGICALID);	
-    }
-
-    W_DO( lm->query(lockid, m, xct()->tid(), implicit) );
-    return RCOK;
-}
 
 /*--------------------------------------------------------------*
  *  ss_m::set_lock_cache_enable()				*
@@ -2520,70 +2216,6 @@ ss_m::lock_cache_enabled(bool& enable)
     return RCOK;
 }
 
-/*--------------------------------------------------------------*
- *  ss_m::_add_lid_volume()					*
- *  Tell the logical ID manager about the volume		*
- *--------------------------------------------------------------*/
-rc_t
-ss_m::_add_lid_volume(vid_t vid)
-{
-    stid_t	root_iid;
-    bool	found;
-    smsize_t	len;
-
-    if(vid.is_remote()) {
-	return RC(eNOTONREMOTEVOL);
-    }
-    xct_t xct;   // start a short transaction
-    xct_auto_abort_t xct_auto(&xct); // abort if not completed
-    {
-	// get the ID of the volume's root index
-	W_DO(vol_root_index(vid, root_iid));
-
-	// see if this volume has a logical ID index
-	vec_t   key_lindex(lid->local_index_key,
-			   strlen(lid->local_index_key));
-	stid_t  lid_index;
-	len = sizeof(lid_index.store);
-	W_DO(_find_assoc(root_iid, key_lindex, (void*)&lid_index.store,
-			    len, found));
-	lid_index.vol = vid;
-
-	if (found) {
-	    w_assert3(len == sizeof(lid_index.store));
-
-	    // get the lvid for the volume
-	    lvid_t  lvid;
-	    lvid = io->get_lvid(vid);
-	    w_assert3(lvid != lvid_t::null);
-
-	    sdesc_t* sd_l;
-	    W_DO(dir->access(lid_index, sd_l, NL));
-
-	    // find the ID for the remote ID index
-	    vec_t   key_rindex(lid->remote_index_key,
-			       strlen(lid->remote_index_key));
-	    stid_t  remote_index;
-	    len = sizeof(remote_index.store);
-	    W_DO(_find_assoc(root_iid, key_rindex, (void*)&remote_index.store,
-				len, found));
-	    remote_index.vol = vid;
-	    w_assert1(found);
-	    w_assert3(len == sizeof(lid_index.store));
-	    sdesc_t* sd_r;
-	    W_DO(dir->access(remote_index, sd_r, NL));
-
-	    // tell the lid_m about the volume
-	    W_DO(lid->add_local_volume(vid, lvid, sd_l->root(), sd_r->root()));
-	} else {
-	    // Volume does not have a logical ID index
-	    DBG( << "Volume " << vid.vol 
-		 << " does not have a logical ID index." );
-	}
-    }
-    W_DO(xct_auto.commit());
-    return RCOK;
-}
 
 /*****************************************************************
  * Internal/physical-ID version of all the storage operations
@@ -2779,19 +2411,6 @@ ss_m::unblock_global_xct_waiting_on_lock(const gtid_t& gtid)
 }
 
 /*--------------------------------------------------------------*
- *  ss_m::send_wait_for_graph()					*
- *--------------------------------------------------------------*/
-rc_t
-ss_m::send_wait_for_graph()
-{
-    if (global_deadlock_client)  {
-	return global_deadlock_client->SendWaitForGraph();
-    }  else  {
-	return RC(eNOGLOBALDEADLOCKCLIENT);
-    }
-}
-
-/*--------------------------------------------------------------*
  *  ss_m::set_global_deadlock_client(gdc)			*
  *								*
  *  call with gdc = 0 to disable.				*
@@ -2823,78 +2442,6 @@ ss_m::set_deadlock_event_callback(DeadlockEventCallback* callback)
     return RCOK;
 }
 
-#ifdef COMMENTED_OUT
-class DeadlockEventPrinter : public DeadlockEventCallback
-{
-    public:
-	ostream&	out;
-
-			DeadlockEventPrinter(ostream& o);
-	void		LocalDeadlockDetected(					// see sm.cpp
-				XctWaitsForLockList&	waitsForList,
-				const xct_t*		current,
-				const xct_t*		victim);
-	void		KillingGlobalXct(
-				const xct_t*		xct,
-				const lockid_t&		lockid);
-	void		GlobalDeadlockDetected(GtidList& list);
-	void		GlobalDeadlockVictimSelected(const gtid_t& gtid);
-};
-
-inline
-DeadlockEventPrinter::DeadlockEventPrinter(ostream& o)
-:
-    out(o)
-{
-}
-
-
-void
-DeadlockEventPrinter::LocalDeadlockDetected(XctWaitsForLockList& waitsForList, const xct_t* current, const xct_t* victim)
-{
-    out << "LOCAL DEADLOCK DETECTED:\n"
-	<< " CYCLE:\n";
-    bool isFirstElem = true;
-    while (XctWaitsForLockElem* elem = waitsForList.pop())  {
-        w_ostrstream_buf tidStream(80);	/* XXX magic number */
-        tidStream << elem->xct->tid() << ends;
-        W_FORM(out)("  %7s%15s waits for ",
-		    isFirstElem ? "" : "held by",
-		    tidStream.c_str());
-        out << elem->lockName << '\n';
-        isFirstElem = false;
-        delete elem;
-    }
-    out	<< " XCT WHICH CAUSED CYCLE:  " << current->tid() << '\n'
-	<< " SELECTED VICTIM:         " << victim->tid() << '\n';
-}
-
-void
-DeadlockEventPrinter::KillingGlobalXct(const xct_t* xct, const lockid_t& lockid)
-{
-    out << "GLOBAL DEADLOCK DETECTED:\n"
-	<< " KILLING local xct " << xct->tid() << " (global id " << *xct->gtid()
-	<< " was holding lock " << lockid << '\n';
-}
-
-void
-DeadlockEventPrinter::GlobalDeadlockDetected(GtidList& list)
-{
-    out << "GLOBAL DEADLOCK DETECTED:\n"
-	<< " PARTICIPANT LIST:\n";
-    while (GtidElem* gtidElem = list.pop())  {
-	out << "  " << gtidElem->gtid << '\n';
-	delete gtidElem;
-    }
-}
-
-void
-DeadlockEventPrinter::GlobalDeadlockVictimSelected(const gtid_t& gtid)
-{
-    out << "GLOBAL DEADLOCK DETECTED:\n"
-	<< " SELECTING VICTIM: " << gtid << '\n';
-}
-#endif
 
 /*--------------------------------------------------------------*
  *  ss_m::_chain_xct()						*
@@ -3002,10 +2549,7 @@ ss_m::_mount_dev(const char* device, u_int& vol_cnt, vid_t local_vid)
 		 << "\" not mounted -- " << rc << flushl;
 	    return rc;
 	}
-    } else {
-	// Tell the logical ID manager about the volume
-	W_DO(_add_lid_volume(vid));
-    }
+    } 
 
     // take a checkpoint to record the mount
     chkpt->take();
@@ -3014,15 +2558,15 @@ ss_m::_mount_dev(const char* device, u_int& vol_cnt, vid_t local_vid)
 }
 
 rc_t
-ss_m::_dismount_dev(const char* device, bool dismount_if_locked)
+ss_m::_dismount_dev(const char* device , bool dismount_if_locked)
 {
     vid_t	vid;
-    lvid_t	lvid;
     rc_t	rc;
     lock_mode_t	m = NL;
 
+    lvid_t	lvid;
     W_DO(io->get_lvid(device, lvid));
-    if (lvid != lvid_t::null) { 
+    if (lvid != lvid_t::null) {
 	vid = io->get_vid(lvid);
 	if (vid == vid_t::null) return RC(eDEVNOTMOUNTED);
 
@@ -3032,15 +2576,6 @@ ss_m::_dismount_dev(const char* device, bool dismount_if_locked)
 	}
 	// else m = NL and the device will be dismounted
 	
-	if (m != IX && m != SIX && m != EX)  {
-	    rc = lid->remove_volume(lvid);
-	    if (rc) {
-		// ignore eBADVOL since volume may not have had a lid index
-		if (rc.err_num() != eBADVOL) {
-		    return rc;
-		}
-	    }
-	}
 
 	// dir->dismount also checks the lock and removes non-locked temps so always call
 	W_DO( dir->dismount(vid, true, dismount_if_locked) );
@@ -3054,7 +2589,8 @@ ss_m::_dismount_dev(const char* device, bool dismount_if_locked)
 }
 
 /*--------------------------------------------------------------*
- *  ss_m::_create_vol()						*
+ *  ss_m::_create_vol()						* 
+ * logical                                                      *
  *--------------------------------------------------------------*/
 rc_t
 ss_m::_create_vol(const char* dev_name, const lvid_t& lvid, 
@@ -3140,7 +2676,8 @@ ss_m::_create_vol(const char* dev_name, const lvid_t& lvid,
 	    shpid_t dummy_root = 0;
 	    sinfo_s sinfo(stid1.store, t_1page, 100/*unused*/, t_bad_ndx_t,
 				t_cc_none /* not used */,
-			  dummy_root, serial_t::null, 0, 0);
+			  dummy_root, 
+			  0, 0);
 	    W_DO( dir->insert(stid1, sinfo) );
 	}
 
@@ -3186,19 +2723,7 @@ ss_m::get_du_statistics(lvid_t lvid, sm_du_stats_t& du, bool audit)
     return RCOK;
 }
 
-/*--------------------------------------------------------------*
- *  ss_m::get_du_statistics()	DU DF				*	
- *--------------------------------------------------------------*/
-rc_t
-ss_m::get_du_statistics(const lvid_t& lvid, const serial_t& serial, sm_du_stats_t& du, bool audit)
-{
-    SM_PROLOGUE_RC(ss_m::get_du_statistics, in_xct, 0);
-    stpgid_t  stpgid;  // physical store ID
-    lid_t  id(lvid, serial);
 
-    LID_CACHE_RETRY_DO(id, stpgid_t, stpgid, _get_du_statistics(stpgid, du, audit));
-    return RCOK;
-}
 
 /*--------------------------------------------------------------*
  *  ss_m::get_du_statistics()	DU DF				*	
@@ -3374,63 +2899,6 @@ ss_m::_get_du_statistics(vid_t vid, sm_du_stats_t& du, bool audit)
 	skip = MAX(skip, stid.store);
     }
 
-
-    /**************************************************
-     * Now get logical id index stats
-     **************************************************/
-    stid_t  lid_index;
-    stid_t  lid_remote_index;
-    {
-	stid_t root_iid;
-	W_DO(vol_root_index(vid, root_iid));
-
-	// see if this volume has a logical ID index
-	vec_t   key_lindex(lid->local_index_key,
-			   strlen(lid->local_index_key));
-	bool	 found; 
-	smsize_t len;
-
-        len = sizeof(lid_index.store);
-        W_DO(_find_assoc(root_iid, key_lindex, (void*)&lid_index.store,
-                            len, found));
-        lid_index.vol = vid;
-
-	if (found) {
-
-	    {
-	        btree_stats_t btree_stats;
-		W_DO(dir->access(lid_index, sd, NL));
-	        W_DO( bt->get_du_statistics(sd->root(), btree_stats, audit));
-	        if (audit) {
-		    W_DO(btree_stats.audit());
-	        }
-	        new_stats.volume_map.lid_map.add(btree_stats);
-	    }
-	    
-	    // find the ID for the remote ID index
-            vec_t   key_rindex(lid->remote_index_key,
-                               strlen(lid->remote_index_key));
-            len = sizeof(lid_remote_index.store);
-            W_DO(_find_assoc(root_iid, key_rindex, (void*)&lid_remote_index.store,
-                                len, found));
-            lid_remote_index.vol = vid;
-
-	    if (found) {
-	        btree_stats_t btree_stats;
-		W_DO(dir->access(lid_remote_index, sd, NL));
-	        W_DO( bt->get_du_statistics(sd->root(), btree_stats, audit));
-	        if (audit) {
-		    W_DO(btree_stats.audit());
-	        }
-	        new_stats.volume_map.lid_remote_map.add(btree_stats);
-	    } else {
-		// there should have been a remote lid index
-		W_FATAL(fcINTERNAL);
-	    }
-	}
-    }
-
-
     /**************************************************
      * Now get stats on every other store on the volume
      **************************************************/
@@ -3442,11 +2910,6 @@ ss_m::_get_du_statistics(vid_t vid, sm_du_stats_t& du, bool audit)
     for (stid_t s(vid, skip+1); s.store <= last; s.store++) {
 	DBG(<<"look at store " << s << " last=" << last );
 	
-	// skip lid indexes
-	if (s == lid_index || s == lid_remote_index) {
-	    continue;
-	}
-
         store_flag_t flags;
         rc = io->get_store_flags(s, flags);
         if (rc) {
@@ -3718,20 +3181,6 @@ operator<<(ostream &o, const sm_stats_info_t &s)
     return o;
 }
 
-/*--------------------------------------------------------------*
- *  ss_m::get_store_info()					*
- *--------------------------------------------------------------*/
-rc_t
-ss_m::get_store_info(const lvid_t& lvid, const serial_t& serial,
-    sm_store_info_t&	info)
-{
-    SM_PROLOGUE_RC(ss_m::get_store_info, in_xct, 0);
-    SMSCRIPT(<<"get_store_info " <<lvid<<" " <<serial);
-    stpgid_t iid;  // physical file ID
-    lid_t id(lvid, serial);
-    LID_CACHE_RETRY_DO(id, stid_t, iid, _get_store_info(iid,info));
-    return RCOK;
-}
 
 /*--------------------------------------------------------------*
  *  ss_m::get_store_info()					*

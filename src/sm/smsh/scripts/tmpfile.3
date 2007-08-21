@@ -1,6 +1,6 @@
 # <std-header style='tcl' orig-src='shore'>
 #
-#  $Id: tmpfile.3,v 1.12 1999/06/07 19:05:48 kupsch Exp $
+#  $Id: tmpfile.3,v 1.13 2007/08/21 19:44:01 nhall Exp $
 #
 # SHORE -- Scalable Heterogeneous Object REpository
 #
@@ -32,27 +32,22 @@
 #
 source $script_dir/vol.init
 
-if {$Use_logical_id == 1} {
-	echo WARNING: tmpfile.1 cannot be run (since logical IDs are turned on)
-	verbose WARNING: until we destroy tmp files properly on dismount for logical ids
+if {$logging == 1} {
+
+	sm begin_xct
+	verbose tid [sm xct_to_tid [sm xct]]
+	verbose tfid [set tfid [sm create_file $volid tmp]]
+	verbose trid [set trid [ sm create_rec $tfid [format %06d 1] 10 data.[format %01000d 1] ]]
+	sm commit_xct
+
+	restart
+
+	verbose "****** restarted, doing dstats $volid  ******"
+	dstats $volid
+	verbose "after 'dstats $volid'"
+
+	unset tfid trid
 } else {
-    if {$logging == 1} {
-
-	    sm begin_xct
-	    verbose tid [sm xct_to_tid [sm xct]]
-	    verbose tfid [set tfid [sm create_file $volid tmp]]
-	    verbose trid [set trid [ sm create_rec $tfid [format %06d 1] 10 data.[format %01000d 1] ]]
-	    sm commit_xct
-
-	    restart
-
-	    verbose "****** restarted, doing dstats $volid  ******"
-	    dstats $volid
-	    verbose "after 'dstats $volid'"
-
-	    unset tfid trid
-    } else {
-	verbose tmpfile.1 cannot be run (since logging is turned off)
-    }
+    verbose tmpfile.1 cannot be run (since logging is turned off)
 }
 

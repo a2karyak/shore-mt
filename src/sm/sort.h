@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='SORT_H'>
 
- $Id: sort.h,v 1.28 2007/05/18 21:43:29 nhall Exp $
+ $Id: sort.h,v 1.29 2007/08/21 19:50:44 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -134,10 +134,11 @@ class sort_stream_i : public smlevel_top, public xct_dependent_t {
   private:
     void	set_file_sort() { _file_sort = true; _once = false; }
     void	set_file_sort_once(
-			sm_store_property_t prop,
-			serial_t lid) {
+			sm_store_property_t prop
+			) {
 				_file_sort = true; _once = true; 
-				_property = prop; _logical_id = lid; }
+				_property = prop; 
+	}
     rc_t	file_put(const cvec_t& key, const void* rec, uint rlen,
 				uint hlen, const rectag_t* tag);
     rc_t	file_get_next(vec_t& key, vec_t& elem, w_base_t::uint4_t& blen, bool& eof);
@@ -177,7 +178,6 @@ class sort_stream_i : public smlevel_top, public xct_dependent_t {
     // below vars used for speeding up sort if whole file fits in memory
     bool		_once;		// one pass write to result file
     sm_store_property_t _property;	// property for the result file
-    serial_t		_logical_id;	// logical id
 };
 
 class file_p;

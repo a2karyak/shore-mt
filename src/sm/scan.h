@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='SCAN_H'>
 
- $Id: scan.h,v 1.88 2007/05/18 21:43:27 nhall Exp $
+ $Id: scan.h,v 1.89 2007/08/21 19:50:42 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -105,15 +105,6 @@ public:
 	const cvec_t& 		    bound2,
 	bool			    include_nulls = false,
 	concurrency_t		    cc = t_cc_kvl);
-    NORET			scan_index_i(
-	const lvid_t& 		    lvid,
-	const serial_t& 	    stid,
-	cmp_t			    c1,
-	const cvec_t& 		    bound1,
-	cmp_t 			    c2,
-	const cvec_t& 		    bound2,
-	bool			    include_nulls = false,
-	concurrency_t		    cc = t_cc_kvl);
     NORET			~scan_index_i();
 
     NORET			W_FASTNEW_CLASS_DECL(scan_index_i);
@@ -145,8 +136,6 @@ private:
     ndx_t			ntype;
     cmp_t			cond2;
     //cvec_t*			bound2;
-    serial_t			serial;  // serial number if store has
-					 // a logical ID
     bool			_eof;
 
     rc_t			_error_occurred;
@@ -186,18 +175,9 @@ public:
     stid_t			stid;
     tid_t			tid;
     ndx_t 			ntype;
-    serial_t			serial;  // serial number if store has
-					 // a logical ID 
     
     NORET			scan_rt_i(
 	const stid_t& 		    stid, 
-	nbox_t::sob_cmp_t 	    c,
-	const nbox_t& 		    box,
-	bool			    include_nulls = false,
-	concurrency_t		    cc = t_cc_page);
-    NORET			scan_rt_i(
-	const lvid_t& 		    lvid, 
-	const serial_t& 	    stid,
 	nbox_t::sob_cmp_t 	    c,
 	const nbox_t& 		    box,
 	bool			    include_nulls = false,
@@ -271,17 +251,6 @@ public:
 	const stid_t& 		    stid,
 	concurrency_t		    cc = t_cc_file,
 	bool			    prefetch=false);
-    NORET			scan_file_i(
-	const lvid_t&		    lvid, 
-	const serial_t& 	    fid,
-	concurrency_t		    cc = t_cc_file,
-	bool			    prefetch=false);
-    NORET			scan_file_i(
-	const lvid_t&		    lvid,
-	const serial_t& 	    fid,
-	const serial_t& 	    start_rid,
-	concurrency_t		    cc = t_cc_file,
-	bool			    prefetch=false);
     NORET			~scan_file_i();
     NORET			W_FASTNEW_CLASS_DECL(scan_file_i);
     
@@ -308,13 +277,9 @@ public:
 	smsize_t 		    start_offset, 
 	bool& 		            eof);
 
-    // logical serial # and volume ID of the file if created that way
-    const serial_t&		lfid() const { return _lfid; }
-    const lvid_t&		lvid() const { return _lvid; };
    
     void			finish();
     bool			eof()		{ return _eof; }
-    bool			is_logical() const{ return (_lfid != serial_t::null); }
     w_rc_t			error_code(){ return _error_occurred; }
     tid_t			xid() const { return tid; }
 
@@ -324,17 +289,11 @@ protected:
     rc_t			_error_occurred;
     pin_i			_cursor;
     lpid_t			_next_pid;
-    serial_t			_lfid;// logical file ID if created that way
-    lvid_t			_lvid;// logical volume ID if created that way
     concurrency_t		_cc;  // concurrency control
     lock_mode_t			_page_lock_mode;
     lock_mode_t			_rec_lock_mode;
 
     rc_t 			_init(bool for_append=false);
-    // this calls _init() with logical IDs
-    rc_t 			_init_logical(
-	const lvid_t&		    lvid, 
-	const serial_t& 	    fid);
 
     rc_t			_next(
 	pin_i*&			    pin_ptr,
@@ -363,20 +322,12 @@ class append_file_i : public scan_file_i {
 public:
     NORET			append_file_i(
 	const stid_t& stid);
-    NORET			append_file_i(
-	const lvid_t&		    lvid, 
-	const serial_t& 	    fid);
     NORET			~append_file_i();
     rc_t			next(
 	pin_i*&			    pin_ptr,
 	smsize_t 		    start_offset, 
 	bool& 		    	    eof);
 
-    rc_t			create_rec(
-	const vec_t& 		    hdr,
-	smsize_t 	            len_hint, 
-	const vec_t& 	 	    data,
-	lrid_t& 		    lrid);
 
     rc_t			create_rec(
 	const vec_t& 		    hdr,

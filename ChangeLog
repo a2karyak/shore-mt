@@ -8,4 +8,10 @@ Distributions of Shore Storage Manager
 5.0.1: Sat Aug 18 15:37:16 CDT 2007
       1) added the smsh scripts to the distr
 
-
+5.0.2: Tue Aug 21 15:04:47 CDT 2007
+      1) fixed 'make clean' bug in sthread/tests to get rid of tests/diskrw
+      2) fixed 'make clean' bug in smsh to clean up log* and volumes/*
+      3) increased volume size in .smshrc to allow all scripts to run
+      	 with default page size
+      4) removed logical OIDs
+      NOTE-> documents are NOT updated

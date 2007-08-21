@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='SM_S_H'>
 
- $Id: sm_s.h,v 1.86 2007/05/18 21:43:28 nhall Exp $
+ $Id: sm_s.h,v 1.87 2007/08/21 19:50:43 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -60,6 +60,7 @@ public:
 };
 
 #define LPID_T
+// Long page id
 class lpid_t {
 public:
     stid_t	_stid;
@@ -169,18 +170,6 @@ public:
     static const rid_t null;
 };
 
-#define LSTID_T
-class lstid_t : public lid_t {	// logical store ID
-public:
-    lstid_t() {};
-	lstid_t( const lvid_t& lvid_, const serial_t& serial_) :
-		lid_t(lvid_,serial_) {};
-
-    lstid_t(w_base_t::uint4_t high, w_base_t::uint4_t low, 
-	    	w_base_t::uint4_t ser, bool remote) :
-		lid_t(high, low, ser, remote) {};
-};
-typedef lstid_t lfid_t;		// logical file ID
 
 
 /*

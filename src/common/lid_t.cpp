@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: lid_t.cpp,v 1.36 2007/05/18 21:33:42 nhall Exp $
+ $Id: lid_t.cpp,v 1.37 2007/08/21 19:49:59 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -41,19 +41,10 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #include <w_stream.h>
 #include <cstring>
 #include "basics.h"
-#include "serial_t.h"
-#include "lid_t.h"
 #include "tid_t.h"
+#include "lid_t.h"
 
 const lvid_t    lvid_t::null;            
-const lid_t     lid_t::null; 
-
-const char* lid_t::key_descr =
-#ifdef SERIAL_BITS64
-					"u4u4u4u4";
-#else
-					"u4u4u4";
-#endif
 
 ostream& operator<<(ostream& o, const lvid_t& lvid)
 {
@@ -121,24 +112,6 @@ istream& operator>>(istream& is, lvid_t& lvid)
     return is;
 }
 
-ostream& operator<<(ostream& o, const lid_t& lid)
-{
-    return o << lid.lvid << '.' << lid.serial;
-}
-
-istream& operator>>(istream& i, lid_t& lid)
-{
-    char c = 0;
-    i >> lid.lvid >> c;
-    if (c == '.') {
-	i >> lid.serial;
-    } else {
-	// bad lid
-	i.clear(ios::badbit|i.rdstate());  // error
-	lid.serial = serial_t::null;
-    }
-    return i;
-}
 
 /* 
  * for the benefit of the code that includes
@@ -146,16 +119,10 @@ istream& operator>>(istream& i, lid_t& lid)
  * of  lvid_t 
  */
 EXTERN bool lvid_t_is_null(const lvid_t &x); 
-EXTERN bool lrid_t_is_null(const lrid_t &x); 
 
 bool
 lvid_t_is_null(const lvid_t &x)
 {
       return x == lvid_t::null;
-}
-bool
-lrid_t_is_null(const lrid_t &x)
-{
-      return x == lid_t::null;
 }
 

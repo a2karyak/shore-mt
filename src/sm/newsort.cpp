@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: newsort.cpp,v 1.42 2006/01/29 23:27:11 bolo Exp $
+ $Id: newsort.cpp,v 1.43 2007/08/21 19:50:42 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -2104,7 +2104,6 @@ run_mgr::put_rec(file_p &fp, slotid_t slot)
 	if( (m->lgmetasize() > 0) && !info.deep_copy()) {
 	    const rectag_t *rectag =(const rectag_t *)(m->lgmetadata().ptr(0));
 	    w_assert3(rectag);
-	    w_assert3(rectag->serial_no.data._low != 0);
 	    w_assert3((rectag->flags & t_small) == 0);
 	}
     }
@@ -2276,7 +2275,6 @@ run_mgr::_output_metarec(
 	    // AND lgdata
 #ifdef W_DEBUG
 	    const rectag_t *rectag =(const rectag_t *)(m->lgmetadata().ptr(0));
-	    w_assert3(rectag->serial_no.data._low != 0);
 	    w_assert3((rectag->flags & t_small) == 0);
 	    w_assert3((rectag->flags & (t_large_0|t_large_1|t_large_2)) != 0);
 #endif
@@ -2342,7 +2340,7 @@ run_mgr::_output_metarec(
     smsize_t size_hint = hdr.size() + data.size();
     W_DO ( fi->create_rec_at_end(
 	t->metafp(),
-	size_hint, hdr, data, serial_t::null, 
+	size_hint, hdr, data, 
 	*(t->sdesc()), result_rid) );
     DBG(<<"Created tmp rec " << result_rid
 	<< " for original record " << m->shrid(_ifid.store)
@@ -2781,7 +2779,8 @@ w_rc_t
 tape_t::_create_tmpfile(vid_t v)
 {
     stid_t	tmpfid;
-    W_DO( SSM->_create_file(v, tmpfid, t_temporary, serial_t::null) );
+    W_DO( SSM->_create_file(v, tmpfid, t_temporary
+			    ) );
     DBG(<<" created tmp file " << tmpfid);
     w_assert3(_sd == 0);
     W_DO( dir->access(tmpfid, _sd, NL) );
@@ -3176,7 +3175,6 @@ tape_t::prime_record(const sort_keys_t &info,
 
 #ifdef W_DEBUG
 	    const rectag_t *rectag =(const rectag_t *)buffer;
-	    w_assert3(rectag->serial_no.data._low != 0);
 	    w_assert3((rectag->flags & t_small) == 0);
 	    w_assert3((rectag->flags & (t_large_0|t_large_1|t_large_2)) != 0);
 #endif
@@ -3784,7 +3782,7 @@ run_mgr::_output_index_rec(
 		last_page_written,
 		size_hint, 
 		hdr, data, 
-		serial_t::null, *sd, newrid);
+		*sd, newrid);
 	if(rc && rc.err_num() == eRECWONTFIT) {
 	    RC_PUSH(rc, RC(eBADKEY));
 	}
@@ -3857,7 +3855,7 @@ run_mgr::_output_pinned_rec(
 	    last_page_written,
 	    size_hint, 
 	    hdr, data, 
-	    serial_t::null, *sd, newrid) );
+	    *sd, newrid) );
 
     DBG(<<"Created output rec " << newrid
 	<< " hdr_size = " << hdr.size()
@@ -3866,20 +3864,6 @@ run_mgr::_output_pinned_rec(
     INC_STAT_SORT(sort_recs_created);
     ADD_TSTAT_SORT(sort_rec_bytes, size_hint);
 
-    if(remap_lids) {
-	/* 
-	 * The caller is responsible for creating the output
-	 * file, so the caller also creates the lvid, serial#
-	 * for that file.  TODO: we have to create an API for
-	 * the logical case, and have it call run.set_logical(...)
-	 */
-	// remove the old entry from lid index
-	W_DO(lid->remove(_ilvid, rec->tag.serial_no));
-	serial_t s;
-	memcpy(&s, (char*)&rec->tag.serial_no, sizeof(serial_t));
-	// insert a new entry from lid index
-	W_DO ( lid->associate(_ilvid, s, newrid) );
-    }
 
     if( !(rec->tag.flags & t_small)) {
 	if(info.deep_copy()) {
@@ -3902,7 +3886,8 @@ run_mgr::_output_pinned_rec(
 		w_assert3(start_byte == offset);
 		W_DO(lg.fix(lgpid, LATCH_SH));
 		data.reset().put(lg.tuple_addr(0), lg.tuple_size(0));
-		W_DO(fi->append_rec(newrid, data, *sd, false, serial_t::null));
+		W_DO(fi->append_rec(newrid, data, *sd, false
+			    ));
 		offset += lg.tuple_size(0);
 		lg.unfix();
 	    }
@@ -3980,7 +3965,6 @@ run_mgr::_output_rec(
 	reclen = m->lgmetasize();
 	const char *c = (const char *)m->lgmetadata().ptr(0);
 	rectag =(const rectag_t *)c;
-	w_assert3(rectag->serial_no.data._low != 0);
 	w_assert3((rectag->flags & t_small) == 0);
 	w_assert3((rectag->flags & (t_large_0|t_large_1|t_large_2)) != 0);
 	c += sizeof(rectag_t);
@@ -4007,7 +3991,7 @@ run_mgr::_output_rec(
 	    last_page_written,
 	    size_hint, 
 	    hdr, data, 
-	    serial_t::null, *sd, newrid) );
+	    *sd, newrid) );
 
     DBG(<<"Created output rec " << newrid
 	<< " hdr_size = " << hdr.size()
@@ -4016,23 +4000,6 @@ run_mgr::_output_rec(
     INC_STAT_SORT(sort_recs_created);
     ADD_TSTAT_SORT(sort_rec_bytes, size_hint);
 
-    if(remap_lids) {
-	/* 
-	 * The caller is responsible for creating the output
-	 * file, so the caller also creates the lvid, serial#
-	 * for that file.  TODO: we have to create an API for
-	 * the logical case, and have it call run.set_logical(...)
-	 */
-	// remove the old entry from lid index
-	W_FATAL(eNOTIMPLEMENTED);
-	/*
-	W_DO(lid->remove(_ilvid, rec->tag.serial_no));
-	serial_t s;
-	memcpy(&s, (char*)&rec->tag.serial_no, sizeof(serial_t));
-	// insert a new entry from lid index
-	W_DO ( lid->associate(_ilvid, s, newrid) );
-	*/
-    }
 
     if( is_large) {
 	w_assert3(rectag!=0);
@@ -4073,75 +4040,6 @@ run_mgr::_output_rec(
 }
 
 
-/* new sort, logical version */
-rc_t			
-ss_m::sort_file(
-    const lvid_t& 	    ilvid, // input file logical id
-    const serial_t& 	    iserial, // input file serial#
-    const lvid_t& 	    olvid, // output file -- 
-    const serial_t& 	    oserial, // output file serial#
-    int			    nvids,	// array size for vids
-    const lvid_t* 	    lvids, 	// array of lvids for temp
-					    // files
-					    // created by caller--
-					    // can be same as input file
-    sort_keys_t&	    kl, // kl &
-    smsize_t		    min_rec_sz, // for estimating space use
-    int 		    run_size,   // # pages to use for a run
-    int 		    temp_space, // # pages VM to use for scratch 
-    bool 		    remap_lids // = true
-)
-{
-    SM_PROLOGUE_RC(ss_m::sort_file, in_xct, 0);
-
-    /* 
-     * Sanity checks on arguments
-     * info.keep_orig()==T, info.deep_copy() must be T, remap either way
-     * keep_orig()==F, info.deep_copy() either way, remap must be true
-     */
-    if(!kl.keep_orig()) {
-	if(!remap_lids) {
-	    DBG(<<"");
-	    return RC(eBADARGUMENT);
-	}
-    }
-    /*
-     * convert logical ids for input file to physical
-     */
-    stid_t in_fid; 
-    {
-	lid_t  id(ilvid, iserial);
-	LID_CACHE_RETRY_VALIDATE_STID_DO(id, in_fid);
-    }
-    /*
-     * convert logical ids for output file to physical
-     */
-    stid_t out_fid; 
-    {
-	lid_t  id(olvid, oserial);
-	LID_CACHE_RETRY_VALIDATE_STID_DO(id, out_fid);
-    }
-    /*
-     * convert array of lvid_t to array of vid_t
-     */
-    vid_t* pvids = new vid_t[nvids];
-    for(int i=0; i<nvids; i++) {
-	W_DO(lid->lookup(lvids[i], pvids[i]));
-    }
-
-    rc_t result = _sort_file(in_fid, ilvid,
-			out_fid, nvids, pvids, 
-			kl, min_rec_sz, run_size,
-			temp_space,
-			remap_lids
-			);
-
-    DBG(<<" returning from sort_file");
-
-    delete[] pvids;
-    return result;
-}
-
 /* new sort - physical version */
 rc_t			
 ss_m::sort_file(
@@ -4160,11 +4058,10 @@ ss_m::sort_file(
     SM_PROLOGUE_RC(ss_m::sort_file, in_xct, 0);
 
     w_rc_t rc = 
-    _sort_file(fid, lvid_t::null,
+    _sort_file(fid, 
 			sorted_fid, nvids, vid, 
 			kl, min_rec_sz, run_size,
-			tmp_space, 
-			false /*remap_lids*/
+			tmp_space
 			);
 
     DBG(<<" returning from sort_file " << rc);
@@ -4213,7 +4110,6 @@ run_mgr::_rec_in_run(
 rc_t			
 ss_m::_sort_file(
     const stid_t& 		    ifid, // input file
-    const lvid_t& 		    ilvid, // input file logical id
     const stid_t& 		    ofid, // output file -- 
 					  // created by caller--
 					  // cannot be same as input file
@@ -4224,8 +4120,7 @@ ss_m::_sort_file(
     int 			    run_size,// #file pages to use for a run
 					     // or merge -- max # buffer-pool
 					     // pages we may hog
-    int 			    scratch_mem,
-    bool			    remap_lids 
+    int 			    scratch_mem
 )
 {
     FUNC(_sort_file);
@@ -4270,7 +4165,8 @@ ss_m::_sort_file(
 
 	// Output is not a copy of input.
 	// These make no sense.
-	if(remap_lids || info1.deep_copy()) {
+	if(
+			info1.deep_copy()) {
 	    DBG(<<"");
 	    return RC(eBADARGUMENT);
 	}
@@ -4300,12 +4196,6 @@ ss_m::_sort_file(
 	    return RC(eBADARGUMENT);
 	}
     }
-    if(remap_lids) {
-	if(ilvid == lvid_t::null) {
-	    DBG(<<"");
-	    return RC(eBADARGUMENT);
-	}
-    } 
     if(ofid == ifid) {
 	DBG(<<"");
 	return RC(eBADARGUMENT);
@@ -4548,10 +4438,6 @@ ss_m::_sort_file(
 	    info1, 
 	    rc);
 	if(rc) return rc.reset();
-
-	if(ilvid != lvid_t::null) {
-	    run.set_logical(ilvid, remap_lids);
-	}
 
 	/*
 	 * Sort phase:
@@ -5330,34 +5216,6 @@ hilbert (
 
 rc_t			
 ss_m::new_sort_file(
-    const lvid_t& 	    ilvid, 
-    const serial_t& 	    iserial, 
-    const lvid_t&	    olvid, 
-    serial_t& 		    oserial, 
-    store_property_t	    property,
-    const key_info_t& 	    ki, 
-    int 		    run_size,
-    bool 		    ascending,
-    bool 		    unique,
-    bool 		    destructive
-) 
-{
-    // Do NOT enter SM
-    W_DO(create_file(olvid, oserial, property));
-
-    stid_t	ifid;
-    stid_t	ofid;
-
-    W_DO(_new_sort_file(ifid, ilvid, iserial,
-			ofid, olvid, oserial,
-			ki,
-			run_size, true, ascending,
-			unique, !destructive));
-    return RCOK;
-}
-
-rc_t			
-ss_m::new_sort_file(
     const stid_t& 	    in_fid, 
     vid_t 		    out_vid, 
     stid_t& 		    out_fid, 
@@ -5366,19 +5224,18 @@ ss_m::new_sort_file(
     int 		    run_size,
     bool 		    ascending,
     bool 		    unique,   // = false,
-    bool 		    destructive, //  = false,
-    const serial_t&         logical_id // =serial_t::null
+    bool 		    destructive //  = false,
 ) 
 {
     // Do NOT enter SM
     /* create output file */
-    W_DO(create_file(out_vid, out_fid, property, logical_id));
+    W_DO(create_file(out_vid, out_fid, property
+		));
 
-    W_DO(_new_sort_file(in_fid, lvid_t::null, serial_t::null,
-			out_fid, lvid_t::null, serial_t::null,
+    W_DO(_new_sort_file(in_fid, 
+			out_fid, 
 			ki,
-			run_size, 
-			false,
+			run_size,
 			ascending,
 			unique, 
 			!destructive));
@@ -5388,14 +5245,9 @@ ss_m::new_sort_file(
 rc_t			
 ss_m::_new_sort_file(
     const stid_t& 	    in_fid, 
-    const lvid_t& 	    in_lvid, 
-    const serial_t& 	    in_serial, 
     const stid_t& 	    out_fid, 
-    const lvid_t& 	    out_lvid, 
-    const serial_t& 	    out_serial, 
     const key_info_t& 	    ki, 
     int 		    run_size,
-    bool 		    remap_lids,
     bool		    ascending, 
     bool 		    unique,
     bool 		    keep_orig
@@ -5480,17 +5332,7 @@ ss_m::_new_sort_file(
 
     w_assert3(!kl.is_for_index());
 
-    if(remap_lids) {
-	W_DO(sort_file(in_lvid, in_serial, 
-	    out_lvid, out_serial,
-	    1, &out_lvid,
-	    kl,
-	    kinfo.est_reclen,
-	    run_size,
-	    ss_m::page_sz * run_size, // essentially unlimited for now
-	    remap_lids
-	));
-    } else {
+    {
 	W_DO(sort_file(in_fid, 
 	    out_fid, 
 	    1, &out_fid.vol,

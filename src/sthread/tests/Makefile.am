@@ -1,6 +1,7 @@
 ## Process this file with automake to produce Makefile.in
 include $(top_srcdir)/Makefile.generic
 EXTRA_DIST = testall
+CLEANFILES = diskrw
 AM_CXXFLAGS    += -I$(top_srcdir)/src/sthread \
 		-I$(top_srcdir)/src/fc
 

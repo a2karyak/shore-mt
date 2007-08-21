@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: scan.cpp,v 1.154 2007/05/18 21:43:27 nhall Exp $
+ $Id: scan.cpp,v 1.155 2007/08/21 19:50:42 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -60,33 +60,6 @@ W_FASTNEW_STATIC_DECL(scan_file_i, 32)
 
 	
 
-/*
- * This 2 validation functions converts a logical ID into a store id and
- * validates that the store ID is correct.  Since it is not a member
- * of a class inheriting from ss_m, it must declare lid and dir
- * as they are used by the LID_CACHE... macro.
- */
-static w_rc_t
-validate_stpgid(lid_t& id, stpgid_t& stpgid)
-{
-    lid_m* const lid = smlevel_4::lid;
-    dir_m* const dir = smlevel_3::dir;
-    LID_CACHE_RETRY_VALIDATE_STPGID_DO(id, stpgid); 
-    return RCOK;
-}
-
-static w_rc_t
-validate_stid(lid_t& id, stid_t& stid)
-{
-    lid_m* const lid = smlevel_4::lid;
-    dir_m* const dir = smlevel_3::dir;
-    stpgid_t stpgid;
-    LID_CACHE_RETRY_VALIDATE_STID_DO(id, stpgid); 
-    w_assert3(stpgid.is_stid());
-    stid = stpgid.stid();
-    return RCOK;
-}
-
 
 /*********************************************************************
  *
@@ -109,7 +82,6 @@ scan_index_i::scan_index_i(
 : xct_dependent_t(xct()),
   stpgid(stid_),
   ntype(ss_m::t_bad_ndx_t),
-  serial(serial_t::null),
   _eof(false),
   _error_occurred(),
   _btcursor(0),
@@ -117,35 +89,6 @@ scan_index_i::scan_index_i(
   _cc(cc)
 {
     INIT_SCAN_PROLOGUE_RC(scan_index_i::scan_index_i, 1);
-    _init(c1, bound1_, c2, bound2_);
-}
-
-scan_index_i::scan_index_i(
-    const lvid_t& 	lvid, 
-    const serial_t& 	stid_, 
-    cmp_t 		c1, 
-    const cvec_t& 	bound1_, 
-    cmp_t 		c2, 
-    const cvec_t& 	bound2_, 
-    bool		include_nulls,
-    concurrency_t 	cc) 
-: xct_dependent_t(xct()),
-  ntype(ss_m::t_bad_ndx_t), 
-  serial(serial_t::null),
-  _eof(false),
-  _error_occurred(),
-  _btcursor(0),
-  _skip_nulls( ! include_nulls ),
-  _cc(cc)
-{
-    INIT_SCAN_PROLOGUE_RC(scan_index_i::scan_index_i, 1);
-
-    lid_t id(lvid, stid_);
-    // determind the physical index ID
-    _error_occurred = validate_stpgid(id, stpgid);
-    if (_error_occurred) return;
-    serial = id.serial;
-
     _init(c1, bound1_, c2, bound2_);
 }
 
@@ -232,10 +175,6 @@ scan_index_i::_init(
 	return;
     }
 
-    if (serial != serial_t::null && serial != sd->sinfo().logical_id) {
-	DBG(<<"_init: " );
-	W_FATAL(eBADLOGICALID);
-    }
     if((concurrency_t)sd->sinfo().cc != key_lock_level) {
 	switch((concurrency_t)sd->sinfo().cc) {
 	    case t_cc_none:
@@ -454,34 +393,13 @@ scan_rt_i::scan_rt_i(const stid_t& stid_, nbox_t::sob_cmp_t c, const nbox_t& qbo
 	bool include_nulls,
 	concurrency_t cc) 
 : xct_dependent_t(xct()), stid(stid_), ntype(t_bad_ndx_t),
-  serial(serial_t::null), _eof(false), _error_occurred(),
+    _eof(false), _error_occurred(),
   _cursor(0), _skip_nulls( !include_nulls ), _cc(cc)
 {
     INIT_SCAN_PROLOGUE_RC(scan_rt_i::scan_rt_i, 1);
     _init(c, qbox);
 }
 
-scan_rt_i::scan_rt_i(const lvid_t& lvid, const serial_t& stid_,
-	 nbox_t::sob_cmp_t c, const nbox_t& qbox, 
-	 bool include_nulls,
-	 concurrency_t cc) 
-: xct_dependent_t(xct()),
-  ntype(t_bad_ndx_t),
-  serial(serial_t::null),
-  _eof(false),
-  _error_occurred(),
-  _cursor(0),
-  _skip_nulls( ! include_nulls ), 
-  _cc(cc)
-{
-    INIT_SCAN_PROLOGUE_RC(scan_rt_i::scan_rt_i, 1);
-    lid_t id(lvid, stid_);
-    // determind the physical index ID
-    _error_occurred = validate_stid(id, stid);
-    if (_error_occurred) return;
-    serial = id.serial;
-    _init(c, qbox);
-}
 
 scan_rt_i::~scan_rt_i()
 {
@@ -529,11 +447,6 @@ void scan_rt_i::_init(nbox_t::sob_cmp_t c, const nbox_t& qbox)
     _error_occurred = dir->access(stid, sd, index_lock_mode);
     if (_error_occurred)  {
 	return;
-    }
-
-    if (serial != serial_t::null && serial != sd->sinfo().logical_id) {
-	DBG(<<"_init: " );
-	W_FATAL(eBADLOGICALID);
     }
 
     if (sd->sinfo().stype != t_index)  {
@@ -609,7 +522,6 @@ scan_file_i::scan_file_i(const stid_t& stid_, const rid_t& start,
   stid(stid_),
   curr_rid(start),
   _eof(false),
-  _lfid(serial_t::null),
   _cc(cc), 
   _do_prefetch(pre),
   _prefetch(0)
@@ -624,7 +536,6 @@ scan_file_i::scan_file_i(const stid_t& stid_, concurrency_t cc, bool pre)
 : xct_dependent_t(xct()),
   stid(stid_),
   _eof(false),
-  _lfid(serial_t::null),
   _cc(cc),
   _do_prefetch(pre),
   _prefetch(0)
@@ -635,78 +546,12 @@ scan_file_i::scan_file_i(const stid_t& stid_, concurrency_t cc, bool pre)
 	W_IGNORE(_init(cc == t_cc_append));
 }
 
-scan_file_i::scan_file_i(const lvid_t& lvid, const serial_t& lfid,
-					concurrency_t cc, bool pre) 
-: xct_dependent_t(xct()),
-  _eof(false),
-  _lfid(serial_t::null),
-  _cc(cc),
-  _do_prefetch(pre),
-  _prefetch(0)
-{
-	INIT_SCAN_PROLOGUE_RC(scan_file_i::scan_file_i, 0);
 
-	/* _init_logical sets error state */
-	w_rc_t rc = _init_logical(lvid, lfid);
-	if (rc)
-		return;
-
-	/* _init sets error state */
-	W_IGNORE(_init(cc == t_cc_append));
-}
-
-scan_file_i::scan_file_i(const lvid_t& lvid, const serial_t& lfid,
-		const serial_t& start_rid, concurrency_t cc, bool pre) 
-: xct_dependent_t(xct()),
-  _eof(false),
-  _lfid(serial_t::null),
-  _cc(cc),
-  _do_prefetch(pre),
-  _prefetch(0)
-{
-	INIT_SCAN_PROLOGUE_RC(scan_file_i::scan_file_i, 0);
-
-	/* _init_logical sets error state */
-	w_rc_t rc = _init_logical(lvid, lfid);
-	if (rc)
-		return;
-
-	lid_t id(lvid, start_rid);
-	// determind the physical ID of the start record 
-	_error_occurred = lid->lookup(id, curr_rid);
-	if (_error_occurred) return;
-
-	/* _init sets error state */
-	W_IGNORE(_init(cc == t_cc_append));
-}
 
 scan_file_i::~scan_file_i()
 {
 	finish();
 }
-
-
-rc_t
-scan_file_i::_init_logical(const lvid_t& lvid, const serial_t& lfid) 
-{
-    SCAN_METHOD_PROLOGUE(scan_file_i::_init_logical);
-    lid_t id(lvid, lfid);
-    // determind the physical file ID
-    _error_occurred = validate_stid(id, stid);
-    if (_error_occurred) {
-	DBG(<<"init_logical failed: " << _error_occurred);
-	return _error_occurred;
-    }
-
-    _lfid = id.serial;
-    _lvid = id.lvid;
-
-    // as a friend, set the scan's logical volume ID
-    _cursor._lrid.lvid = id.lvid;
-
-    return RCOK;
-}
-
 
 rc_t scan_file_i::_init(bool for_append) 
 {
@@ -775,10 +620,6 @@ rc_t scan_file_i::_init(bool for_append)
     _error_occurred = dir->access(stid, sd, mode);
     if (_error_occurred)  {
 	return _error_occurred;
-    }
-    if (_lfid != serial_t::null && _lfid != sd->sinfo().logical_id) {
-	DBG(<<"_init: " );
-	W_FATAL(eBADLOGICALID);
     }
 
     if (_error_occurred)  {
@@ -894,7 +735,8 @@ scan_file_i::_next(pin_i*& pin_ptr, smsize_t start, bool& eof)
 		}
 	    } 
 	    _error_occurred = _cursor._pin(temp_rid, start,
-			      _rec_lock_mode, serial_t::null);
+			      _rec_lock_mode
+			      );
 	    if (_error_occurred)  {
 		return _error_occurred;
 	    }
@@ -969,20 +811,14 @@ scan_file_i::_next(pin_i*& pin_ptr, smsize_t start, bool& eof)
 		DBGTHRD(<<" next page is " << _next_pid);
 	    }
 	} else {
-	    W_DO(_cursor._pin(curr_rid, start, _rec_lock_mode, serial_t::null));
+	    W_DO(_cursor._pin(curr_rid, start, _rec_lock_mode
+			));
 	    _cursor._set_lsn_for_scan();
 	    break;
 	}
     }
 
     eof = _eof;
-
-    // as a friend, set the pin_i's serial number for current rec
-    if (eof) {
-	_cursor._lrid.serial = serial_t::null;
-    } else {
-	_cursor._lrid.serial = _cursor._rec->tag.serial_no;
-    }
 
     pin_ptr = &_cursor;
     return RCOK;
@@ -1055,28 +891,6 @@ append_file_i::append_file_i(const stid_t& stid_)
     w_assert3( !_page().is_fixed() );
 }
 
-append_file_i::append_file_i(const lvid_t& lvid, const serial_t& lfid)
-: scan_file_i(lvid, lfid, t_cc_append)
-{
-    _init_constructor();
-    INIT_SCAN_PROLOGUE_RC(append_file_i::append_file_i, 0);
-	w_rc_t rc = _init_logical(lvid, lfid);
-    if (rc) return;
-    W_IGNORE(_init(true));
-    if(_error_occurred) return;
-	_error_occurred = lm->lock(stid, EX, t_long, WAIT_SPECIFIED_BY_XCT);
-    if(_error_occurred) return;
-
-    sdesc_t *sd;
-    _error_occurred = dir->access(stid, sd, IX); 
-    // makes a copy - only because the create_rec
-    // functions that we want to call require that we
-    // have one to reference.
-    _cached_sdesc = *sd;
-    w_assert3( !_page().is_fixed() );
-}
-
-
 void
 append_file_i::_init_constructor()
 {
@@ -1120,46 +934,6 @@ append_file_i::create_rec(
 	const vec_t& 		    hdr,
 	smsize_t 	            len_hint, 
 	const vec_t& 	 	    data,
-	lrid_t& 		    lrid
-	)
-{
-    SCAN_METHOD_PROLOGUE1;
-    SM_PROLOGUE_RC(append_file_i::create_rec, in_xct, 0);
-
-
-#ifdef W_DEBUG
-    if(_page().is_fixed()) {
-	DBG(<<"IS FIXED! ");
-    }
-#endif /* W_DEBUG */
-    serial_t serial;
-    if(_error_occurred) { 
-	return _error_occurred;
-    }
-    if( ! is_logical()) {
-        return RC(eBADSCAN);
-    }
-
-    vid_t  vid;  // physical volume ID (returned by generate_new_serial)
-
-    W_DO(lid->generate_new_serials(_lvid, vid, 1, serial, lid_m::local_ref));
-
-    W_DO( fi->create_rec_at_end(_page(), 
-	len_hint, hdr, data, serial, _cached_sdesc,  curr_rid) );
-
-
-    W_DO(lid->associate(_lvid, serial, curr_rid));
-    lrid.serial = serial;
-    lrid.lvid = _lvid;
-
-    return RCOK;
-}
-
-rc_t			
-append_file_i::create_rec(
-	const vec_t& 		    hdr,
-	smsize_t 	            len_hint, 
-	const vec_t& 	 	    data,
 	rid_t& 		            rid
 	)
 {
@@ -1170,17 +944,14 @@ append_file_i::create_rec(
 	DBG(<<"IS FIXED! ");
     }
 #endif /* W_DEBUG */
-    serial_t   serial;
 
     if(_error_occurred) { 
 	return _error_occurred;
     }
-    if(is_logical()) {
-        return RC(eBADSCAN);
-    }
 
     W_DO( fi->create_rec_at_end(_page(), 
-	len_hint, hdr, data, serial, _cached_sdesc,  curr_rid) );
+	len_hint, hdr, data, 
+	_cached_sdesc,  curr_rid) );
 
     rid = curr_rid;
     return RCOK;

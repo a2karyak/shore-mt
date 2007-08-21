@@ -1,6 +1,6 @@
 # <std-header style='tcl' orig-src='shore'>
 #
-#  $Id: tmpfile.2,v 1.12 1999/06/07 19:05:48 kupsch Exp $
+#  $Id: tmpfile.2,v 1.13 2007/08/21 19:44:01 nhall Exp $
 #
 # SHORE -- Scalable Heterogeneous Object REpository
 #
@@ -35,25 +35,17 @@
 
 source $script_dir/vol.init
 
-if {$Use_logical_id == 1} {
-    echo tmpfile.1 cannot be run (since logical IDs are turned on)
-    echo until we fix PR 331
-} else {
 if {$logging == 1} {
 
 proc verify {} {
-    global ntfid nfid tfid fid Use_logical_id
+    global ntfid nfid tfid fid 
 
     sm begin_xct
     for {set i 0} {$i < $ntfid} {incr i} {
 	verbose verifying $tfid($i)
 	if [catch {sm scan_rids $tfid($i)} catcherr] {
 	    verbose (EXPECTED) scan_rids error: $catcherr
-	    if {$Use_logical_id} {
-		assert {error_is $catcherr E_BADLOGICALID}
-	    } else {
-		assert {error_is $catcherr E_BADSTID}
-	    }
+	    assert {error_is $catcherr E_BADSTID}
 	} else {
 	    verbose EXPECTED ERROR, but didn't get one!
 	    verbose got: $catcherr
@@ -190,6 +182,5 @@ sm commit_xct
 unset tfid fid ntfid nfid i num_rec trid id_width
 } else {
     echo tmpfile.1 cannot be run (since logging is turned off)
-}
 }
 

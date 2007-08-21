@@ -1,6 +1,6 @@
 # <std-header style='tcl' orig-src='shore'>
 #
-#  $Id: mpw,v 1.11 2007/05/18 21:49:00 nhall Exp $
+#  $Id: mpw,v 1.12 2007/08/21 19:44:00 nhall Exp $
 #
 # SHORE -- Scalable Heterogeneous Object REpository
 #
@@ -41,121 +41,115 @@
 # the value of fid" to indicate that the file already exists.
 #
 #
-if {$Use_logical_id == 1} {
-    echo WARNING: tmpfile.1 cannot be run (since logical IDs are turned on)
-    verbose WARNING: until we destroy tmp files properly on dismount for logical ids
+set nobjs 100000
+# set nobjs 10
+
+set STARTOVER 0
+
+if [is_set STARTOVER] {
+	set fid 0
 } else {
+	set dont_force_reformat 1
+	set fid s(1.4)
+}
 
-	set nobjs 100000
-	# set nobjs 10
-
-	set STARTOVER 0
-
-	if [is_set STARTOVER] {
-		set fid 0
-	} else {
-		set dont_force_reformat 1
-		set fid s(1.4)
-	}
-
-	source $script_dir/vol.init
+source $script_dir/vol.init
 
 
-	# set objsize [expr {8192 * 5}]
-	set objsize 200
+# set objsize [expr {8192 * 5}]
+set objsize 200
 
-	#ignored for now
-	set logging 0
+#ignored for now
+set logging 0
 
-	set config [sm config_info]
+set config [sm config_info]
 
-	set dev 0
-	set size 0
-	set vol 0
-	set quota 0
-	set vol_list 0
-	if {$volid == 0} {
-		foreach i $smsh_device_list {
-		set dev  [lindex $i 0]
-		set size [lindex $i 1]
-		set vol  [lindex $i 2]
+set dev 0
+set size 0
+set vol 0
+set quota 0
+set vol_list 0
+if {$volid == 0} {
+	foreach i $smsh_device_list {
+	set dev  [lindex $i 0]
+	set size [lindex $i 1]
+	set vol  [lindex $i 2]
 
-		sm mount_dev $dev $vol
+	sm mount_dev $dev $vol
 
-		set vol_list [sm list_volumes $dev]
-		if { [llength $vol_list] == 0 } {
-			set quota [sm get_device_quota $dev]
-			verbose creating volume $vol size $size on $dev
-			sm create_vol $dev $vol $size
-		}
-
+	set vol_list [sm list_volumes $dev]
+	if { [llength $vol_list] == 0 } {
 		set quota [sm get_device_quota $dev]
-		set quota [sm get_volume_quota $vol]
-
-		set vol_list [sm list_volumes $dev]
-		assert {[expr [llength $vol_list] == 1]}
-		assert {[expr [string compare [lindex $vol_list 0] $vol.0.0.0:0] == 0]}
-		}
-	}
-	if {$volid == 0} {
-		set volid [lindex [lindex $smsh_device_list 0] 2]
+		verbose creating volume $vol size $size on $dev
+		sm create_vol $dev $vol $size
 	}
 
-	verbose mounted everything....
+	set quota [sm get_device_quota $dev]
+	set quota [sm get_volume_quota $vol]
 
-	set volsize [lindex [sm get_volume_quota $volid] 0]
-	set used [lindex [sm get_volume_quota $volid] 1]
-	set volsize [expr {$volsize - $used} ]
-	# set objksize [expr {$objsize / 1024} ]
-	# set nobjs [expr {$volsize / $objksize} ]
-	# set nobjs [expr { 200000000 / $objsize } ]
-	#unset objksize
+	set vol_list [sm list_volumes $dev]
+	assert {[expr [llength $vol_list] == 1]}
+	assert {[expr [string compare [lindex $vol_list 0] $vol.0.0.0:0] == 0]}
+	}
+}
+if {$volid == 0} {
+	set volid [lindex [lindex $smsh_device_list 0] 2]
+}
 
-	set hdr "" 
-	set body [format "%0*s" $objsize a]
+verbose mounted everything....
+
+set volsize [lindex [sm get_volume_quota $volid] 0]
+set used [lindex [sm get_volume_quota $volid] 1]
+set volsize [expr {$volsize - $used} ]
+# set objksize [expr {$objsize / 1024} ]
+# set nobjs [expr {$volsize / $objksize} ]
+# set nobjs [expr { 200000000 / $objsize } ]
+#unset objksize
+
+set hdr "" 
+set body [format "%0*s" $objsize a]
 
 
-	# 
-	# create a huge file
-	#
-	set scan 0
-	set dummy 0
-	set total 0
-	if {$fid==0} {
-		sm begin_xct
-		set fid [sm create_file $volid tmp ]
-		verbose fid=$fid
-		set scan [sm scan_file_create $fid t_cc_append]
-		set dummy [sm gather_stats reset]
-		verbose creating $nobjs objects of size $objsize 
-		set total 0
-		set wtime [ time {
-		sm multi_file_append $scan $hdr $objsize $body $nobjs
-		} 1 ]
-		sm commit_xct
-		verbose done creating...
-		pstats
-		sm scan_file_destroy $scan
-	} 
-
-	set dummy [sm gather_stats reset]
-	#   clear the buffer pool, invalidate 
+# 
+# create a huge file
+#
+set scan 0
+set dummy 0
+set total 0
+if {$fid==0} {
 	sm begin_xct
-	set ftime [ time {
-	sm force_buffers true
+	set fid [sm create_file $volid tmp ]
+	verbose fid=$fid
+	set scan [sm scan_file_create $fid t_cc_append]
+	set dummy [sm gather_stats reset]
+	verbose creating $nobjs objects of size $objsize 
+	set total 0
+	set wtime [ time {
+	sm multi_file_append $scan $hdr $objsize $body $nobjs
 	} 1 ]
 	sm commit_xct
+	verbose done creating...
 	pstats
+	sm scan_file_destroy $scan
+} 
 
-	verbose
-	verbose Write time = $wtime  Force time = $ftime
-	verbose
+set dummy [sm gather_stats reset]
+#   clear the buffer pool, invalidate 
+sm begin_xct
+set ftime [ time {
+sm force_buffers true
+} 1 ]
+sm commit_xct
+pstats
 
-	unset nobjs logging STARTOVER objsize config
-	unset dev size vol quota vol_list 
-	unset dummy fid scan total
-	unset hdr body
-	unset volsize used
+verbose
+verbose Write time = $wtime  Force time = $ftime
+verbose
+
+unset nobjs logging STARTOVER objsize config
+unset dev size vol quota vol_list 
+unset dummy fid scan total
+unset hdr body
+unset volsize used
 unset wtime ftime
-}
 

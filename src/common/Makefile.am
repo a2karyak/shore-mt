@@ -31,8 +31,8 @@ include_HEADERS    = \
 	lid_t.h option.h regcomp_i.h \
 	regerror_i.h regex.h regex2.h \
 	regex_cclass.h regex_cname.h regex_engine_i.h \
-	regex_posix.h regex_utils.h serial_t.h \
-	serial_t_data.h sm_vas.h stid_t.h \
+	regex_posix.h regex_utils.h  \
+	sm_vas.h stid_t.h \
 	tid_t.h umemcmp.h vec_t.h \
 	vid_t.h w_opaque.h zvec_t.h \
 	$(GENFILES)
@@ -42,7 +42,7 @@ libcommon_a_SOURCES      = \
 	option.cpp \
         regerror.cpp regcomp.cpp \
        	regexec.cpp regfree.cpp regex_posix.cpp \
-	serial_t.cpp stid_t.cpp tid_t.cpp vec_mkchunk.cpp		\
+	stid_t.cpp tid_t.cpp vec_mkchunk.cpp		\
 	vec_t.cpp vid_t.cpp
 
 

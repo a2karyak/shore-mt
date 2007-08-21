@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: dtid_t.cpp,v 1.14 2006/03/14 05:31:26 bolo Exp $
+ $Id: dtid_t.cpp,v 1.15 2007/08/21 19:50:42 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -39,32 +39,4 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 
 #include <w_strstream.h>
 
-#ifdef USE_COORD
-
-uint4_t DTID_T::unique() {
-    // TODO: make this unique
-    return 0x42424242; // "BBBB"
-}
-void
-DTID_T::update() 
-{
-	relative ++;
-
-	stime_t stamp = stime_t::now();
-	w_ostrstream s(date, sizeof(date));
-	stamp.ctime(s);
-	s << endl << ends;
-	/* paranoia .. Ensure it is null terminated. */
-	date[sizeof(date)-1] = '\0';
-}
-
-NORET 	
-DTID_T::DTID_T() 
-{
-    memset(nulls, '\0', sizeof(nulls));
-    location =  unique();
-    relative =  0x41414140; // "AAAA"
-    update();
-}
-#endif /* USE_COORD */
 

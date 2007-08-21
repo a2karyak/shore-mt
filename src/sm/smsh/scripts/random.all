@@ -1,6 +1,6 @@
 # <std-header style='tcl' orig-src='shore'>
 #
-#  $Id: random.all,v 1.12 2007/05/18 21:49:01 nhall Exp $
+#  $Id: random.all,v 1.13 2007/08/21 19:44:00 nhall Exp $
 #
 # SHORE -- Scalable Heterogeneous Object REpository
 #
@@ -42,18 +42,18 @@ set scripts [list \
  alloc.7 alloc.8 bt.insert.1 bt.insert.2 bt.insert.3 bt.insert.4 \
  bt.insert.5 bt.remove.1 bt.remove.2 bt.remove.3 bt.remove.4 \
  btree.1 btree.10 btree.2 btree.2all btree.3 btree.30 btree.4  \
- btree.5 btree.6 btree.7 btree.8 btree.convert.1 btree.err.1 \
+ btree.5 btree.6 btree.7 btree.8 btree.err.1 \
  btree.err.2 btree.err.3 btree.err.4 btree.load btree.load.multi \
  btree_split.1 createsmall.1 file.1 file.2 file.3 file.4 file.5 \
  file.6 file.7 file.8  file.many file.undo.1 \
- file.undo.2 file_destroy.1 forward.1 free_ext free_page \
+ file.undo.2 file_destroy.1 free_ext free_page \
  freepage.bug lgrec.1 lgrec.2 lgrec.3 lgrec.4  \
- lid.1   pin.1 pin.2 \
+ pin.1 pin.2 \
  pin.3 pin.4 quark.1 record_create_abort.1 \
  recovery.1 rtree.1 rtree.2 rtree.3 sort.1 \
  sort.2 sort.3 sort.4 space_recovery thread.1 \
  thread_fork_example tmpfile.1 tmpfile.2 tmpfile.3 trans.1 trans.1  \
- trans.2 trans.2 trans.4 trans.4  vol.1 vol.2 vol.3  \
+ trans.2 trans.2 trans.4 trans.4  vol.1 vol.3  \
 ]
 
 echo $scripts
