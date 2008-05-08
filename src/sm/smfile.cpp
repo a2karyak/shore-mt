@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: smfile.cpp,v 1.58 2007/08/21 19:50:43 nhall Exp $
+ $Id: smfile.cpp,v 1.59 2008/05/07 23:27:00 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -168,12 +168,11 @@ ss_m::update_rec_hdr(const rid_t& rid, smsize_t start, const vec_t& hdr)
  *  ss_m::append_rec()						*
  *--------------------------------------------------------------*/
 rc_t
-ss_m::append_rec(const rid_t& rid, const vec_t& data, bool allow_forward)
+ss_m::append_rec(const rid_t& rid, const vec_t& data)
 {
     SM_PROLOGUE_RC(ss_m::append_rec, in_xct, 0);
-    RES_SMSCRIPT(<<"append_rec " <<rid <<data << allow_forward);
-    W_DO(_append_rec(rid, data, allow_forward
-			    ));
+    RES_SMSCRIPT(<<"append_rec " <<rid <<data );
+    W_DO(_append_rec(rid, data));
     return RCOK;
 }
 
@@ -181,11 +180,12 @@ ss_m::append_rec(const rid_t& rid, const vec_t& data, bool allow_forward)
  *  ss_m::truncate_rec()					*
  *--------------------------------------------------------------*/
 rc_t
-ss_m::truncate_rec(const rid_t& rid, smsize_t amount)
+ss_m::truncate_rec(const rid_t& rid, smsize_t amount, bool& should_forward)
 {
     SM_PROLOGUE_RC(ss_m::truncate_rec, in_xct, 0);
     RES_SMSCRIPT(<<"truncate_rec " <<rid <<" " << amount);
-    bool should_forward;
+    // export this info to the VAS so it can forward the
+    // record at its discretion
     W_DO(_truncate_rec(rid, amount, should_forward
 			    ));
     if (should_forward) {
@@ -540,16 +540,14 @@ ss_m::_update_rec_hdr(const rid_t& rid, smsize_t start, const vec_t& hdr
  *  ss_m::_append_rec()						*
  *--------------------------------------------------------------*/
 rc_t
-ss_m::_append_rec(const rid_t& rid, const vec_t& data, bool allow_forward
-		)
+ss_m::_append_rec(const rid_t& rid, const vec_t& data)
 {
     sdesc_t* sd;
     W_DO( dir->access(rid.stid(), sd, IX) );
     //cout << "sm append_rec " << rid << " size " << data.size() << endl;
 
     W_DO(lm->lock(rid, EX, t_long, WAIT_SPECIFIED_BY_XCT));
-    W_DO(fi->append_rec(rid, data, *sd, allow_forward
-		));
+    W_DO(fi->append_rec(rid, data, *sd));
     return RCOK;
 }
 

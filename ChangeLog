@@ -8,10 +8,60 @@ Distributions of Shore Storage Manager
 5.0.1: Sat Aug 18 15:37:16 CDT 2007
       1) added the smsh scripts to the distr
 
-5.0.2: Tue Aug 21 15:04:47 CDT 2007
-      1) fixed 'make clean' bug in sthread/tests to get rid of tests/diskrw
-      2) fixed 'make clean' bug in smsh to clean up log* and volumes/*
-      3) increased volume size in .smshrc to allow all scripts to run
-      	 with default page size
-      4) removed logical OIDs
-      NOTE-> documents are NOT updated
+5.0.2-prelim: Tue Aug 21 15:04:47 CDT 2007
+       1) fixed 'make clean' bug in sthread/tests to get rid of tests/diskrw
+       2) fixed 'make clean' bug in smsh to clean up log* and volumes/*
+       3) increased volume size in .smshrc to allow all scripts to run
+                with default page size
+       4) removed logical OIDs
+       NOTE-> documents are NOT updated
+
+5.0.2-prelim: Mon Sep  3 16:21:59 MDT 2007
+      1) Removed logical IDs.
+
+	 NOTE:
+         This will require you to modify your code where
+	 some LID-related arguments have disappeared. See especially
+	 append_rec and truncate_rec.
+
+      2) Updated documents for removal of LIDs and removed much 
+      	ancient and obsolete documentation from the original SHORE
+	alpha release.
+
+      3) Added tutorial ssmvas, with hello/ example, suitably modified
+         for physical ids. This hello/ builds and runs as part of 'make
+	 check'.
+
+5.0.2: Tue Oct  2 12:13:28 MDT 2007
+      1) removed more junk assoc with logical ids - in code and in docs
+      2) ssmvas, ssmapi are updated to reflect no lids, and to get rid
+         of some ancient Shore client/RPC-related stuff
+	 Added lid.ssm to man pages.
+      3) ssmvas, hello example reorganized, refs to man pages added,
+         now a little clearer.
+      4) uses standard install prefixes, so now I can 
+      		make install
+	with configure --prefix=<alt-location>
+
+        BUG: because pdfdir isn't defined in earlier versions of automake,
+	     and newer versions don't let me redefine it, I had to avoid 
+	     using it.
+	     I don't know how to get 'configure --help' not to tell the users
+	     about pdfdir, htmldir, etc.
+
+	BUG: might not work with docdir in earlier versions either
+
+      5) top_srcdir gets a file called makeflags when you run 'make'; this
+         contains the g++ options (including macro defs, excluding include paths)
+	 used in the build.  When you run 'make install' this is put into the
+	 $(includedir).  
+	 This is really necessary if users are to be able to use
+	 installed storage managers.  They need to know what flags were used
+	 on the build.
+
+Tue May  6 11:46:38 MDT 2008
+      1) tested with aclocal/automake 1.9.6, autoheader/autoconf 2.60
+         and gcc 3.4.6
+      2) fixed known problems with build targets distclean, install,
+	  uninstall, clean
+

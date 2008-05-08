@@ -57,3 +57,8 @@
 /* for sources */
 #define DONT_TRUST_PAGE_LSN
 
+/*
+ * If you want the lock manager to keep some expensive lock
+ * statisitics, define this.
+ */
+#undef EXPENSIVE_LOCK_STATS

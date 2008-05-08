@@ -1,3 +1,5 @@
+# if tcl.h is not in your /usr/include, put it here.
+# I haven't found a way to locate it with autoconf yet.
 TCL_INCLUDE = /p/paradise/tcl/tcl-8.4.6/include
 TCL_LIB = -L/p/paradise/tcl/tcl-8.4.6/lib -ltcl8.4
 

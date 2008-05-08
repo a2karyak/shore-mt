@@ -2,7 +2,7 @@
 #define SMTHREAD_STATS_T_COLLECT_ENUM_GEN_H
 
 /* DO NOT EDIT --- GENERATED from smthread_stats.dat by stats.pl
-		   on Tue Aug 21 15:08:33 2007
+		   on Wed May  7 19:54:01 2008
 
 <std-header orig-src='shore' genfile='true'>
 
@@ -101,11 +101,6 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 	VT_sort_run_size,
 	VT_sort_phases,
 	VT_sort_ntapes,
-	VT_lid_lookups,
-	VT_lid_remote_lookups,
-	VT_lid_inserts,
-	VT_lid_removes,
-	VT_lid_cache_hits,
 	VT_page_fix_cnt,
 	VT_page_refix_cnt,
 	VT_page_unfix_cnt,

@@ -2,7 +2,7 @@
 #define SM_STATS_T_STRUCT_GEN_H
 
 /* DO NOT EDIT --- GENERATED from sm_stats.dat by stats.pl
-		   on Tue Aug 21 15:08:33 2007
+		   on Wed May  7 19:54:01 2008
 
 <std-header orig-src='shore' genfile='true'>
 

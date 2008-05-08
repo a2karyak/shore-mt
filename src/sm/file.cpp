@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: file.cpp,v 1.196 2007/08/21 19:50:42 nhall Exp $
+ $Id: file.cpp,v 1.197 2008/05/07 23:27:00 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -323,8 +323,7 @@ file_m::_create_rec(
     } // close scope for hu
 
     if(rec_impl == t_large_0) {
-	W_DO(append_rec(rid, data, sd, false
-		    ));
+	W_DO(append_rec(rid, data, sd));
     }
     return RCOK;
 }
@@ -612,8 +611,7 @@ file_m::_create_rec_in_slot(
 
 	    // now append the data to the record
 	    if(do_append) {
-		W_DO(append_rec(rid, data, sd, false
-			    ));
+		W_DO(append_rec(rid, data, sd));
 	    }
 
 	}
@@ -708,9 +706,7 @@ file_m::update_rec(const rid_t& rid, uint4_t start, const vec_t& data
 }
 
 rc_t
-file_m::append_rec(const rid_t& rid, const vec_t& data,
-		   const sdesc_t& sd, bool allow_forward
-		   )
+file_m::append_rec(const rid_t& rid, const vec_t& data, const sdesc_t& sd)
 {
     file_p    	page;
     record_t*	rec;
@@ -749,11 +745,7 @@ file_m::append_rec(const rid_t& rid, const vec_t& data,
 				    space_needed) == t_small) {
 
 	if (page.usable_space() < data.size()) {
-	    if (allow_forward) {
-		return RC(eNOTIMPLEMENTED);
-	    } else {
-		return RC(eRECWONTFIT);
-	    }
+	    return RC(eRECWONTFIT);
 	}
 
 	W_DO( page.append_rec(rid.slot, data) );
@@ -1011,9 +1003,12 @@ file_m::splice_hdr(rid_t rid, slot_length_t start, slot_length_t len, const vec_
 rc_t
 file_m::first_page(const stid_t& fid, lpid_t& pid, bool* allocated)
 {
+#ifdef USE_LID
     if (fid.vol.is_remote()) {
 	W_FATAL(eBADSTID);
-    } else {
+    } else 
+#endif
+    {
         rc_t rc = io->first_page(fid, pid, allocated);
         if (rc) {
 	    w_assert3(rc.err_num() != eEOF);
@@ -1037,9 +1032,12 @@ file_m::last_page(const stid_t& fid, lpid_t& pid, bool* allocated)
 {
     FUNC(file_m::last_page);
     rc_t rc;
+#ifdef USE_LID
     if (fid.vol.is_remote()) {
 	W_FATAL(eBADSTID);
-    } else do {
+    } else 
+#endif
+	do {
         rc = io->last_page(fid, pid, allocated, IX);
         if (rc) {
 	    w_assert3(rc.err_num() != eEOF);
@@ -1102,9 +1100,12 @@ file_m::next_page(lpid_t& pid, bool& eof, bool* allocated)
 {
     eof = false;
 
+#ifdef USE_LID
     if (pid.is_remote()) {
 	W_FATAL(eBADPID);
-    } else {
+    } else 
+#endif
+    {
         rc_t rc = io->next_page(pid, allocated);
         if (rc)  {
     	    if (rc.err_num() == eEOF) {
@@ -1126,11 +1127,17 @@ file_m::_locate_page(const rid_t& rid, file_p& page, latch_mode_t mode)
      * pin the page unless it's remote; even if it's remote,
      * pin if we are using page-level concurrency
      */
-    if (cc_alg == t_cc_page || (! rid.pid.is_remote())) {
+#ifdef USE_LID
+    if (cc_alg == t_cc_page || (! rid.pid.is_remote())) 
+#endif
+    {
         W_DO(page.fix(rid.pid, mode));
-    } else {
+    } 
+#ifdef USE_LID
+    else {
 	W_FATAL(eINTERNAL);
     }
+#endif
 
     w_assert3(page.pid().page == rid.pid.page);
     // make sure page belongs to rid.pid.stid

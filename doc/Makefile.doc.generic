@@ -1,0 +1,27 @@
+
+DIST_TARGETS = $(PDF_TARGETS)
+ALL_TARGETS= $(DVI_TARGETS) $(PDF_TARGETS)
+
+dist-hook: $(ALL_TARGETS)
+	echo removing intermediate files: $(DVI_TARGETS)
+	rm -f $(DVI_TARGETS)
+
+## NOTE: 
+## autoconf 2.50 doesn't recognize pdfdir, docdir, etc.
+## and 2.60 won't let me redefine them. So instead, I'm using
+## localdocdir and localpdfdir until such time as we require
+## 2.60. At that time we can define localdocdir to be docdir.
+## localdocdir=$(docdir)
+## In the meantime, we use the --prefix for the installed dir
+## but make it look like what 2.60 would do by default:
+localdocdir=${prefix}/share/doc/shore-storage-manager
+
+## PDF_TARGETS are made by 'make'
+##
+## DOC_PDF_TARGETS are made with Microsoft office, and stored in cvs
+install-data-local: $(PDF_TARGETS) $(DOC_PDF_TARGETS)
+	mkdir -p $(localpdfdir)
+	cp $(DOC_PDF_TARGETS) $(PDF_TARGETS) $(localpdfdir)
+
+uninstall-local: $(PDF_TARGETS) $(DOC_PDF_TARGETS)
+	rm -rf $(localdocdir)

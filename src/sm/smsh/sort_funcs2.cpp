@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: sort_funcs2.cpp,v 1.22 2007/08/21 19:46:14 nhall Exp $
+ $Id: sort_funcs2.cpp,v 1.23 2008/05/07 23:27:05 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -905,7 +905,7 @@ t_test_bulkload_rtree(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 				<< "+" << oid.size()
 			);
 		    /* APPEND OID */
-		    DO( sm->append_rec(rid, oid, false) );
+		    DO( sm->append_rec(rid, oid) );
 		}
 		record_number++;
 	    }

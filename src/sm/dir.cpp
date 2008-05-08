@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: dir.cpp,v 1.106 2007/08/21 19:50:42 nhall Exp $
+ $Id: dir.cpp,v 1.107 2008/05/07 23:27:00 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -65,7 +65,9 @@ static const key_type_s dir_key_type(key_type_s::u, 0, dir_key_type_size);
 rc_t
 dir_vol_m::_mount(const char* const devname, vid_t vid)
 {
+#ifdef USE_LID
     w_assert1(! vid.is_remote());
+#endif
 
     if (_cnt >= max)   return RC(eNVOL);
 
@@ -110,9 +112,12 @@ dir_vol_m::_dismount(vid_t vid, bool flush, bool dismount_if_locked)
     // else m == NL and the volume is dismounted irregardless of real lock value
 
     if (m != EX)  {
+#ifdef USE_LID
 	if (vid.is_remote())  {
 	    ; // W_FATAL(eNOTIMPLEMENTED);
-	}  else  {
+	}  else  
+#endif
+	{
 	    if (flush)  {
 		W_DO( _destroy_temps(_root[i].vol()));
 	    }
@@ -149,7 +154,9 @@ dir_vol_m::_dismount_all(bool flush, bool dismount_if_locked)
 rc_t
 dir_vol_m::_insert(const stpgid_t& stpgid, const sinfo_s& si)
 {
+#ifdef USE_LID
     w_assert1(! stpgid.vol().is_remote());
+#endif
 
     if (!si.store)   {
 	DBG(<<"_insert: BADSTID");
@@ -402,7 +409,9 @@ dir_vol_m::_access(const stpgid_t& stpgid, sinfo_s& si)
 rc_t
 dir_vol_m::_remove(const stpgid_t& stpgid)
 {
+#ifdef USE_LID
     w_assert1(! stpgid.vol().is_remote());
+#endif
 
     int i = 0;
     W_DO(_find_root(stpgid.vol(),i));
@@ -429,7 +438,9 @@ dir_vol_m::_remove(const stpgid_t& stpgid)
 rc_t
 dir_vol_m::_create_dir(vid_t vid)
 {
+#ifdef USE_LID
     w_assert1(! vid.is_remote());
+#endif
 
     stid_t stid;
     W_DO( io->create_store(vid, 100/*unused*/, st_regular, stid) );

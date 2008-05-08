@@ -15,7 +15,6 @@
 @SET_MAKE@
 
 # rules, macros generic to all Makefile.am
-
 SOURCES = $(random_kick_SOURCES) $(smsh_SOURCES)
 
 srcdir = @srcdir@
@@ -38,7 +37,7 @@ POST_INSTALL = :
 NORMAL_UNINSTALL = :
 PRE_UNINSTALL = :
 POST_UNINSTALL = :
-DIST_COMMON = README $(smsh_HEADERS) $(srcdir)/Makefile.am \
+DIST_COMMON = README $(check_HEADERS) $(srcdir)/Makefile.am \
 	$(srcdir)/Makefile.in $(top_srcdir)/Makefile.generic \
 	$(top_srcdir)/Makefile.local
 
@@ -122,15 +121,6 @@ RECURSIVE_TARGETS = all-recursive check-recursive dvi-recursive \
 	install-recursive installcheck-recursive installdirs-recursive \
 	pdf-recursive ps-recursive uninstall-info-recursive \
 	uninstall-recursive
-am__vpath_adj_setup = srcdirstrip=`echo "$(srcdir)" | sed 's|.|.|g'`;
-am__vpath_adj = case $$p in \
-    $(srcdir)/*) f=`echo "$$p" | sed "s|^$$srcdirstrip/||"`;; \
-    *) f=$$p;; \
-  esac;
-am__strip_dir = `echo $$p | sed -e 's|^.*/||'`;
-am__installdirs = "$(DESTDIR)$(smshdir)"
-smshHEADERS_INSTALL = $(INSTALL_HEADER)
-HEADERS = $(smsh_HEADERS)
 ETAGS = etags
 CTAGS = ctags
 DIST_SUBDIRS = $(SUBDIRS)
@@ -248,6 +238,9 @@ sharedstatedir = @sharedstatedir@
 sysconfdir = @sysconfdir@
 target_alias = @target_alias@
 SUBDIRS = scripts lib
+
+# if tcl.h is not in your /usr/include, put it here.
+# I haven't found a way to locate it with autoconf yet.
 TCL_INCLUDE = /p/paradise/tcl/tcl-8.4.6/include
 TCL_LIB = -L/p/paradise/tcl/tcl-8.4.6/lib -ltcl8.4
 
@@ -262,6 +255,8 @@ PURE_CACHE_DIR = /scratch/nhall/pure
 # --------------------------------------------------------
 DISTCLEANFILES = Makefile.in  Makefile $(GENFILES)
 BUILT_SOURCES = $(GENFILES)
+# installdir = $(top_srcdir)/installdir
+# docdir = $(installdir)/doc
 
 # --------------------------------------------------------
 #
@@ -402,6 +397,7 @@ W_WARNINGS = $(WARN_FLAGS) -Wno-deprecated
 @QUANTIFY_TRUE@	     -threads -thread-stack-change=0x3000 -max_threads=64 \
 @QUANTIFY_TRUE@	     -cache-dir=$(PURE_CACHE_DIR)
 
+GROFF_OPTIONS = -s -m man
 
 # --------------------------------------------------------
 #
@@ -427,12 +423,12 @@ smshdir = $(top_srcdir)/src/sm/smsh
 EXTRA_DIST = test-short testall testall.maintainer \
 	    .shoreconfig.example .smshrc.example runsmsh \
 	    README README.2PC README.how-to-start runtest run.cd.perf \
-	    $(smsh_HEADERS)
+	    $(check_HEADERS)
 
 CLEANFILES = ./log/* ./volumes/*
 TEST = test-short
 random_kick_SOURCES = random_kick.cpp
-smsh_HEADERS = \
+check_HEADERS = \
 	shell.h sm_coord.h sm_mappings.h smsh.h smsh_error.h \
 	sort_funcs.h tcl_thread.h
 
@@ -462,7 +458,7 @@ all: $(BUILT_SOURCES)
 	$(MAKE) $(AM_MAKEFLAGS) all-recursive
 
 .SUFFIXES:
-.SUFFIXES: .purecov .pure .quant .$(OBJEXT) .cpp .o .obj
+.SUFFIXES: .purecov .pure .quant .$(OBJEXT) .common .cpp .dvi .fc .html .o .obj .pdf .ps .ssm .sthread .tex
 $(srcdir)/Makefile.in:  $(srcdir)/Makefile.am $(top_srcdir)/Makefile.generic $(top_srcdir)/Makefile.local $(am__configure_deps)
 	@for dep in $?; do \
 	  case '$(am__configure_deps)' in \
@@ -537,23 +533,6 @@ distclean-compile:
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCXX_FALSE@	$(CXXCOMPILE) -c -o $@ `$(CYGPATH_W) '$<'`
 uninstall-info-am:
-install-smshHEADERS: $(smsh_HEADERS)
-	@$(NORMAL_INSTALL)
-	test -z "$(smshdir)" || $(mkdir_p) "$(DESTDIR)$(smshdir)"
-	@list='$(smsh_HEADERS)'; for p in $$list; do \
-	  if test -f "$$p"; then d=; else d="$(srcdir)/"; fi; \
-	  f=$(am__strip_dir) \
-	  echo " $(smshHEADERS_INSTALL) '$$d$$p' '$(DESTDIR)$(smshdir)/$$f'"; \
-	  $(smshHEADERS_INSTALL) "$$d$$p" "$(DESTDIR)$(smshdir)/$$f"; \
-	done
-
-uninstall-smshHEADERS:
-	@$(NORMAL_UNINSTALL)
-	@list='$(smsh_HEADERS)'; for p in $$list; do \
-	  f=$(am__strip_dir) \
-	  echo " rm -f '$(DESTDIR)$(smshdir)/$$f'"; \
-	  rm -f "$(DESTDIR)$(smshdir)/$$f"; \
-	done
 
 # This directory's subdirectories are mostly independent; you can cd
 # into them and run `make' without going through this Makefile.
@@ -719,15 +698,12 @@ distdir: $(DISTFILES)
 	  fi; \
 	done
 check-am: all-am
-	$(MAKE) $(AM_MAKEFLAGS) $(check_PROGRAMS)
+	$(MAKE) $(AM_MAKEFLAGS) $(check_PROGRAMS) $(check_HEADERS)
 check: $(BUILT_SOURCES)
 	$(MAKE) $(AM_MAKEFLAGS) check-recursive
-all-am: Makefile $(HEADERS)
+all-am: Makefile
 installdirs: installdirs-recursive
 installdirs-am:
-	for dir in "$(DESTDIR)$(smshdir)"; do \
-	  test -z "$$dir" || $(mkdir_p) "$$dir"; \
-	done
 install: $(BUILT_SOURCES)
 	$(MAKE) $(AM_MAKEFLAGS) install-recursive
 install-exec: install-exec-recursive
@@ -776,7 +752,7 @@ info: info-recursive
 
 info-am:
 
-install-data-am: install-smshHEADERS
+install-data-am:
 
 install-exec-am:
 
@@ -797,13 +773,13 @@ mostlyclean-am: mostlyclean-compile mostlyclean-generic
 
 pdf: pdf-recursive
 
-pdf-am:
+pdf-am: pdf-local
 
 ps: ps-recursive
 
 ps-am:
 
-uninstall-am: uninstall-info-am uninstall-smshHEADERS
+uninstall-am: uninstall-info-am
 
 uninstall-info: uninstall-info-recursive
 
@@ -814,12 +790,12 @@ uninstall-info: uninstall-info-recursive
 	distclean-tags distdir dvi dvi-am html html-am info info-am \
 	install install-am install-data install-data-am install-exec \
 	install-exec-am install-info install-info-am install-man \
-	install-smshHEADERS install-strip installcheck installcheck-am \
-	installdirs installdirs-am maintainer-clean \
-	maintainer-clean-generic maintainer-clean-recursive \
-	mostlyclean mostlyclean-compile mostlyclean-generic \
-	mostlyclean-recursive pdf pdf-am ps ps-am tags tags-recursive \
-	uninstall uninstall-am uninstall-info-am uninstall-smshHEADERS
+	install-strip installcheck installcheck-am installdirs \
+	installdirs-am maintainer-clean maintainer-clean-generic \
+	maintainer-clean-recursive mostlyclean mostlyclean-compile \
+	mostlyclean-generic mostlyclean-recursive pdf pdf-am pdf-local \
+	ps ps-am tags tags-recursive uninstall uninstall-am \
+	uninstall-info-am
 
 
 # --------------------------------------------------------
@@ -844,6 +820,56 @@ clean-local:
 @PURIFY_TRUE@	$(PURIFY_BIN)/purify $(PURIFY_FLAGS)  $(PURIFY_COLLECTOR) $(CXX) -o $@ $< $(LDADD) $(LIBS)
 @QUANTIFY_TRUE@.$(OBJEXT).quant:  
 @QUANTIFY_TRUE@	$(QUANTIFY_BIN)/quantify $(QUANTIFY_FLAGS) $(QUANTIFY_COLLECTOR)  $(CXX) -o $@ $< $(LDADD) $(LIBS)
+
+SUFFIXES: .tex .fc .common .sthread .ssm .html .ps .dvi .pdf 
+
+.fc.ps: 
+	groff $(GROFF_OPTIONS) -Tps $< >& $@
+
+.common.ps: 
+	groff $(GROFF_OPTIONS) -Tps $< >& $@
+
+.sthread.ps: 
+	groff $(GROFF_OPTIONS) -Tps $< >& $@
+
+.ssm.ps: 
+	groff $(GROFF_OPTIONS) -Tps $< >& $@
+
+.fc.html: 
+	groff $(GROFF_OPTIONS) -Thtml $< >& $@
+
+.common.html: 
+	groff $(GROFF_OPTIONS) -Thtml $< >& $@
+
+.sthread.html: 
+	groff $(GROFF_OPTIONS) -Thtml $< >& $@
+
+.ssm.html: 
+	groff $(GROFF_OPTIONS) -Thtml $< >& $@
+
+.fc.dvi: 
+	groff $(GROFF_OPTIONS) -Tdvi $< >& $@
+
+.common.dvi: 
+	groff $(GROFF_OPTIONS) -Tdvi $< >& $@
+
+.sthread.dvi: 
+	groff $(GROFF_OPTIONS) -Tdvi $< >& $@
+
+.ssm.dvi:
+	groff $(GROFF_OPTIONS) -Tdvi $< >& $@
+
+.dvi.pdf:
+	dvipdfm $<
+
+.tex.dvi:
+	latex $<
+# second time to get the x-refs
+	latex $<
+
+# html-local: $(HTML_TARGETS)
+
+pdf-local: $(PDF_TARGETS)
 @PURECOV_TRUE@.$(OBJEXT).purecov:  
 @PURECOV_TRUE@	$(PURECOV_BIN)/purecov $(PURECOV_FLAGS)  $(PURECOV_COLLECTOR) $(CXX) -o $@ $< $(LDADD) $(LIBS)
 
@@ -855,6 +881,8 @@ smsh.quant: $(smsh_SOURCES:.cpp=.o)
 
 smsh.purecov: $(smsh_SOURCES:.cpp=.o)
 	$(PURECOV_BIN)/purecov $(PURECOV_FLAGS)  $(PURECOV_COLLECTOR)  $(CXX) -o $@ $(smsh_SOURCES:.cpp=.o) $(LDADD) $(LIBS)
+
+install-hook:
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.
 .NOEXPORT:

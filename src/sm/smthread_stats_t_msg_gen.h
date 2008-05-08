@@ -2,7 +2,7 @@
 #define SMTHREAD_STATS_T_MSG_GEN_H
 
 /* DO NOT EDIT --- GENERATED from smthread_stats.dat by stats.pl
-		   on Tue Aug 21 15:08:33 2007
+		   on Wed May  7 19:54:01 2008
 
 <std-header orig-src='shore' genfile='true'>
 
@@ -101,11 +101,6 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 /* SMT_sort_run_size      */ "Pages of input recs per run",
 /* SMT_sort_phases        */ "Polyphase phases",
 /* SMT_sort_ntapes        */ "Number of pseudo-tapes used by sort",
-/* SMT_lid_lookups        */ "Logical ID look-ups",
-/* SMT_lid_remote_lookups */ "Extra index lookups for remote refs",
-/* SMT_lid_inserts        */ "Logical IDs inserted",
-/* SMT_lid_removes        */ "Logical IDs removed",
-/* SMT_lid_cache_hits     */ "Hits in cache of recent lookups",
 /* SMT_page_fix_cnt       */ "Times pages were fixed in the buffer pool",
 /* SMT_page_refix_cnt     */ "Times pages were refixed (cheaper than fix)",
 /* SMT_page_unfix_cnt     */ "Times pages were unfixed",

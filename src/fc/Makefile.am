@@ -3,11 +3,6 @@ SUBDIRS = tests
 include $(top_srcdir)/Makefile.generic
 EXTRA_DIST = fc_error.dat
 
-installdir           = $(top_builddir)/installed
-libdir               = $(installdir)/lib
-bindir               = $(installdir)/bin
-includedir           = $(installdir)/include
-
 lib_LIBRARIES     = libfc.a
 
 FC_ERROR_GENFILES_H  = fc_errmsg_gen.h \

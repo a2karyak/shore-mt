@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='SM_S_H'>
 
- $Id: sm_s.h,v 1.87 2007/08/21 19:50:43 nhall Exp $
+ $Id: sm_s.h,v 1.88 2008/05/07 23:27:00 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -75,7 +75,6 @@ public:
     snum_t	store() const {return _stid.store;}
     const stid_t& stid() const {return _stid;}
 
-    bool	is_remote() const { return _stid.vol.is_remote(); }
     // necessary and sufficient conditions for
     // is_null() are determined by default constructor, q.v.
     bool	is_null() const { return page == 0; }
@@ -135,6 +134,7 @@ public:
     friend istream& operator>>(istream&, shrid_t& s);
 };
 
+#ifdef USE_LID
 // Store PID (ie. pid with no volume id)
 // For now, only used by lid_m for logical ID index entries.
 class spid_t {
@@ -146,6 +146,7 @@ public:
     spid_t() : page(0), store(0) {}
     spid_t(const lpid_t& p) : page(p.page), store(p.store()) {}
 };
+#endif
 
 #define RID_T
 

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: newsort.cpp,v 1.43 2007/08/21 19:50:42 nhall Exp $
+ $Id: newsort.cpp,v 1.44 2008/05/07 23:27:00 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -3886,8 +3886,7 @@ run_mgr::_output_pinned_rec(
 		w_assert3(start_byte == offset);
 		W_DO(lg.fix(lgpid, LATCH_SH));
 		data.reset().put(lg.tuple_addr(0), lg.tuple_size(0));
-		W_DO(fi->append_rec(newrid, data, *sd, false
-			    ));
+		W_DO(fi->append_rec(newrid, data, *sd));
 		offset += lg.tuple_size(0);
 		lg.unfix();
 	    }

@@ -1,6 +1,6 @@
 # <std-header style='data' orig-src='shore'>
 #
-#  $Id: smthread_stats.dat,v 1.1 2007/05/18 21:43:29 nhall Exp $
+#  $Id: smthread_stats.dat,v 1.2 2008/05/07 23:27:01 nhall Exp $
 #
 # SHORE -- Scalable Heterogeneous Object REpository
 #
@@ -100,13 +100,6 @@ SMT smthread = 0x00070000 smthread_stats_t {
     u_long sort_run_size 	Pages of input recs per run
     u_long sort_phases 		Polyphase phases
     u_long sort_ntapes 		Number of pseudo-tapes used by sort
-
-    // Logical ID lookups:
-    u_long lid_lookups		Logical ID look-ups
-    u_long lid_remote_lookups	Extra index lookups for remote refs
-    u_long lid_inserts		Logical IDs inserted
-    u_long lid_removes		Logical IDs removed
-    u_long lid_cache_hits 	Hits in cache of recent lookups
 
     // Page operation counts
     u_long page_fix_cnt		Times pages were fixed in the buffer pool

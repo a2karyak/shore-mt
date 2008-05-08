@@ -5,11 +5,6 @@ EXTRA_DIST = opt_error.dat regex_engine.cpp README.cppmacros
 
 AM_CXXFLAGS += -Wno-deprecated
 
-installdir           = $(top_builddir)/installed
-libdir               = $(installdir)/lib
-bindir               = $(installdir)/bin
-includedir           = $(installdir)/include
-
 AM_CXXFLAGS          += -I. \
 		       -I$(top_srcdir)/config \
 		       -I$(top_srcdir)/src/fc \

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: shell.cpp,v 1.331 2007/08/21 19:46:14 nhall Exp $
+ $Id: shell.cpp,v 1.332 2008/05/07 23:27:04 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -1280,24 +1280,14 @@ t_mount_dev(Tcl_Interp* ip, int ac, TCL_AV char* av[])
     u_int volume_count=0;
     devid_t devid;
 
-#ifdef USE_LID
-    if (use_logical_id(ip)) {
-	if (ac != 2) return TCL_ERROR;
-	DO( sm->mount_dev(av[1], volume_count, devid));
-	w_reset_strstream(tclout);
-	tclout << volume_count << ends;
+    if (ac == 3) {
+	DO( sm->mount_dev(av[1], volume_count, devid, make_vid_from_lvid(av[2])));
     } else 
-#endif
     {
-	if (ac == 3) {
-	    DO( sm->mount_dev(av[1], volume_count, devid, make_vid_from_lvid(av[2])));
-	} else 
-	{
-	    DO( sm->mount_dev(av[1], volume_count, devid));
-	}
-	w_reset_strstream(tclout);
-	tclout << volume_count << ends;
+	DO( sm->mount_dev(av[1], volume_count, devid));
     }
+    w_reset_strstream(tclout);
+    tclout << volume_count << ends;
     Tcl_AppendResult(ip, tclout.c_str(), 0);
     w_reset_strstream(tclout);
     return TCL_OK;
@@ -3134,7 +3124,7 @@ t_append_rec(Tcl_Interp* ip, int ac, TCL_AV char* av[])
     {
 	rid_t   rid;
 	w_istrstream anon(av[1]); anon >> rid;
-	DO( sm->append_rec(rid, data, false) );
+	DO( sm->append_rec(rid, data) );
     }
 
     Tcl_AppendElement(ip, TCL_CVBUG "append success");
@@ -3153,13 +3143,14 @@ t_truncate_rec(Tcl_Interp* ip, int ac, TCL_AV char* av[])
     if (use_logical_id(ip)) {
 	lrid_t   rid;
 	w_istrstream anon(av[1]); anon >> rid;
-	DO( sm->truncate_rec(rid.lvid, rid.serial, amount) );
+	DO( sm->truncate_rec(rid.lvid, rid.serial, amount, should_forward) );
     } else 
 #endif
     {
 	rid_t   rid;
+	bool should_forward(false);
 	w_istrstream anon(av[1]); anon >> rid;
-	DO( sm->truncate_rec(rid, amount) );
+	DO( sm->truncate_rec(rid, amount, should_forward) );
     }
 
     Tcl_AppendElement(ip, TCL_CVBUG "append success");
@@ -5705,7 +5696,7 @@ t_create_many_rec(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 	for (uint i = 0; i < num_recs; i++) {
 	    DO( sm->create_rec(stid, hdr, len_hint, data, rid) );
 	    for (uint j = 1; j < chunk_count; j++) {
-		DO( sm->append_rec(rid, data, false));
+		DO( sm->append_rec(rid, data));
 	    }
 	}
 	w_reset_strstream(tclout);

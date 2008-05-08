@@ -1,5 +1,5 @@
 ## Process this file with automake to produce Makefile.in
-DISTCLEANFILES = Makefile.in
+include $(top_srcdir)/Makefile.generic
 SUBDIRS = fc \
 	  sthread \
 	  common \

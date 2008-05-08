@@ -9,6 +9,11 @@ include $(top_srcdir)/Makefile.local
 
 DISTCLEANFILES = Makefile.in  Makefile $(GENFILES)
 BUILT_SOURCES = $(GENFILES)
+# installdir = $(top_srcdir)/installdir
+# docdir = $(installdir)/doc
+## libdir               = $(installdir)/lib
+## bindir               = $(installdir)/bin
+## includedir           = $(installdir)/include
 
 # --------------------------------------------------------
 #
@@ -234,6 +239,59 @@ LOCALCLEAN += $(check_PROGRAMS:%=%.quant)
 PURE_CXXFLAGS += -DQUANTIFY -I$(QUANTIFY_INCLUDE) 
 
 endif
+
+
+SUFFIXES: .tex .fc .common .sthread .ssm .html .ps .dvi .pdf 
+
+GROFF_OPTIONS = -s -m man
+
+.fc.ps: 
+	groff $(GROFF_OPTIONS) -Tps $< >& $@
+
+.common.ps: 
+	groff $(GROFF_OPTIONS) -Tps $< >& $@
+
+.sthread.ps: 
+	groff $(GROFF_OPTIONS) -Tps $< >& $@
+
+.ssm.ps: 
+	groff $(GROFF_OPTIONS) -Tps $< >& $@
+
+.fc.html: 
+	groff $(GROFF_OPTIONS) -Thtml $< >& $@
+
+.common.html: 
+	groff $(GROFF_OPTIONS) -Thtml $< >& $@
+
+.sthread.html: 
+	groff $(GROFF_OPTIONS) -Thtml $< >& $@
+
+.ssm.html: 
+	groff $(GROFF_OPTIONS) -Thtml $< >& $@
+
+.fc.dvi: 
+	groff $(GROFF_OPTIONS) -Tdvi $< >& $@
+
+.common.dvi: 
+	groff $(GROFF_OPTIONS) -Tdvi $< >& $@
+
+.sthread.dvi: 
+	groff $(GROFF_OPTIONS) -Tdvi $< >& $@
+
+.ssm.dvi:
+	groff $(GROFF_OPTIONS) -Tdvi $< >& $@
+
+.dvi.pdf:
+	dvipdfm $<
+
+.tex.dvi:
+	latex $<
+# second time to get the x-refs
+	latex $<
+
+# html-local: $(HTML_TARGETS)
+
+pdf-local: $(PDF_TARGETS)
 
 # --------------------------------------------------------
 #

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: pin.cpp,v 1.139 2007/08/21 19:50:42 nhall Exp $
+ $Id: pin.cpp,v 1.140 2008/05/07 23:27:00 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -344,8 +344,7 @@ rc_t pin_i::append_rec(const vec_t& data)
     // 2. since record may move on page
     if (was_pinned) unpin();
 
-    rc_t rc = SSM->_append_rec(_rid, data, false
-		    ); 
+    rc_t rc = SSM->_append_rec(_rid, data); 
     DBG(<<"rc=" << rc);
     if (rc) {
 	{

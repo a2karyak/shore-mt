@@ -242,6 +242,9 @@ sbindir = @sbindir@
 sharedstatedir = @sharedstatedir@
 sysconfdir = @sysconfdir@
 target_alias = @target_alias@
+
+# if tcl.h is not in your /usr/include, put it here.
+# I haven't found a way to locate it with autoconf yet.
 TCL_INCLUDE = /p/paradise/tcl/tcl-8.4.6/include
 TCL_LIB = -L/p/paradise/tcl/tcl-8.4.6/lib -ltcl8.4
 
@@ -256,6 +259,8 @@ PURE_CACHE_DIR = /scratch/nhall/pure
 # --------------------------------------------------------
 DISTCLEANFILES = Makefile.in  Makefile $(GENFILES)
 BUILT_SOURCES = $(GENFILES)
+# installdir = $(top_srcdir)/installdir
+# docdir = $(installdir)/doc
 
 # --------------------------------------------------------
 #
@@ -395,6 +400,7 @@ W_WARNINGS = $(WARN_FLAGS) -Wno-deprecated
 @QUANTIFY_TRUE@	     -threads -thread-stack-change=0x3000 -max_threads=64 \
 @QUANTIFY_TRUE@	     -cache-dir=$(PURE_CACHE_DIR)
 
+GROFF_OPTIONS = -s -m man
 
 # --------------------------------------------------------
 #
@@ -432,7 +438,7 @@ all: $(BUILT_SOURCES)
 	$(MAKE) $(AM_MAKEFLAGS) all-am
 
 .SUFFIXES:
-.SUFFIXES: .purecov .pure .quant .$(OBJEXT) .cpp .o .obj
+.SUFFIXES: .purecov .pure .quant .$(OBJEXT) .common .cpp .dvi .fc .html .o .obj .pdf .ps .ssm .sthread .tex
 $(srcdir)/Makefile.in:  $(srcdir)/Makefile.am $(top_srcdir)/Makefile.generic $(top_srcdir)/Makefile.local $(am__configure_deps)
 	@for dep in $?; do \
 	  case '$(am__configure_deps)' in \
@@ -737,7 +743,7 @@ mostlyclean-am: mostlyclean-compile mostlyclean-generic
 
 pdf: pdf-am
 
-pdf-am:
+pdf-am: pdf-local
 
 ps: ps-am
 
@@ -753,8 +759,8 @@ uninstall-am: uninstall-info-am
 	install-info install-info-am install-man install-strip \
 	installcheck installcheck-am installdirs maintainer-clean \
 	maintainer-clean-generic mostlyclean mostlyclean-compile \
-	mostlyclean-generic pdf pdf-am ps ps-am tags uninstall \
-	uninstall-am uninstall-info-am
+	mostlyclean-generic pdf pdf-am pdf-local ps ps-am tags \
+	uninstall uninstall-am uninstall-info-am
 
 
 # --------------------------------------------------------
@@ -779,6 +785,56 @@ clean-local:
 @PURIFY_TRUE@	$(PURIFY_BIN)/purify $(PURIFY_FLAGS)  $(PURIFY_COLLECTOR) $(CXX) -o $@ $< $(LDADD) $(LIBS)
 @QUANTIFY_TRUE@.$(OBJEXT).quant:  
 @QUANTIFY_TRUE@	$(QUANTIFY_BIN)/quantify $(QUANTIFY_FLAGS) $(QUANTIFY_COLLECTOR)  $(CXX) -o $@ $< $(LDADD) $(LIBS)
+
+SUFFIXES: .tex .fc .common .sthread .ssm .html .ps .dvi .pdf 
+
+.fc.ps: 
+	groff $(GROFF_OPTIONS) -Tps $< >& $@
+
+.common.ps: 
+	groff $(GROFF_OPTIONS) -Tps $< >& $@
+
+.sthread.ps: 
+	groff $(GROFF_OPTIONS) -Tps $< >& $@
+
+.ssm.ps: 
+	groff $(GROFF_OPTIONS) -Tps $< >& $@
+
+.fc.html: 
+	groff $(GROFF_OPTIONS) -Thtml $< >& $@
+
+.common.html: 
+	groff $(GROFF_OPTIONS) -Thtml $< >& $@
+
+.sthread.html: 
+	groff $(GROFF_OPTIONS) -Thtml $< >& $@
+
+.ssm.html: 
+	groff $(GROFF_OPTIONS) -Thtml $< >& $@
+
+.fc.dvi: 
+	groff $(GROFF_OPTIONS) -Tdvi $< >& $@
+
+.common.dvi: 
+	groff $(GROFF_OPTIONS) -Tdvi $< >& $@
+
+.sthread.dvi: 
+	groff $(GROFF_OPTIONS) -Tdvi $< >& $@
+
+.ssm.dvi:
+	groff $(GROFF_OPTIONS) -Tdvi $< >& $@
+
+.dvi.pdf:
+	dvipdfm $<
+
+.tex.dvi:
+	latex $<
+# second time to get the x-refs
+	latex $<
+
+# html-local: $(HTML_TARGETS)
+
+pdf-local: $(PDF_TARGETS)
 @PURECOV_TRUE@.$(OBJEXT).purecov:  
 @PURECOV_TRUE@	$(PURECOV_BIN)/purecov $(PURECOV_FLAGS)  $(PURECOV_COLLECTOR) $(CXX) -o $@ $< $(LDADD) $(LIBS)
 

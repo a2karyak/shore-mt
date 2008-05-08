@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='BF_H'>
 
- $Id: bf.h,v 1.97 1999/10/25 18:24:56 bolo Exp $
+ $Id: bf.h,v 1.98 2008/05/07 23:27:00 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -142,7 +142,9 @@ public:
 
     static rc_t			set_dirty(const page_s* buf);
     static bool			is_dirty(const page_s* buf) ;
+#ifdef USE_LID
     static void			set_clean(const lpid_t& pid);
+#endif
 
     static void			discard_pinned_page(const page_s* buf);
     static rc_t			discard_store(stid_t stid);

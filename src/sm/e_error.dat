@@ -1,6 +1,6 @@
 # <std-header style='data' orig-src='shore'>
 #
-#  $Id: e_error.dat,v 1.53 1999/10/31 04:42:01 kupsch Exp $
+#  $Id: e_error.dat,v 1.54 2008/05/07 23:27:00 nhall Exp $
 #
 # SHORE -- Scalable Heterogeneous Object REpository
 #
@@ -117,12 +117,6 @@ BADMSGTYPE              unknown or unsupported message type
 NOFREESERVER            no free slot in the server table
 VOTENO            	prepare resulted in vote to abort (abort done)
 VOTEREADONLY           	prepare resulted in vote readonly (commit done)
-
-
-BADLOGICALID		logical ID does not exist 
-BADLOGICALIDTYPE	logical ID has different reference type
-LOGICALIDOVERFLOW	logical ID counter overflow
-NOLOGICALTEMPFILES	logical temp files are prohibited
 
 CANTWHILEACTIVEXCTS	can't do to volume while there are active transactions
 

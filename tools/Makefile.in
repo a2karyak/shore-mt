@@ -13,6 +13,8 @@
 # PARTICULAR PURPOSE.
 
 @SET_MAKE@
+
+# rules, macros generic to all Makefile.am
 srcdir = @srcdir@
 top_srcdir = @top_srcdir@
 VPATH = @srcdir@
@@ -33,8 +35,34 @@ POST_INSTALL = :
 NORMAL_UNINSTALL = :
 PRE_UNINSTALL = :
 POST_UNINSTALL = :
+DIST_COMMON = README $(srcdir)/Makefile.am $(srcdir)/Makefile.in \
+	$(top_srcdir)/Makefile.generic $(top_srcdir)/Makefile.local
+
+# /* In adition to the 3.2 warnings, prototype errors for c/objc only */
+@GCC_VER_34_WARNINGS_TRUE@am__append_1 = 
+# /* GCC 3.2 doesn't like -Wmissing-declarations and -Wnested-externs */
+@GCC_VER_34_WARNINGS_FALSE@@GCC_VER_3_WARNINGS_TRUE@am__append_2 = -Wstrict-prototypes -Wmissing-prototypes 
+# /* Need this to stop warnings of normal (old) standard c++ facilities use. */
+@GCC_VER_34_WARNINGS_FALSE@@GCC_VER_3_WARNINGS_FALSE@am__append_3 = -Wstrict-prototypes \
+@GCC_VER_34_WARNINGS_FALSE@@GCC_VER_3_WARNINGS_FALSE@	-Wmissing-prototypes \
+@GCC_VER_34_WARNINGS_FALSE@@GCC_VER_3_WARNINGS_FALSE@	-Wmissing-declarations \
+@GCC_VER_34_WARNINGS_FALSE@@GCC_VER_3_WARNINGS_FALSE@	-Wnested-externs
+@USE_IOS_COMPAT_TRUE@am__append_4 = -I$(top_srcdir)/src/compat
+@DEBUG_TRUE@am__append_5 = -DDEBUG -DW_DEBUG -UNDEBUG 
+@DEBUG_FALSE@am__append_6 = -DNDEBUG -UW_DEBUG -UDEBUG
+# PURIFY_COLLECTOR = -collector=/usr/bin/ld
+@PURIFY_TRUE@am__append_7 = $(PURIFY_LIBS)
+@PURIFY_TRUE@am__append_8 = $(check_PROGRAMS:%=%.pure)
+@PURIFY_TRUE@am__append_9 = -DPURIFY -DPURIFY_ZERO -I$(PURIFY_INCLUDE) 
+# QUANTIFY_COLLECTOR = -collector=/usr/bin/ld
+@QUANTIFY_TRUE@am__append_10 = $(QUANTIFY_LIBS)
+@QUANTIFY_TRUE@am__append_11 = $(check_PROGRAMS:%=%.quant)
+@QUANTIFY_TRUE@am__append_12 = -DQUANTIFY -I$(QUANTIFY_INCLUDE) 
+# PURECOV_COLLECTOR = -collector=/usr/bin/ld
+@PURECOV_TRUE@am__append_13 = $(PURECOV_LIBS)
+@PURECOV_TRUE@am__append_14 = $(check_PROGRAMS:%=%.purecov)
+@PURECOV_TRUE@am__append_15 = -DPURECOV -I$(PURECOV_INCLUDE) 
 subdir = tools
-DIST_COMMON = README $(srcdir)/Makefile.am $(srcdir)/Makefile.in
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps = $(top_srcdir)/configure.ac
 am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
@@ -63,7 +91,10 @@ CPPFLAGS = @CPPFLAGS@
 CXX = @CXX@
 CXXCPP = @CXXCPP@
 CXXDEPMODE = @CXXDEPMODE@
-CXXFLAGS = @CXXFLAGS@
+# This clearing of CXXFLAGS is necessary to override the
+# annoying -g -O2 that autoconf stuffs in there, and which
+# I cannot find any other way to control.
+CXXFLAGS = 
 CYGPATH_W = @CYGPATH_W@
 DEBUGGERSYMBOLS_FALSE = @DEBUGGERSYMBOLS_FALSE@
 DEBUGGERSYMBOLS_TRUE = @DEBUGGERSYMBOLS_TRUE@
@@ -154,11 +185,192 @@ sbindir = @sbindir@
 sharedstatedir = @sharedstatedir@
 sysconfdir = @sysconfdir@
 target_alias = @target_alias@
+
+# if tcl.h is not in your /usr/include, put it here.
+# I haven't found a way to locate it with autoconf yet.
+TCL_INCLUDE = /p/paradise/tcl/tcl-8.4.6/include
+TCL_LIB = -L/p/paradise/tcl/tcl-8.4.6/lib -ltcl8.4
+
+# PURE_DIR = /s/purifyplus-7.0/@sys/
+PURE_DIR = /s/purifyplus/@sys/
+PURE_CACHE_DIR = /scratch/nhall/pure
+
+# --------------------------------------------------------
+#
+# Local non-standard paths to things are in Makefile.local
+#
+# --------------------------------------------------------
+DISTCLEANFILES = Makefile.in  Makefile $(GENFILES)
+BUILT_SOURCES = $(GENFILES)
+# installdir = $(top_srcdir)/installdir
+# docdir = $(installdir)/doc
+
+# --------------------------------------------------------
+#
+# Initialize  
+#
+# --------------------------------------------------------
+# -pedantic requires -Wno-long-long
+ALWAYS_GCCFLAGS = -Wno-long-long -Werror $(am__append_4)
+@NOPEDANTIC_FALSE@PEDANTIC = -pedantic-errors  
+@NOPEDANTIC_TRUE@PEDANTIC = 
+LOCALLDADD = $(am__append_7) $(am__append_10) $(am__append_13)
+LOCALCLEAN = $(am__append_8) $(am__append_11) $(am__append_14)
+# CXX flags that go on the compiles for pure products
+PURE_CXXFLAGS = $(am__append_9) $(am__append_12) $(am__append_15)
+
+# --------------------------------------------------------
+#
+# Determine which gcc warnings to use, based on which 
+# compiler version we are using.
+#
+# --------------------------------------------------------
+WARN_FLAGS = -Wall -W -Wpointer-arith -Wwrite-strings $(am__append_1) \
+	$(am__append_2) $(am__append_3) -Woverloaded-virtual
+AM_CXXFLAGS = $(PEDANTIC) $(DEBUGFLAGS) $(W_WARNINGS) $(OPTFLAGS) \
+	$(PURE_CXXFLAGS) $(ALWAYS_GCCFLAGS) $(TEMPLATEFLAGS) \
+	$(LARGEFILE_FLAGS)
+ALLCLEANFILES = $(DISTCLEANFILES) \
+	       	$(MOSTLYCLEANFILES) \
+	       	$(MAINTAINERCLEANFILES) \
+	       	$(CLEANFILES) 
+
+W_WARNINGS = $(WARN_FLAGS) -Wno-deprecated 
+@DEBUGGERSYMBOLS_FALSE@@DEBUG_FALSE@DEBUGFLAGS = $(am__append_5) \
+@DEBUGGERSYMBOLS_FALSE@@DEBUG_FALSE@	$(am__append_6)
+@DEBUGGERSYMBOLS_FALSE@@DEBUG_TRUE@DEBUGFLAGS = -g3 $(am__append_5) \
+@DEBUGGERSYMBOLS_FALSE@@DEBUG_TRUE@	$(am__append_6)
+
+# --------------------------------------------------------
+#
+# handle --enable-debug config option
+#
+# --------------------------------------------------------
+@DEBUGGERSYMBOLS_TRUE@DEBUGFLAGS = -g3 $(am__append_5) $(am__append_6)
+@DEBUG_FALSE@OPTFLAGS = -O2 -finline-functions -fexpensive-optimizations
+@DEBUG_TRUE@OPTFLAGS = -O0 -fno-inline
+@EXPLICIT_TEMPLATE_FALSE@TEMPLATEFLAGS = 
+
+# --------------------------------------------------------
+#
+# handle --enable-trace config option
+# (Now is in shore-config.h, so we can take this off
+#  the command line)
+# If we need once again to do something different when
+# --enable-trace/--disable-trace, then we have to 
+# re-install an AM_CONDITIONAL in configure.ac
+#
+# --------------------------------------------------------
+# if TRACE
+# DEBUGFLAGS += -DW_TRACE
+# else
+# DEBUGFLAGS += -UW_TRACE
+# endif
+
+# --------------------------------------------------------
+#
+# handle --enable-explicit config option
+#
+# --------------------------------------------------------
+@EXPLICIT_TEMPLATE_TRUE@TEMPLATEFLAGS = -fno-implicit-templates -DEXPLICIT_TEMPLATE
+@W_LARGEFILE_FALSE@LARGEFILE_FLAGS = 
+
+# --------------------------------------------------------
+#
+# handle --enable-lgfileaware config option
+#
+# shore-config.h turns on 
+#  -DLARGEFILE_AWARE and -D_FILE_OFFSET_BITS=64
+# when W_LARGEFILE is defined
+#
+# --------------------------------------------------------
+@W_LARGEFILE_TRUE@LARGEFILE_FLAGS = -DW_LARGEFILE
+
+# --------------------------------------------------------
+#
+# handle --enable-largelogpart config option
+#
+# --------------------------------------------------------
+# If we need once again to do something different when
+# --enable-largelogpart/--disable-largelogpart, then we have to 
+# re-install an AM_CONDITIONAL in configure.ac
+# if LARGELOGPART
+# LARGEFILE_FLAGS += -DSM_DISKADDR_LARGE
+# endif
+
+# --------------------------------------------------------
+#
+# handle --enable-purify config option
+#
+# --------------------------------------------------------
+
+# PURIFY_INCLUDE = $(PURE_DIR)/include
+# no proper installation here, so hack all three of these paths ...
+# PURIFY_LIBS = $(PURE_DIR)/lib/libpurify_stubs.a
+# PURIFY_BIN = $(PURE_DIR)/bin
+@PURIFY_TRUE@PURIFY_INCLUDE = $(PURE_DIR)/releases/purify.i386_linux2.7.0
+# yes, libs are in the same place as is the header file
+@PURIFY_TRUE@PURIFY_LIBS = $(PURIFY_INCLUDE)/libpurify_stubs.a
+@PURIFY_TRUE@PURIFY_BIN = $(PURE_DIR)/bin
+@PURIFY_TRUE@PURIFY_FLAGS = -g++=yes -chain-length=10  -inuse-at-exit \
+@PURIFY_TRUE@	     -first-only -leaks-at-exit -copy-fd-output-to-logfile=1,2 \
+@PURIFY_TRUE@	     -ignore-signals=SIGUSR1 -pointer-mask=0xfffffffe \
+@PURIFY_TRUE@	     -threads -thread-stack-change=0x3000 -max_threads=64 \
+@PURIFY_TRUE@	     -cache-dir=$(PURE_CACHE_DIR)
+
+@PURECOV_TRUE@SUFFIXES = .purecov
+@PURIFY_TRUE@SUFFIXES = .pure
+@QUANTIFY_TRUE@SUFFIXES = .quant
+
+# --------------------------------------------------------
+#
+# handle --enable-quantify config option
+#
+# --------------------------------------------------------
+
+# QUANTIFY_INCLUDE = $(PURE_DIR)/include
+# no proper installation here, so hack all three of these paths ...
+# QUANTIFY_LIBS = 
+# QUANTIFY_BIN = $(PURE_DIR)/bin
+@QUANTIFY_TRUE@QUANTIFY_INCLUDE = $(PURE_DIR)/releases/quantify.i386_linux2.7.0
+# yes, libs are in the same place as is the header file
+@QUANTIFY_TRUE@QUANTIFY_LIBS = $(QUANTIFY_INCLUDE)/libquantify_stubs.a
+@QUANTIFY_TRUE@QUANTIFY_BIN = $(PURE_DIR)/bin
+@QUANTIFY_TRUE@QUANTIFY_FLAGS = -g++=yes \
+@QUANTIFY_TRUE@	     -copy-fd-output-to-logfile=1,2 \
+@QUANTIFY_TRUE@	     -ignore-signals=SIGUSR1 \
+@QUANTIFY_TRUE@	     -threads -thread-stack-change=0x3000 -max_threads=64 \
+@QUANTIFY_TRUE@	     -cache-dir=$(PURE_CACHE_DIR)
+
+GROFF_OPTIONS = -s -m man
+
+# --------------------------------------------------------
+#
+# handle --enable-purecov config option
+#
+# --------------------------------------------------------
+
+# PURECOV_INCLUDE = $(PURE_DIR)/include
+# no proper installation here, so hack all three of these paths ...
+# PURECOV_LIBS = $(PURE_DIR)/lib/libpurecov_stubs.a
+# PURECOV_BIN = $(PURE_DIR)/bin
+@PURECOV_TRUE@PURECOV_INCLUDE = $(PURE_DIR)/releases/purecov.i386_linux2.7.0
+# yes, libs are in the same place as is the header file
+@PURECOV_TRUE@PURECOV_LIBS = $(PURECOV_INCLUDE)/libpurecov_stubs.a
+@PURECOV_TRUE@PURECOV_BIN = $(PURE_DIR)/bin
+@PURECOV_TRUE@PURECOV_FLAGS = -g++=yes -chain-length=10  -inuse-at-exit \
+@PURECOV_TRUE@	     -first-only -leaks-at-exit -copy-fd-output-to-logfile=1,2 \
+@PURECOV_TRUE@	     -ignore-signals=SIGUSR1 -pointer-mask=0xfffffffe \
+@PURECOV_TRUE@	     -threads -thread-stack-change=0x3000 -max_threads=64 \
+@PURECOV_TRUE@	     -cache-dir=$(PURE_CACHE_DIR)
+
 EXTRA_DIST = errors.pl stats.pl logdef.pl sm_app.pl*
-all: all-am
+all: $(BUILT_SOURCES)
+	$(MAKE) $(AM_MAKEFLAGS) all-am
 
 .SUFFIXES:
-$(srcdir)/Makefile.in:  $(srcdir)/Makefile.am  $(am__configure_deps)
+.SUFFIXES: .purecov .pure .quant .$(OBJEXT) .common .dvi .fc .html .pdf .ps .ssm .sthread .tex
+$(srcdir)/Makefile.in:  $(srcdir)/Makefile.am $(top_srcdir)/Makefile.generic $(top_srcdir)/Makefile.local $(am__configure_deps)
 	@for dep in $?; do \
 	  case '$(am__configure_deps)' in \
 	    *$$dep*) \
@@ -196,6 +408,7 @@ CTAGS:
 
 
 distdir: $(DISTFILES)
+	$(mkdir_p) $(distdir)/..
 	@srcdirstrip=`echo "$(srcdir)" | sed 's|.|.|g'`; \
 	topsrcdirstrip=`echo "$(top_srcdir)" | sed 's|.|.|g'`; \
 	list='$(DISTFILES)'; for file in $$list; do \
@@ -223,10 +436,12 @@ distdir: $(DISTFILES)
 	  fi; \
 	done
 check-am: all-am
-check: check-am
+check: $(BUILT_SOURCES)
+	$(MAKE) $(AM_MAKEFLAGS) check-am
 all-am: Makefile
 installdirs:
-install: install-am
+install: $(BUILT_SOURCES)
+	$(MAKE) $(AM_MAKEFLAGS) install-am
 install-exec: install-exec-am
 install-data: install-data-am
 uninstall: uninstall-am
@@ -246,13 +461,15 @@ clean-generic:
 
 distclean-generic:
 	-test -z "$(CONFIG_CLEAN_FILES)" || rm -f $(CONFIG_CLEAN_FILES)
+	-test -z "$(DISTCLEANFILES)" || rm -f $(DISTCLEANFILES)
 
 maintainer-clean-generic:
 	@echo "This command is intended for maintainers to use"
 	@echo "it deletes files that may require special tools to rebuild."
+	-test -z "$(BUILT_SOURCES)" || rm -f $(BUILT_SOURCES)
 clean: clean-am
 
-clean-am: clean-generic mostlyclean-am
+clean-am: clean-generic clean-local mostlyclean-am
 
 distclean: distclean-am
 	-rm -f Makefile
@@ -288,7 +505,7 @@ mostlyclean-am: mostlyclean-generic
 
 pdf: pdf-am
 
-pdf-am:
+pdf-am: pdf-local
 
 ps: ps-am
 
@@ -296,15 +513,90 @@ ps-am:
 
 uninstall-am: uninstall-info-am
 
-.PHONY: all all-am check check-am clean clean-generic distclean \
-	distclean-generic distdir dvi dvi-am html html-am info info-am \
-	install install-am install-data install-data-am install-exec \
-	install-exec-am install-info install-info-am install-man \
-	install-strip installcheck installcheck-am installdirs \
-	maintainer-clean maintainer-clean-generic mostlyclean \
-	mostlyclean-generic pdf pdf-am ps ps-am uninstall uninstall-am \
-	uninstall-info-am
+.PHONY: all all-am check check-am clean clean-generic clean-local \
+	distclean distclean-generic distdir dvi dvi-am html html-am \
+	info info-am install install-am install-data install-data-am \
+	install-exec install-exec-am install-info install-info-am \
+	install-man install-strip installcheck installcheck-am \
+	installdirs maintainer-clean maintainer-clean-generic \
+	mostlyclean mostlyclean-generic pdf pdf-am pdf-local ps ps-am \
+	uninstall uninstall-am uninstall-info-am
 
+
+# --------------------------------------------------------
+#
+# add target to create .cvsignore file
+#
+# --------------------------------------------------------
+.cvsignore:  Makefile 
+	touch $@
+	$(RM) $@
+	echo $(ALLCLEANFILES) >& $@
+
+# --------------------------------------------------------
+#
+# add target to get rid of additional built objects,
+#    in particular this is for the PURE targets
+#
+# --------------------------------------------------------
+clean-local: 
+	$(RM) $(LOCALCLEAN) 
+@PURIFY_TRUE@.$(OBJEXT).pure:  
+@PURIFY_TRUE@	$(PURIFY_BIN)/purify $(PURIFY_FLAGS)  $(PURIFY_COLLECTOR) $(CXX) -o $@ $< $(LDADD) $(LIBS)
+@QUANTIFY_TRUE@.$(OBJEXT).quant:  
+@QUANTIFY_TRUE@	$(QUANTIFY_BIN)/quantify $(QUANTIFY_FLAGS) $(QUANTIFY_COLLECTOR)  $(CXX) -o $@ $< $(LDADD) $(LIBS)
+
+SUFFIXES: .tex .fc .common .sthread .ssm .html .ps .dvi .pdf 
+
+.fc.ps: 
+	groff $(GROFF_OPTIONS) -Tps $< >& $@
+
+.common.ps: 
+	groff $(GROFF_OPTIONS) -Tps $< >& $@
+
+.sthread.ps: 
+	groff $(GROFF_OPTIONS) -Tps $< >& $@
+
+.ssm.ps: 
+	groff $(GROFF_OPTIONS) -Tps $< >& $@
+
+.fc.html: 
+	groff $(GROFF_OPTIONS) -Thtml $< >& $@
+
+.common.html: 
+	groff $(GROFF_OPTIONS) -Thtml $< >& $@
+
+.sthread.html: 
+	groff $(GROFF_OPTIONS) -Thtml $< >& $@
+
+.ssm.html: 
+	groff $(GROFF_OPTIONS) -Thtml $< >& $@
+
+.fc.dvi: 
+	groff $(GROFF_OPTIONS) -Tdvi $< >& $@
+
+.common.dvi: 
+	groff $(GROFF_OPTIONS) -Tdvi $< >& $@
+
+.sthread.dvi: 
+	groff $(GROFF_OPTIONS) -Tdvi $< >& $@
+
+.ssm.dvi:
+	groff $(GROFF_OPTIONS) -Tdvi $< >& $@
+
+.dvi.pdf:
+	dvipdfm $<
+
+.tex.dvi:
+	latex $<
+# second time to get the x-refs
+	latex $<
+
+# html-local: $(HTML_TARGETS)
+
+pdf-local: $(PDF_TARGETS)
+@PURECOV_TRUE@.$(OBJEXT).purecov:  
+@PURECOV_TRUE@	$(PURECOV_BIN)/purecov $(PURECOV_FLAGS)  $(PURECOV_COLLECTOR) $(CXX) -o $@ $< $(LDADD) $(LIBS)
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.
 .NOEXPORT:

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: bf.cpp,v 1.228 2007/05/18 21:43:23 nhall Exp $
+ $Id: bf.cpp,v 1.230 2008/05/08 01:20:26 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -1591,9 +1591,12 @@ bf_m::_write_out(bfcb_t** ba, uint4_t cnt)
             if (log)  {
                 lsn_t lsn = ba[i]->frame->lsn1;
                 if (lsn) {
+#ifdef USE_LID
                     if (ba[i]->pid.is_remote()) {
                         W_FATAL(eINTERNAL);
-                    } else {
+                    } else 
+#endif
+		    {
                         if(lsn > highest) {
                             highest = lsn;
                         }
@@ -1646,7 +1649,10 @@ bf_m::_write_out(bfcb_t** ba, uint4_t cnt)
         w_assert1(ba[i]->pid.page == ba[i]->frame->pid.page);
     }
 
-    if (! ba[0]->pid.is_remote()) {
+#ifdef USE_LID
+    if (! ba[0]->pid.is_remote()) 
+#endif
+    {
         io->write_many_pages(out_going, cnt);
         _incr_page_write(cnt, true); // in background
     }
@@ -1697,9 +1703,12 @@ bf_m::_replace_out(bfcb_t* b)
     if (log)  {
         lsn_t lsn = b->frame->lsn1;
         if (lsn) {
+#ifdef USE_LID
             if (b->old_pid.is_remote()) {
                 W_FATAL(eINTERNAL);
-            } else {
+            } else 
+#endif
+	    {
                 INC_STAT(bf_log_flush_lsn);
                 W_COERCE(log->flush(lsn));
             }
@@ -1708,7 +1717,10 @@ bf_m::_replace_out(bfcb_t* b)
         }
     }
 
-    if (! b->old_pid.is_remote()) {
+#ifdef USE_LID
+    if (! b->old_pid.is_remote()) 
+#endif
+    {
         io->write_many_pages(&b->frame, 1);
         _incr_page_write(1, false); // for replacement
     }
@@ -1740,9 +1752,12 @@ bf_m::get_page(
     w_assert3(pid == b->pid);
 
     if (! no_read)  {
+#ifdef USE_LID
         if (pid.is_remote()) {
             W_FATAL(eINTERNAL);
-        } else {
+        } else 
+#endif
+	{
             W_DO( io->read_page(pid, *b->frame) );
         }
     }
@@ -1779,13 +1794,6 @@ bf_m::get_page(
         }
     }
 
-#ifdef W_DEBUG
-    if (pid.is_remote()) {
-        int tag = b->frame->tag;
-        w_assert3(tag == page_p::t_btree_p || tag == page_p::t_file_p ||
-                  tag == page_p::t_lgdata_p || tag == page_p::t_lgindex_p);
-    }
-#endif /* W_DEBUG */
 
     return RCOK;
 }
@@ -1902,7 +1910,9 @@ bf_m::get_rec_lsn(int start, int count, lpid_t pid[], lsn_t rec_lsn[],
     for (i = 0; i < count && start < _core->_num_bufs; start++)  {
         if (_core->_buftab[start].dirty && 
                 _core->_buftab[start].pid.page 
+#ifdef USE_LID
                 && (! _core->_buftab[start].pid.is_remote())
+#endif
                 ) {
             /*
              * w_assert3(_core->_buftab[start].rec_lsn != lsn_t::null);
@@ -2353,6 +2363,7 @@ bf_m::is_dirty(const page_s* buf)
 }
 
 
+#ifdef USE_LID
 /*********************************************************************
 *
 * bf_m::set_clean(const lpid_t& pid)
@@ -2377,6 +2388,7 @@ bf_m::set_clean(const lpid_t& pid)
     }
     MUTEX_RELEASE(_core->_mutex);
 }
+#endif
 
 /*********************************************************************
  *

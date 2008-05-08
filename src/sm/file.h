@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='FILE_H'>
 
- $Id: file.h,v 1.99 2007/08/21 19:50:42 nhall Exp $
+ $Id: file.h,v 1.100 2008/05/07 23:27:00 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -206,7 +206,7 @@ public:
 			   const vec_t& data
 			   );
     static rc_t append_rec(const rid_t& rid, const vec_t& data,
-			   const sdesc_t& sd, bool allow_forward
+			   const sdesc_t& sd
 			   );
     static rc_t truncate_rec(const rid_t& rid, uint4_t amount,
 			   bool& should_forward

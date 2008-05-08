@@ -4,11 +4,6 @@ include $(top_srcdir)/Makefile.generic
 EXTRA_DIST = e_error.dat\
 	     smthread_stats.dat sm_stats.dat logdef.dat sm2pc_stats.dat
 
-installdir           = $(top_builddir)/installed
-libdir               = $(installdir)/lib
-bindir               = $(installdir)/bin
-includedir           = $(installdir)/include
-
 AM_CXXFLAGS          += -I$(top_srcdir)/src/fc \
 		       -I$(top_srcdir)/src/sthread \
 		       -I$(top_srcdir)/src/common 

@@ -5,7 +5,7 @@ smshdir = $(top_srcdir)/src/sm/smsh
 EXTRA_DIST = test-short testall testall.maintainer \
 	    .shoreconfig.example .smshrc.example runsmsh \
 	    README README.2PC README.how-to-start runtest run.cd.perf \
-	    $(smsh_HEADERS)
+	    $(check_HEADERS)
 
 CLEANFILES = ./log/* ./volumes/*
 
@@ -21,7 +21,7 @@ TEST = test-short
 
 random_kick_SOURCES      =  random_kick.cpp
 
-smsh_HEADERS      =  \
+check_HEADERS      =  \
 	shell.h sm_coord.h sm_mappings.h smsh.h smsh_error.h \
 	sort_funcs.h tcl_thread.h
 
@@ -56,3 +56,5 @@ smsh.quant: $(smsh_SOURCES:.cpp=.o)
 smsh.purecov: $(smsh_SOURCES:.cpp=.o)
 	$(PURECOV_BIN)/purecov $(PURECOV_FLAGS)  $(PURECOV_COLLECTOR)  $(CXX) -o $@ $(smsh_SOURCES:.cpp=.o) $(LDADD) $(LIBS)
 
+
+install-hook:

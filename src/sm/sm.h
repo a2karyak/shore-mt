@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='SM_H'>
 
- $Id: sm.h,v 1.304 2007/08/21 19:50:43 nhall Exp $
+ $Id: sm.h,v 1.305 2008/05/07 23:27:00 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -258,9 +258,6 @@ public:
 		0                  denotes don't escalate
 		default value: 0
 	
-	sm_num_lid_cache_entries  <int)
-		positive integer   denotes the number of logical id cache entries
-		default value: 10000
     *
     */
 
@@ -774,9 +771,15 @@ public:
     // see also pin_i::update_rec*()
     static rc_t			append_rec(
 	const rid_t& 		    rid, 
-	const vec_t& 		    data,
-	bool	 		    allow_forward);
-    static rc_t			truncate_rec(const rid_t& rid, smsize_t amount);
+	const vec_t& 		    data
+	);
+    // for backward compat:
+    static rc_t			truncate_rec(const rid_t& rid, 
+	                            smsize_t amount
+				    );
+    static rc_t			truncate_rec(const rid_t& rid, 
+	                            smsize_t amount,
+				    bool& should_forward);
 
 
 #ifdef OLDSORT_COMPATIBILITY
@@ -917,7 +920,6 @@ private:
     static option_t* _error_loglevel;
     static option_t* _script_log;
     static option_t* _script_loglevel;
-    static option_t* _numLidCacheEntries;
     static option_t* _lockEscalateToPageThreshold;
     static option_t* _lockEscalateToStoreThreshold;
     static option_t* _lockEscalateToVolumeThreshold;
@@ -1140,8 +1142,7 @@ private:
 	);
     static rc_t			_append_rec(
 	const rid_t& 		    rid, 
-	const vec_t& 		    data,
-	bool 			    allow_forward
+	const vec_t& 		    data
 	);
     static rc_t			_truncate_rec(
 	const rid_t& 		    rid, 

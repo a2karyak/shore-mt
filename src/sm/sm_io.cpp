@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: sm_io.cpp,v 1.35 2007/08/21 19:50:43 nhall Exp $
+ $Id: sm_io.cpp,v 1.36 2008/05/07 23:27:00 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -837,7 +837,9 @@ io_m::read_page(const lpid_t& pid, page_s& buf)
     if (_msec_disk_delay > 0)
 	    me()->sleep(_msec_disk_delay, "io_m::read_page");
 
+#ifdef USE_LID
     w_assert3(! pid.vol().is_remote());
+#endif
 
     int i = _find(pid.vol());
     if (i < 0) {
@@ -888,7 +890,9 @@ io_m::write_many_pages(page_s** bufs, int cnt)
 {
     // NEVER acquire monitor to write page
     vid_t vid = bufs[0]->pid.vol();
+#ifdef USE_LID
     w_assert3(! vid.is_remote());
+#endif
     int i = _find(vid);
     w_assert1(i >= 0);
 
@@ -1899,7 +1903,9 @@ io_m::_first_page(
     bool*		allocated,
     lock_mode_t		lock)
 {
+#ifdef USE_LID
     if (stid.vol.is_remote()) W_FATAL(eBADSTID);
+#endif
 
     vol_t *v = _find_and_grab(stid.vol);
     if (!v)  return RC(eBADVOL);
@@ -1935,7 +1941,9 @@ io_m::_last_page(
     lock_mode_t		desired_lock_mode
     )
 {
+#ifdef USE_LID
     if (stid.vol.is_remote()) W_FATAL(eBADSTID);
+#endif
 
     vol_t *v = _find_and_grab(stid.vol);
     if (!v)  return RC(eBADVOL);
@@ -1967,7 +1975,9 @@ rc_t io_m::_next_page(
     bool*		allocated,
     lock_mode_t		lock)
 {
+#ifdef USE_LID
     if (pid.is_remote()) W_FATAL(eBADPID);
+#endif
 
     vol_t *v = _find_and_grab(pid.vol());
     if (!v)  return RC(eBADVOL);
@@ -1995,7 +2005,9 @@ rc_t io_m::_next_page_with_space(
     lock_mode_t		lock
     )
 {
+#ifdef USE_LID
     if (pid.is_remote()) W_FATAL(eBADPID);
+#endif
 
     vol_t *v = _find_and_grab(pid.vol());
     if (!v)  return RC(eBADVOL);

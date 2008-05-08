@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='VID_T_H'>
 
- $Id: vid_t.h,v 1.25 1999/06/07 19:02:35 kupsch Exp $
+ $Id: vid_t.h,v 1.26 2008/05/07 23:26:52 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -38,46 +38,10 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 // implementation is in lid_t.cpp
 #pragma interface
 #endif
-
-/*
- * NB -- THIS FILE MUST BE LEGITIMATE INPUT TO cc and RPCGEN !!!!
- * Please do as follows:
- * a) keep all comments in traditional C style.
- * b) If you put something c++-specific make sure it's 
- * 	  got ifdefs around it
- */
-
 struct vid_t {
 
-    enum {mask_alias = 0x8000,
-	  first_alias = mask_alias,
-	  first_local = 1
-	 };
-
-    		vid_t() : vol(0) {}
-    		vid_t(uint2_t v) : vol(v) {}
-    bool	is_remote() const { return is_alias();}
-    bool	is_alias() const { return (vol & mask_alias) == mask_alias;}
-    void	init_alias()	{vol = first_alias;}
-    void	init_local()	{vol = first_local;}
-
-    void	incr_alias()	{w_assert3(is_alias());
-				    vol++;
-				    if (!is_alias()) init_alias();
-				}
-
-    void	incr_local()	{w_assert3(!is_alias());
-				    vol++;
-				    if (is_alias()) vol = 0;
-				}
-
-    // This function casts a vid_t to a uint2_t.  It is needed
-    // in lid_t.h where there is a hack to use vid_t to
-    // create a logical volume ID.
-    		operator uint2_t () const {return vol;}
-
-//    		operator int () const {return (int)vol;}
-//    		operator unsigned int () const {return (unsigned int)vol;}
+    vid_t() : vol(0) {}
+    vid_t(uint2_t v) : vol(v) {}
 
     // Data Members
     uint2_t	vol;
@@ -91,6 +55,10 @@ struct vid_t {
     friend bool operator!=(const vid_t& v1, const vid_t& v2)  {
 	return v1.vol != v2.vol;
     }
+    operator uint2_t () const {return vol;}
+    void      incr_local()    { vol++; }
+
+
 };
 
 inline ostream& operator<<(ostream& o, const vid_t& v)

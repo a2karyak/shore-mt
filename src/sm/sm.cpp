@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: sm.cpp,v 1.477 2007/08/21 19:50:43 nhall Exp $
+ $Id: sm.cpp,v 1.478 2008/05/07 23:27:00 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -224,7 +224,6 @@ option_t* ss_m::_script_loglevel = NULL;
 option_t* ss_m::_lockEscalateToPageThreshold = NULL;
 option_t* ss_m::_lockEscalateToStoreThreshold = NULL;
 option_t* ss_m::_lockEscalateToVolumeThreshold = NULL;
-option_t* ss_m::_numLidCacheEntries = NULL;
 option_t* ss_m::_dcommit_timeout = NULL;
 option_t* ss_m::_cc_alg_option = NULL;
 option_t* ss_m::_log_warn_percent = NULL;
@@ -388,10 +387,6 @@ rc_t ss_m::setup_options(option_group_t* options)
     W_DO(options->add_option("sm_lock_escalate_to_volume_threshold", "0 (don't) or >0", "0",
 	    "after this many store level locks on a page, the volume level lock is obtained",
 	    false, _set_option_lock_escalate_to_volume, _lockEscalateToVolumeThreshold));
-
-    W_DO(options->add_option("sm_num_lid_cache_entries", ">0", "10000",
-	    "after this many store level locks on a page, the volume level lock is obtained",
-	    false, option_t::set_value_long, _numLidCacheEntries));
 
     W_DO(options->add_option("sm_dcommit_timeout", "#>=30", "1800",
 	    "seconds after which distrib commit will give up if it cannot finish",
@@ -1872,9 +1867,11 @@ ss_m::destroy_vol(const lvid_t& lvid)
 	// find the device name
 	vid_t vid = io->get_vid(lvid);
 
+#ifdef USE_LID
 	if(vid.is_remote()) {
 	    return RC(eNOTONREMOTEVOL);
 	}
+#endif
 	if (vid == vid_t::null)
 	    return RC(eBADVOL);
 	char *dev_name = new char[smlevel_0::max_devname+1];
@@ -2534,7 +2531,9 @@ ss_m::_mount_dev(const char* device, u_int& vol_cnt, vid_t local_vid)
     if (local_vid == vid_t::null) {
 	W_DO(io->get_new_vid(vid));
     } else {
+#ifdef USE_LID
 	if (local_vid.is_remote()) return RC(eBADVOL);
+#endif
 	if (io->is_mounted(local_vid)) {
 	    // vid already in use
 	    return RC(eBADVOL);
@@ -2606,6 +2605,7 @@ ss_m::_create_vol(const char* dev_name, const lvid_t& lvid,
 	<< " mounting " << dev_name);
     W_DO(io->mount(dev_name, tmp_vid));
 
+#ifdef USE_LID
     ///////////////////////////////////////////////////////////
     // NB: really need to put a check in format_vol and remove
     // this check. This is really for debugging purposes only:
@@ -2613,6 +2613,7 @@ ss_m::_create_vol(const char* dev_name, const lvid_t& lvid,
 	return RC(eNOTONREMOTEVOL);
     }
     ///////////////////////////////////////////////////////////
+#endif
 
     xct_t xct;   // start a short transaction
     xct_auto_abort_t xct_auto(&xct); // abort if not completed

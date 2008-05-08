@@ -237,15 +237,15 @@ am__leading_dot = @am__leading_dot@
 am__quote = @am__quote@
 am__tar = @am__tar@
 am__untar = @am__untar@
-bindir = $(installdir)/bin
+bindir = @bindir@
 build_alias = @build_alias@
 datadir = @datadir@
 exec_prefix = @exec_prefix@
 host_alias = @host_alias@
-includedir = $(installdir)/include
+includedir = @includedir@
 infodir = @infodir@
 install_sh = @install_sh@
-libdir = $(installdir)/lib
+libdir = @libdir@
 libexecdir = @libexecdir@
 localstatedir = @localstatedir@
 mandir = @mandir@
@@ -258,6 +258,9 @@ sharedstatedir = @sharedstatedir@
 sysconfdir = @sysconfdir@
 target_alias = @target_alias@
 SUBDIRS = tests
+
+# if tcl.h is not in your /usr/include, put it here.
+# I haven't found a way to locate it with autoconf yet.
 TCL_INCLUDE = /p/paradise/tcl/tcl-8.4.6/include
 TCL_LIB = -L/p/paradise/tcl/tcl-8.4.6/lib -ltcl8.4
 
@@ -272,6 +275,8 @@ PURE_CACHE_DIR = /scratch/nhall/pure
 # --------------------------------------------------------
 DISTCLEANFILES = Makefile.in  Makefile $(GENFILES)
 BUILT_SOURCES = $(GENFILES)
+# installdir = $(top_srcdir)/installdir
+# docdir = $(installdir)/doc
 
 # --------------------------------------------------------
 #
@@ -412,6 +417,7 @@ W_WARNINGS = $(WARN_FLAGS) -Wno-deprecated
 @QUANTIFY_TRUE@	     -threads -thread-stack-change=0x3000 -max_threads=64 \
 @QUANTIFY_TRUE@	     -cache-dir=$(PURE_CACHE_DIR)
 
+GROFF_OPTIONS = -s -m man
 
 # --------------------------------------------------------
 #
@@ -434,7 +440,6 @@ W_WARNINGS = $(WARN_FLAGS) -Wno-deprecated
 @PURECOV_TRUE@	     -cache-dir=$(PURE_CACHE_DIR)
 
 EXTRA_DIST = st_error.dat sthread_stats.dat shmc_stats.dat
-installdir = $(top_builddir)/installed
 lib_LIBRARIES = libsthread.a
 diskrw_LDADD = libsthread.a ../fc/libfc.a $(LOCALLDADD)
 ST_ERROR_GENFILES = st_errmsg_gen.h\
@@ -515,7 +520,7 @@ all: $(BUILT_SOURCES)
 	$(MAKE) $(AM_MAKEFLAGS) all-recursive
 
 .SUFFIXES:
-.SUFFIXES: .purecov .pure .quant .$(OBJEXT) .S .cpp .o .obj
+.SUFFIXES: .purecov .pure .quant .$(OBJEXT) .S .common .cpp .dvi .fc .html .o .obj .pdf .ps .ssm .sthread .tex
 $(srcdir)/Makefile.in:  $(srcdir)/Makefile.am $(top_srcdir)/Makefile.generic $(top_srcdir)/Makefile.local $(am__configure_deps)
 	@for dep in $?; do \
 	  case '$(am__configure_deps)' in \
@@ -918,7 +923,7 @@ mostlyclean-am: mostlyclean-compile mostlyclean-generic
 
 pdf: pdf-recursive
 
-pdf-am:
+pdf-am: pdf-local
 
 ps: ps-recursive
 
@@ -941,8 +946,8 @@ uninstall-info: uninstall-info-recursive
 	installcheck-am installdirs installdirs-am maintainer-clean \
 	maintainer-clean-generic maintainer-clean-recursive \
 	mostlyclean mostlyclean-compile mostlyclean-generic \
-	mostlyclean-recursive pdf pdf-am ps ps-am tags tags-recursive \
-	uninstall uninstall-am uninstall-binPROGRAMS \
+	mostlyclean-recursive pdf pdf-am pdf-local ps ps-am tags \
+	tags-recursive uninstall uninstall-am uninstall-binPROGRAMS \
 	uninstall-includeHEADERS uninstall-info-am \
 	uninstall-libLIBRARIES
 
@@ -969,6 +974,56 @@ clean-local:
 @PURIFY_TRUE@	$(PURIFY_BIN)/purify $(PURIFY_FLAGS)  $(PURIFY_COLLECTOR) $(CXX) -o $@ $< $(LDADD) $(LIBS)
 @QUANTIFY_TRUE@.$(OBJEXT).quant:  
 @QUANTIFY_TRUE@	$(QUANTIFY_BIN)/quantify $(QUANTIFY_FLAGS) $(QUANTIFY_COLLECTOR)  $(CXX) -o $@ $< $(LDADD) $(LIBS)
+
+SUFFIXES: .tex .fc .common .sthread .ssm .html .ps .dvi .pdf 
+
+.fc.ps: 
+	groff $(GROFF_OPTIONS) -Tps $< >& $@
+
+.common.ps: 
+	groff $(GROFF_OPTIONS) -Tps $< >& $@
+
+.sthread.ps: 
+	groff $(GROFF_OPTIONS) -Tps $< >& $@
+
+.ssm.ps: 
+	groff $(GROFF_OPTIONS) -Tps $< >& $@
+
+.fc.html: 
+	groff $(GROFF_OPTIONS) -Thtml $< >& $@
+
+.common.html: 
+	groff $(GROFF_OPTIONS) -Thtml $< >& $@
+
+.sthread.html: 
+	groff $(GROFF_OPTIONS) -Thtml $< >& $@
+
+.ssm.html: 
+	groff $(GROFF_OPTIONS) -Thtml $< >& $@
+
+.fc.dvi: 
+	groff $(GROFF_OPTIONS) -Tdvi $< >& $@
+
+.common.dvi: 
+	groff $(GROFF_OPTIONS) -Tdvi $< >& $@
+
+.sthread.dvi: 
+	groff $(GROFF_OPTIONS) -Tdvi $< >& $@
+
+.ssm.dvi:
+	groff $(GROFF_OPTIONS) -Tdvi $< >& $@
+
+.dvi.pdf:
+	dvipdfm $<
+
+.tex.dvi:
+	latex $<
+# second time to get the x-refs
+	latex $<
+
+# html-local: $(HTML_TARGETS)
+
+pdf-local: $(PDF_TARGETS)
 @PURECOV_TRUE@.$(OBJEXT).purecov:  
 @PURECOV_TRUE@	$(PURECOV_BIN)/purecov $(PURECOV_FLAGS)  $(PURECOV_COLLECTOR) $(CXX) -o $@ $< $(LDADD) $(LIBS)
 

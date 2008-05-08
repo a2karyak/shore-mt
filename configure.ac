@@ -2,7 +2,7 @@
 # Process this file with autoconf to produce a configure script.
 
 AC_PREREQ(2.59)
-AC_INIT(Shore-Storage-Manager, 5.0.2-prelim, Noone._Sadly-_this_is_unsupported_software.)
+AC_INIT(Shore-Storage-Manager, 5.0.2, Noone._Sadly-_this_is_unsupported_software.)
 AC_CONFIG_HEADERS([config/shore-config.h:config/shore-config-h.in])
 AC_CONFIG_SRCDIR([config/shore.def])
 AC_COPYRIGHT(COPYRIGHT-NOTICE)
@@ -956,6 +956,15 @@ AC_CONFIG_FILES([src/sm/smsh/scripts/Makefile])
 AC_CONFIG_FILES([src/sm/smsh/lib/Makefile])
 
 AC_CONFIG_FILES([doc/Makefile])
+AC_CONFIG_FILES([doc/ssmapi/Makefile])
+AC_CONFIG_FILES([doc/ssmarch/Makefile])
+AC_CONFIG_FILES([doc/man/Makefile])
+AC_CONFIG_FILES([doc/man/manfc/Makefile])
+AC_CONFIG_FILES([doc/man/mansthread/Makefile])
+AC_CONFIG_FILES([doc/man/mancommon/Makefile])
+AC_CONFIG_FILES([doc/man/manssm/Makefile])
+AC_CONFIG_FILES([doc/ssmvas/Makefile])
+AC_CONFIG_FILES([doc/ssmvas/hello/Makefile])
 
 
 AC_OUTPUT

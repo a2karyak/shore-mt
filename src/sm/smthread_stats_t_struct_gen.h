@@ -2,7 +2,7 @@
 #define SMTHREAD_STATS_T_STRUCT_GEN_H
 
 /* DO NOT EDIT --- GENERATED from smthread_stats.dat by stats.pl
-		   on Tue Aug 21 15:08:33 2007
+		   on Wed May  7 19:54:01 2008
 
 <std-header orig-src='shore' genfile='true'>
 
@@ -102,11 +102,6 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
  unsigned long sort_run_size;
  unsigned long sort_phases;
  unsigned long sort_ntapes;
- unsigned long lid_lookups;
- unsigned long lid_remote_lookups;
- unsigned long lid_inserts;
- unsigned long lid_removes;
- unsigned long lid_cache_hits;
  unsigned long page_fix_cnt;
  unsigned long page_refix_cnt;
  unsigned long page_unfix_cnt;
