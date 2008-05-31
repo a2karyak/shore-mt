@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: sort_funcs3.cpp,v 1.17 2007/08/21 19:46:14 nhall Exp $
+ $Id: sort_funcs3.cpp,v 1.18 2008/05/31 04:58:01 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -268,22 +268,6 @@ mhilbert (
 }
 
 
-#ifdef USE_LID
-w_rc_t 
-lmhilbert (
-    const lrid_t&       ,  // record id
-    const object_t&	obj_in,
-    key_cookie_t    	cookie,  // type info
-    factory_t&		internal,
-    skey_t*		key
-) 
-{
-    // HERE: convert logical rid to rid
-    rid_t	dummy;
-    return mhilbert(dummy, obj_in, cookie, internal, key);
-}
-/* end USE_LID*/
-#endif
 
 w_rc_t 
 lonehilbert (
@@ -575,11 +559,6 @@ void
 deleter::disarm() 
 {
     fid = stid_t::null; 
-#ifdef USE_LID
-    lfid.lvid = lvid_t::null;
-    lfid.serial = serial_t::null;
-/* end USE_LID*/
-#endif
     scanp=0;
     scanr=0;
 }
@@ -599,22 +578,6 @@ deleter::~deleter()
 	}
 	if(rc) cerr << "Error trying to destroy file " << rc <<endl;
     }
-#ifdef USE_LID
-    if(lfid != lfid_t::null) {
-	DBG(<<"Destroying file " << lfid);
-	w_rc_t rc = sm->destroy_file(lfid.lvid, lfid.serial);
-	if(rc && rc.err_num() == ss_m::eBADSTORETYPE) {
-	    DBG(<<"Try again: destroying index " << lfid);
-	    rc = sm->destroy_index(lfid.lvid, lfid.serial);
-	}
-	if(rc && rc.err_num() == ss_m::eBADNDXTYPE) {
-	    DBG(<<"Try again: destroying rtree " << lfid);
-	    rc = sm->destroy_md_index(lfid.lvid, lfid.serial);
-	}
-	if(rc) cerr << "Error trying to destroy file " << rc <<endl;
-    }
-/* end USE_LID*/
-#endif
     if(scanp) {
 	DBG(<<"Deleting scan p");
 	delete scanp;

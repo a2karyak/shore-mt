@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='SORT_FUNCS_H'>
 
- $Id: sort_funcs.h,v 1.11 2007/08/21 19:46:14 nhall Exp $
+ $Id: sort_funcs.h,v 1.12 2008/05/31 04:58:00 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -85,17 +85,6 @@ mhilbert (
     factory_t&		,
     skey_t*	
 ); 
-#ifdef USE_LID
-w_rc_t 
-lmhilbert (
-    const lrid_t&        ,  // record id
-    const object_t&	,
-    key_cookie_t    	,  // type info
-    factory_t&		,
-    skey_t*	
-); 
-/* end USE_LID*/
-#endif
 w_rc_t 
 onehilbert (
     const rid_t&        ,  // record id
@@ -125,42 +114,18 @@ check_file( stid_t  fid, sort_keys_t&kl, bool do_compare);
 class deleter {
 private:
     stid_t 	fid;
-#ifdef USE_LID
-    lfid_t	lfid;
-/* end USE_LID*/
-#endif
     scan_index_i*	scanp;
     scan_rt_i*	scanr;
 public:
     deleter() : fid(stid_t::null), 
-#ifdef USE_LID
-	lfid(lfid_t::null.lvid, lfid_t::null.serial),
-/* end USE_LID*/
-#endif
 	scanp(0),
 	scanr(0)
 	{}
     deleter(stid_t& s) : fid(s), 
-#ifdef USE_LID
-	lfid(lfid_t::null.lvid, lfid_t::null.serial),
-/* end USE_LID*/
-#endif
 	scanp(0),
 	scanr(0)
 	{}
-#ifdef USE_LID
-    deleter(lfid_t& s) : fid(stid_t::null), 
-	lfid(s.lvid, s.serial),
-	scanp(0),
-	scanr(0)
-	{}
-/* end USE_LID*/
-#endif
     void set(stid_t&s) { fid = s; }
-#ifdef USE_LID
-    void set(lfid_t&s) { lfid.lvid = s.lvid; lfid.serial = s.serial; }
-/* end USE_LID*/
-#endif
     void set(scan_index_i* s) { scanp = s; }
     void set(scan_rt_i* s) { scanr = s; }
     ~deleter();

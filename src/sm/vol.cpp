@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: vol.cpp,v 1.245 2007/05/18 21:43:30 nhall Exp $
+ $Id: vol.cpp,v 1.246 2008/05/28 01:28:02 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -88,6 +88,19 @@ extlink_t::extlink_t() : next(0), prev(0), owner(0),
      * copied with memcmp causing Purify headaches if
      * filler is not initialized
      */
+#ifdef DEBUG
+    if(w_offsetof(extlink_t, next) != sizeof(Pmap_Align))
+    {
+		std::cerr << "w_offsetof(extlink_t, next) = " 
+		    	  << w_offsetof(extlink_t, next)
+		    << std::endl
+		    	  << " sizeof(Pmap_Align))=" <<  sizeof(pmap)
+		    << std::endl
+		    	  << " SM_EXTENSIZE_IN_BYTES=" <<  PMAP_SIZE_IN_BYTES
+		    	  << " SM_EXTENTSIZE=" <<  SM_EXTENTSIZE
+		    << std::endl;
+    }
+#endif
     w_assert3(w_offsetof(extlink_t, next) == sizeof(pmap));
 
     /* is the aligned pmap aligned properly? */
@@ -758,7 +771,7 @@ vol_t::max_extents_on_page()
  *
  *********************************************************************/
 rc_t
-vol_t::num_free_exts(extnum_t& nfree)
+vol_t::num_free_exts(base_stat_t& nfree)
 {
     extlink_i ei(_epid);
     nfree = 0;
@@ -782,9 +795,9 @@ vol_t::num_free_exts(extnum_t& nfree)
  *
  *********************************************************************/
 rc_t
-vol_t::num_used_exts(extnum_t& nused)
+vol_t::num_used_exts(base_stat_t& nused)
 {
-    extnum_t nfree;
+    base_stat_t nfree;
     W_DO( num_free_exts(nfree) );
     nused = _num_exts - nfree;
     return RCOK;
@@ -1077,6 +1090,7 @@ vol_t::alloc_page_in_ext(
 	extid_t extid;
 	extid.vol = _vid;
 	extid.ext = ext;
+	DBG(<<"trying to lock extent " << extid);
 
 	// force not required here, since extents do not appear in hierarchy
 	W_DO( lm->lock(extid, IX, t_long, WAIT_IMMEDIATE, 0, 0, &name) );
@@ -1105,6 +1119,7 @@ vol_t::alloc_page_in_ext(
 
     allocated = 0;
     if (nfree > 0)  {
+	DBG(<<"# free pages " << nfree);
 	/*
 	 *  Some pages free
 	 */
@@ -1136,6 +1151,8 @@ vol_t::alloc_page_in_ext(
 	     * (physically logged) to be allocated to another (preventing
 	     * rollback from working) anymore.
 	     */
+	    DBG(<<"vol_t::alloc_page_in_ext: find free unlocked page " );
+
 	    do {
 		++start;
 		start = (start >= ext_sz ? -1 : link.first_clr(start));
@@ -1187,6 +1204,7 @@ vol_t::alloc_page_in_ext(
 		    // old:
 		    //
 		    // W_DO( lm->query(pids[i], m) );
+
 
 		    DBG(<<"vol_t::alloc_page_in_ext: locking page "
 			<< pids[i]  << " in mode " << int(desired_lock_mode));
@@ -1547,30 +1565,30 @@ vol_t::next_page_with_space(lpid_t& pid, space_bucket_t needed)
 			<< " with bucket " << int(b));
 	    } 
 #ifdef W_DEBUG
-   {
-	lpid_t lpid = pid;
-	lpid.page = ext * ext_sz + offset;
-	page_p page;
-	w_assert3(!page.is_fixed());
-	store_flag_t sf = st_bad;
-	W_DO( page.fix(lpid, page_p::t_any_p, LATCH_SH, 0, sf));
+	   {
+		lpid_t lpid = pid;
+		lpid.page = ext * ext_sz + offset;
+		page_p page;
+		w_assert3(!page.is_fixed());
+		store_flag_t sf = st_bad;
+		W_DO( page.fix(lpid, page_p::t_any_p, LATCH_SH, 0, sf));
 
-        DBG(    <<"page.usable_space=" << page.usable_space()
-		<<" page.bucket=" << int(page.bucket()) );
-	if( page.bucket() < b) {
-	    // This is ok -we'll find out when we
-	    // look at the page.
-	    // w_assert3(0);
-	    cerr << "extent bucket info is high " <<endl;
-	}
-	if( page.bucket() > b) {
-	    // This is NOT ok because the
-	    // page will be skipped.
-	    smlevel_0::errlog->clog << error_prio 
-	    	<< "Warning: page will be skipped; extent bucket is low \n";
-	    // w_assert3(0);
-	}
-   }
+		DBG(    <<"page.usable_space=" << page.usable_space()
+			<<" page.bucket=" << int(page.bucket()) );
+		if( page.bucket() < b) {
+		    // This is ok -we'll find out when we
+		    // look at the page.
+		    // w_assert3(0);
+		    cerr << "extent bucket info is high " <<endl;
+		}
+		if( page.bucket() > b) {
+		    // This is NOT ok because the
+		    // page will be skipped.
+		    smlevel_0::errlog->clog << error_prio 
+			<< "Warning: page will be skipped; extent bucket is low \n";
+		    // w_assert3(0);
+		}
+	   }
 #endif /* W_DEBUG */
 
 	}
@@ -1625,7 +1643,7 @@ vol_t::find_free_exts(
        user to create code that is possibly incorrect!
        A better solution may be to eliminatefollowing 'ext' and use
        the 'ext' in the extid_t instead. */
-    extid.ext = w_base_t::uint4_max;	// XXX knows about type
+    extid.ext = w_base_t::uint8_max;	// XXX knows about type
 
     bool alloced_min_free_ext = false;
     bool passed_zero = false;
@@ -1952,6 +1970,11 @@ rc_t vol_t::dump_stores(ostream &o, int start, int end)
 rc_t
 vol_t::find_free_store(snum_t& snum)
 {
+#ifdef OS_IO
+    // stnode_i given spid
+    // _spid is per-volume and it tells us what is the first
+    // page of store 0, where the store nodes lie.
+#endif
     snum = 0;
     stnode_i st(_spid);
 
@@ -2272,12 +2295,11 @@ pick_ei(extnum_t ext, extnum_t* exts, extlink_i** extlinks, extnum_t num_ext_pag
  * This is called by the lock mgr when locks are freed.  The idea
  * is this: where 2 or more xcts are using pages that get freed,
  * the last one to commit/abort (i.e., free its locks) is the one
- * that determines whether the page really gets freed or not. 
+ * that determines whether the extent really gets freed or not. 
  *
  * Also called during recovery when the extents are searched for ones
  * that can be freed.
  *
- * If freed, incr the sum 
  *
  *********************************************************************/
 
@@ -2286,6 +2308,10 @@ vol_t::free_ext_after_xct(extnum_t ext, snum_t& old_owner)
 {
     FUNC(vol_t::free_ext_after_xct)
     w_assert3(ext);
+
+#ifdef W_DEBUG
+    W_DO(log_comment("start free_ext_after_xct "));
+#endif /* W_DEBUG */
 
     extnum_t	next_ext = 0;
     extnum_t	prev_ext = 0;
@@ -2324,7 +2350,7 @@ vol_t::free_ext_after_xct(extnum_t ext, snum_t& old_owner)
 	old_owner = link.owner;
 
 #ifdef W_DEBUG
-	extid_t		extid;
+	extid_t	extid;
 	extid.vol = _vid;
 	extid.ext = ext;
 	W_COERCE( lm->lock(extid, EX, t_long, WAIT_IMMEDIATE) );
@@ -2401,6 +2427,18 @@ vol_t::free_ext_after_xct(extnum_t ext, snum_t& old_owner)
 		w_assert3(xd);
 		anchor = xd->anchor();
 
+#ifdef W_DEBUG
+		{
+		    w_ostrstream ss;
+		    ss << "free_ext_after_xct ei_p.put ext=" << ext 
+		    << " l.owner " << link.owner
+		    << " l.next " << link.next
+		    << " l.prev " << link.prev
+		    << " overwrite with 0,0,0"
+		    << std::ends;
+		    W_DO(log_comment(ss.c_str()));
+		}
+#endif /* W_DEBUG */
 		link.zero();
 		link.owner = 0;
 		link.next = 0;
@@ -2413,6 +2451,18 @@ vol_t::free_ext_after_xct(extnum_t ext, snum_t& old_owner)
 		    // link.next might not equal ext if a crash occured between
 		    // writing a create_ext_list and the set_ext_next.
 		    if (link.next == ext)  {
+#ifdef W_DEBUG
+			{
+			    w_ostrstream ss;
+			    ss << "free_ext_after_xct prev_ei_p.put ext=" << prev_ext 
+			    << " l.owner " << link.owner
+			    << " l.next " << link.next
+			    << " overwrite with " << next_ext
+			    << " l.prev " << link.prev
+			    << std::ends;
+			    W_DO(log_comment(ss.c_str()));
+			}
+#endif /* W_DEBUG */
 			link.next = next_ext;
 			X_DO( prev_ei_p->put(prev_ext, link), anchor );
 		    }
@@ -2421,11 +2471,26 @@ vol_t::free_ext_after_xct(extnum_t ext, snum_t& old_owner)
 		if (next_ext)  {
 		    X_DO( next_ei_p->get_copy(next_ext, link), anchor );
 		    w_assert1(link.prev == ext);
+#ifdef W_DEBUG
+		    {
+		    w_ostrstream ss;
+		    ss << "free_ext_after_xct next_ei_p.put ext=" << next_ext 
+			<< " l.owner " << link.owner
+			<< " l.next " << link.next
+			<< " l.prev " << link.prev
+			<< " overwrite with " << prev_ext
+			<< std::ends;
+		    W_DO(log_comment(ss.c_str()));
+		    }
+#endif /* W_DEBUG */
 		    link.prev = prev_ext;
 		    X_DO( next_ei_p->put(next_ext, link), anchor );
 		}
 
 		xd->compensate(anchor, false);
+#ifdef W_DEBUG
+		W_DO(log_comment("end free_ext_after_xct "));
+#endif /* W_DEBUG */
 
 		return RCOK;
 	    }  else  {
@@ -2527,6 +2592,9 @@ vol_t::_free_ext_list(extnum_t ext, snum_t snum)
 rc_t
 vol_t::free_exts_on_same_page(extnum_t head, snum_t snum, extnum_t count)
 {
+#ifdef W_DEBUG
+    W_DO(log_comment("free_exts_on_same_page"));
+#endif /* W_DEBUG */
     DBG(<< "free_exts_on_same_page  head="  << head
 	<< " snum=" << snum
 	<< " count=" << count);
@@ -2569,8 +2637,24 @@ vol_t::free_exts_on_same_page(extnum_t head, snum_t snum, extnum_t count)
     }
 
     w_assert1(myCount == count);
+#ifdef W_DEBUG
+    W_DO(log_comment("start free_extent_list"));
+#endif /* W_DEBUG */
 
-    W_DO( log_free_ext_list(ei.page(), stid, head, count) );
+#ifdef W_DEBUG
+    w_rc_t dummy = log_free_ext_list(ei.page(), stid, head, count );
+    if(dummy) {
+	std::cerr << "XXXXXXXXXX log_free_ext_list returns error" << dummy << std::endl;
+    }
+    W_DO(dummy);
+#else
+    W_DO(log_free_ext_list(ei.page(), stid, head, count ));
+#endif
+
+#ifdef W_DEBUG
+    W_DO(log_comment("end free_extent_list"));
+    W_DO(log_comment("end free_exts_on_same_page"));
+#endif /* W_DEBUG */
 
     return RCOK;
 }
@@ -3029,7 +3113,7 @@ vol_t::last_page(snum_t snum, lpid_t& pid, bool* allocated)
  *
  *********************************************************************/
 rc_t
-vol_t::num_pages(snum_t snum, uint4_t& cnt)
+vol_t::num_pages(snum_t snum, base_stat_t& cnt)
 {
     cnt = 0;
     stnode_t stnode;
@@ -3066,7 +3150,7 @@ vol_t::num_pages(snum_t snum, uint4_t& cnt)
  *
  *********************************************************************/
 rc_t
-vol_t::num_exts(snum_t snum, extnum_t& cnt)
+vol_t::num_exts(snum_t snum, base_stat_t& cnt)
 {
     cnt = 0;
     stnode_t stnode;
@@ -3207,6 +3291,9 @@ vol_t::read_page(shpid_t pnum, page_s& page)
     w_assert1(pnum > 0 && pnum < (shpid_t)(_num_exts * ext_sz));
     fileoff_t offset = fileoff_t(pnum) * sizeof(page);
 
+    w_assert1(sizeof(offset) >= sizeof(shpid_t));
+
+    DBG(<<"vol_t::read_page page#=" << pnum << " offset=" << offset);
     smthread_t* t = me();
 
 #ifdef PURIFY_ZERO
@@ -3346,10 +3433,13 @@ vol_t::format_dev(
 	    | (force ? smthread_t::OPEN_TRUNC : smthread_t::OPEN_EXCL);
     int fd;
     w_rc_t e;
+    DBG( << " calling open " << e);
     e = me()->open(devname, flags | smthread_t::OPEN_LOCAL, 0666, fd);
+    DBG( << " open returns " << e);
     if (e)
 	return e;
     
+    DBG( << "formating device -2 " << devname);
     extnum_t num_exts = (num_pages - 1) / ext_sz + 1;
 
     volhdr_t vhdr;
@@ -3376,6 +3466,7 @@ vol_t::format_dev(
     }
 
     W_COERCE_MSG(me()->close(fd), << "device name=" << devname);
+    DBG( << "formating device -3 " << devname);
 
     return RCOK;
 }
@@ -3399,6 +3490,9 @@ vol_t::format_vol(
     bool 		skip_raw_init)
 {
     FUNC(vol_t::format_vol);
+    DBG( << "formating volume " << devname << " volume " << lvid
+	    	<< " num_pages " << num_pages
+		<< " skip_raw_init " << skip_raw_init);
 
     /*
      *  No log needed.
@@ -3415,7 +3509,7 @@ vol_t::format_vol(
     if (vhdr.lvid() != lvid_t::null) return RC(eDEVICEVOLFULL); 
 
 	/* XXX possible bit loss */
-    extnum_t quota_pages = (extnum_t) (vhdr.device_quota_KB()/(page_sz/1024));
+    shpid_t quota_pages = ((shpid_t) vhdr.device_quota_KB())/(page_sz/1024);
 
     if (num_pages > quota_pages) {
 	return RC(eVOLTOOLARGE);
@@ -3429,7 +3523,6 @@ vol_t::format_vol(
     if (rc)  {
 	return RC_AUGMENT(rc);
     }
-
 
     DBG( << "formating volume " << lvid << " <"
 	 << devname << ">" );
@@ -3823,7 +3916,7 @@ vol_t::read_vhdr(int fd, volhdr_t& vhdr)
        various prologs. */
     {
     char buf[80];
-    uint4_t temp;
+    base_stat_t temp;
     int i = 0;
     s.read(buf, strlen(prolog[i++])) >> temp;
 	vhdr.set_format_version(temp);
@@ -3897,8 +3990,8 @@ vol_t::read_vhdr(const char* devname, volhdr_t& vhdr)
 rc_t vol_t::get_du_statistics(struct volume_hdr_stats_t& stats, bool audit)
 {
     volume_hdr_stats_t new_stats;
-    uint4_t unalloc_ext_cnt;
-    uint4_t alloc_ext_cnt;
+    base_stat_t unalloc_ext_cnt;
+    base_stat_t alloc_ext_cnt;
     W_DO(num_free_exts(unalloc_ext_cnt) );
     W_DO(num_used_exts(alloc_ext_cnt) );
     new_stats.unalloc_ext_cnt = (unsigned) unalloc_ext_cnt;

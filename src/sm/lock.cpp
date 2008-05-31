@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: lock.cpp,v 1.147 2007/05/18 21:43:25 nhall Exp $
+ $Id: lock.cpp,v 1.148 2008/05/28 01:28:01 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -146,7 +146,7 @@ lock_m::get_parent(const lockid_t& c, lockid_t& p)
     }
     DBGTHRD(<< "child:" << c << "  parent: " << p );
 #ifdef W_TRACE
-    bool b =  p.lspace() != lockid_t::t_bad;
+    bool b =  (p.lspace() != lockid_t::t_bad);
     DBGTHRD(<< "get_parent returns " << b
 	<< " for parent type " << int(p.lspace()) );
 #endif
@@ -776,7 +776,13 @@ rc_t lock_m::unlock_duration(
 	    rc =  _core->release_duration(xd, duration, all_less_than, dont_clean_exts ? 0 : &extid);
 	    W_VOID(xd->lock_info()->mutex.release());
 	    if (rc.err_num() == eFOUNDEXTTOFREE)  {
+#ifdef W_DEBUG
+    W_DO(log_comment("lm calls free_ext_after_xct"));
+#endif /* W_DEBUG */
 		W_DO( smlevel_0::io->free_ext_after_xct(extid) );
+#ifdef W_DEBUG
+    W_DO(log_comment("after lm call free_ext_after_xct" ));
+#endif /* W_DEBUG */
 		lockid_t	name(extid);
 		W_COERCE(xd->lock_info()->mutex.acquire());
 		W_DO( _core->release(xd, name, 0, 0, true) );

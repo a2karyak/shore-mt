@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
-  $Id: page.cpp,v 1.143 2007/05/18 21:43:26 nhall Exp $
+  $Id: page.cpp,v 1.144 2008/05/31 05:03:31 nhall Exp $
 
   SHORE -- Scalable Heterogeneous Object REpository
 
@@ -553,6 +553,105 @@ page_p::format(const lpid_t& pid, tag_t tag,
     /*
      *  Check alignments
      */
+#ifdef W_DEBUG
+    int err=0;
+    if(!is_aligned(data_sz))
+    {
+	err++;
+	std::cerr << "not aligned : data_sz: " << data_sz << std::endl;
+    }
+    if(!is_aligned(w_offsetof(page_s, data)))
+    {
+	err++;
+	std::cerr << "not aligned : _pp->data - (char *)_pp: " 
+		<< int (w_offsetof(page_s, data))
+		<< std::endl;
+    }
+    if(!is_aligned(_pp))
+    {
+	err++;
+	std::cerr << "not aligned : _pp "
+	    	<< (int)(_pp) << std::endl;
+    }
+    if(!is_aligned(_pp->data))
+    {
+	err++;
+	std::cerr << "not aligned : _pp->data "
+	    	<< _pp->data << std::endl;
+    }
+    if(sizeof(page_s) != page_sz)
+    {
+	err++;
+	std::cerr << "not match : sizeof(page_s) " << sizeof(page_s)
+	    << " page_sz " << page_sz << std::endl;
+    }
+    if((_pp->data - (char*) _pp) != page_s::hdr_sz - 2*sizeof(slot_t) - sizeof(lsn_t))
+    {
+	err++;
+	std::cerr << "not match : "
+	    	<< "(page_s::hdr_sz - 2* sizeof(slot_t) - sizeof(lsn_t))"
+	    	<< int (page_s::hdr_sz - 2* sizeof(slot_t) - sizeof(lsn_t))
+		<< std::endl;
+    }
+    if(! (is_aligned(w_offsetof(page_s,end))) ) 
+    {
+	err++;
+	std::cerr << "not aligned: end  " << std::endl;
+    }
+    if(! (is_aligned(w_offsetof(page_s,space))) ) 
+    {
+	err++;
+	std::cerr << "not aligned: space  " << std::endl;
+    }
+    if(! (is_aligned(w_offsetof(page_s,pid))) ) 
+    {
+	err++;
+	std::cerr << "not aligned: pid  " << std::endl;
+    }
+    if(! (is_aligned(w_offsetof(page_s,next))) ) 
+    {
+	err++;
+	std::cerr << "not aligned: next  " << std::endl;
+    }
+    if(err>0)
+    {
+	std::cerr 
+	    	<< " w_offsetof(page_s, lsn1)=" << w_offsetof(page_s, lsn1)
+		<< std::endl
+	    	<< " w_offsetof(page_s, nslots)=" << w_offsetof(page_s, nslots)
+		<< std::endl
+	    	<< " w_offsetof(page_s, nvacant)=" << w_offsetof(page_s, nvacant)
+		<< std::endl
+	    	<< " w_offsetof(page_s, next)=" << w_offsetof(page_s, next)
+		<< std::endl
+	    	<< " w_offsetof(page_s, prev)=" << w_offsetof(page_s, prev)
+		<< std::endl
+	    	<< " w_offsetof(page_s, pid)=" << w_offsetof(page_s, pid)
+		<< std::endl
+	    	<< " w_offsetof(page_s, space)=" << w_offsetof(page_s, space)
+		<< std::endl
+	    	<< " w_offsetof(page_s, end)=" << w_offsetof(page_s, end)
+		<< std::endl
+	    	<< " w_offsetof(page_s, tag)=" << w_offsetof(page_s, tag)
+		<< std::endl
+	    	<< " w_offsetof(page_s, store_flags)=" << w_offsetof(page_s, store_flags)
+		<< std::endl
+	    	<< " w_offsetof(page_s, page_flags)=" << w_offsetof(page_s, page_flags)
+		<< std::endl;
+    }
+#endif
+
+    w_assert3(is_aligned(_pp));
+    w_assert3(is_aligned(w_offsetof(page_s,lsn1))); 
+    w_assert3(is_aligned(w_offsetof(page_s,nslots))); 
+    w_assert3(is_aligned(w_offsetof(page_s,next))); 
+    w_assert3(is_aligned(w_offsetof(page_s,pid))); 
+    w_assert3(is_aligned(w_offsetof(page_s,space))); 
+    w_assert3(is_aligned(w_offsetof(page_s,end))); 
+
+    w_assert3(int((char *)&_pp->data[0] - (char*) _pp) == 
+	    	(page_s::hdr_sz - 2* sizeof(slot_t) - sizeof(lsn_t)));
+
     w_assert3(is_aligned(data_sz));
     w_assert3(is_aligned(_pp->data - (char*) _pp));
     w_assert3(sizeof(page_s) == page_sz);
@@ -1568,7 +1667,7 @@ page_p::splice(slotid_t idx, slot_length_t start, slot_length_t len, const cvec_
 	    /*
 	     *  There is enough contiguous space for delta
 	     */
-	    if (s.offset + align(s.length) == _pp->end)  {
+	    if ((page_s::page_bytes_t)(s.offset + align(s.length)) == _pp->end)  {
 		/*
 		 *  last slot --- we can simply extend it 
 		 */
@@ -1813,8 +1912,9 @@ page_p::split_slot(slotid_t idx, slot_offset_t off, const cvec_t& v1,
 	<<" xct() " << xct()->tid()
     );
 
-    w_assert3(s.length == off);
-    w_assert3(t.length == (savelength1-off) + savelength2);
+    w_assert3((slot_offset_t)s.length == off);
+    w_assert3((slot_offset_t)t.length == (slot_offset_t)
+	    	((savelength1-off) + savelength2));
     W_IFDEBUG( W_COERCE(check()) );
 
     /*
@@ -1973,8 +2073,8 @@ page_p::_shift_compress(slotid_t from,
 		<< " with tuple size " << tuple_size(from)
 		<< " offset " << s.offset
 		);
-	w_assert3(from_off <= s.length);
-	w_assert3(s.offset != -1); // it's in use
+	w_assert3(from_off <= (slot_offset_t)s.length);
+	w_assert3((slot_offset_t)s.offset != -1); // it's in use
 	w_assert3(s.length <= from_off + from_len); 
 
 	// copy firstpart: 0 -> from_off
@@ -2019,7 +2119,7 @@ page_p::_shift_compress(slotid_t from,
 		<< " offset " << t.offset
 		);
 	w_assert3(t.offset != -1); // it's in use
-	w_assert3(to_off <= t.length);
+	w_assert3(to_off <= (slot_offset_t)t.length);
 
 	// copy firstpart: 0 -> to_off-1
 	// copy middle from s
@@ -2224,7 +2324,7 @@ page_p::check()
      */
     w_assert1(END <= _pp->end);
     w_assert1(_pp->space.nfree() == NFREE);
-    w_assert1(_pp->end <= (data_sz + 2 * sizeof(slot_t) - 
+    w_assert1(_pp->end <= slot_offset_t(data_sz + 2 * sizeof(slot_t) - 
 			   sizeof(slot_t) * _pp->nslots));
 
     /*

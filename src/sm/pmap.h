@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='PMAP_H'>
 
- $Id: pmap.h,v 1.9 1999/06/07 19:04:21 kupsch Exp $
+ $Id: pmap.h,v 1.10 2008/05/28 01:28:02 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -98,33 +98,110 @@ struct Pmap {
 
 extern	ostream &operator<<(ostream &, const Pmap &pmap);
 
-/* Aligned Pmaps... Depending upon the pmap size it automagically
-   provides a filler in the pmap to align it to a 2 byte boundary.
-   This aligned version is used in various structures to guarantee
-   size and alignment of other members */
+/* Aligned Pmaps -- actually, align the END of a Pmap so that
+ * the other members of an extlink_t are properly aligned
+ */
 
-#if (((SM_EXTENTSIZE+7) & 0x8) == 0)
-typedef	Pmap	Pmap_Align2;
-typedef	Pmap	Pmap_Align4;
-#else
-class Pmap_Align2 : public Pmap {
+#define PMAP_SIZE_IN_BYTES ((SM_EXTENTSIZE + 7)/8)
+
+#if ((PMAP_SIZE_IN_BYTES & 0x7) == 0x0)
+typedef	Pmap	Pmap_Align;
+#elif ((PMAP_SIZE_IN_BYTES & 0x7) == 0x1)
+class Pmap_Align : public Pmap {
 public:
-	inline	Pmap_Align2	&operator=(const Pmap &from) {
-		*(Pmap *)this = from;	// don't copy the filler
-		return *this;
-	}
-private:
-	fill1	filler;		// keep purify happy
-};
-class Pmap_Align4 : public Pmap {
-public:
-	inline	Pmap_Align4	&operator=(const Pmap &from) {
+	inline	Pmap_Align	&operator=(const Pmap &from) {
 		*(Pmap *)this = from;	// don't copy the filler
 		return *this;
 	}
 private:
 	fill1	filler;		// keep purify happy
 	fill2   filler2;	// ditto, as well as assert 
+				// in extlink_t::extlink_t()
+	fill4   filler3;	// ditto, as well as assert 
+				// in extlink_t::extlink_t()
+};
+#elif ((PMAP_SIZE_IN_BYTES & 0x7) == 0x2)
+class Pmap_Align : public Pmap {
+public:
+	inline	Pmap_Align	&operator=(const Pmap &from) {
+		*(Pmap *)this = from;	// don't copy the filler
+		return *this;
+	}
+private:
+	// fill1	filler;		// keep purify happy
+	fill2   filler2;	// ditto, as well as assert 
+				// in extlink_t::extlink_t()
+	fill4   filler3;	// ditto, as well as assert 
+				// in extlink_t::extlink_t()
+};
+#elif ((PMAP_SIZE_IN_BYTES & 0x7) == 0x3)
+class Pmap_Align : public Pmap {
+public:
+	inline	Pmap_Align	&operator=(const Pmap &from) {
+		*(Pmap *)this = from;	// don't copy the filler
+		return *this;
+	}
+private:
+	fill1	filler;		// keep purify happy
+	// fill2   filler2;	// ditto, as well as assert 
+				// in extlink_t::extlink_t()
+	fill4   filler3;	// ditto, as well as assert 
+				// in extlink_t::extlink_t()
+};
+#elif ((PMAP_SIZE_IN_BYTES & 0x7) == 0x4)
+class Pmap_Align : public Pmap {
+public:
+	inline	Pmap_Align	&operator=(const Pmap &from) {
+		*(Pmap *)this = from;	// don't copy the filler
+		return *this;
+	}
+private:
+	// fill1	filler;		// keep purify happy
+	// fill2   filler2;	// ditto, as well as assert 
+				// in extlink_t::extlink_t()
+	fill4   filler3;	// ditto, as well as assert 
+				// in extlink_t::extlink_t()
+};
+#elif ((PMAP_SIZE_IN_BYTES & 0x7) == 0x5)
+class Pmap_Align : public Pmap {
+public:
+	inline	Pmap_Align	&operator=(const Pmap &from) {
+		*(Pmap *)this = from;	// don't copy the filler
+		return *this;
+	}
+private:
+	fill1	filler;		// keep purify happy
+	fill2   filler2;	// ditto, as well as assert 
+				// in extlink_t::extlink_t()
+	// fill4   filler3;	// ditto, as well as assert 
+				// in extlink_t::extlink_t()
+};
+#elif ((PMAP_SIZE_IN_BYTES & 0x7) == 0x6)
+class Pmap_Align : public Pmap {
+public:
+	inline	Pmap_Align	&operator=(const Pmap &from) {
+		*(Pmap *)this = from;	// don't copy the filler
+		return *this;
+	}
+private:
+	// fill1	filler;		// keep purify happy
+	fill2   filler2;	// ditto, as well as assert 
+				// in extlink_t::extlink_t()
+	// fill4   filler3;	// ditto, as well as assert 
+				// in extlink_t::extlink_t()
+};
+#elif ((PMAP_SIZE_IN_BYTES & 0x7) == 0x7)
+class Pmap_Align : public Pmap {
+public:
+	inline	Pmap_Align	&operator=(const Pmap &from) {
+		*(Pmap *)this = from;	// don't copy the filler
+		return *this;
+	}
+private:
+	fill1	filler;		// keep purify happy
+	// fill2   filler2;	// ditto, as well as assert 
+				// in extlink_t::extlink_t()
+	// fill4   filler3;	// ditto, as well as assert 
 				// in extlink_t::extlink_t()
 };
 #endif

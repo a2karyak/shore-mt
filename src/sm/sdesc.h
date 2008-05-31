@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='SDESC_H'>
 
- $Id: sdesc.h,v 1.47 2007/08/21 19:50:43 nhall Exp $
+ $Id: sdesc.h,v 1.49 2008/05/31 05:03:32 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -54,7 +54,8 @@ struct sinfo_s {
 public:
     typedef smlevel_0::store_t store_t;
 
-    snum_t	store;		// store id
+    snum_t	store;		// store id 
+    // 4 bytes
     u_char	stype;		// store_t
     u_char	ntype;		// ndx_t
     u_char	cc;	 	// concurrency_t on index
@@ -74,28 +75,37 @@ public:
     u_char	eff;		// extent fill factor in %	
 				// unused an maybe will never be
 				// used
+    // 8 bytes
 
-#ifndef SM_ODS_COMPAT_14
     u_char	isf;		// index split factor
 
+    /*
+     * WARNING: For alignment purposes (to prevent uninitialized
+     *          holes for purify to complain about), 
+     *          make sure there are no holes.
+     */
     fill1	_f1;		// keep it 8 byte aligned and leave
     fill2	_f2;            // room for future expansion
+    // 12 bytes
     fill4	_f3;	
-#endif
+    // 16 bytes
+
+    shpid_t	root;		// root page (of main index)
+    // 20 or 24 bytes
 
     /*
      * This is an additional store used by the file facility
      * to store large record pages.  This is only a temporary
      * implementation, so this should disappear in the future.
-     *
-     * WARNING: For alignment purposes (to prevent uninitialized
-     *          holes for purify to complain about), the
-     *          following snum_t must be located after pff,eff.
      */
+
     snum_t	large_store;	// store for large record pages
-    shpid_t	root;		// root page (of main index)
+    // 24 or 28 bytes
     w_base_t::uint4_t	nkc;		// # components in key
-    key_type_s	kc[smlevel_0::max_keycomp];
+    // 28 or 32 bytes
+    key_type_s	kc[smlevel_0::max_keycomp]; // + 20
+
+    // end of data
 
     sinfo_s()	{};
     sinfo_s(snum_t store_, store_t stype_, 
@@ -103,13 +113,14 @@ public:
 	    smlevel_0::ndx_t ntype_, u_char cc_, 
 	    const shpid_t& root_,
 	    w_base_t::uint4_t nkc_, const key_type_s* kc_) 
-    :   store(store_), stype(stype_), ntype(ntype_),
-	cc(cc_), eff(eff_),
-#ifndef SM_ODS_COMPAT_14
+    :   store(store_), 
+    	stype(stype_), 
+	ntype(ntype_),
+	cc(cc_), 
+	eff(eff_),
 	isf(50),
-#endif
-	large_store(0),
 	root(root_),
+	large_store(0),
 	nkc(nkc_)
     {
 	w_assert1(nkc < (sizeof(kc) / sizeof(kc[0])));
@@ -126,9 +137,7 @@ public:
 	cc = other.cc;
 	// pff = other.pff; 
 	eff = other.eff;
-#ifndef SM_ODS_COMPAT_14
 	isf = other.isf;
-#endif
 	root = other.root; 
 	nkc = other.nkc;
 	memcpy(kc, other.kc, sizeof(kc));

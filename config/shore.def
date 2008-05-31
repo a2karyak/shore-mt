@@ -62,3 +62,10 @@
  * statisitics, define this.
  */
 #undef EXPENSIVE_LOCK_STATS
+
+/*
+ *
+ * if you want to use 64-bit page ids (more than 4Gig pages/volume)
+ * you need this: #define LARGE_PID
+ * or configure --enable-largevolumes, which does the same thing
+ */

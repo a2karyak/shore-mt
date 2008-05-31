@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: device.cpp,v 1.23 2003/06/19 22:39:34 bolo Exp $
+ $Id: device.cpp,v 1.24 2008/05/28 01:28:01 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -59,6 +59,7 @@ device_m::~device_m()
 
 w_rc_t device_m::mount(const char* dev_name, const device_hdr_s& dev_hdr, u_int& vol_cnt)
 {
+    DBG( << "device_m::mount " << dev_name);
     device_s* dev = _find(dev_name);
     if (!dev) {
 	devid_t devid(dev_name);

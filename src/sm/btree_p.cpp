@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: btree_p.cpp,v 1.33 2007/05/18 21:43:24 nhall Exp $
+ $Id: btree_p.cpp,v 1.34 2008/05/28 01:28:01 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -301,7 +301,7 @@ btree_p::unlink_and_propagate(
     }
     w_assert3( ! is_fixed());
 #ifdef W_DEBUG
-    W_DO(log_comment("end propagate_split"));
+    W_DO(log_comment("end unlink_and_propagate"));
 #endif /* W_DEBUG */
     return RCOK;
 }

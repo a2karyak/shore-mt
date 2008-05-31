@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='W_DEFINES_H' no-defines='true'>
 
- $Id: w_defines.h,v 1.2 2007/05/18 21:38:24 nhall Exp $
+ $Id: w_defines.h,v 1.3 2008/05/31 05:03:26 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -36,6 +36,14 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 /* shore-config.h does not have duplicate-include protection, but
    this file does, and we don't include shore-config.h anywhere else*/
 #include "shore-config.h"
+
+// OK, shore.def might or might not define SM_PAGESIZE
+// If not, then shore-config.h defines it to 8K
+// shore-config.h can define LARGE_PAGE based on config option --enable-largepages
+// Now we need to force largepages if SM_PAGESIZE is too big
+#if SM_PAGESIZE > 32768
+#define LARGE_PAGE
+#endif
 
 /* Adapt shore to namespaces */
 #if defined(__cplusplus) && !defined(USE_CPP_NAMESPACE_NO)

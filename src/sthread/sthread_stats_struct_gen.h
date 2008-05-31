@@ -2,7 +2,7 @@
 #define STHREAD_STATS_STRUCT_GEN_H
 
 /* DO NOT EDIT --- GENERATED from sthread_stats.dat by stats.pl
-		   on Wed May  7 19:53:24 2008
+		   on Fri May 30 23:57:12 2008
 
 <std-header orig-src='shore' genfile='true'>
 

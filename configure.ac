@@ -2,7 +2,7 @@
 # Process this file with autoconf to produce a configure script.
 
 AC_PREREQ(2.59)
-AC_INIT(Shore-Storage-Manager, 5.0.2, Noone._Sadly-_this_is_unsupported_software.)
+AC_INIT(Shore-Storage-Manager, 5.0.3, Noone._Sadly-_this_is_unsupported_software.)
 AC_CONFIG_HEADERS([config/shore-config.h:config/shore-config-h.in])
 AC_CONFIG_SRCDIR([config/shore.def])
 AC_COPYRIGHT(COPYRIGHT-NOTICE)
@@ -311,7 +311,7 @@ AC_MSG_RESULT([solaris  sparc])
 ],
 [])
 
-AH_VERBATIM([sun],[/*turn off sun and sparc*/
+AH_VERBATIM([sunsparc],[/*turn off sun and sparc*/
 #if defined(sun) && defined(sparc)
 #undef sun
 #undef sparc
@@ -331,7 +331,7 @@ AC_DEFINE(IS_HPUX8,1,[hp unix])
 AC_MSG_RESULT([hpux  hp])
 ],
 [])
-AH_VERBATIM([hpux],[/*turn off hpux and hp9000s800*/
+AH_VERBATIM([hpuxhp9000],[/*turn off hpux and hp9000s800*/
 #if defined(hpux) && defined(hp9000s800)
 #undef hpux
 #undef hp9000s800
@@ -380,7 +380,7 @@ AC_DEFINE(IS_ULTRIX42,1,[ultrix])
 AC_MSG_RESULT([ultrix mips])
 ],
 [])
-AH_VERBATIM([mips],[/*turn off mips and ultrix*/
+AH_VERBATIM([mipsultrix],[/*turn off mips and ultrix*/
 #if defined(mips) && defined(ultrix)
 #undef mips
 #undef ultrix
@@ -416,7 +416,7 @@ AC_DEFINE(IS_IRIX,1,[irix])
 AC_MSG_RESULT([irix mips])
 ],
 [])
-AH_VERBATIM([sgi],[/*turn off sgi */
+AH_VERBATIM([nosgi],[/*turn off sgi */
 #if defined(sgi) 
 #undef sgi
 #endif
@@ -515,7 +515,7 @@ AC_MSG_RESULT([mac osx i386])
 
 ## -------------- IS NT OR UNIX
 
-AH_VERBATIM([IS_UNIX],[/*simply !IS_NT*/
+AH_VERBATIM([isunix],[/*simply !IS_NT*/
 #ifndef IS_NT 
 #define IS_UNIX 1
 #endif
@@ -554,7 +554,7 @@ AC_PREPROC_IFELSE([AC_LANG_PROGRAM(
 # is mandatory
 #
 # -------------------------------------------------------------------------
-AH_VERBATIM([W_USE_COMPAT_STRSTREAM],[/*for in-memory str streams*/
+AH_VERBATIM([usecompatstrstream],[/*for in-memory str streams*/
 #define W_USE_COMPAT_STRSTREAM
 ])
 
@@ -566,8 +566,8 @@ AH_VERBATIM([W_USE_COMPAT_STRSTREAM],[/*for in-memory str streams*/
 #
 # -------------------------------------------------------------------------
 
-AH_TEMPLATE(GCC_BROKEN_WARNINGS,	[/*is gcc 2.96*/])
-AH_VERBATIM([GCC_BROKEN_WARNINGS],[/*if is gcc2.96*/
+AH_TEMPLATE(GCC_BROKEN_WARNINGS,	[is gcc 2.96])
+AH_VERBATIM([gccbrokenwarnings],[/*if is gcc 2.96*/
 #if defined(__GNUC__) && __GNUC__==2
 # if defined(__GNUC_MINOR__) && __GNUC_MINOR__==96
 # define GCC_BROKEN_WARNINGS
@@ -655,8 +655,8 @@ AC_PREPROC_IFELSE([AC_LANG_PROGRAM(
 [ AM_CONDITIONAL([GCC_VER_3_WARNINGS],[test -n "1"]) AC_MSG_RESULT([yes])],
 [ AM_CONDITIONAL([GCC_VER_3_WARNINGS],[test -z "1"]) AC_MSG_RESULT([no])]
 )
-AH_TEMPLATE(GCC_VER_3_WARNINGS,	[/*is gcc 3.x, x < 4*/])
-AH_VERBATIM([GCC_VER_3_WARNINGS],[/*if is gcc3.x, x < 4*/
+AH_TEMPLATE(GCC_VER_3_WARNINGS,	[is gcc 3.x, x < 4])
+AH_VERBATIM([gccver3warnings],[/*if is gcc3.x, x < 4*/
 #if defined(__GNUC__) && (__GNUC__==3) 
 # define GCC_VER_3_WARNINGS
 #endif
@@ -724,7 +724,7 @@ AC_LANG_POP(C++)
 # User can override in shore.def
 #
 # -------------------------------------------------------------------------
-AH_VERBATIM([SM_PAGESIZE],[/*1024 to 32768 inclusive*/
+AH_VERBATIM([smpagesize],[/*1024 to 32768 inclusive*/
 #ifndef SM_PAGESIZE
 #define SM_PAGESIZE 8192
 #endif
@@ -756,7 +756,7 @@ AC_ARG_ENABLE([debug],
 esac], [debug=false])
 AM_CONDITIONAL([DEBUG], [test x$debug = xtrue])
 
-AH_VERBATIM([EXPENSIVE_STATS],[/*for thread statistics*/
+AH_VERBATIM([expensivestats],[/*for thread statistics*/
 #define EXPENSIVE_STATS
 ])
 
@@ -768,7 +768,7 @@ AH_VERBATIM([EXPENSIVE_STATS],[/*for thread statistics*/
 # and the user can override this (set it to 0, for example) in shore.def
 #
 # -------------------------------------------------------------------------
-AH_VERBATIM([STHREAD_STACK_CHECK],[/*0, 1 or 2*/
+AH_VERBATIM([sthreadstackcheck],[/*0, 1 or 2*/
 #ifndef STHREAD_STACK_CHECK
 #ifdef W_DEBUG
 #define STHREAD_STACK_CHECK 2
@@ -801,29 +801,22 @@ AM_CONDITIONAL([DEBUGGERSYMBOLS], [test x$dbgsymbols = xtrue])
 # handle --enable-lgfileaware  --disable-lgfileaware
 # Needed at config time to tell make what macros to define
 #   -DLARGEFILE_AWARE -D_FILE_OFFSET_BITS=64 
-#
-# TODO: put these into shore-config.h and not on the compile cmd line
-# I spent a day trying to make this work, but configure doesn't
-# put the ON/OFF macro into the shore-config.h file. config.log gets
-# the definitino right in confdefs.h, but somehow it gets eliminated
-# during all the screwing around with sed.
-# The AH_VERBATIM and the AC_ARG_ENABLE work, but the AC_DEFINE_UNQUOTED
-# does not.
+#  These are defined on the gcc command line so they are
+# defined from the beginning.
 #
 # -------------------------------------------------------------------------
 AC_ARG_ENABLE([lgfileaware],
 [  --enable-lgfileaware	default:yes	Compile to use 64 bit file offsets],
  [case "${enableval}" in
- yes) lgfileaware=ON ;;
- no)  lgfileaware=OFF ;;
+ yes) lgfileaware=1 ;;
+ no)  lgfileaware=0 ;;
  *) AC_MSG_ERROR([bad value ${enableval} for --enable-lgfileaware]) ;;
 esac]
  , 
-[lgfileaware=ON])
-AM_CONDITIONAL([W_LARGEFILE], [test x$lgfileaware = xON])
-# AC_DEFINE_UNQUOTED(W_LARGEFILE, $lgfileaware,[use large files?])
-
-AH_VERBATIM([W_LARGEFILE],[#ifdef W_LARGEFILE
+[lgfileaware=1])
+#  AM_CONDITIONAL([W_LARGEFILE], [test x$lgfileaware = x1])
+AC_DEFINE_UNQUOTED(W_LARGEFILE, $lgfileaware,[use large files?])
+AH_VERBATIM([largefileaware],[#ifdef W_LARGEFILE
 #define _FILE_OFFSET_BITS 64
 #define LARGEFILE_AWARE
 #endif
@@ -852,7 +845,7 @@ esac]
 # AM_CONDITIONAL([TRACE], [test x$trace = x1])
 
 AC_DEFINE_UNQUOTED(TRACECODE, $trace,[include tracing code?])
-AH_VERBATIM([W_TRACE],[#if TRACECODE==1
+AH_VERBATIM([trace],[#if TRACECODE==1
 #define W_TRACE
 #endif
 ])
@@ -860,27 +853,64 @@ AH_VERBATIM([W_TRACE],[#if TRACECODE==1
 
 # -------------------------------------------------------------------------
 #
+# removed:
 # handle --enable-largelogpart  --disable-largelogpart
-# Needed at config time to tell make what macros to define
+# Needed at config time to tell make what macros to define:
 #   -DSM_DISKADDR_LARGE
+#
+# Now this is the default and the only choice. Soon all references to 
+# this macro will be removed.
+#
+# -------------------------------------------------------------------------
+AH_VERBATIM([diskaddrlarge],[
+#define SM_DISKADDR_LARGE 1
+])
+
+# -------------------------------------------------------------------------
+#
+# handle --enable-largepages  --disable-largepages
+# Needed at config time to tell make what macros to define
+#   -DLARGE_PAGE
 #
 #
 # -------------------------------------------------------------------------
-AC_ARG_ENABLE([largelogpart],
-[  --enable-largelogpart	default:yes	Use 64-bit disk addresses in the
- 					on-disk structures; allows >2GB 
-					log partitions],
+AC_ARG_ENABLE([largepages],
+[  --enable-largepages	default:no	Enable SM_PAGESIZE larger than 32K],
 [case "${enableval}" in
- yes) lgdisk=1 ;;
- no)  lgdisk=0 ;;
- *) AC_MSG_ERROR([bad value ${enableval} for --enable-largelogpart]) ;;
-esac], [lgdisk=1])
+ yes) lgpage=1 ;;
+ no)  lgpage=0 ;;
+ *) AC_MSG_ERROR([bad value ${enableval} for --enable-largepages]) ;;
+esac], [lgpage=0])
 # If we want to do something different in the makefile again,
 # re-install this conditional:
-# AM_CONDITIONAL([LARGELOGPART], [test x$lgdisk = x1])
-AC_DEFINE_UNQUOTED(LARGELOGPART, $lgdisk,[use large log partitions?])
-AH_VERBATIM([SM_DISKADDR_LARGE],[#if LARGELOGPART==1
-#define SM_DISKADDR_LARGE
+# AM_CONDITIONAL([LARGE_PAGE], [test x$lgpage = x1])
+AC_DEFINE_UNQUOTED(LARGEPAGES, $lgpage,[enable use of pages larger than 32K?])
+AH_VERBATIM([largepageenable],[#if LARGEPAGES==1
+#define LARGE_PAGE
+#endif
+])
+
+# -------------------------------------------------------------------------
+#
+# handle --enable-largepids  --disable-largepids
+# Needed at config time to tell make what macros to define
+#   -DLARGE_PID 
+#
+#
+# -------------------------------------------------------------------------
+AC_ARG_ENABLE([largepids],
+[  --enable-largepids	default:no	Use 64-bit page numbers],
+[case "${enableval}" in
+ yes) lgpid=1 ;;
+ no)  lgpid=0 ;;
+ *) AC_MSG_ERROR([bad value ${enableval} for --enable-largepids]) ;;
+esac], [lgpid=0])
+# If we want to do something different in the makefile again,
+# re-install this conditional:
+# AM_CONDITIONAL([LARGEVOLUMES], [test x$lgpid = x1])
+AC_DEFINE_UNQUOTED(LARGEVOLUMES, $lgpid,[use large page ids?])
+AH_VERBATIM([largepidenable],[#if LARGEVOLUMES==1
+#define LARGE_PID
 #endif
 ])
 

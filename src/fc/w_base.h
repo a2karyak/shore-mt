@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='W_BASE_H'>
 
- $Id: w_base.h,v 1.77 2007/05/18 21:38:24 nhall Exp $
+ $Id: w_base.h,v 1.78 2008/05/31 05:03:26 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -236,7 +236,7 @@ public:
        max natural) can exist in the system.   At least this allows
        switching between alignments with relative ease. */
 
-#if defined(SM_RECORD_ALIGN_8) || defined(ARCH_LP64)
+#if defined(SM_RECORD_ALIGN_8) || defined(ARCH_LP64) || defined(LARGE_PID) || defined(LARGE_PAGE)
 #define ALIGNON 0x8
 #else
 #define ALIGNON 0x4

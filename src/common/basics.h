@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='BASICS_H'>
 
- $Id: basics.h,v 1.68 2006/01/29 22:27:28 bolo Exp $
+ $Id: basics.h,v 1.70 2008/05/31 05:02:32 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -77,10 +77,15 @@ typedef uint4_t	smsize_t;
 /* For types of store, volumes, see stid_t.h and vid_t.h */
 
 /* Type of a page# in SM (sans store,volume info) */
-typedef uint4_t	shpid_t; 
+#ifdef LARGE_PID
+typedef w_base_t::uint8_t	shpid_t; 
+#else
+typedef w_base_t::uint4_t	shpid_t; 
+#endif
+
 
 /* Type of a record# on a page  in SM (sans page,store,volume info) */
-typedef int2_t slotid_t;  
+typedef w_base_t::int2_t slotid_t;  
 
 /* XXX duplicates w_base types. */
 const int2_t	max_int2 = 0x7fff; 		/*  (1 << 15) - 1; 	*/

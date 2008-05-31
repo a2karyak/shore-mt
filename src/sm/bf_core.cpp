@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: bf_core.cpp,v 1.65 2008/05/07 23:27:00 nhall Exp $
+ $Id: bf_core.cpp,v 1.66 2008/05/31 05:03:31 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -329,9 +329,6 @@ bf_core_m::grab(
 		}
 	    }
 	    if (p)  {
-#ifdef USE_LID
-		if (! pid.is_remote()) 
-#endif
 		{
 		    /*
 		     *  in-transit. Wait until it exits transit and retry
@@ -339,11 +336,6 @@ bf_core_m::grab(
 		    W_IGNORE(p->exit_transit.wait( _mutex ) );
 		    goto again;
 		} 
-#ifdef USE_LID
-		else {
-		    W_FATAL(eINTERNAL);
-		}
-#endif
 	    }
 	    /*
 	     *  not-in-transit ...
@@ -486,9 +478,6 @@ bf_core_m::find(
 		}
 	    }
 	    if (p)  {
-#ifdef USE_LID
-		if (! pid.is_remote()) 
-#endif
 		{
                     /*
                      *  in-transit. Wait until it exits transit and retry
@@ -496,11 +485,6 @@ bf_core_m::find(
                     W_IGNORE(p->exit_transit.wait(_mutex));
                     goto again;
                 } 
-#ifdef USE_LID
-		else {
-		    W_FATAL(eINTERNAL);
-                }
-#endif
 	    }
 	    
 	    /* give up */

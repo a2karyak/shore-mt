@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='SM_IO_H'>
 
- $Id: sm_io.h,v 1.20 2007/05/18 21:43:28 nhall Exp $
+ $Id: sm_io.h,v 1.21 2008/05/28 01:28:02 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -260,7 +260,7 @@ public:
 	vid_t 			    vid, 
 	smksize_t&		    quota_KB, 
 	smksize_t&		    quota_used_KB,
-	w_base_t::uint4_t&	    exts_used
+	w_base_t::base_stat_t&	    exts_used
 	);
     
     static rc_t			alloc_pages(
@@ -546,7 +546,7 @@ private:
 	vid_t 			    vid, 
 	smksize_t&		    quota_KB, 
 	smksize_t&		    quota_used_KB,
-	w_base_t::uint4_t&	    exts_used
+	w_base_t::base_stat_t&	    exts_used
 	);
     
     static rc_t			_check_disk(vid_t vid);
@@ -767,7 +767,7 @@ io_m::get_volume_quota(
 	vid_t 			    vid, 
 	smksize_t&		    quota_KB, 
 	smksize_t&		    quota_used_KB,
-	w_base_t::uint4_t&    	    ext_used
+	base_stat_t&    	    ext_used
 	)
 {
     enter();

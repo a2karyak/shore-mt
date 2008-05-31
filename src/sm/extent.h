@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='EXTENT_H'>
 
- $Id: extent.h,v 1.10 2005/09/10 06:21:49 bolo Exp $
+ $Id: extent.h,v 1.12 2008/05/28 01:35:27 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -41,12 +41,21 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 
 class extlink_t {
     // Grot: this became 4-byte aligned when extnum_t grew to 4 bytes
-    Pmap_Align4			pmap; 	   // this must be first
+    // and it became 8-byte aligned when extnum_t grew to 8 bytes
+    Pmap_Align			pmap; 	   // this must be first
 public:
-    extnum_t			next; 	   // 4 bytes
-    extnum_t			prev; 	   // 4 bytes
+    extnum_t			next; 	   // 4/8 bytes
+    extnum_t			prev; 	   // 4/8 bytes
     snum_t 			owner;	   // 4 bytes
-    uint4_t			pspacemap; // 4 bytes, unlogged
+    uint4_t			pspacemap; // 4 bytes, unlogged !!!
+
+    //
+    // NOTE: watch the order of attributes so that we don't log the pspacemap!!!
+    //
+    int                         logged_size() const { return sizeof(pmap)+
+							sizeof(next) +
+							sizeof(prev) +
+							sizeof(owner) ; }
 
     NORET			extlink_t();
     NORET			extlink_t(const extlink_t& e);
@@ -219,8 +228,10 @@ private:
 inline bool
 extlink_p::on_same_page(extnum_t e1, extnum_t e2)
 {
-    shpid_t p1 = e1 / (extlink_p::max);
-    shpid_t p2 = e2 / (extlink_p::max);
+    shpid_t p1 = e1;
+    p1 /= (extlink_p::max);
+    shpid_t p2 = e2;
+    e2 /= (extlink_p::max);
     return (p1 == p2);
 }
 
@@ -244,11 +255,10 @@ extlink_p::put(slotid_t idx, const extlink_t& e)
     DBG(<<"extlink_p::put(" <<  idx << " owner=" <<
 	e.owner << ", " << e.next << ")");
 #ifndef NO_VEC_TMP_HACK
-    const vec_t	extent_vec_tmp(&e, sizeof(e));
+    const vec_t	extent_vec_tmp(&e, e.logged_size());
     W_COERCE(overwrite(0, idx * sizeof(extlink_t), extent_vec_tmp));
 #else
-    W_COERCE(overwrite(0, idx * sizeof(extlink_t),
-		 vec_t(&e, sizeof(e))));
+    W_COERCE(overwrite(0, idx * sizeof(extlink_t), vec_t(&e, e.logged_size())));
 #endif
 }
 

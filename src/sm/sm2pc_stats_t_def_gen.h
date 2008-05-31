@@ -2,7 +2,7 @@
 #define SM2PC_STATS_T_DEF_GEN_H
 
 /* DO NOT EDIT --- GENERATED from sm2pc_stats.dat by stats.pl
-		   on Wed May  7 19:54:01 2008
+		   on Fri May 30 23:57:48 2008
 
 <std-header orig-src='shore' genfile='true'>
 

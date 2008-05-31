@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: sm_sizeof.cpp,v 1.11 2007/08/21 19:46:14 nhall Exp $
+ $Id: sm_sizeof.cpp,v 1.12 2008/05/31 04:58:00 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -59,18 +59,10 @@ struct smsh_type_info_t {
 
 static const smsh_type_info_t	smsh_type_info[] = {
 	TYPE_INFO(rid_t),
-#ifdef USE_LID
-	TYPE_INFO(lrid_t),
-/* end USE_LID*/
-#endif
 	TYPE_INFO(stid_t),
 	TYPE_INFO(sdesc_t),
 	TYPE_INFO(vec_t),
 	TYPE_INFO(cvec_t),
-#ifdef USE_LID
-	TYPE_INFO(serial_t),
-/* end USE_LID*/
-#endif
 	TYPE_INFO(vid_t),
 	TYPE_INFO(lvid_t),
 	TYPE_INFO(smthread_t),

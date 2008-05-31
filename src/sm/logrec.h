@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='LOGREC_H'>
 
- $Id: logrec.h,v 1.63 2007/05/18 21:43:26 nhall Exp $
+ $Id: logrec.h,v 1.65 2008/05/31 05:03:31 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -69,33 +69,36 @@ public:
     void 			redo(page_p*);
     void 			undo(page_p*);
 
+#ifdef LARGE_PAGE
+    typedef smsize_t logrec_sz_t;
+#else
+    typedef uint2_t  logrec_sz_t;
+#endif
     enum {
 	max_sz = 3 * sizeof(page_s),
 	hdr_sz = (
-#ifdef SM_ODS_COMPAT_13
-		sizeof(uint2_t) +	// _len
-		sizeof(u_char) +	// _type
-		sizeof(u_char) +	// _cat
-		sizeof(uint2_t) +	// _page_tag
-		sizeof(fill2) +		// _filler
-		sizeof(lpid_t) +	// _pid
-		sizeof(tid_t) +		// _tid
-		sizeof(lsn_t) +		// _prev
-		// sizeof(lsn_t)	// _undo_nxt -- not used
-#else
-		sizeof(uint2_t) +   	// _len
+		sizeof(logrec_sz_t) +  	// _len
 		sizeof(u_char) +  	// _type
 		sizeof(u_char) +  	//  _cat
+#ifdef LARGE_PAGE
+		sizeof(fill2) +  	//  _fill0
+#endif
+		
 		sizeof(tid_t) + 	// _tid
+#if !defined(LARGE_PAGE) && defined(LARGE_PID)
+		sizeof(fill4) +  	//  _fill1
+#endif
 		// sizeof(lpid_t) + 	// _pid replaced by next 3:
 		sizeof(shpid_t) +	// _shpid
+#ifndef LARGE_PID
+		sizeof(fill4) +  	//  _fill2
+#endif
 		sizeof(vid_t) +		// _vid
 		sizeof(uint2_t) + 	// _page_tag
 		sizeof(snum_t) +	// _snum
 		sizeof(lsn_t) + 	// _prev // ctns possibly 4 extra
 					// bytes
 		// sizeof(lsn_t)	// _undo_nxt -- not used
-#endif
 		0
 		) 
 	};
@@ -104,11 +107,7 @@ public:
 	};
     const tid_t& 		tid() const;
     const vid_t& 		vid() const;
-#ifdef SM_ODS_COMPAT_13
-    const lpid_t&	        shpid() const;	// fake everyone out
-#else
     const shpid_t&	        shpid() const;
-#endif
     // put construct_pid() here just to make sure we can
     // easily locate all non-private/non-protected uses of pid()
     lpid_t 		        construct_pid() const;
@@ -157,44 +156,45 @@ protected:
 	// old: t_cpsn = 020 | t_redo,
 	t_cpsn = 020
     };
-#ifdef SM_ODS_COMPAT_13
-    uint2_t			_len;  // length of the log record
+
+    logrec_sz_t			_len;  // length of the log record 2/4 bytes
+    /* 2/4 */
     u_char			_type; // kind_t (included from logtype_gen.h)
+    /* 3/5 */
     u_char			_cat;  // category_t
-    uint2_t			_page_tag;
-    fill2			_filler;
-    /* 8 */
-    lpid_t			_pid;
-    /* +12 = 20 */
-    tid_t			_tid;
-    /* 20 + 8 = 28 NOT 8-byte aligned! */
-    // TODO : Call bolo to find out what he wants to do about this 
-    lsn_t			_prev;
-#else
+    /* 4/6 */
+#ifdef LARGE_PAGE
+    fill2			_fill0; 
+    /* 4/8 */
+#endif
+    /* 4/8 */
 
-    uint2_t			_len;  // length of the log record
-    u_char			_type; // kind_t (included from logtype_gen.h)
-    u_char			_cat;  // category_t
-    /* 4 */
+    tid_t			_tid;      // (xct)tid of this xct - 16 bytes
+    /* 20/24 */
 
-    tid_t			_tid;      // (xct)tid of this xct
-    /* 4+8=12 */
-
+#if !defined(LARGE_PAGE) && defined(LARGE_PID)
+    fill4			_fill1; 
+#endif
+    // 8-byte aligned
 
     // Was _pid; broke down to save 2 bytes:
     // May be used ONLY in set_pid() and pid()
     // lpid_t			_pid;  // page on which action is performed
-    shpid_t			_shpid; // 4 bytes
-    /* 12 + 4=16 */
-    vid_t			_vid;   // 2 bytes
-    uint2_t                     _page_tag; // page_p::tag_t 2 bytes
-    /* 16 + 4= 20 */
-    snum_t			_snum; // 4 bytes
-    /* 20 + 4= 24 */
-    lsn_t			_prev;     // (xct)previous logrec of this xct
-    /* With SM_DISKADDR_LARGE, size is 16, else size is 8 */
-    /* 24+16/8 = 40/32 */
+    shpid_t			_shpid; // 4 bytes or 8 bytes if LARGE_PID
+    /* 4/8 */
+#ifndef LARGE_PID
+    fill4			_fill2; // align to 8 bytes
 #endif
+    /*8/8*/
+    vid_t			_vid;   // 2 bytes
+    /* 2 */
+    uint2_t                     _page_tag; // page_p::tag_t 2 bytes
+    /* 4 */
+    snum_t			_snum; // 4 bytes
+    /* 8 */
+    lsn_t			_prev;     // (xct)previous logrec of this xct
+    /* With SM_DISKADDR_LARGE, size is 16 */
+    /* 24 */
 
     
     // lsn_t			_undo_nxt; // (xct) used in CLR only
@@ -230,8 +230,8 @@ public:
     extnum_t prev;  // order info
     extnum_t next;  // order info
 
-    extnum_t ext; // 4 bytes
-    Pmap_Align4	pmap;	// 4 bytes
+    extnum_t ext; // 4/8 bytes
+    Pmap_Align	pmap;
     NORET ext_log_info_t() : 
 	prev(0), 
 	next(0),
@@ -431,60 +431,37 @@ logrec_t::tid() const
     return _tid;
 }
 
-#ifdef SM_ODS_COMPAT_13
-inline const lpid_t& logrec_t::shpid() const
-{
-	return _pid;
-}
-#else
 inline const shpid_t&
 logrec_t::shpid() const
 {
     return _shpid;
 }
-#endif
 
 inline const vid_t&
 logrec_t::vid() const
 {
-#ifdef SM_ODS_COMPAT_13
-    return _pid._stid.vol;
-#else
     return _vid;
-#endif
 }
 
 inline lpid_t
 logrec_t::pid() const
 {
-#ifdef SM_ODS_COMPAT_13
-    return _pid;
-#else
     return lpid_t(_vid, _snum, _shpid);
-#endif
 }
 
 inline lpid_t
 logrec_t::construct_pid() const
 {
-#ifdef SM_ODS_COMPAT_13
-    return _pid;
-#else
 // public version of pid(), renamed for grepping 
     return lpid_t(_vid, _snum, _shpid);
-#endif
 }
 
 inline void
 logrec_t::set_pid(const lpid_t& p)
 {
-#ifdef SM_ODS_COMPAT_13
-    _pid = p;
-#else
     _shpid = p.page;
     _vid = p.vol();
     _snum = p.store();
-#endif
 }
 
 inline bool 
@@ -492,12 +469,8 @@ logrec_t::null_pid() const
 {
     // see lpid_t::is_null() for necessary and 
     // sufficient conditions
-#ifdef SM_ODS_COMPAT_13
-    bool result = _pid == lpid_t::null;
-#else
     bool result = (_shpid == 0);
     w_assert3(result == (pid().is_null())); 
-#endif
     return result;
 }
 

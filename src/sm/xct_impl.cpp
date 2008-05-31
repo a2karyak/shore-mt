@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: xct_impl.cpp,v 1.56 2007/05/18 21:43:30 nhall Exp $
+ $Id: xct_impl.cpp,v 1.57 2008/05/28 01:28:02 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -705,6 +705,9 @@ xct_impl::_commit(uint4_t flags)
     if(lock_info() && lock_info()->in_quark_scope()) {
 	return RC(eINQUARK);
     }
+#ifdef W_DEBUG
+    W_DO(log_comment("commit actions"));
+#endif /* W_DEBUG */
 
     W_DO( ConvertAllLoadStoresToRegularStores() );
 
@@ -742,14 +745,21 @@ xct_impl::_commit(uint4_t flags)
 	// don't allow a chkpt to occur between changing the state and writing
 	// the log record, since otherwise it might try to change the state
 	// to the current state (which causes an assertion failure).
+#ifdef W_DEBUG
+	W_DO(log_comment("start xct_freeing_space"));
+#endif /* W_DEBUG */
 
 	chkpt_serial_m::chkpt_mutex_acquire();
 	change_state(xct_freeing_space);
 	rc_t rc = log_xct_freeing_space();
 	SSMTEST("commit.3");
 	chkpt_serial_m::chkpt_mutex_release();
-
 	W_DO(rc);
+
+#ifdef W_DEBUG
+	W_DO(log_comment("end xct_freeing_space"));
+#endif /* W_DEBUG */
+
 
 	if (!(flags & xct_t::t_lazy) /* && !_read_only */)  {
 	    if (log) {
@@ -867,13 +877,22 @@ xct_impl::abort()
 
     change_state(xct_aborting);
 
+#ifdef W_DEBUG
+    W_DO(log_comment("abort actions"));
+#endif /* W_DEBUG */
     /*
      * clear the list of load stores as they are going to be destroyed
      */
     ClearAllLoadStores();
+#ifdef W_DEBUG
+    W_DO(log_comment("abort actions 1"));
+#endif /* W_DEBUG */
 
     W_DO( rollback(lsn_t::null) );
 
+#ifdef W_DEBUG
+    W_DO(log_comment("abort actions 2"));
+#endif /* W_DEBUG */
     if (_last_lsn) {
 	/*
 	 *  If xct generated some log, write a Xct End Record. 
@@ -884,6 +903,9 @@ xct_impl::abort()
 	// don't allow a chkpt to occur between changing the state and writing
 	// the log record, since otherwise it might try to change the state
 	// to the current state (which causes an assertion failure).
+#ifdef W_DEBUG
+    W_DO(log_comment("abort actions 3"));
+#endif /* W_DEBUG */
 
 	rc_t	rc;
 	chkpt_serial_m::chkpt_mutex_acquire();
@@ -892,6 +914,9 @@ xct_impl::abort()
 	chkpt_serial_m::chkpt_mutex_release();
 
 	W_DO(rc);
+#ifdef W_DEBUG
+    W_DO(log_comment("abort actions 4"));
+#endif /* W_DEBUG */
 
 	_flush_logbuf(true);
 
@@ -900,11 +925,17 @@ xct_impl::abort()
 	 *  to be destroyed by this xct.
 	 */
 	FreeAllStoresToFree();
+#ifdef W_DEBUG
+    W_DO(log_comment("abort actions 5"));
+#endif /* W_DEBUG */
 
 	/*
 	 *  Free all locks 
 	 */
 	W_COERCE( lm->unlock_duration(t_long, true) );
+#ifdef W_DEBUG
+    W_DO(log_comment("abort actions 6"));
+#endif /* W_DEBUG */
 
 	// don't allow a chkpt to occur between changing the state and writing
 	// the log record, since otherwise it might try to change the state
@@ -1726,11 +1757,17 @@ xct_impl::ClearAllStoresToFree()
 void
 xct_impl::FreeAllStoresToFree()
 {
+#ifdef W_DEBUG
+    W_COERCE(log_comment("start FreeAllStoresToFree"));
+#endif /* W_DEBUG */
     stid_list_elem_t*	s = 0;
     while ((s = _storesToFree.pop()))  {
 	W_COERCE( io->free_store_after_xct(s->stid) );
 	delete s;
     }
+#ifdef W_DEBUG
+    W_COERCE(log_comment("end FreeAllStoresToFree"));
+#endif /* W_DEBUG */
 }
 
 /*

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: shell2.cpp,v 1.59 2007/08/21 19:46:14 nhall Exp $
+ $Id: shell2.cpp,v 1.60 2008/05/31 04:58:00 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -390,10 +390,6 @@ static int
 _t_test_typed_btree(
 	Tcl_Interp* ip,
 	int vid,
-#ifdef USE_LID
-	lstid_t &lstid,
-/* end USE_LID*/
-#endif
 	int n, 
 	const char *_keytype,
 	const char *ccstring
@@ -411,20 +407,12 @@ _t_test_typed_btree(
     w_rc_t rc;
     FUNC(_t_test_typed_btree);
     DBG(<<"test typed btree vid= " << vid
-#ifdef USE_LID
-	<< " lstid=" << lstid 
-/* end USE_LID*/
-#endif
 	<< " n=" << n
 	<< " _keytype=" << _keytype
 	<< " keytype=" << keytype
 	);
     char *key_buffer =0;
     {
-#ifdef USE_LID
-	bool logical = use_logical_id(ip);
-/* end USE_LID*/
-#endif
 	int duplicates = 0;
 	bool sort_is_stable = true;
 
@@ -1055,14 +1043,6 @@ _t_test_typed_btree(
 	/*
 	 * Create the index -- unique if no duplicates
 	 */
-#ifdef USE_LID
-	if (logical)  {
-	    DO( sm->create_index(lstid.lvid, 
-			(duplicates==0)?sm->t_uni_btree:sm->t_btree, 
-			 ss_m::t_regular, keytype, build_cc, 0, lstid.serial) );
-	} else 
-/* end USE_LID*/
-#endif
 	{
 	    DO( sm->create_index(vid, 
 			(duplicates==0)?sm->t_uni_btree:sm->t_btree, 
@@ -1191,12 +1171,6 @@ _t_test_typed_btree(
 		    << endl;
 	    }
 	    w_assert3(key.size() > 0);
-#ifdef USE_LID
-	    if(logical) {
-		rc =  sm->create_assoc( lstid.lvid, lstid.serial, key, el);
-	    } else 
-/* end USE_LID*/
-#endif
 	    {
 		rc = sm->create_assoc( stid, key, el);
 	    }
@@ -1820,14 +1794,6 @@ _t_test_typed_btree(
 
 		    char scan_space[sizeof(scan_index_i)];
 		    scan_index_i* scan = 0;
-#ifdef USE_LID
-		    if (logical)  {
-			scan = new (scan_space) scan_index_i(lstid.lvid, lstid.serial, 
-					  op1, first_vec, 
-					  op2, last_vec, false, cc);
-		    } else 
-/* end USE_LID*/
-#endif
 		    {
 			DBG(<<"stid=" << stid);
 			scan = new (scan_space) scan_index_i(stid,
@@ -2236,12 +2202,6 @@ _t_test_typed_btree(
 	    }
 		// DO( sm->print_index(stid) );
 
-#ifdef USE_LID
-	    if (logical)  {
-		DO_GOTO( sm->destroy_index(lstid.lvid, lstid.serial) );
-	    } else 
-/* end USE_LID*/
-#endif
 	    {
 		DBG(<<"destroying store " << stid);
 		DO_GOTO( sm->destroy_index(stid) );
@@ -2289,22 +2249,11 @@ t_test_int_btree(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 	return TCL_ERROR;
     const int n = atoi(av[2]);
     int vid = 0;
-#ifdef USE_LID
-    lstid_t lstid;
-    if(use_logical_id(ip)) {
-	w_istrstream anon(av[1]); anon >> lstid.lvid;
-    } else 
-/* end USE_LID*/
-#endif
     {
 	vid = atoi(av[1]);
     }
     int e;
     e= _t_test_typed_btree(ip, vid, 
-#ifdef USE_LID
-	    lstid, 
-/* end USE_LID*/
-#endif
 	    n, "i4", 0);
     // if( e != TCL_OK) { return e; }
 
@@ -2324,21 +2273,10 @@ t_test_typed_btree(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 	return TCL_ERROR;
     const int n = atoi(av[2]);
     int vid = 0;
-#ifdef USE_LID
-    lstid_t lstid;
-    if(use_logical_id(ip)) {
-	w_istrstream anon(av[1]); anon >> lstid.lvid;
-    } else 
-/* end USE_LID*/
-#endif
     {
 	vid = atoi(av[1]);
     }
     return _t_test_typed_btree(ip, vid, 
-#ifdef USE_LID
-	    	lstid, 
-/* end USE_LID*/
-#endif
 		n, av[3], av[4]);
 }
 
@@ -2439,20 +2377,6 @@ t_create_typed_hdr_body_rec(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 	break;
     }
     
-#ifdef USE_LID
-    if (use_logical_id(ip)) {
-	lstid_t  stid;
-	lrid_t   rid;
-
-	w_istrstream anon(av[1]); anon >> stid;
-	DO( sm->create_rec(stid.lvid, stid.serial, hdr, objectsize(av[3]),
-			   data, rid.serial) );
-	rid.lvid = stid.lvid;
-	w_reset_strstream(tclout);
-	tclout << rid << ends;
-    } else 
-/* end USE_LID*/
-#endif
     {
 	stid_t  stid;
 	rid_t   rid;
@@ -2532,22 +2456,6 @@ t_create_typed_hdr_rec(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 	break;
     }
 
-#ifdef USE_LID
-    if (use_logical_id(ip)) {
-	lstid_t  stid;
-	lrid_t   rid;
-
-	w_istrstream anon(av[fid_arg]); 
-			anon >> stid;
-	DO( sm->create_rec(stid.lvid, stid.serial, hdr, 
-			objectsize(av[len_hint_arg]),
-		        data, rid.serial) );
-	rid.lvid = stid.lvid;
-	w_reset_strstream(tclout);
-	tclout << rid << ends;
-    } else 
-/* end USE_LID*/
-#endif
     {
 	stid_t  stid;
 	rid_t   rid;
@@ -2573,14 +2481,6 @@ t_get_store_info(Tcl_Interp* ip, int ac, TCL_AV char* av[])
     // explicitly conert it here so we can print the result
 
     sm_store_info_t info(100);
-#ifdef USE_LID
-    if (use_logical_id(ip)) {
-	lstid_t  fid;
-	w_istrstream anon(stidstring); anon >> fid;
-	DO(sm->get_store_info(fid.lvid, fid.serial, info));
-    } else 
-/* end USE_LID*/
-#endif
     {
 	stid_t  fid;
 	w_istrstream anon(stidstring); anon >> fid;
@@ -2595,10 +2495,6 @@ t_get_store_info(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 	<< info.eff << " "
 	<< info.large_store << " "
 	<< info.root << " "
-#ifdef USE_LID
-	<< info.logical_id << " "
-/* end USE_LID*/
-#endif
 	<< info.nkc << " "
 	<< info.keydescr << ends;
     Tcl_AppendResult(ip, tclout.c_str(), 0);
@@ -2608,23 +2504,11 @@ t_get_store_info(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 
 typed_btree_test 
 get_key_type( Tcl_Interp *
-#ifdef USE_LID
-	ip
-/* end USE_LID*/
-#endif
 	, const char *stidstring )
 {
     typed_btree_test tstored;
     w_rc_t rc;
     sm_store_info_t info(100);
-#ifdef USE_LID
-    if (use_logical_id(ip)) {
-	lstid_t  fid;
-	w_istrstream anon(stidstring); anon >> fid;
-	rc = sm->get_store_info(fid.lvid, fid.serial, info);
-    } else 
-/* end USE_LID*/
-#endif
     {
 	stid_t  fid;
 	w_istrstream anon(stidstring); anon >> fid;
@@ -2673,14 +2557,6 @@ t_scan_sorted_recs(Tcl_Interp* ip, int ac, TCL_AV char* av[])
     typed_btree_test th = cvt2type(av[2]);
     typed_btree_test tb = cvt2type(av[3]);
 
-#ifdef USE_LID
-    if (use_logical_id(ip)) {
-	lstid_t  fid;
-	w_istrstream anon(av[1]); anon >> fid;
-	scan = new scan_file_i(fid.lvid, fid.serial, ss_m::t_cc_file);
-    } else 
-/* end USE_LID*/
-#endif
     {
 	stid_t  fid;
 	w_istrstream anon(av[1]); anon >> fid;
@@ -3038,23 +2914,6 @@ t_sort_file(Tcl_Interp* ip, int ac, TCL_AV char* av[])
        estimation.   However, this is here. */
     info.est_reclen = MAX(info.len, ALIGNON);
 
-#ifdef USE_LID
-    if (use_logical_id(ip)) {
-	lstid_t in_fid;
-	w_istrstream anon(av[fid_arg]); anon >> in_fid;
-	lstid_t out_fid;
-	w_istrstream anon2(av[vid_arg]); 
-		anon2 >> out_fid.lvid;
-
-	DO( sm->sort_file(in_fid.lvid, in_fid.serial, 
-		    out_fid.lvid, out_fid.serial, property, info, 
-		    atoi(av[runsize_arg]), true, unique, destruct,
-		    newsort) );
-	w_reset_strstream(tclout);
-	tclout << out_fid << ends;
-    } else 
-/* end USE_LID*/
-#endif
     {
 	stid_t in_fid;
 	w_istrstream anon(av[fid_arg]); 
@@ -3064,10 +2923,6 @@ t_sort_file(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 	DO( sm->sort_file(in_fid, 
 	      atoi(av[vid_arg]), out_fid, property,
 	      info, atoi(av[runsize_arg]), true, unique, destruct,
-#ifdef USE_LID
-	      serial_t::null, 
-/* end USE_LID*/
-#endif
 	      newsort) );
 	w_reset_strstream(tclout);
 	tclout << out_fid << ends;
@@ -3153,14 +3008,6 @@ t_find_assoc_typed(Tcl_Interp* ip, int ac, TCL_AV char* av[])
 
     w_rc_t ___rc;
 
-#ifdef USE_LID
-    if (use_logical_id(ip)) {
-	lstid_t stid;
-	w_istrstream anon(av[1]); anon >> stid;
-	___rc = sm->find_assoc(stid.lvid, stid.serial, key, el, elen, found);
-    } else 
-/* end USE_LID*/
-#endif
     {
 	stid_t stid;
 	w_istrstream anon(av[1]); anon >> stid;

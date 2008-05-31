@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='PAGE_H_H'>
 
- $Id: page_h.h,v 1.6 2007/05/18 21:43:26 nhall Exp $
+ $Id: page_h.h,v 1.8 2008/05/31 05:03:32 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -267,7 +267,13 @@ inline void
 store_histo_t::decr(space_bucket_t b) 
 {
     bucket[b]--;
-    if(int(bucket[b])<0) bucket[b] = 0;
+
+    // cast to signed:
+#ifdef LARGE_PID
+    if(int8_t(bucket[b])<0) bucket[b] = 0;
+#else
+    if(int4_t(bucket[b])<0) bucket[b] = 0;
+#endif
 }
 
 

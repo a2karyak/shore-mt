@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='LOCK_S_H'>
 
- $Id: lock_s.h,v 1.69 2007/05/18 21:43:26 nhall Exp $
+ $Id: lock_s.h,v 1.71 2008/05/31 05:03:31 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -115,6 +115,12 @@ public:
 	t_user4		= 9	// parent is t_user3
     };
 
+#ifdef LARGE_PID
+    typedef   w_base_t::uint8_t page_bits_t;
+#else
+    typedef   uint4_t           page_bits_t;
+#endif
+
     struct user1_t  {
 	uint2_t		u1;
 			user1_t() : u1(0)  {}
@@ -128,35 +134,64 @@ public:
     };
 
     struct user3_t : public user2_t  {
-	uint4_t		u3;
+	page_bits_t	u3;
 			user3_t() : u3(0)  {}
-			user3_t(uint2_t v1, uint4_t v2, uint4_t v3)
+			user3_t(uint2_t v1, uint4_t v2, page_bits_t v3)
 				: user2_t(v1, v2), u3(v3)  {}
     };
 
     struct user4_t : public user3_t  {
 	uint4_t		u4;
 			user4_t() : u4(0)  {}
-			user4_t(uint2_t v1, uint4_t v2, uint4_t v3, uint4_t v4)
+			user4_t(uint2_t v1, uint4_t v2, page_bits_t v3,
+				    uint4_t v4)
 				: user3_t(v1, v2, v3), u4(v4)  {}
     };
+#ifdef LARGE_PID
+enum { pageWindex=2, slotWindex=4, user4Windex=4 };
+enum { pageSindex=4, slotSindex=8, user4Sindex=8 };
+#else
+enum { pageWindex=2, slotWindex=3, user4Windex=3 };
+enum { pageSindex=4, slotSindex=6, user4Sindex=6 };
+#endif
 
 private:
     union {
+#ifdef LARGE_PID
+	uint4_t w[5]; 
+#else
 	uint4_t w[4]; 
+#endif
+
 		      // w[0] == s[0,1] see below
 		      // w[1] == store or extent or user2
+#ifdef LARGE_PID
+		      // w[2,3] == page or user3
+		      // w[4] contains slot (in s[8]) or user4
+#else
 		      // w[2] == page or user3
 		      // w[3] contains slot (in s[6]) or user4
+#endif
+#ifdef LARGE_PID
+	uint2_t s[10]; 
+#else
 	uint2_t s[8]; 
+#endif
 		      // s[0] high byte == lspace (lock type)
 		      // s[0] low byte == boolean used for extent-not-freeable
 		      // s[1] vol or user1
 		      // s[2,3]==w[1] 
+#ifdef LARGE_PID
+		      // s[4,5,6,7]== w[2,3] see above
+		      // s[8] == slot 
+		      // s[9] not used or 1/2 user4
+#else
 		      // s[4,5]== w[2] see above
 		      // s[6] == slot 
 		      // s[7] not used or 1/2 user4
+#endif
     };
+private:
 
 public:
     bool operator==(const lockid_t& p) const;
@@ -209,10 +244,16 @@ private:
     // page id
     //
 public:
-    const shpid_t&	 	page() const;
+    shpid_t	 	        page() const;
 private:
     void	 		set_page(const shpid_t & p);
-    uint4_t	 		page_bits() const ;
+#ifdef LARGE_PID
+    uint4_t	 	        page_hi_bits() const ;
+    uint4_t	 	        page_lo_bits() const ;
+#endif
+    void         	 	set_page_bits(page_bits_t);
+    page_bits_t	 		page_bits() const ;
+    uint4_t	 	        page_hash_bits() const ;
     //
     // slot id
     //
@@ -220,6 +261,7 @@ public:
     const slotid_t&	 	slot() const;
 private:
     void	 		set_slot(const slotid_t & e);
+    void	 		set_user4(uint4_t  val);
     uint2_t	 		slot_bits() const;
     uint4_t	 		slot_kvl_bits() const;
 

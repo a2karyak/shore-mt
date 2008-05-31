@@ -65,3 +65,29 @@ Tue May  6 11:46:38 MDT 2008
       2) fixed known problems with build targets distclean, install,
 	  uninstall, clean
 
+Tue May 27 17:56:45 MDT 2008
+	1) minor documentation changes, changes to README files,
+	   for the purpose of making them consistent with all the above work
+	2) added config option --enable-largepids (default: no)
+	   to enable the sm to run with page ids > 64 bits, which is
+	   to say, with more than 4billion pages. For use with small page
+	   sizes and very large disks.
+	   Not thoroughly tested.
+	3) added config option --enable-largepages (default: no)
+	   to enable the sm to be built with SM_PAGESIZE > 32KB
+	   You have to set SM_PAGESIZE in config/shore.def.
+	   Not thoroughly tested.
+	4) Fix to recovery bug: extent.hpp extlink_t has pspacemap, which
+	   was not supposed to have been logged, but in fact it was being
+	   logged, which caused assert in recovery when its value changed.
+	   Fix: when creating log record (page_splice), don't use 
+	   sizeof(extlink_t) but use extlink_t::logged_size()
+	5) runsmsh, runs random.all, which now reports sm config info as well
+	   as volume stats after each script, so we can be sure we have
+	   the configuration we think we have in any given window/run.
+	6) removed USE_LID from the code
+	7) made SM_DISKADDR_LARGE the default and only choice. 
+	   Cannot change it with any config options now.
+	8) Removed the backward-compatibility options (which were not
+	   configurable anymore anyway) for volume formats 13, 14.
+	9) change release # to 5.0.3

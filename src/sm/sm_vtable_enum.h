@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='VTABLE_ENUM_H'>
 
- $Id: sm_vtable_enum.h,v 1.1 2007/05/18 21:43:29 nhall Exp $
+ $Id: sm_vtable_enum.h,v 1.2 2008/05/28 01:28:02 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -46,12 +46,12 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 
 enum {
 	/* for xcts */
-	xct_nthreads_attr,
-	xct_gtid_attr,
-	xct_tid_attr,
-	xct_state_attr,
-	xct_coordinator_attr,
-	xct_forced_readonly_attr,
+	xct_nthreads_attr=0,
+	xct_gtid_attr=1,
+	xct_tid_attr=2,
+	xct_state_attr=3,
+	xct_coordinator_attr=4,
+	xct_forced_readonly_attr=5,
 
 	/* last number! */
 	xct_last
@@ -59,12 +59,12 @@ enum {
 
 enum {
 	/* for locks */
-	lock_name_attr,
-	lock_mode_attr,
-	lock_duration_attr,
-	lock_children_attr,
-	lock_tid_attr,
-	lock_status_attr,
+	lock_name_attr=0,
+	lock_mode_attr=1,
+	lock_duration_attr=2,
+	lock_children_attr=3,
+	lock_tid_attr=4,
+	lock_status_attr=5,
 
 	/* last number! */
 	lock_last 

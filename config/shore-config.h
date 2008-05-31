@@ -13,26 +13,14 @@
 /* architecture */
 /* #undef Alpha */
 
-/*for thread statistics*/
-#define EXPENSIVE_STATS
-
-
-/*if is gcc2.96*/
-#if defined(__GNUC__) && __GNUC__==2
-# if defined(__GNUC_MINOR__) && __GNUC_MINOR__==96
-# define GCC_BROKEN_WARNINGS
-#endif
-#endif
-
+/* is gcc 2.96 */
+/* #undef GCC_BROKEN_WARNINGS */
 
 /* hack for gcc3.4 and later */
 /* #undef GCC_VER_34_WARNINGS */
 
-/*if is gcc3.x, x < 4*/
-#if defined(__GNUC__) && (__GNUC__==3)
-# define GCC_VER_3_WARNINGS
-#endif
-
+/* is gcc 3.x, x < 4 */
+/* #undef GCC_VER_3_WARNINGS */
 
 /* Define to 1 if you have the <dirent.h> header file, and it defines `DIR'.
    */
@@ -241,17 +229,17 @@
 /* ultrix */
 /* #undef IS_ULTRIX42 */
 
-/*simply !IS_NT*/
-#ifndef IS_NT
-#define IS_UNIX 1
-#endif
-
+/* windows or unix? */
+/* #undef IS_UNIX */
 
 /* operating system */
 /* #undef Irix */
 
-/* use large log partitions? */
-#define LARGELOGPART 1
+/* enable use of pages larger than 32K? */
+#define LARGEPAGES 0
+
+/* use large page ids? */
+#define LARGEVOLUMES 0
 
 /* operating system */
 #define Linux 
@@ -281,13 +269,13 @@
 #define PACKAGE_NAME "Shore-Storage-Manager"
 
 /* Define to the full name and version of this package. */
-#define PACKAGE_STRING "Shore-Storage-Manager 5.0.2"
+#define PACKAGE_STRING "Shore-Storage-Manager 5.0.3"
 
 /* Define to the one symbol short name of this package. */
 #define PACKAGE_TARNAME "shore-storage-manager"
 
 /* Define to the version of this package. */
-#define PACKAGE_VERSION "5.0.2"
+#define PACKAGE_VERSION "5.0.3"
 
 /* architecture */
 /* #undef PowerPC */
@@ -295,32 +283,11 @@
 /* architecture */
 /* #undef Rs6000 */
 
-#if LARGELOGPART==1
-#define SM_DISKADDR_LARGE
-#endif
-
-
-/*1024 to 32768 inclusive*/
-#ifndef SM_PAGESIZE
-#define SM_PAGESIZE 8192
-#endif
-
-
 /* operating system */
 /* #undef SOLARIS2 */
 
 /* Define to 1 if you have the ANSI C header files. */
 #define STDC_HEADERS 1
-
-/*0, 1 or 2*/
-#ifndef STHREAD_STACK_CHECK
-#ifdef W_DEBUG
-#define STHREAD_STACK_CHECK 2
-#else
-#define STHREAD_STACK_CHECK 1
-#endif
-#endif
-
 
 /* operating system */
 /* #undef SUNOS41 */
@@ -338,25 +305,38 @@
 /* #undef Ultrix42 */
 
 /* Version number of package */
-#define VERSION "5.0.2"
+#define VERSION "5.0.3"
 
-#ifdef W_LARGEFILE
-#define _FILE_OFFSET_BITS 64
-#define LARGEFILE_AWARE
-#endif
+/* use large files? */
+#define W_LARGEFILE 1
 
-
-#if TRACECODE==1
-#define W_TRACE
-#endif
-
-
-/*for in-memory str streams*/
-#define W_USE_COMPAT_STRSTREAM
-
+/* tracing debugging code included */
+/* #undef W_TRACE */
 
 /* operating system */
 /* #undef __MacOSX__ */
+
+
+#define SM_DISKADDR_LARGE 1
+
+
+/*for thread statistics*/
+#define EXPENSIVE_STATS
+
+
+/*if is gcc 2.96*/
+#if defined(__GNUC__) && __GNUC__==2
+# if defined(__GNUC_MINOR__) && __GNUC_MINOR__==96
+# define GCC_BROKEN_WARNINGS
+#endif
+#endif
+
+
+/*if is gcc3.x, x < 4*/
+#if defined(__GNUC__) && (__GNUC__==3)
+# define GCC_VER_3_WARNINGS
+#endif
+
 
 /* Define to `int' if <sys/types.h> doesn't define. */
 /* #undef gid_t */
@@ -371,6 +351,28 @@
 /* architecture - not always defined by compiler */
 #define i386 1
 
+/*simply !IS_NT*/
+#ifndef IS_NT
+#define IS_UNIX 1
+#endif
+
+
+#ifdef W_LARGEFILE
+#define _FILE_OFFSET_BITS 64
+#define LARGEFILE_AWARE
+#endif
+
+
+#if LARGEPAGES==1
+#define LARGE_PAGE
+#endif
+
+
+#if LARGEVOLUMES==1
+#define LARGE_PID
+#endif
+
+
 /*turn off mips and ultrix*/
 #if defined(mips) && defined(ultrix)
 /* #undef mips */
@@ -381,20 +383,36 @@
 /* Define to `int' if <sys/types.h> does not define. */
 /* #undef mode_t */
 
-/* Define to `long' if <sys/types.h> does not define. */
-/* #undef off_t */
-
-/* Define to `int' if <sys/types.h> does not define. */
-/* #undef pid_t */
-
 /*turn off sgi */
 #if defined(sgi)
 /* #undef sgi */
 #endif
 
 
+/* Define to `long' if <sys/types.h> does not define. */
+/* #undef off_t */
+
+/* Define to `int' if <sys/types.h> does not define. */
+/* #undef pid_t */
+
 /* Define to `unsigned' if <sys/types.h> does not define. */
 /* #undef size_t */
+
+/*1024 to 32768 inclusive*/
+#ifndef SM_PAGESIZE
+#define SM_PAGESIZE 8192
+#endif
+
+
+/*0, 1 or 2*/
+#ifndef STHREAD_STACK_CHECK
+#ifdef W_DEBUG
+#define STHREAD_STACK_CHECK 2
+#else
+#define STHREAD_STACK_CHECK 1
+#endif
+#endif
+
 
 /*turn off sun and sparc*/
 #if defined(sun) && defined(sparc)
@@ -403,8 +421,17 @@
 #endif
 
 
+#if TRACECODE==1
+#define W_TRACE
+#endif
+
+
 /* Define to `int' if <sys/types.h> doesn't define. */
 /* #undef uid_t */
+
+/*for in-memory str streams*/
+#define W_USE_COMPAT_STRSTREAM
+
 
 /* Define as `fork' if `vfork' does not work. */
 /* #undef vfork */

@@ -1,6 +1,6 @@
 <std-header style='plain' orig-src='shore'>
 
- $Id: README,v 1.9 1999/06/07 19:04:55 kupsch Exp $
+ $Id: README,v 1.10 2008/05/28 01:26:55 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -52,11 +52,11 @@ You can run ssh on a single script at at time thus:
 with physical oids:
 	ssh -f ../scripts/btree.1 
 
-with logical oids:
+(obsolete) with logical oids:
 	ssh -lf ../scripts/lid.1
 
 to run a test that still reproduces a bug:
-	ssh -lf ../scripts/bugs/xxxx
+	ssh -f ../scripts/bugs/xxxx
 
 to run with simulated preemptive thread switches (switch on each
     page latch, unlatch): Build with USE_SSMTEST, then do 
@@ -68,22 +68,22 @@ to run with simulated preemptive thread switches (switch on each
 You can run ssh on groups of scripts thus:
 
    --normal "regression" testing:
-	ssh -lf ../scripts/all
+	ssh -f ../scripts/all
 
    --some performance tests
-	ssh -lf ../scripts/all.perf
+	ssh -f ../scripts/all.perf
 
    --some to find out which tests need to unset tcl variables:
-	ssh -lf ../scripts/cleanup.all
+	ssh -f ../scripts/cleanup.all
 	then look at the file called "garbage_variables" ...
 
    --to run (presumably) forever in pseudo-random order...
-	ssh -lf ../scripts/random.all
+	ssh -f ../scripts/random.all
 
 *********************************************************************
 
 To get a better testing of crash recovery, use the shell scripts
-runssh.  It forks off an ssh that runs random.all, and it also
+runsmsh.  It forks off an ssh that runs random.all, and it also
 kills (with a signal) the ssh at pseudo-random times. 
 
 *********************************************************************

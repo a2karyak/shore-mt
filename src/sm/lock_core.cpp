@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: lock_core.cpp,v 1.109 2007/05/18 21:43:25 nhall Exp $
+ $Id: lock_core.cpp,v 1.110 2008/05/28 01:28:01 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -370,6 +370,7 @@ operator<<(ostream &o, const xct_lock_info_t &x)
 #ifdef W_DEBUG
 #include "lock_s_inline.h"
 #endif /* W_DEBUG */
+
 
 void
 lockid_t::truncate(name_space_t space)
@@ -1763,7 +1764,7 @@ lock_core_m::_update_cache(xct_t *xd, const lockid_t& name, lmode_t m)
 void
 lock_core_m::dump(ostream &o)
 {
-    o << "lock_core_m:"
+    o << "lock_core_m::dump "
       << " _htabsz=" << _htabsz
       << endl;
     for (unsigned h = 0; h < _htabsz; h++)  {

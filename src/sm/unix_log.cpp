@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: unix_log.cpp,v 1.79 2007/05/18 21:43:29 nhall Exp $
+ $Id: unix_log.cpp,v 1.80 2008/05/31 05:03:32 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -683,7 +683,7 @@ unix_log::unix_log(const char* logdir,
 		    break;
 		}
 
-		uint2_t len = (uint2_t) l->length();
+		logrec_t::logrec_sz_t len = l->length();
 	        DBGTHRD(<<"scanned log rec type=" << int(l->type())
 			<< " length=" << l->length());
 

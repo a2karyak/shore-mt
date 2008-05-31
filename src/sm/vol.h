@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='VOL_H'>
 
- $Id: vol.h,v 1.94 2007/05/18 21:43:30 nhall Exp $
+ $Id: vol.h,v 1.96 2008/05/31 05:03:32 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -48,11 +48,7 @@ class volhdr_t {
     // number of the Shore SM version which formatted the volume.
     // This number is called volume_format_version in sm_base.h.
     w_base_t::uint4_t		_format_version;
-#ifdef SM_ODS_COMPAT_13
-    sthread_base_t::base_stat_t	_device_quota_KB;
-#else
     sm_diskaddr_t		_device_quota_KB;
-#endif
     lvid_t			_lvid;
     extnum_t			_ext_size;
     shpid_t			_epid;		// extent pid
@@ -186,8 +182,8 @@ public:
 	extnum_t 		    exts[],
 	int& 			    found,
 	extnum_t		    first_ext = 0);
-    rc_t			num_free_exts(w_base_t::uint4_t& cnt);
-    rc_t			num_used_exts(w_base_t::uint4_t& cnt);
+    rc_t			num_free_exts(base_stat_t& cnt);
+    rc_t			num_used_exts(base_stat_t& cnt);
     rc_t			alloc_exts(
 	snum_t 			    num,
 	extnum_t 		    prev,
@@ -291,8 +287,8 @@ public:
     rc_t 			next_page_with_space(lpid_t& pid, 
 				    space_bucket_t needed);
 
-    rc_t			num_pages(snum_t fnum, w_base_t::uint4_t& cnt);
-    rc_t			num_exts(snum_t fnum, w_base_t::uint4_t& cnt);
+    rc_t			num_pages(snum_t fnum, w_base_t::base_stat_t& cnt);
+    rc_t			num_exts(snum_t fnum, w_base_t::base_stat_t& cnt);
     bool 			is_raw() { return _is_raw; };
 
     rc_t			sync();
@@ -342,7 +338,7 @@ private:
     extnum_t			_min_free_ext_num;
     lpid_t			_epid;
     lpid_t			_spid;
-    int				_page_sz;  // page size in bytes
+    w_base_t::int4_t		_page_sz;  // page size in bytes
     bool			_is_raw;   // notes if volume is a raw device
 
     smutex_t			_mutex;   // make each volume mgr a monitor
@@ -399,12 +395,18 @@ inline const char* vol_t::devname() const
 inline extnum_t vol_t::pid2ext(snum_t /*snum*/, shpid_t p) const
 {
     //snum = 0; or store_id_extentmap
-    return (extnum_t) (p / ext_sz);
+    extnum_t tmp = (p / ext_sz);
+    shpid_t  tmp2 = tmp * ext_sz;
+    w_assert1((p - (shpid_t)tmp2) < ext_sz);
+    return tmp;
 }
 
 inline shpid_t vol_t::ext2pid(snum_t/*snum*/, extnum_t ext) const
 {
-    return ext * ext_sz;
+    // Make sure we convert from the extnum_t to the shpid_t before
+    // multiplying:
+    shpid_t tmp = ext;
+    return tmp * ext_sz; 
 }
 
 inline extnum_t vol_t::pid2ext(const lpid_t& pid) const

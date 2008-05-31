@@ -1,6 +1,6 @@
 # <std-header style='tcl' orig-src='shore'>
 #
-#  $Id: smsh.tcl,v 1.2 2007/08/21 19:44:37 nhall Exp $
+#  $Id: smsh.tcl,v 1.3 2008/05/28 01:26:05 nhall Exp $
 #
 # SHORE -- Scalable Heterogeneous Object REpository
 #
@@ -469,6 +469,11 @@ proc runscripts { scr } {
 
 		echo -->VOLUME_META_STATS after $script: $vms
 		unset vms
+
+		set local [sm config_info]
+		echo -->CONFIG INFO after $script: $local
+		unset local
+
 	    }
      
 	    #echo MEM_STATS after $script: [sm mem_stats]

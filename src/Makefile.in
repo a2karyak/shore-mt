@@ -158,8 +158,6 @@ STRIP = @STRIP@
 USE_IOS_COMPAT_FALSE = @USE_IOS_COMPAT_FALSE@
 USE_IOS_COMPAT_TRUE = @USE_IOS_COMPAT_TRUE@
 VERSION = @VERSION@
-W_LARGEFILE_FALSE = @W_LARGEFILE_FALSE@
-W_LARGEFILE_TRUE = @W_LARGEFILE_TRUE@
 ac_ct_CC = @ac_ct_CC@
 ac_ct_CXX = @ac_ct_CXX@
 ac_ct_RANLIB = @ac_ct_RANLIB@
@@ -282,18 +280,6 @@ W_WARNINGS = $(WARN_FLAGS) -Wno-deprecated
 #
 # --------------------------------------------------------
 @EXPLICIT_TEMPLATE_TRUE@TEMPLATEFLAGS = -fno-implicit-templates -DEXPLICIT_TEMPLATE
-@W_LARGEFILE_FALSE@LARGEFILE_FLAGS = 
-
-# --------------------------------------------------------
-#
-# handle --enable-lgfileaware config option
-#
-# shore-config.h turns on 
-#  -DLARGEFILE_AWARE and -D_FILE_OFFSET_BITS=64
-# when W_LARGEFILE is defined
-#
-# --------------------------------------------------------
-@W_LARGEFILE_TRUE@LARGEFILE_FLAGS = -DW_LARGEFILE
 
 # --------------------------------------------------------
 #

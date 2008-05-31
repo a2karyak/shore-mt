@@ -1,6 +1,6 @@
 	/*<std-header orig-src='shore'>
 
-	 $Id: logrec.cpp,v 1.150 2007/05/18 21:43:26 nhall Exp $
+	 $Id: logrec.cpp,v 1.152 2008/05/31 05:03:31 nhall Exp $
 
 	SHORE -- Scalable Heterogeneous Object REpository
 
@@ -166,7 +166,53 @@
 	void
 	logrec_t::fill(const lpid_t* p, uint2_t tag, smsize_t l)
 	{
-	    w_assert3(hdr_sz == _data - (char*) this);
+#ifdef W_DEBUG
+	    int err=0;
+	    if(!w_base_t::is_aligned(w_offsetof(logrec_t, _prev)))
+	    {
+		err++;
+	    }
+	    if(!w_base_t::is_aligned(w_offsetof(logrec_t, _vid)))
+	    {
+		err++;
+	    }
+	    if(!w_base_t::is_aligned(w_offsetof(logrec_t, _shpid)))
+	    {
+		err++;
+	    }
+	    if(!w_base_t::is_aligned(w_offsetof(logrec_t, _data)))
+	    {
+		err++;
+	    }
+	    if(err>0)
+	    {
+		std::cerr << " offset of _len " << w_offsetof(logrec_t, _len)
+		    << std::endl;
+		std::cerr << " offset of _type " << w_offsetof(logrec_t, _type)
+		    << std::endl;
+		std::cerr << " offset of _cat " << w_offsetof(logrec_t, _cat)
+		    << std::endl;
+		std::cerr << " offset of _tid " << w_offsetof(logrec_t, _tid)
+		    << std::endl;
+		std::cerr << " offset of _shpid " << w_offsetof(logrec_t, _shpid)
+		    << std::endl;
+		std::cerr << " offset of _vid " << w_offsetof(logrec_t, _vid)
+		    << std::endl;
+		std::cerr << " offset of _prev " << w_offsetof(logrec_t, _prev)
+		    << std::endl;
+		std::cerr << " offset of _data " << w_offsetof(logrec_t, _data)
+		    << std::endl;
+	    }
+	    if(hdr_sz != _data - (char*) this)
+	    {
+		std::cerr << " not match: hdr_sz " <<  hdr_sz
+		    << " _data - (char*) this "  << int(_data - (char*) this)
+		    << std::endl;
+	    }
+#endif
+	    w_assert3(hdr_sz == int((char *)_data - (char*) this));
+	    w_assert3(w_base_t::is_aligned(this));
+	    w_assert3(w_base_t::is_aligned(((char *)this->_data - (char*)this)));
 	    w_assert3(w_base_t::is_aligned(_data));
 
 	    set_pid(lpid_t::null);
@@ -1277,6 +1323,21 @@ page_splice_log::redo(page_p* page)
     page_splice_t* dp = (page_splice_t*) _data;
 #ifdef W_DEBUG
     char* p = ((char*) page->tuple_addr(dp->idx)) + dp->start;
+    if(memcmp(dp->old_image(), p, dp->old_len) != 0)
+    {
+        char *p1 = p;
+        char *d1 = (char *)(dp->old_image());
+	while(*p1 == *d1) { 
+	    std::cerr << "char[" << int(p1-p) << "]=" << ::hex << unsigned(*p1) << ::dec  << std::endl;
+	    	p1++; d1++;
+	}
+	int diff = p1-p;
+	std::cerr <<" assertion failure: old_len=" << dp->old_len
+	    <<" first diff at offset " << diff
+	    << " old_image[" << diff << "]=" << ::hex << unsigned(*d1) << ::dec
+	    << " p[" << diff << "]=" << ::hex << unsigned(*p1) << ::dec
+	    << std::endl;
+    }
     w_assert1(memcmp(dp->old_image(), p, dp->old_len) == 0);
 #endif /*W_DEBUG*/
 
@@ -1997,7 +2058,7 @@ rtree_remove_log::redo(page_p* page)
 
 struct pages_in_ext_t  {
     extnum_t		ext;
-    Pmap_Align4		pmap; // grot: for purify -because
+    Pmap_Align		pmap; // grot: for purify -because
 			      // with 4-byte extnum_t, gcc keeps
 			      // the struct 4-byte aligned
 

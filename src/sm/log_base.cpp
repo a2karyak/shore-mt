@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: log_base.cpp,v 1.34 2006/03/14 05:31:26 bolo Exp $
+ $Id: log_base.cpp,v 1.35 2008/05/31 05:03:31 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -171,9 +171,7 @@ log_base::check_raw_device(const char* devname, bool& raw)
  *
  *********************************************************************/
 
-#ifdef SM_ODS_COMPAT_13
-uint4_t log_base::version_major = 1;
-#elif defined(SM_DISKADDR_LARGE)
+#if defined(SM_DISKADDR_LARGE)
 uint4_t log_base::version_major = 3;
 #else
 uint4_t log_base::version_major = 2;

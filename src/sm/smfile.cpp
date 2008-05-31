@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: smfile.cpp,v 1.59 2008/05/07 23:27:00 nhall Exp $
+ $Id: smfile.cpp,v 1.60 2008/05/28 01:28:02 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -86,7 +86,7 @@ ss_m::create_file(
 )
 {
     SM_PROLOGUE_RC(ss_m::create_file, in_xct, 0);
-    DBGTHRD(<<"create_file " <<vid << " " << property << " " << serial );
+    DBGTHRD(<<"create_file " <<vid << " " << property );
     W_DO(_create_file(vid, fid, property, 
 			    cluster_hint));
     DBGTHRD(<<"create_file returns " << fid);

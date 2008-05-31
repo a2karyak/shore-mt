@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: sort_funcs4.cpp,v 1.18 2007/08/21 19:46:14 nhall Exp $
+ $Id: sort_funcs4.cpp,v 1.19 2008/05/31 04:58:01 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -558,10 +558,6 @@ t_multikey_sort_file(Tcl_Interp* ip, int ac, TCL_AV char* av[])
      */
 
     DO( sm->create_file(vid_t(volumeid), fid, ss_m::t_load_file
-#ifdef USE_LID
-		, serial_t::null
-/* end USE_LID*/
-#endif
 		));
     deleter	d1(fid); // auto-delete
 
@@ -1037,10 +1033,6 @@ t_multikey_sort_file(Tcl_Interp* ip, int ac, TCL_AV char* av[])
     {   /* create output file for results */
         int volumeid = atoi(av[vid_arg]);
 	DO( sm->create_file(vid_t(volumeid), ofid, ss_m::t_load_file
-#ifdef USE_LID
-		    , serial_t::null
-/* end USE_LID*/
-#endif
 		    ) );
     }
     deleter	d2(ofid); // auto-delete

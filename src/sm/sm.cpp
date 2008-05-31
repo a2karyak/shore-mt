@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: sm.cpp,v 1.478 2008/05/07 23:27:00 nhall Exp $
+ $Id: sm.cpp,v 1.480 2008/05/31 05:03:32 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -120,38 +120,46 @@ int4_t	smlevel_0::defaultLockEscalateToVolumeThreshold = dontEscalate;
 //       and page headers changed.  Small disk address
 //  15 = Same as 14, but with large disk addresses.
 //  16 = Align body of page to an eight byte boundary.  This should have 
-//       occured in 14, but there are some people using it, so need seperate
+//       occured in 14, but there are some people using it, so need separate
 //       numbers.
 //  17 = Same as 16 but with large disk addresses.   
+//  114 = Same as 14 but with large volumes (long long page ids)
+//  115 = Same as 15 but with large volumes (long long page ids)
+//  116 = Same as 16 but with large volumes (long long page ids)
+//  117 = Same as 17 but with large volumes (long long page ids)
+//  
 
-#if defined(SM_ODS_COMPAT_13)
-#define	VOLUME_FORMAT	13
-#else
-/* With on-disk 14 there is a choice of "small" or "large" disk addresses;
-   to stop mismatches from occuring we chew up two format numbers. */
-#if defined(SM_ODS_COMPAT_14)
-#define	BASE_FORMAT	14
-#else
-#define	BASE_FORMAT	16
-#endif
-#if defined(SM_DISKADDR_LARGE)
-#define	VOLUME_FORMAT	(BASE_FORMAT+1)
-#else
-#define	VOLUME_FORMAT	(BASE_FORMAT)
-#endif
-#endif
+    /* With on-disk 14 there is a choice of "small" or "large" disk addresses;
+       to stop mismatches from occuring we chew up two format numbers. */
+#	define	BASE_FORMAT	16
+
+#	ifdef LARGE_PID
+// LARGE_PID changes page number from 32 bits to 64 bits.
+#	define PID_FORMAT     100
+#	else
+#	define PID_FORMAT     0
+#	endif
+
+#	ifdef LARGE_PAGE
+// LARGE_PID changes page number from 32 bits to 64 bits.
+#	define PAGE_FORMAT     1000
+#	else
+#	define PAGE_FORMAT     0
+#	endif
+
+#if 	defined(SM_DISKADDR_LARGE)
+#	define	DISK_FORMAT     1
+#	else
+#	define	DISK_FORMAT     0
+#	endif
+
+#define	VOLUME_FORMAT	(BASE_FORMAT+DISK_FORMAT+PAGE_FORMAT+PID_FORMAT)
 
 uint4_t	smlevel_0::volume_format_version = VOLUME_FORMAT;
 
 
 // used to prevent xct creation during volume dismount
 smutex_t	ss_m::_begin_xct_mutex("begin_xct");
-
-#ifdef OLD_CODE
-const ss_m::param_t ss_m::param_t::sys_default = {
-    false, true, 30
-};
-#endif /*OLD_CODE*/
 
 smlevel_0::concurrency_t smlevel_0::cc_alg = t_cc_record;
 bool smlevel_0::cc_adaptive = true;
@@ -1673,6 +1681,9 @@ ss_m::format_dev(const char* device, smksize_t size_in_KB, bool force)
      // SM_PROLOGUE_RC(ss_m::format_dev, not_in_xct, 0);
     FUNC(ss_m::format_dev); 					
 
+    DBG(<< "format_dev " << device << " size_in_KB=" << size_in_KB
+	    << " max permitted by os=" << (sthread_init_t::max_os_file_size / 1024) );
+
     if(size_in_KB > sthread_init_t::max_os_file_size / 1024) {
 	return RC(eDEVTOOLARGE);
     }
@@ -1867,11 +1878,6 @@ ss_m::destroy_vol(const lvid_t& lvid)
 	// find the device name
 	vid_t vid = io->get_vid(lvid);
 
-#ifdef USE_LID
-	if(vid.is_remote()) {
-	    return RC(eNOTONREMOTEVOL);
-	}
-#endif
 	if (vid == vid_t::null)
 	    return RC(eBADVOL);
 	char *dev_name = new char[smlevel_0::max_devname+1];
@@ -1916,7 +1922,7 @@ ss_m::get_volume_quota(const lvid_t& lvid, smksize_t& quota_KB, smksize_t& quota
     SM_PROLOGUE_RC(ss_m::get_volume_quota, can_be_in_xct, 0);
     RES_SMSCRIPT(<< "get_volume_quota " << lvid );
     vid_t vid = io->get_vid(lvid);
-    uint4_t dummy;
+    base_stat_t dummy;
     W_DO(io->get_volume_quota(vid, quota_KB, quota_used_KB, dummy));
     return RCOK;
 }
@@ -2531,9 +2537,6 @@ ss_m::_mount_dev(const char* device, u_int& vol_cnt, vid_t local_vid)
     if (local_vid == vid_t::null) {
 	W_DO(io->get_new_vid(vid));
     } else {
-#ifdef USE_LID
-	if (local_vid.is_remote()) return RC(eBADVOL);
-#endif
 	if (io->is_mounted(local_vid)) {
 	    // vid already in use
 	    return RC(eBADVOL);
@@ -2604,16 +2607,6 @@ ss_m::_create_vol(const char* dev_name, const lvid_t& lvid,
     DBG(<<"got new vid " << tmp_vid 
 	<< " mounting " << dev_name);
     W_DO(io->mount(dev_name, tmp_vid));
-
-#ifdef USE_LID
-    ///////////////////////////////////////////////////////////
-    // NB: really need to put a check in format_vol and remove
-    // this check. This is really for debugging purposes only:
-    if(tmp_vid.is_remote()) {
-	return RC(eNOTONREMOTEVOL);
-    }
-    ///////////////////////////////////////////////////////////
-#endif
 
     xct_t xct;   // start a short transaction
     xct_auto_abort_t xct_auto(&xct); // abort if not completed

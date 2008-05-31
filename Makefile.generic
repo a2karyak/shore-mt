@@ -147,20 +147,6 @@ else
 TEMPLATEFLAGS=
 endif
 
-# --------------------------------------------------------
-#
-# handle --enable-lgfileaware config option
-#
-# shore-config.h turns on 
-#  -DLARGEFILE_AWARE and -D_FILE_OFFSET_BITS=64
-# when W_LARGEFILE is defined
-#
-# --------------------------------------------------------
-if W_LARGEFILE
-LARGEFILE_FLAGS = -DW_LARGEFILE
-else
-LARGEFILE_FLAGS =
-endif
 
 # --------------------------------------------------------
 #

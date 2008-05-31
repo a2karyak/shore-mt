@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='SM_S_H'>
 
- $Id: sm_s.h,v 1.88 2008/05/07 23:27:00 nhall Exp $
+ $Id: sm_s.h,v 1.90 2008/05/31 05:03:32 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -63,8 +63,13 @@ public:
 // Long page id
 class lpid_t {
 public:
-    stid_t	_stid;
-    shpid_t	page;
+    stid_t	_stid; // 8 bytes
+#ifdef LARGE_PID
+    shpid_t	page; // 8 bytes
+#else
+    shpid_t	page;  // 4 bytes
+    fill4	_fill4; // 4 bytes
+#endif
     
     lpid_t();
     lpid_t(const stid_t& s, shpid_t p);
@@ -122,7 +127,7 @@ class rid_t;
 // SHort physical Record IDs.  
 class shrid_t {
 public:
-    shpid_t	page;
+    shpid_t	page; // 4 or 8
     snum_t	store;
     slotid_t	slot;
     fill2	filler; // because page, snum_t are 4 bytes, slotid_t is 2
@@ -134,19 +139,6 @@ public:
     friend istream& operator>>(istream&, shrid_t& s);
 };
 
-#ifdef USE_LID
-// Store PID (ie. pid with no volume id)
-// For now, only used by lid_m for logical ID index entries.
-class spid_t {
-public:
-    shpid_t	page;
-    snum_t	store;
-    // fill2	filler; no longer needed
-
-    spid_t() : page(0), store(0) {}
-    spid_t(const lpid_t& p) : page(p.page), store(p.store()) {}
-};
-#endif
 
 #define RID_T
 
@@ -181,7 +173,7 @@ public:
  * has big addresses, but is only running on 
  * a "small file" environment.
  */
-#if defined(SM_DISKADDR_LARGE) && !defined(SM_ODS_COMPAT_13)
+#if defined(SM_DISKADDR_LARGE) 
 typedef	w_base_t::int8_t	sm_diskaddr_t;
 const sm_diskaddr_t		sm_diskaddr_max = w_base_t::int8_max;
 #else
@@ -439,7 +431,9 @@ inline istream& operator>>(istream& i, lsn_t& l)
 
 inline lpid_t::lpid_t() : page(0) {}
 
-inline lpid_t::lpid_t(const stid_t& s, shpid_t p) : _stid(s), page(p)
+inline lpid_t::lpid_t(const stid_t& s, shpid_t p) : 
+    	_stid(s), 
+	page(p)
 {}
 
 inline lpid_t::lpid_t(vid_t v, snum_t s, shpid_t p) :

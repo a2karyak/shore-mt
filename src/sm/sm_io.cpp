@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: sm_io.cpp,v 1.36 2008/05/07 23:27:00 nhall Exp $
+ $Id: sm_io.cpp,v 1.38 2008/05/31 05:03:32 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -433,10 +433,13 @@ io_m::_mount_dev(const char* dev_name, u_int& vol_cnt)
     volhdr_t vhdr;
     W_DO(vol_t::read_vhdr(dev_name, vhdr));
 
+    DBG(<<"_mount_dev read vol head ok");
+
 	/* XXX possible bit-loss */
     device_hdr_s dev_hdr(vhdr.format_version(), 
 			 vhdr.device_quota_KB(), vhdr.lvid());
     rc_t result = dev->mount(dev_name, dev_hdr, vol_cnt);
+    DBG(<<"_mount_dev returns " << result);
     return result;
 }
 
@@ -499,7 +502,7 @@ io_m::_get_device_quota(const char* device, smksize_t& quota_KB,
 	quota_used_KB = 0;
     } else {
 	smksize_t dummy;
-	uint4_t	  dummy2;
+	base_stat_t dummy2;
 	W_DO(_get_volume_quota(_get_vid(lvid), quota_used_KB, dummy, dummy2));
     }
     return RCOK;
@@ -755,7 +758,7 @@ io_m::_dismount(vid_t vid, bool flush)
  *
  *********************************************************************/
 rc_t
-io_m::_get_volume_quota(vid_t vid, smksize_t& quota_KB, smksize_t& quota_used_KB, uint4_t &used)
+io_m::_get_volume_quota(vid_t vid, smksize_t& quota_KB, smksize_t& quota_used_KB, base_stat_t &used)
 {
     int i = _find(vid);
     if (i < 0)  return RC(eBADVOL);
@@ -837,10 +840,6 @@ io_m::read_page(const lpid_t& pid, page_s& buf)
     if (_msec_disk_delay > 0)
 	    me()->sleep(_msec_disk_delay, "io_m::read_page");
 
-#ifdef USE_LID
-    w_assert3(! pid.vol().is_remote());
-#endif
-
     int i = _find(pid.vol());
     if (i < 0) {
 	return RC(eBADVOL);
@@ -863,14 +862,14 @@ io_m::read_page(const lpid_t& pid, page_s& buf)
      *  new and should have a page ID of 0.
      */
 #ifdef W_DEBUG
-    if (buf.lsn1 == lsn_t::null)  {
-		if(smlevel_1::log && smlevel_0::logging_enabled) {
-			w_assert3(buf.pid.page == 0);
-		}
-    } else {
-		w_assert3(buf.pid.page == pid.page && buf.pid.vol() == pid.vol());
-    }
     DBG(<<"buf.pid.page=" << buf.pid.page << " buf.lsn1=" << buf.lsn1);
+    if (buf.lsn1 == lsn_t::null)  {
+	if(smlevel_1::log && smlevel_0::logging_enabled) {
+		w_assert3(buf.pid.page == 0);
+	}
+    } else {
+	w_assert3(buf.pid.page == pid.page && buf.pid.vol() == pid.vol());
+    }
 #endif /* W_DEBUG */
     
     return RCOK;
@@ -890,9 +889,6 @@ io_m::write_many_pages(page_s** bufs, int cnt)
 {
     // NEVER acquire monitor to write page
     vid_t vid = bufs[0]->pid.vol();
-#ifdef USE_LID
-    w_assert3(! vid.is_remote());
-#endif
     int i = _find(vid);
     w_assert1(i >= 0);
 
@@ -1164,12 +1160,13 @@ io_m::_alloc_pages(
 	    }
 
 	    DBGTHRD(<<" ALLOCATED " << allocated
+		    <<" page " << pids[count]
 		    <<" requested=" << npages-count
 		    << " pages in " << extent
 		    << " remaining: " << remaining_in_ext
 		    << " nresvd= " << nresvd
 		    << " is_last_ext_in_store " << stid.store
-			<< " = " << is_last_ext_in_store
+		    << " = " << is_last_ext_in_store
 		    );
 
 	    /* 
@@ -1742,6 +1739,7 @@ io_m::free_ext_after_xct(const extid_t& extid)
 rc_t
 io_m::_free_ext_after_xct(const extid_t& extid)
 {
+    FUNC("io_m::_free_ext_after_xct");
     vid_t volid = extid.vol;
     vol_t *v = _find_and_grab(volid);
     if (!v)  return RC(eBADVOL);
@@ -1751,7 +1749,6 @@ io_m::_free_ext_after_xct(const extid_t& extid)
     snum_t owner=0;
     W_DO( v->free_ext_after_xct(extid.ext, owner) );
 
-    DBG(<<"_free_ext_after_xct " << extid );
     _remove_extent_info_cache(stid_t(volid,owner), extid.ext);
 
     return RCOK;
@@ -1903,9 +1900,6 @@ io_m::_first_page(
     bool*		allocated,
     lock_mode_t		lock)
 {
-#ifdef USE_LID
-    if (stid.vol.is_remote()) W_FATAL(eBADSTID);
-#endif
 
     vol_t *v = _find_and_grab(stid.vol);
     if (!v)  return RC(eBADVOL);
@@ -1941,9 +1935,6 @@ io_m::_last_page(
     lock_mode_t		desired_lock_mode
     )
 {
-#ifdef USE_LID
-    if (stid.vol.is_remote()) W_FATAL(eBADSTID);
-#endif
 
     vol_t *v = _find_and_grab(stid.vol);
     if (!v)  return RC(eBADVOL);
@@ -1975,9 +1966,6 @@ rc_t io_m::_next_page(
     bool*		allocated,
     lock_mode_t		lock)
 {
-#ifdef USE_LID
-    if (pid.is_remote()) W_FATAL(eBADPID);
-#endif
 
     vol_t *v = _find_and_grab(pid.vol());
     if (!v)  return RC(eBADVOL);
@@ -2005,9 +1993,6 @@ rc_t io_m::_next_page_with_space(
     lock_mode_t		lock
     )
 {
-#ifdef USE_LID
-    if (pid.is_remote()) W_FATAL(eBADPID);
-#endif
 
     vol_t *v = _find_and_grab(pid.vol());
     if (!v)  return RC(eBADVOL);

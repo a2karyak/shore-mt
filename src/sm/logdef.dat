@@ -1,6 +1,6 @@
 # <std-header style='data' orig-src='shore'>
 #
-#  $Id: logdef.dat,v 1.60 1999/06/07 19:04:15 kupsch Exp $
+#  $Id: logdef.dat,v 1.61 2008/05/28 01:28:01 nhall Exp $
 #
 # SHORE -- Scalable Heterogeneous Object REpository
 #
@@ -111,15 +111,22 @@ xct_prepare_lk		1010000 (int num, lock_mode_t mode, lockid_t* lks);
 xct_prepare_alk		1010000 (int num, lockid_t* lks, lock_mode_t* modes);
 xct_prepare_stores	1010000 (int num, const stid_t* stids);
 xct_prepare_fi	  	1010000 (int numex, int numix, int numsix, int numextent, const lsn_t& first);
+#########################################################################
+# type			XSRUFAL	 arg					#
+#########################################################################
 # page allocation log records - testable(physical) for redo
+# undoable
 alloc_pages_in_ext	1011011	(const page_p& page, extnum_t idx, const Pmap& pmap);
 free_pages_in_ext	1011011	(const page_p& page, extnum_t idx, const Pmap& pmap);
 
 # page allocation log records - testable(physical) for redo
+# not undoable:
 create_ext_list		1010011 (const page_p& page, const stid_t& stid, extnum_t prev, extnum_t next, extnum_t count, const extnum_t* list);
 free_ext_list		1010011 (const page_p& page, const stid_t& stid, extnum_t head, extnum_t count);
 set_ext_next		1010011 (const page_p& page, extnum_t ext, extnum_t new_next);
+# undoable:
 store_operation		1011011 (const page_p& page, const store_operation_param& op);
+
 page_init		1010000 (const page_p& page);
 page_link		1011000 (const page_p& page, shpid_t new_prev, 
 					shpid_t new_next);
