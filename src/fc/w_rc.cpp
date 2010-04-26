@@ -1,6 +1,29 @@
+/* -*- mode:C++; c-basic-offset:4 -*-
+     Shore-MT -- Multi-threaded port of the SHORE storage manager
+   
+                       Copyright (c) 2007-2009
+      Data Intensive Applications and Systems Labaratory (DIAS)
+               Ecole Polytechnique Federale de Lausanne
+   
+                         All Rights Reserved.
+   
+   Permission to use, copy, modify and distribute this software and
+   its documentation is hereby granted, provided that both the
+   copyright notice and this permission notice appear in all copies of
+   the software, derivative works or modified versions, and any
+   portions thereof, and that both notices appear in supporting
+   documentation.
+   
+   This code is distributed in the hope that it will be useful, but
+   WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. THE AUTHORS
+   DISCLAIM ANY LIABILITY OF ANY KIND FOR ANY DAMAGES WHATSOEVER
+   RESULTING FROM THE USE OF THIS SOFTWARE.
+*/
+
 /*<std-header orig-src='shore'>
 
- $Id: w_rc.cpp,v 1.27 1999/06/07 19:02:55 kupsch Exp $
+ $Id: w_rc.cpp,v 1.27.2.10 2009/12/21 18:39:53 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -38,58 +61,63 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #define W_SOURCE
 #include <w_base.h>
 
-#ifdef EXPLICIT_TEMPLATE
-template class w_sptr_t<w_error_t>;
-#endif
+#include <pthread.h>
+#include <vector>
+#include <sstream>
 
-bool w_rc_t::do_check = true;
+bool w_rc_t::do_check = true; // default is on but it does nothing
+// if W_DEBUG_RC is not defined.
+bool w_rc_t::unchecked_is_fatal = true; 
 
+const w_rc_t w_rc_t::rc_ok(w_error_t::no_error);
 
 void
-w_rc_t::return_check(bool on_off)
+w_rc_t::set_return_check(bool on_off, bool is_fatal)
 {
     do_check = on_off;
+    unchecked_is_fatal = is_fatal;
 }
 
 NORET
 w_rc_t::w_rc_t(
-    const char* const	filename,
-    w_base_t::uint4_t	line_num,
-    w_base_t::uint4_t	err_num)
-    : w_sptr_t<w_error_t>( w_error_t::make(filename, line_num, err_num) )
+    const char* const    filename,
+    w_base_t::uint4_t    line_num,
+    w_rc_t::errcode_t    err_num)
+    : _err( w_error_t::make(filename, line_num, err_num) )
 {
-    ptr()->_incr_ref();
+  set_unchecked();
 }
 
 NORET
 w_rc_t::w_rc_t(
-    const char* const	filename,
-    w_base_t::uint4_t	line_num,
-    w_base_t::uint4_t	err_num,
-    w_base_t::int4_t	sys_err)
-: w_sptr_t<w_error_t>( w_error_t::make(filename, line_num, err_num, sys_err) )
+    const char* const    filename,
+    w_base_t::uint4_t    line_num,
+    w_rc_t::errcode_t    err_num,
+    w_base_t::int4_t     sys_err)
+: _err( w_error_t::make(filename, line_num, err_num, sys_err) )
 {
-    ptr()->_incr_ref();
+  set_unchecked();
 }
 
 w_rc_t&
 w_rc_t::push(
-    const char* const	filename,
-    w_base_t::uint4_t	line_num,
-    w_base_t::uint4_t	err_num)
+    const char* const    filename,
+    w_base_t::uint4_t    line_num,
+    w_rc_t::errcode_t    err_num)
 {
-    w_error_t* p = w_error_t::make(filename, line_num,
-				   err_num, ptr());
-    p->_incr_ref();
-    set_val(p);
+    _err = w_error_t::make(filename, line_num,
+                   err_num, ptr());
+    set_unchecked();
     return *this;
 }
 
 void
 w_rc_t::fatal()
 {
-	cerr << "fatal error:" << endl << *this << endl;
-	w_base_t::abort();
+    stringstream s;
+    s << *this << endl;
+    fprintf(stderr, "FATAL ERROR: %s\n", s.str().c_str());
+    w_base_t::abort();
 }
 
 w_rc_t&
@@ -98,6 +126,7 @@ w_rc_t::add_trace_info(
     w_base_t::uint4_t   line_num)
 {
     ptr()->add_trace_info(filename, line_num);
+    set_unchecked();
     return *this;
 }
 
@@ -105,7 +134,8 @@ void
 w_rc_t::error_not_checked()
 {
     cerr << "Error not checked: rc=" << (*this) << endl;
-//    W_FATAL(fcINTERNAL);
+    if(unchecked_is_fatal)
+        W_FATAL(fcINTERNAL);
 }
 
 ostream&
@@ -116,3 +146,34 @@ operator<<(
     return o << *obj;
 }
 
+// The result of a clone will be used to initialize
+// w_rc_t in a copy operator.
+w_error_t *w_rc_t::_clone() const 
+{
+    // w_rc_t::clone() should enforce this
+    w_assert2( ptr() != w_error_t::no_error );
+
+    // need a deep copy
+
+    std::vector<w_error_t const*> trace;
+    w_rc_i it(*this);
+    while(w_error_t const* e = it.next()) {
+#if W_DEBUG_LEVEL > 2
+    (void) e->get_more_info_msg(); // Just for assertion checking
+#endif
+    trace.push_back(e);
+    }
+
+    w_error_t* head = 0;
+    while(!trace.empty()) {
+        w_error_t const* e = trace.back();
+        trace.pop_back();
+        // creates a new w_error_t that points to head, returns the new one
+        head = w_error_t::make(e->file, e->line, e->err_num, e->sys_err_num, head);
+        head->clear_more_info_msg();
+        const char *c=e->get_more_info_msg();
+        if(c) head->append_more_info_msg(c);
+    }
+
+    return head;
+}

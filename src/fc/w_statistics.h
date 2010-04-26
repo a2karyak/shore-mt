@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='W_STATISTICS_H'>
 
- $Id: w_statistics.h,v 1.25 2003/06/19 18:43:47 bolo Exp $
+ $Id: w_statistics.h,v 1.25.2.6 2009/11/23 22:32:49 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -43,9 +43,6 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #endif
 #ifndef W_RC_H
 #include <w_rc.h>
-#endif
-#ifndef W_FASTNEW_H
-#include <w_factory_fast.h>
 #endif
 
 
@@ -154,11 +151,8 @@ class w_stat_t
 
 protected:
 	union {
-		unsigned long	v; // 'v'
-		long			l; // 'l'
-		int				i; // 'i'
-		unsigned int 	u; // 'u'
-		float 			f; // 'f'
+		w_base_t::base_stat_t   i;
+		w_base_t::base_float_t  f;
 	}_u;
 
 public:
@@ -167,18 +161,8 @@ public:
 	inline w_stat_t(int i) { _u.i=i; }
 	inline operator int() const { return _u.i; }
 
-	inline w_stat_t(unsigned int i) { _u.u=i; }
-	inline operator unsigned int() const { return _u.u; }
-
 	inline w_stat_t(float i) { _u.f=i; }
 	inline operator float() const { return _u.f; }
-
-	inline w_stat_t(long l) { _u.l=l; }
-	inline operator long() const { return _u.l; }
-
-	inline w_stat_t(unsigned long v) { _u.v=v; }
-	inline operator unsigned long() const { return _u.v; }
-
 
 	friend bool	operator==(const w_stat_t &, const w_stat_t &);
 	friend bool	operator!=(const w_stat_t &, const w_stat_t &);
@@ -229,8 +213,6 @@ public: // sorry-- must be public for RPC reasons
 	const char		**getstrings(bool copyall) const; 
 						// either copy or return ptr
 
-	w_stat_module_t *copy_all()const;
-
 private:
 	void make_empty(bool valuesalso) {
 		if(m_d && d) {
@@ -247,7 +229,7 @@ private:
 		}
 		if(valuesalso) {
 			if(m_values && values) {
-				w_assert3(w_values == values);
+				w_assert9(w_values == values);
 				delete[] w_values;
 			}
 		}
@@ -286,7 +268,6 @@ protected:
 	w_rc_t copy_descriptors_from( const w_stat_module_t &from); 
 
 	bool	operator==(const w_stat_module_t&) const;
-	W_FASTNEW_CLASS_DECL(w_stat_module_t); 
 };
 
 
@@ -348,15 +329,6 @@ public: // these should be protected but there's no way to
 	bool				  writable() const { return empty() || values_are_dynamic; }
 	void 			      make_empty(); // clean up
 
-#ifdef JUNK
-	w_rc_t		add_module_malloced(
-		const char *desc, 	// from malloced space
-		int base, int count,
-		const char **strings, // from malloced space
-		const char *types, // from malloced space
-		w_stat_t 	*values // writable, from malloced space
-		);
-#endif /* JUNK */
 	w_rc_t		add_module_static(
 		const char *desc, 
 		int base, int count,
@@ -365,17 +337,6 @@ public: // these should be protected but there's no way to
 		const w_stat_t *values // const, static
 		);
 
-		// each item is marked malloced or static:
-	w_rc_t		add_module_special( 
-		const char *desc, 
-		bool		d_malloced,
-		int base, int count,
-		const char **strings, 
-		bool		s_malloced,
-		const char *types, 
-		bool		t_malloced,
-		w_stat_t 	*values
-	);
 	const char	**getstrings(int i, bool copyall) const {
 								// locate by module base
 						const w_stat_module_t *v = find(i);
@@ -404,17 +365,6 @@ public:
 	w_statistics_t();
 	~w_statistics_t();
 
-		// copy_brief()
-		// Make a copy of the contents for later diffing,
-		// Caller must delete the result.
-		// Makes duplicate pointers to the descriptors;
-		// copies ONLY the values.  User had better
-		// NOT delete the item copied and continue to
-		// use this one; nor can user gather remote
-		// statistics into the item copied, nor can
-		// user make_empty the item copied.
-		//
-	w_statistics_t	*copy_brief()const; 
 
 		// copy_all()
 		// Makes copies of *all* descriptive

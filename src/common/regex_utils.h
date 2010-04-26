@@ -1,6 +1,6 @@
 /*<std-header orig-src='regex' incl-file-exclusion='REGEX_UTILS_H'>
 
- $Id: regex_utils.h,v 1.10 2006/01/29 22:27:28 bolo Exp $
+ $Id: regex_utils.h,v 1.10.2.3 2010/03/19 22:19:19 nhall Exp $
 
 
 */
@@ -53,17 +53,17 @@ to the following restrictions:
 
 /* utility definitions */
 #ifdef _POSIX2_RE_DUP_MAX
-#define	DUPMAX	_POSIX2_RE_DUP_MAX
+#define    DUPMAX    _POSIX2_RE_DUP_MAX
 #else
-#define	DUPMAX	255
+#define    DUPMAX    255
 #endif
-#define	REGEX_INFINITY	(DUPMAX + 1)
-#define	NC		(CHAR_MAX - CHAR_MIN + 1)
+#define    REGEX_INFINITY    (DUPMAX + 1)
+#define    NC        (CHAR_MAX - CHAR_MIN + 1)
 typedef unsigned char uch;
 
 /* switch off assertions (if not already off) if no REDEBUG */
 #ifndef REDEBUG
-#define	re_assert(EX)	do { } while(0)
+#define    re_assert(EX)    do { } while(0)
 #else
 /* This is a workaround for a bug in some c++ cassert wrappers that
    have an incorrect multiple include prevention for assert.  The
@@ -72,12 +72,12 @@ typedef unsigned char uch;
 /* XXX if you are having problems debuging regular expression code,
    you may need to do an assert-by-hand below (use w_assert) */
 #include <cassert>
-#define	re_assert(EX)	assert(EX)
+#define    re_assert(EX)    assert(EX)
 #endif
 
 /* for old systems with bcopy() but no memmove() */
 #ifdef USEBCOPY
-#define	memmove(d, s, c)	bcopy(s, d, c)
+#define    memmove(d, s, c)    bcopy(s, d, c)
 #endif
 
 /*<std-footer incl-file-exclusion='REGEX_UTILS_H'>  -- do not edit anything below this line -- */

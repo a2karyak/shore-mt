@@ -1,6 +1,29 @@
+/* -*- mode:C++; c-basic-offset:4 -*-
+     Shore-MT -- Multi-threaded port of the SHORE storage manager
+   
+                       Copyright (c) 2007-2009
+      Data Intensive Applications and Systems Labaratory (DIAS)
+               Ecole Polytechnique Federale de Lausanne
+   
+                         All Rights Reserved.
+   
+   Permission to use, copy, modify and distribute this software and
+   its documentation is hereby granted, provided that both the
+   copyright notice and this permission notice appear in all copies of
+   the software, derivative works or modified versions, and any
+   portions thereof, and that both notices appear in supporting
+   documentation.
+   
+   This code is distributed in the hope that it will be useful, but
+   WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. THE AUTHORS
+   DISCLAIM ANY LIABILITY OF ANY KIND FOR ANY DAMAGES WHATSOEVER
+   RESULTING FROM THE USE OF THIS SOFTWARE.
+*/
+
 /*<std-header orig-src='shore' incl-file-exclusion='FILE_H'>
 
- $Id: file.h,v 1.100 2008/05/07 23:27:00 nhall Exp $
+ $Id: file.h,v 1.98.2.10 2010/03/19 22:20:23 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -61,102 +84,120 @@ class file_p : public page_p {
 
 public:
     // free space on file_p is page_p less file_p header slot
-    enum { data_sz = page_p::data_sz - sizeof(file_p_hdr_t) - sizeof(slot_t),
-	   min_rec_size = sizeof(rectag_t) + sizeof(slot_t)
-	   };
+    enum { data_sz = page_p::data_sz - align(sizeof(file_p_hdr_t)) - 
+                                                     sizeof(slot_t),
+           min_rec_size = sizeof(rectag_t) + sizeof(slot_t)
+           };
 
-    MAKEPAGE(file_p, page_p, 1);  	// Macro to install basic functions from page_p.
+    MAKEPAGE(file_p, page_p, 1);          // Macro to install basic functions from page_p.
 
-    int			num_slots()  	{ return page_p::nslots(); }
+    int                 num_slots()          { return page_p::nslots(); }
 
-    rc_t		find_and_lock_next_slot(
-	uint4_t		    space_needed,
-	slotid_t&	    idx);
-    rc_t		find_and_lock_free_slot(
-	uint4_t		    space_needed,
-	slotid_t&	    idx);
-    rc_t		_find_and_lock_free_slot(
-	bool		    append_only,
-	uint4_t		    space_needed,
-	slotid_t&	    idx);
+    rc_t                find_and_lock_next_slot(
+        uint4_t                    space_needed,
+        slotid_t&                  idx);
+
+    rc_t                find_and_lock_free_slot(
+        uint4_t                    space_needed,
+        slotid_t&                  idx);
+
+    rc_t                _find_and_lock_free_slot(
+        bool                       append_only,
+        uint4_t                    space_needed,
+        slotid_t&                  idx);
+
+    bool                         is_deadbeef() const; // page freed?
+    void                         set_deadbeef(); // page is freed
+    void                         clr_deadbeef(); // page allocated
+#define DUMMY_CLUSTER_ID 0
 
 private:
     // Not presently used by file code:
-    void		link_up(shpid_t nprv, shpid_t nnxt) {
-	page_p::link_up(nprv, nnxt);
+    void                link_up(shpid_t nprv, shpid_t nnxt) {
+        page_p::link_up(nprv, nnxt);
     }
 
-    bool		is_file_p() const;
-    rc_t		set_hdr(const file_p_hdr_t& new_hdr);
+    bool                 is_file_p() const;
+    rc_t                 set_hdr(const file_p_hdr_t& new_hdr);
+    rc_t                 get_hdr(file_p_hdr_t &hdr) const;
 
-    rc_t 		fill_slot(
-	slotid_t	    idx,
-	const rectag_t&	    tag,
-	const vec_t& 	    hdr,
-	const vec_t& 	    data,
-	int		    pff);
+    rc_t                 fill_slot(
+        slotid_t            idx,
+        const rectag_t&     tag,
+        const vec_t&        hdr,
+        const vec_t&        data,
+        int                 pff);
 
-    rc_t		destroy_rec(slotid_t idx);
-    rc_t		append_rec(slotid_t idx, const vec_t& data);
-    rc_t		truncate_rec(slotid_t idx, uint4_t amount);
-    rc_t		set_rec_len(slotid_t idx, uint4_t new_len);
-    rc_t		set_rec_flags(slotid_t idx, uint2_t new_flags);
+    rc_t                destroy_rec(slotid_t idx);
+    rc_t                append_rec(slotid_t idx, const vec_t& data);
+    rc_t                truncate_rec(slotid_t idx, uint4_t amount);
+    rc_t                set_rec_len(slotid_t idx, uint4_t new_len);
+    rc_t                set_rec_flags(slotid_t idx, uint2_t new_flags);
 
     bool                is_rec_valid(slotid_t idx) { 
-				return is_tuple_valid(idx); 
-			}
+                            // rids never have slot 0
+                            // but it seems if I change this, I
+                            // have to deal with lots of code that
+                            // relies on it processing 0 as valid.
+                            return  // (idx > 0)  &&
+                                    is_tuple_valid(idx); 
+                        }
 
 protected: // pin_i uses these
-    rc_t		splice_data(
-	slotid_t	    idx,
-	slot_length_t	    start,
-	slot_length_t	    len,
-	const vec_t&	    data);
+    rc_t                splice_data(
+        slotid_t                 idx,
+        slot_length_t            start,
+        slot_length_t            len,
+        const vec_t&             data);
 
-public:	  
+public:          
     // ss_m::_update_rec_hdr calls this
-    rc_t		splice_hdr(
-	slotid_t	    idx,
-	slot_length_t	    start,
-	slot_length_t	    len,
-	const vec_t&	    data); 
+    rc_t                splice_hdr(
+        slotid_t                 idx,
+        slot_length_t            start,
+        slot_length_t            len,
+        const vec_t&             data); 
 
     // sort, pin, ss_m methods use these
-    rc_t		get_rec(slotid_t idx, record_t*& rec);
-    rc_t		get_rec(slotid_t idx, const record_t*& rec)  {
-	return get_rec(idx, (record_t*&) rec);
-    }
+    rc_t                get_rec(slotid_t idx, record_t*& rec);
+    rc_t                get_rec(slotid_t idx, const record_t*& rec)  {
+                                return get_rec(idx, (record_t*&) rec);
+                        }
 
-    slotid_t		next_slot(slotid_t curr);  // use curr = 0 for first
+    slotid_t            next_slot(slotid_t curr);  // use curr = 0 for first
 
-    int			rec_count();
+    int                 rec_count();
 
     // get stats on fixed size (ie. independent of th number of
     // records) page headers
-    rc_t		hdr_stats(file_pg_stats_t& file_pg);
+    rc_t                hdr_stats(file_pg_stats_t& file_pg);
 
     // get stats on slot (or all slots if slot==0)
-    rc_t		slot_stats(slotid_t slot, file_pg_stats_t& file_pg,
-	    lgdata_pg_stats_t& lgdata_p, lgindex_pg_stats_t& lgindex_pg,
-	    base_stat_t& lgdata_pg_cnt, base_stat_t& lgindex_pg_cnt);
+    rc_t                slot_stats(slotid_t slot, 
+        file_pg_stats_t&           file_pg,
+        lgdata_pg_stats_t&         lgdata_p, 
+        lgindex_pg_stats_t&        lgindex_pg,
+        base_stat_t&               lgdata_pg_cnt, 
+        base_stat_t&               lgindex_pg_cnt);
 
     // determine how a record should be implemented given page size
-    static recflags_t	choose_rec_implementation(
-	uint4_t		     	    est_hdr_len,
-	smsize_t		    est_data_len,
-	smsize_t&		    rec_size);
+    static recflags_t   choose_rec_implementation(
+        uint4_t                    est_hdr_len,
+        smsize_t                   est_data_len,
+        smsize_t&                  rec_size);
 
 private:
     /*
-     *	Disable these since files do not have prev and next
-     *	pages that can be determined from a page
+     *        Disable these since files do not have prev and next
+     *        pages that can be determined from a page
      */
     shpid_t prev();
-    shpid_t next();	//{ return page_p::next(); }
+    shpid_t next();        //{ return page_p::next(); }
     friend class page_link_log;   // just to keep g++ happy
 };
 
 class file_m  : public smlevel_2 {
+    friend class alloc_file_page_log;
     typedef page_s::slot_length_t slot_length_t;
 public:
     NORET file_m();
@@ -166,57 +207,60 @@ public:
     static rc_t create(stid_t stid, lpid_t& first_page);
     
     static rc_t create_rec(
-			const stid_t& 	fid,
-			// no page hint
-			smsize_t	len_hint,
-			const vec_t& 	hdr,
-			const vec_t& 	data,
-			sdesc_t&	sd,
-			rid_t& 		rid // output
-			// no forward_alloc
-		    );
+                        const stid_t&         fid,
+                        // no page hint
+                        smsize_t        len_hint,
+                        const vec_t&         hdr,
+                        const vec_t&         data,
+                        sdesc_t&        sd,
+                        rid_t&                 rid // output
+                    );
+
     static rc_t create_rec_at_end(
-			file_p&		page, // in-out 
-			uint4_t 	len_hint,
-			const vec_t& 	hdr,
-			const vec_t& 	data,
-			sdesc_t& 	sd, 
-			rid_t& 		rid	// out
-		    );
+                        file_p&                page, // in-out 
+                        uint4_t         len_hint,
+                        const vec_t&         hdr,
+                        const vec_t&         data,
+                        sdesc_t&         sd, 
+                        rid_t&                 rid        // out
+                    );
+
     static rc_t create_rec_at_end( stid_t fid, 
-			file_p&	page, // in-out
-			uint4_t len_hint,
-			const vec_t& hdr,
-		    	const vec_t& data,
-		    	sdesc_t& sd, 
-			rid_t& rid);
+                        file_p&        page, // in-out
+                        uint4_t len_hint,
+                        const vec_t& hdr,
+                        const vec_t& data,
+                        sdesc_t& sd, 
+                        rid_t& rid);
 
     static rc_t create_rec( stid_t fid, 
-			const lpid_t&	page_hint,
-			uint4_t len_hint,
-			const vec_t& hdr,
-		    	const vec_t& data,
-		    	sdesc_t& sd, 
-			rid_t& rid,
-			bool forward_alloc = true
-			);
-    static rc_t destroy_rec(const rid_t& rid
-		);
+                        const lpid_t&        page_hint,
+                        uint4_t len_hint,
+                        const vec_t& hdr,
+                        const vec_t& data,
+                        sdesc_t& sd, 
+                        rid_t& rid,
+                        bool forward_alloc = true
+                        );
+
+    static rc_t destroy_rec(const rid_t& rid);
+
     static rc_t update_rec(const rid_t& rid, uint4_t start,
-			   const vec_t& data
-			   );
-    static rc_t append_rec(const rid_t& rid, const vec_t& data,
-			   const sdesc_t& sd
-			   );
-    static rc_t truncate_rec(const rid_t& rid, uint4_t amount,
-			   bool& should_forward
-			   );
+                           const vec_t& data);
+
+    static rc_t append_rec(const rid_t& rid, 
+                           const vec_t& data,
+                           const sdesc_t& sd);
+
+    static rc_t truncate_rec(const rid_t& rid, uint4_t amount, 
+            bool &should_forward);
+
     static rc_t splice_hdr(rid_t rid, slot_length_t start, slot_length_t len,
-			   const vec_t& hdr_data
-			   );
+                           const vec_t& hdr_data);
+
     static rc_t read_rec(const rid_t& rid, int start, uint4_t& len, void* buf);
     static rc_t read_rec(const rid_t& rid, uint4_t& len, void* buf)  {
-	return read_rec(rid, 0, len, buf);
+        return read_rec(rid, 0, len, buf);
     }
     static rc_t read_hdr(const rid_t& rid, int& len, void* buf);
 
@@ -225,102 +269,113 @@ public:
     // returned.  If "allocated" is non-null then all pages will be
     // returned and the bool pointed to by "allocated" will be set to
     // indicate whether the page is allocated.
-    static rc_t		first_page(
-	const stid_t&	    fid,
-	lpid_t&		    pid,
-	bool*		    allocated = NULL);
-    static rc_t         next_page_with_space(
-	lpid_t& 	    pid, 
-	bool& 		    eof, 
-	space_bucket_t 	    b);
-    static rc_t		next_page(
-	lpid_t&		    pid,
-	bool&		    eof,
-	bool*		    allocated = NULL);
-    static rc_t		last_page(
-	const stid_t&	    fid,
-	lpid_t&		    pid,
-	bool*		    allocated = NULL);
+    static rc_t                first_page(
+        const stid_t&            fid,
+        lpid_t&                  pid,
+        bool*                    allocated);
 
-    static rc_t locate_page(const rid_t& rid, file_p& page,
-			   latch_mode_t mode)
-			   {return _locate_page(rid, page, mode); }
+    static rc_t                next_page_with_space(
+        lpid_t&                  pid, 
+        bool&                    eof, 
+        space_bucket_t           b);
 
-    static rc_t get_du_statistics(const stid_t& fid, const stid_t& lg_fid, file_stats_t& file_stats, bool audit);
+    static rc_t                next_page(
+        lpid_t&                  pid,
+        bool&                    eof,
+        bool*                    allocated);
+
+    static rc_t                last_page(
+        const stid_t&            fid,
+        lpid_t&                  pid,
+        bool*                    allocated);
+
+    static rc_t                locate_page(const rid_t& rid, 
+                                 file_p& page, 
+                                 latch_mode_t mode) {
+                                        return _locate_page(rid, page, mode); }
+
+    static rc_t                get_du_statistics(const stid_t& fid, 
+                                const stid_t& lg_fid, 
+                                file_stats_t& file_stats, 
+                                bool audit);
 
     // for large object sort: override the record tag
     static rc_t update_rectag(const rid_t& rid, uint4_t len, uint2_t flags);
 
 protected:
     static rc_t _find_slotted_page_with_space(
-			const stid_t& 	fid,
-			pg_policy_t 	mask,
-			sdesc_t&	sd,
-			smsize_t	space_needed, 
-			file_p&		page,	// output
-			slotid_t&	slot	// output
-		    );
+                                const stid_t&   fid,
+                                pg_policy_t     mask,
+                                sdesc_t&        sd,
+                                smsize_t        space_needed, 
+                                file_p&         page,        // output
+                                slotid_t&       slot        // output
+                    );
 
     static rc_t _create_rec(
-			const stid_t& 	fid,
-			pg_policy_t 	policy,
-			smsize_t	len_hint,
-			sdesc_t&	sd,
-			const vec_t& 	hdr,
-			const vec_t& 	data,
-			rid_t& 		rid,
-			file_p&		page	// in-output
-		    );
+                                const stid_t&       fid,
+                                pg_policy_t         policy,
+                                smsize_t            len_hint,
+                                sdesc_t&            sd,
+                                const vec_t&        hdr,
+                                const vec_t&        data,
+                                rid_t&              rid,
+                                file_p&             page        // in-output
+                    );
 
     static rc_t _create_rec_given_page(
-			const stid_t 		fid, 
-			file_p&		page, 
-			lpid_t&		pid,
-			uint4_t 	len_hint,
-			const vec_t& 	hdr, 
-		    	const vec_t& 	data, 
-		    	sdesc_t& 	sd, 
-			rid_t& 		rid,
-			bool		forward_alloc,
-			bool		search
-			);
-    static rc_t _next_page_policy_1(
-		    const stid_t&	stid,
-		    sdesc_t&		sd,
-		    bool		forward_alloc,
-		    lpid_t&		pid);
-    static rc_t  _next_page_policy_2(
-		    const stid_t&	stid,
-		    sdesc_t&		sd,
-		    file_p&		page, 
-		    bool&		forward_alloc,
-		    bool		search_file,
-		    lpid_t&		newpid);
-    static rc_t _create_rec_in_slot(
-			file_p&		page,
-			slotid_t 	slot,
-			recflags_t 	rec_impl,
-			const vec_t& 	hdr,
-			const vec_t& 	data,
-			sdesc_t&	sd,
-			bool		do_append,
-			rid_t&		rid // out
-			);
+                                const stid_t        fid, 
+                                file_p&             page, 
+                                lpid_t&             pid,
+                                uint4_t             len_hint,
+                                const vec_t&        hdr, 
+                                const vec_t&        data, 
+                                sdesc_t&            sd, 
+                                rid_t&              rid,
+                                bool                forward_alloc,
+                                bool                search
+                        );
 
+    static rc_t _next_page_policy_1(
+                    const stid_t&        stid,
+                    sdesc_t&             sd,
+                    bool                 forward_alloc,
+                    lpid_t&              pid);
+
+    static rc_t  _next_page_policy_2(
+                    const stid_t&        stid,
+                    sdesc_t&             sd,
+                    file_p&              page, 
+                    bool&                forward_alloc,
+                    bool                 search_file,
+                    lpid_t&              newpid);
+
+    static rc_t _create_rec_in_slot(
+                    file_p&             page,
+                    slotid_t            slot,
+                    recflags_t          rec_impl,
+                    const vec_t&        hdr,
+                    const vec_t&        data,
+                    sdesc_t&            sd,
+                    bool                do_append,
+                    rid_t&              rid // out
+                    );
+
+    static rc_t _undo_alloc_file_page(file_p& page);
     static rc_t _free_page(file_p& page);
     static rc_t _alloc_page(stid_t fid, 
-		   	 const lpid_t& near, lpid_t& pid,
-			 file_p &page,
-			 bool   search_file
-			 );
+                            const lpid_t& near, lpid_t& pid,
+                         file_p &page,
+                         bool   search_file
+                         );
     
     static rc_t _locate_page(const rid_t& rid, file_p& page, latch_mode_t mode);
     static rc_t _append_large(file_p& page, slotid_t slot, const vec_t& data);
     static rc_t _append_to_large_pages(int num_pages,
-			const lpid_t new_pages[], const vec_t& data,
-			smsize_t left_to_append);
+                        const lpid_t new_pages[], const vec_t& data,
+                        smsize_t left_to_append);
     static rc_t _convert_to_large_indirect(file_p& page, int2_t slotid_t,
-				   uint4_t rec_page_count);
+                                   uint4_t rec_page_count);
     static rc_t _truncate_large(file_p& page, int2_t slotid_t, uint4_t amount);
     static smsize_t _space_last_page(smsize_t rec_sz); // bytes free on last
     static smsize_t _bytes_last_page(smsize_t rec_sz); // bytes used on last
@@ -339,57 +394,6 @@ inline bool file_p::is_file_p() const
 }
 
 inline rc_t
-file_p::fill_slot(
-    slotid_t 		idx,
-    const rectag_t& 	tag, 
-    const vec_t& 	hdr,
-    const vec_t& 	data, 
-    int 		/*pff*/)
-{
-    vec_t vec;
-    vec.put(&tag, sizeof(tag));
-    if(hdr.is_zvec()) {
-	// don't bother messing with zvecs 
-	// for the header -- for now, we 
-	// assume that headers aren't big
-	// enough to worry about
-	vec.put(zero_page, hdr.size());
-    } else {
-	vec.put(hdr);
-    }
-    int hdr_size = hdr.size();
-    if (!is_aligned(hdr_size)) {
-	vec.put(zero_page, int(align(hdr_size)-hdr_size));
-    }
-    w_assert3(is_aligned(vec.size()));
-    rc_t	rc;
-    if(data.is_zvec()) {
-	/*
-	 * 60: roughly the size of a splicez log record
-	 * it's no worth it to generate the extra unless
-	 * the amount saved is more than that
-	 */
-	if(data.size() > 60) {
-	    rc = page_p::reclaim(idx, vec);
-	    if(!rc) {
-		rc =  page_p::splice(idx, vec.size(), 0, data);
-	    }
-	    // AND RETURN
-	    return rc;
-
-	} else {
-	    // add a set of zeroes to vec
-	    vec.put(zero_page, data.size());
-	}
-    } else {
-	// copy all of data to vec
-	vec.put(data);
-    }
-    rc =  page_p::reclaim(idx, vec);
-    return rc;
-}
-
-inline rc_t
 file_p::destroy_rec(slotid_t idx)
 {
     return page_p::mark_free(idx);
@@ -400,9 +404,9 @@ file_p::splice_hdr(slotid_t idx, slot_length_t start, slot_length_t len, const v
 {
     record_t* rec;
     rc_t rc = get_rec(idx, rec);
-    if (! rc)  {
-	int base = rec->hdr() - (char*) rec; // offset of body
-	rc = page_p::splice(idx, base + start, len, data);
+    if (! rc.is_error())  {
+        int base = rec->hdr() - (char*) rec; // offset of body
+        rc = page_p::splice(idx, base + start, len, data);
     } 
     return rc.reset();
 }

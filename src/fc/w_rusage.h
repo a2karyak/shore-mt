@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='W_RUSAGE_H'>
 
- $Id: w_rusage.h,v 1.12 2006/01/29 18:51:07 bolo Exp $
+ $Id: w_rusage.h,v 1.12.2.5 2010/03/19 22:17:20 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -34,11 +34,6 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 
 /*  -- do not edit anything above this line --   </std-header>*/
 
-#ifdef _WINDOWS
-#include <w_winsock.h>
-#include <ctime>
-#include <sys/timeb.h>
-#else
 #include <sys/time.h>
 
 #ifdef Linux
@@ -48,8 +43,8 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #ifdef Linux
     }
 #endif
-#endif
 
+/**\cond skip */
 /* XXX
  * 
  * This needs to be fixed.  The system should not be dependent
@@ -65,72 +60,72 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 /* _SYS_RESOURCE_H_ for *BSD unix boxes */
 /* _SYS_RESOURCE_INCLUDED for HPUX */
 #if !defined(_SYS_RESOURCE_H) && !defined(_SYS_RESOURCE_H_) && !defined(_SYS_RESOURCE_INCLUDED)
-#define	_SYS_RESOURCE_H
+#define    _SYS_RESOURCE_H
 
 /*
  * Process priority specifications
  */
 
-#define	PRIO_PROCESS	0
-#define	PRIO_PGRP	1
-#define	PRIO_USER	2
+#define    PRIO_PROCESS    0
+#define    PRIO_PGRP    1
+#define    PRIO_USER    2
 
 
 /*
  * Resource limits
  */
 
-#define	RLIMIT_CPU	0		/* cpu time in milliseconds */
-#define	RLIMIT_FSIZE	1		/* maximum file size */
-#define	RLIMIT_DATA	2		/* data size */
-#define	RLIMIT_STACK	3		/* stack size */
-#define	RLIMIT_CORE	4		/* core file size */
-#define	RLIMIT_NOFILE	5		/* file descriptors */
-#define	RLIMIT_VMEM	6		/* maximum mapped memory */
-#define	RLIMIT_AS	RLIMIT_VMEM
+#define    RLIMIT_CPU    0        /* cpu time in milliseconds */
+#define    RLIMIT_FSIZE    1        /* maximum file size */
+#define    RLIMIT_DATA    2        /* data size */
+#define    RLIMIT_STACK    3        /* stack size */
+#define    RLIMIT_CORE    4        /* core file size */
+#define    RLIMIT_NOFILE    5        /* file descriptors */
+#define    RLIMIT_VMEM    6        /* maximum mapped memory */
+#define    RLIMIT_AS    RLIMIT_VMEM
 
-#define	RLIM_NLIMITS	7		/* number of resource limits */
+#define    RLIM_NLIMITS    7        /* number of resource limits */
 
-#define	RLIM_INFINITY	0x7fffffff
+#define    RLIM_INFINITY    0x7fffffff
 
 typedef unsigned long rlim_t;
 
 struct rlimit {
-	rlim_t	rlim_cur;		/* current limit */
-	rlim_t	rlim_max;		/* maximum value for rlim_cur */
+    rlim_t    rlim_cur;        /* current limit */
+    rlim_t    rlim_max;        /* maximum value for rlim_cur */
 };
 
-#define	RUSAGE_SELF	0
-#define	RUSAGE_CHILDREN	-1
+#define    RUSAGE_SELF    0
+#define    RUSAGE_CHILDREN    -1
 
-struct	rusage {
-	struct timeval ru_utime;	/* user time used */
-	struct timeval ru_stime;	/* system time used */
-	long	ru_maxrss;		/* XXX: 0 */
-	long	ru_ixrss;		/* XXX: 0 */
-	long	ru_idrss;		/* XXX: sum of rm_asrss */
-	long	ru_isrss;		/* XXX: 0 */
-	long	ru_minflt;		/* any page faults not requiring I/O */
-	long	ru_majflt;		/* any page faults requiring I/O */
-	long	ru_nswap;		/* swaps */
-	long	ru_inblock;		/* block input operations */
-	long	ru_oublock;		/* block output operations */
-	long	ru_msgsnd;		/* messages sent */
-	long	ru_msgrcv;		/* messages received */
-	long	ru_nsignals;		/* signals received */
-	long	ru_nvcsw;		/* voluntary context switches */
-	long	ru_nivcsw;		/* involuntary " */
+struct    rusage {
+    struct timeval ru_utime;    /* user time used */
+    struct timeval ru_stime;    /* system time used */
+    long    ru_maxrss;        /* XXX: 0 */
+    long    ru_ixrss;        /* XXX: 0 */
+    long    ru_idrss;        /* XXX: sum of rm_asrss */
+    long    ru_isrss;        /* XXX: 0 */
+    long    ru_minflt;        /* any page faults not requiring I/O */
+    long    ru_majflt;        /* any page faults requiring I/O */
+    long    ru_nswap;        /* swaps */
+    long    ru_inblock;        /* block input operations */
+    long    ru_oublock;        /* block output operations */
+    long    ru_msgsnd;        /* messages sent */
+    long    ru_msgrcv;        /* messages received */
+    long    ru_nsignals;        /* signals received */
+    long    ru_nvcsw;        /* voluntary context switches */
+    long    ru_nivcsw;        /* involuntary " */
 };
-
-
-
-#endif	/* _SYS_RESOURCE_H */
+#endif    /* _SYS_RESOURCE_H */
 
 #ifndef Linux
 #ifndef getrusage
-	extern "C" int getrusage(int x , struct rusage* use);
+    extern "C" int getrusage(int x , struct rusage* use);
 #endif /* getrusage */
 #endif /* Linux  */
+
+
+/**\endcond skip */
 
 /*<std-footer incl-file-exclusion='W_RUSAGE_H'>  -- do not edit anything below this line -- */
 

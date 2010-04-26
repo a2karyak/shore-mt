@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='SM_VAS_H'>
 
- $Id: sm_vas.h,v 1.29 2006/01/29 18:08:57 bolo Exp $
+ $Id: sm_vas.h,v 1.29.2.4 2010/03/19 22:19:19 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -34,19 +34,40 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 
 /*  -- do not edit anything above this line --   </std-header>*/
 
-/*
- * sm_vas.h is the include file that all value added servers should
- * to get access to the Shore Server storage manager interface.
+/* DOXYGEN documentation : */
+
+/**\addtogroup SSMAPI 
+ *
+ * \details
+ * This page summarizes programming interface
+ * for the
+ * SHORE Storage Manager.
+ *
+ * \section SSMVAS Minimal Example
+ * \addtogroup SSMAPI
+ *
+ * Any code that uses the SHORE Storage Manager requires 
+ * \code
+ * #include <sm_vas.h>
+ * \endcode
+ * For an example, see \ref startstop.cpp
+ *
+ * \sa Architecture Guide
+ * \todo Architecture Guide
  */
+ /**\example startstop.cpp
+  * This is an example of using \<sm_vas.h\>. It shows a minimal
+  * storage manager server, which does nothing but start up (recover) and
+  * shut down.
+  */
+#include "w.h"
 #include <cstddef>
 #include <w_stream.h>
 
-#include "w.h"
 #include "option.h"
 #include "basics.h"
 #include "lid_t.h"
 #include "vec_t.h"
-#include "zvec_t.h"
 #include "tid_t.h"
 #include "stid_t.h"
 

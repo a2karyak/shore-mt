@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='XCT_DEPENDENT_H'>
 
- $Id: xct_dependent.h,v 1.6 1999/06/07 19:04:50 kupsch Exp $
+ $Id: xct_dependent.h,v 1.6.2.4 2010/01/28 04:54:21 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -36,17 +36,21 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 
 class xct_dependent_t {
 public:
-    virtual NORET		~xct_dependent_t();
+    virtual NORET        ~xct_dependent_t();
 
-    virtual void		xct_state_changed(
-	smlevel_1::xct_state_t	    old_state,
-	smlevel_1::xct_state_t	    new_state) = 0;
+    virtual void        xct_state_changed(
+    smlevel_1::xct_state_t        old_state,
+    smlevel_1::xct_state_t        new_state) = 0;
 
 protected:
-    NORET			xct_dependent_t(xct_t* xd); 
+    NORET            xct_dependent_t(xct_t* xd); 
 private:
     friend class xct_impl;
-    w_link_t			_link;
+    // Must protect the list when detaching; the
+    // only way to do that is through the xct_t, so
+    // we need a ptr to it here:
+    xct_t *                _xd;
+    w_link_t            _link;
 };
 
 /*<std-footer incl-file-exclusion='XCT_DEPENDENT_H'>  -- do not edit anything below this line -- */

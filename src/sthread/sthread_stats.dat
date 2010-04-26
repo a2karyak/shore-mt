@@ -1,6 +1,6 @@
 # <std-header style='data' orig-src='shore'>
 #
-#  $Id: sthread_stats.dat,v 1.19 2007/05/18 21:53:44 nhall Exp $
+#  $Id: sthread_stats.dat,v 1.19.2.4 2010/03/19 22:20:01 nhall Exp $
 #
 # SHORE -- Scalable Heterogeneous Object REpository
 #
@@ -31,73 +31,15 @@
 sthread Threads = 0x00050000 sthread_stats {
 	// NB: keep floating point stuff at the top for
 	// alignment reasons
-	float   idle_time	total time the sm process remains idle
-	float   io_time		total time threads wait for io.
-
-	int        ctxsw	Thread context switches
-	int        spins	Busy waits on spin lock
-
-	int    	fastpath	Times diskrw was bypassed
-	int	nofastwrite	Slow Fastpath writes
-
-	int	local_io	Local I/O
-	int	diskrw_io	Disk R/W I/O
-
-	int     iowaits		Times waited on diskrw process
-
-	int     io		Number of I/Os
-	int     ccio		Concurrent I/O calls
-	int	ccio2		Two concurrent I/Os
-	int	ccio3		Three concurrent I/Os
-	int	ccio4		Four concurrent I/Os
+	int     num_io		Number of I/Os
 
 	// I/O types
-	int	read		Number of reads
-	int	write		Number of writes
-	int	sync		Number of syncs
-	int	truncate	Number of truncates
+	int	read		Number of read system calls
+	int	write		Number of write system calls
+	int	sync		Number of sync system calls
+	int	truncate	Number of truncate system calls
 
-	int	writev		Number of writevs
-	int	writev_coalesce	Number of writevs coalesced
-
-	int     selects		Total # select() calls
-	int     selfound	select() calls that returned before timeout
-	int     eintrs		Times select() was interrupted by EINTR
-	int     idle		Times select() timed out
-	int     idle_yield_return  Times idle thread returned from yield()
-	// int     idle_wait_return  Times idle thread returned from wait()
-	// same as selects
-
-
-	int     latch_wait  	Times a thread awaited a latch
-	int     latch_time  	Time waiting for latches
-	int     mutex_wait  	Times a thread awaited a mutex
-	int     scond_wait  	Times a thread awaited a condition
-	int     sevsem_wait  	Times a thread awaited an event semaphore 
-
-	// we count the # select calls between iowait and return
-	// from iowait;  we count the # times this count was 0, 1, 2, 3, >3
-	// below:
-	int     zero	Times I/O done before next select()
-	int     one	Times I/O done after one select()
-	int     two	Times I/O finished after 2 select()s
-	int     three	Times I/O finished after 3 select()s
-	int     more	Times I/O finished after 4 or more select()s
-	int     wrapped	Times select counter wrapped 
-
-	// Number of events pending when waiting for events to be ready
-	int	selw0	Number of event waits for 0 events
-	int	selw1	Number of event waits for 1 events
-	int	selw2	Number of event waits for 2 events
-	int	selw3	Number of event waits for 3 events
-	int	selw4	Number of event waits for 4 events
-	int	selwX	Number of event waits for >4 events
-
-	// Number of events found upon event wakeup
-	int	self1	Number of event waits finding 1 event
-	int	self2	Number of event waits finding 2 events
-	int	self3	Number of event waits finding 3 events
-	int	self4	Number of event waits finding 4 events
-	int	selfX	Number of event waits finding >4 events
+	int	writev		Number of writev system calls
+	int	readv		Number of readv system calls
 };
 

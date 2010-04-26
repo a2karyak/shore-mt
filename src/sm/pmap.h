@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='PMAP_H'>
 
- $Id: pmap.h,v 1.10 2008/05/28 01:28:02 nhall Exp $
+ $Id: pmap.h,v 1.9.2.5 2010/01/28 04:54:09 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -40,169 +40,93 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 
 #include <bitmap.h>
 
-struct Pmap {
-	/* number of bits */
-	enum	{ _count = smlevel_0::ext_sz };
-	/* number of bytes */
-	enum	{ _size = smlevel_0::ext_map_sz_in_bytes };
+struct Pmap 
+{
+    /* number of bits */
+    enum    { _count = smlevel_0::ext_sz };
+    /* number of bytes */
+    enum    { _size = smlevel_0::ext_map_sz_in_bytes };
 
-	u_char bits[_size];
+    u_char bits[_size];
 
-	inline	Pmap() {
-		clear_all();
-	}
+    inline    Pmap() {
+        clear_all();
+    }
 
-	inline	void	set(int bit) { bm_set(bits, bit); }
-	inline	void	clear(int bit) { bm_clr(bits, bit); }
+    inline    void    set(int bit) { bm_set(bits, bit); }
+    inline    void    clear(int bit) { bm_clr(bits, bit); }
 
-	inline	bool	is_set(int bit) const { return bm_is_set(bits, bit); }
-	inline	bool	is_clear(int bit) const { return bm_is_clr(bits, bit);}
+    inline    bool    is_set(int bit) const { return bm_is_set(bits, bit); }
+    inline    bool    is_clear(int bit) const { return bm_is_clr(bits, bit);}
 
-	inline	int	num_set() const { return bm_num_set(bits, _count); }
-	inline	int	num_clear() const { return bm_num_clr(bits, _count); }
+    inline    int    num_set() const { return bm_num_set(bits, _count); }
+    inline    int    num_clear() const { return bm_num_clr(bits, _count); }
 
-	inline	int	first_set(int start) const {
-		return bm_first_set(bits, _count, start);
-	}
-	inline	int	first_clear(int start) const {
-		return bm_first_clr(bits, _count, start);
-	}
-	inline	int	last_set(int start) const {
-		return bm_last_set(bits, _count, start);
-	}
-	inline	int	last_clear(int start) const {
-		return bm_last_clr(bits, _count, start);
-	}
+    inline    int    first_set(int start) const {
+        return bm_first_set(bits, _count, start);
+    }
+    inline    int    first_clear(int start) const {
+        return bm_first_clr(bits, _count, start);
+    }
+    inline    int    last_set(int start) const {
+        return bm_last_set(bits, _count, start);
+    }
+    inline    int    last_clear(int start) const {
+        return bm_last_clr(bits, _count, start);
+    }
 
-	inline	unsigned	size() const { return _size; }
-	inline	unsigned	count() const { return _count; }
+    inline    int    size() const { return _size; }
+    inline    int    count() const { return _count; }
 
-#ifdef notyet
-	inline	bool	is_empty() const { return (num_set() == 0); } 
+    /* bm_num_set is too expensive for this use.
+     XXX doesn't work if #bits != #bytes * 8 */
+    inline    bool    is_empty() const {
+        unsigned    i;
+        for (i = 0; i < _size; i++)
+            if (bits[i])
+                break;
+        return (i == _size);
+    }
+    inline    void    clear_all() { bm_zero(bits, _count); }
+    inline    void    set_all() { bm_fill(bits, _count); }
+
+    ostream    &print(ostream &s) const;
+};
+
+extern    ostream &operator<<(ostream &, const Pmap &pmap);
+
+/* Aligned Pmaps, aka page map. Bit map showing which pages
+ * are allocated (bit set) or just reserved (bit not set).
+ *
+ * Depending upon the pmap size it automagically
+ * provides a filler in the pmap to align it to a 2 byte boundary.
+ * This aligned version is used in various structures to guarantee
+ * size and alignment of other members 
+*/
+
+#if (((SM_EXTENTSIZE+7) & 0x8) == 0)
+typedef    Pmap    Pmap_Align2;
+typedef    Pmap    Pmap_Align4;
 #else
-	/* bm_num_set is too expensive for this use.
-	 XXX doesn't work if #bits != #bytes * 8 */
-	inline	bool	is_empty() const {
-		unsigned	i;
-		for (i = 0; i < _size; i++)
-			if (bits[i])
-				break;
-		return (i == _size);
-	}
-#endif
-	inline	void	clear_all() { bm_zero(bits, _count); }
-	inline	void	set_all() { bm_fill(bits, _count); }
-
-	ostream	&print(ostream &s) const;
-};
-
-extern	ostream &operator<<(ostream &, const Pmap &pmap);
-
-/* Aligned Pmaps -- actually, align the END of a Pmap so that
- * the other members of an extlink_t are properly aligned
- */
-
-#define PMAP_SIZE_IN_BYTES ((SM_EXTENTSIZE + 7)/8)
-
-#if ((PMAP_SIZE_IN_BYTES & 0x7) == 0x0)
-typedef	Pmap	Pmap_Align;
-#elif ((PMAP_SIZE_IN_BYTES & 0x7) == 0x1)
-class Pmap_Align : public Pmap {
+class Pmap_Align2 : public Pmap {
 public:
-	inline	Pmap_Align	&operator=(const Pmap &from) {
-		*(Pmap *)this = from;	// don't copy the filler
-		return *this;
-	}
+    inline    Pmap_Align2    &operator=(const Pmap &from) {
+        *(Pmap *)this = from;    // don't copy the filler
+        return *this;
+    }
 private:
-	fill1	filler;		// keep purify happy
-	fill2   filler2;	// ditto, as well as assert 
-				// in extlink_t::extlink_t()
-	fill4   filler3;	// ditto, as well as assert 
-				// in extlink_t::extlink_t()
+    fill1    filler;        // keep purify happy
 };
-#elif ((PMAP_SIZE_IN_BYTES & 0x7) == 0x2)
-class Pmap_Align : public Pmap {
+class Pmap_Align4 : public Pmap {
 public:
-	inline	Pmap_Align	&operator=(const Pmap &from) {
-		*(Pmap *)this = from;	// don't copy the filler
-		return *this;
-	}
+    inline    Pmap_Align4    &operator=(const Pmap &from) {
+        *(Pmap *)this = from;    // don't copy the filler
+        return *this;
+    }
 private:
-	// fill1	filler;		// keep purify happy
-	fill2   filler2;	// ditto, as well as assert 
-				// in extlink_t::extlink_t()
-	fill4   filler3;	// ditto, as well as assert 
-				// in extlink_t::extlink_t()
-};
-#elif ((PMAP_SIZE_IN_BYTES & 0x7) == 0x3)
-class Pmap_Align : public Pmap {
-public:
-	inline	Pmap_Align	&operator=(const Pmap &from) {
-		*(Pmap *)this = from;	// don't copy the filler
-		return *this;
-	}
-private:
-	fill1	filler;		// keep purify happy
-	// fill2   filler2;	// ditto, as well as assert 
-				// in extlink_t::extlink_t()
-	fill4   filler3;	// ditto, as well as assert 
-				// in extlink_t::extlink_t()
-};
-#elif ((PMAP_SIZE_IN_BYTES & 0x7) == 0x4)
-class Pmap_Align : public Pmap {
-public:
-	inline	Pmap_Align	&operator=(const Pmap &from) {
-		*(Pmap *)this = from;	// don't copy the filler
-		return *this;
-	}
-private:
-	// fill1	filler;		// keep purify happy
-	// fill2   filler2;	// ditto, as well as assert 
-				// in extlink_t::extlink_t()
-	fill4   filler3;	// ditto, as well as assert 
-				// in extlink_t::extlink_t()
-};
-#elif ((PMAP_SIZE_IN_BYTES & 0x7) == 0x5)
-class Pmap_Align : public Pmap {
-public:
-	inline	Pmap_Align	&operator=(const Pmap &from) {
-		*(Pmap *)this = from;	// don't copy the filler
-		return *this;
-	}
-private:
-	fill1	filler;		// keep purify happy
-	fill2   filler2;	// ditto, as well as assert 
-				// in extlink_t::extlink_t()
-	// fill4   filler3;	// ditto, as well as assert 
-				// in extlink_t::extlink_t()
-};
-#elif ((PMAP_SIZE_IN_BYTES & 0x7) == 0x6)
-class Pmap_Align : public Pmap {
-public:
-	inline	Pmap_Align	&operator=(const Pmap &from) {
-		*(Pmap *)this = from;	// don't copy the filler
-		return *this;
-	}
-private:
-	// fill1	filler;		// keep purify happy
-	fill2   filler2;	// ditto, as well as assert 
-				// in extlink_t::extlink_t()
-	// fill4   filler3;	// ditto, as well as assert 
-				// in extlink_t::extlink_t()
-};
-#elif ((PMAP_SIZE_IN_BYTES & 0x7) == 0x7)
-class Pmap_Align : public Pmap {
-public:
-	inline	Pmap_Align	&operator=(const Pmap &from) {
-		*(Pmap *)this = from;	// don't copy the filler
-		return *this;
-	}
-private:
-	fill1	filler;		// keep purify happy
-	// fill2   filler2;	// ditto, as well as assert 
-				// in extlink_t::extlink_t()
-	// fill4   filler3;	// ditto, as well as assert 
-				// in extlink_t::extlink_t()
+    fill1    filler;        // keep purify happy
+    fill2   filler2;    // ditto, as well as assert 
+                // in extlink_t::extlink_t()
 };
 #endif
 

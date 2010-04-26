@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='VTABLE_INFO_H'>
 
- $Id: vtable_info.h,v 1.12 2007/05/18 21:38:24 nhall Exp $
+ $Id: vtable_info.h,v 1.12.2.5 2009/11/23 22:32:48 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -65,12 +65,12 @@ public:
 #ifdef W_DEBUG
 	    // had better have been initialized by caller
 	    for(int a=0; a<n; a++) {
-		    w_assert3(strlen(_get_const(a)) == 0); 
+		    w_assert9(strlen(_get_const(a)) == 0); 
 	    }
 #endif
     }
     static int  size(int n) {
-	    w_assert3( sizeof(vtable_value_t[3]) ==
+	    w_assert9( sizeof(vtable_value_t[3]) ==
 		    3 * sizeof(vtable_value_t[1] ));
 
 	    return sizeof(vtable_info_t) +
@@ -79,7 +79,8 @@ public:
     }
     void set_uint(int a, unsigned int v);
     void set_int(int a, int v);
-    void set_base(w_base_t::base_stat_t a, int v);
+    void set_base(int a, w_base_t::base_stat_t v);
+    void set_base(int a, w_base_t::base_float_t v);
     void set_string(int a, const char *v);
 
     char *operator[](int a) const {
@@ -129,7 +130,7 @@ public:
     int			size() const { return _entries; }
     void		filled() { 
 				_entries_filled++; 
-				w_assert3(_entries_filled <= _entries);
+				w_assert9(_entries_filled <= _entries);
 			}
     void		back_out(int n) {  _entries_filled -= n; }
     int			realloc();
@@ -157,24 +158,24 @@ public:
     NORET ~vtable_func() { }
 
     void operator()(const T& t) // gather func
-    {
-	// escape the const-ness if possible
-	T &t2 = (T &)t;
-	t2.vtable_collect( _array[_curr] );
-	// bump its counter
-	_array.filled();
-	w_assert3(_curr < _array.size());
-	_curr++;
-    }
+	{
+		// escape the const-ness if possible
+		T &t2 = (T &)t;
+		t2.vtable_collect( _array[_curr] );
+		// bump its counter
+		_array.filled();
+		w_assert9(_curr < _array.size());
+		_curr++;
+	}
     typedef void vtable_collect_func(vtable_info_t& t);
     void call(vtable_collect_func f) // arbitrary gather func
-    {
-	f(_array[_curr]);
-	// bump its counter
-	_array.filled();
-	w_assert3(_curr < _array.size());
-	_curr++;
-    }
+	{
+		f(_array[_curr]);
+		// bump its counter
+		_array.filled();
+		w_assert9(_curr < _array.size());
+		_curr++;
+	}
     void		back_out(int n) {  
 	_curr -= n; 
 	_array.back_out(n);

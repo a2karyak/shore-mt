@@ -1,6 +1,6 @@
 # <std-header style='tcl' orig-src='shore'>
 #
-#  $Id: bng.1,v 1.11 2006/06/01 17:09:35 nhall Exp $
+#  $Id: bng.1,v 1.11.2.2 2009/12/21 18:45:13 nhall Exp $
 #
 # SHORE -- Scalable Heterogeneous Object REpository
 #
@@ -29,10 +29,6 @@
 
 # This script tries to find out the read write performance of the shore server 
 # using multiple disks
-if {$Use_logical_id == 1} {
-    echo WARNING: tmpfile.1 cannot be run (since logical IDs are turned on)
-    verbose WARNING: until we destroy tmp files properly on dismount for logical ids
-} else {
 
     if {[is_set objsize] == 0} {
 	# Set size of each tuple
@@ -86,10 +82,9 @@ if {$Use_logical_id == 1} {
 
     # Create one file per device
     sm begin_xct
-
     list fid_list
     foreach i $volid_list {
-	lappend fid_list [sm create_file $i tmp ]
+		lappend fid_list [sm create_file $i tmp ]
     }
     sm commit_xct
 
@@ -97,17 +92,17 @@ if {$Use_logical_id == 1} {
     list thread_list
     set wtime [ time {
 
-	foreach i $fid_list {
-	    lappend thread_list [fork_thread per_thread_write $i]
-	}
+		foreach i $fid_list {
+			lappend thread_list [fork_thread per_thread_write $i]
+		}
 
-	verbose Thread list = $thread_list
+		verbose Thread list = $thread_list
 
 	# Wait for them to finish
 
-	foreach i $thread_list {
-	    join_thread $i
-	}
+		foreach i $thread_list {
+			join_thread $i
+		}
     } 1 ]
 
     verbose Total time, including tcl = $wtime
@@ -121,6 +116,18 @@ if {$Use_logical_id == 1} {
     pstats
 
     verbose Done !
+
+    sm begin_xct
+	foreach i $fid_list {
+		sm destroy_file $i
+	}
+    sm commit_xct
+
+deletecleanupvars {quota vol_list id_body_width size_page_align size dev
+				id_hdr_width vol existing}
+
 unset volid_list update_count fid_list wtime thread_list i nobjs objsize
-}
+unset quota id_body_width size_page_align size dev 
+unset id_hdr_width vol existing 
+
 

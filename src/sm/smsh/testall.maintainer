@@ -2,7 +2,7 @@
 
 # <std-header style='shell' orig-src='shore'>
 #
-#  $Id: testall.maintainer,v 1.1 2007/05/18 21:55:24 nhall Exp $
+#  $Id: testall.maintainer,v 1.1.2.3 2010/01/12 02:01:54 nhall Exp $
 #
 # SHORE -- Scalable Heterogeneous Object REpository
 #
@@ -35,16 +35,20 @@ unsetenv DEBUG_FILE
 unsetenv CRASHTEST
 unsetenv CRASHTESTVAL
 
-echo "cleaning up...."
+echo "cleaning up..."
 /bin/rm -f log/* volumes/* debug.out
 
-echo "SCRIPTS...."
-./smsh -lf ./scripts/all
+echo "SCRIPTS/ALL... see out.all"
+./smsh -f ./scripts/all >& out.all
 
-echo "CRASH TESTS...."
-./runtests.pl
+echo "SCRIPTS/ALL.INDIVIDUALLY... see out.all.individually"
+./smsh -f ./scripts/all.individually >& out.all.individually
+
+echo "CRASH TESTS... see out.runtests-pl"
+perl ./runtests.pl >& out.runtests-pl
 
 echo "re-RUN smsh INDEFINITELY, killing it at random times...."
 echo "This will run indefinitely, and needs to be killed by hand."
+# uses random.all
 
-./runsmsh
+./runsmsh >& out.runsmsh

@@ -1,6 +1,6 @@
 # <std-header style='tcl' orig-src='shore'>
 #
-#  $Id: lgrec.5,v 1.7 2006/06/01 17:09:45 nhall Exp $
+#  $Id: lgrec.5,v 1.7.2.2 2009/12/03 00:21:11 nhall Exp $
 #
 # SHORE -- Scalable Heterogeneous Object REpository
 #
@@ -79,7 +79,7 @@ while {1} {
 	    ]
 	    if {$caught} {
 		verbose EXPECTED error during create: $errorno
-		    verbose aborting...
+		verbose aborting...
 		sm scan_file_destroy $scan
 		sm abort_xct
 		break
@@ -92,6 +92,8 @@ while {1} {
     verbose loop $i: $j objects appended in time: $tm
     # verbose $stats
     # verbose
+	verbose SPACE IN MIDST
+	dstats $volid
 
     incr i
 }
@@ -101,9 +103,8 @@ dstats $volid
 
 sm begin_xct
 sm destroy_file $fid
-
-verbose volume_quota [sm get_volume_quota $volid]
-verbose sm_stats [sm gather_stats]
+# verbose volume_quota [sm get_volume_quota $volid]
+# verbose sm_stats [sm gather_stats]
 sm commit_xct
 
 verbose SPACE AFTER DESTROY

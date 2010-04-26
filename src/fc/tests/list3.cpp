@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: list3.cpp,v 1.24 2006/01/29 18:09:01 bolo Exp $
+ $Id: list3.cpp,v 1.24.2.4 2010/03/19 22:17:53 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -38,12 +38,12 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #include <w.h>
 
 struct elem3_t {
-    int 	i;
-    w_link_t	link;
+    int         i;
+    w_link_t        link;
 };
 
-typedef w_ascend_list_t<elem3_t, int>  elem_ascend_list_t;
-typedef w_descend_list_t<elem3_t, int>  elem_descend_list_t;
+typedef w_ascend_list_t<elem3_t, unsafe_list_dummy_lock_t, int>   elem_ascend_list_t;
+typedef w_descend_list_t<elem3_t, unsafe_list_dummy_lock_t, int>  elem_descend_list_t;
 
 int main()
 {
@@ -52,106 +52,100 @@ int main()
 
     int i;
     for (i = 0; i < 10; i++)
-	array[i].i = i;
+        array[i].i = i;
 
     {
-	elem_ascend_list_t u(W_KEYED_ARG(elem3_t, i, link));
+        elem_ascend_list_t u(W_KEYED_ARG(elem3_t, i, link), unsafe_nolock);
 
-	for (i = 0; i < 10; i += 2)   {
-	    u.put_in_order(&array[9 - i]);	// insert 9, 7, 5, 3, 1
-	}
+        for (i = 0; i < 10; i += 2)   {
+            u.put_in_order(&array[9 - i]);        // insert 9, 7, 5, 3, 1
+        }
 
-	for (i = 0; i < 10; i += 2)  {
-	    u.put_in_order(&array[i]);	// insert 0, 2, 4, 6, 8
-	}
+        for (i = 0; i < 10; i += 2)  {
+            u.put_in_order(&array[i]);        // insert 0, 2, 4, 6, 8
+        }
 
-	for (i = 0; i < 10; i++)  {
-	    p = u.search(i);
-	    w_assert3(p && p->i == i);
-	}
+        for (i = 0; i < 10; i++)  {
+            p = u.search(i);
+            w_assert9(p && p->i == i);
+        }
 
-	{
-	    w_list_i<elem3_t> iter(u);
-	    for (i = 0; i < 10; i++)  {
-		p = iter.next();
-		w_assert3(p && p->i == i);
-	    }
-	    w_assert3(iter.next() == 0);
-	}
+        {
+            w_list_i<elem3_t, unsafe_list_dummy_lock_t> iter(u);
+            for (i = 0; i < 10; i++)  {
+                p = iter.next();
+                w_assert9(p && p->i == i);
+            }
+            w_assert9(iter.next() == 0);
+        }
 
-	p = u.first();
-	w_assert3(p && p->i == 0);
+        p = u.first();
+        w_assert9(p && p->i == 0);
 
-	p = u.last();
-	w_assert3(p && p->i == 9);
+        p = u.last();
+        w_assert9(p && p->i == 9);
 
-	for (i = 0; i < 10; i++)  {
-	    p = u.first();
-	    w_assert3(p && p->i == i);
-	    p = u.pop();
-	    w_assert3(p && p->i == i);
-	}
+        for (i = 0; i < 10; i++)  {
+            p = u.first();
+            w_assert9(p && p->i == i);
+            p = u.pop();
+            w_assert9(p && p->i == i);
+        }
 
-	p = u.pop();
-	w_assert3(!p);
+        p = u.pop();
+        w_assert9(!p);
     }
 
     {
-	elem_descend_list_t d(W_KEYED_ARG(elem3_t, i, link));
+        elem_descend_list_t d(W_KEYED_ARG(elem3_t, i, link), unsafe_nolock);
 
-	for (i = 0; i < 10; i += 2)  {
-	    d.put_in_order(&array[9 - i]);	// insert 9, 7, 5, 3, 1
-	}
+        for (i = 0; i < 10; i += 2)  {
+            d.put_in_order(&array[9 - i]);        // insert 9, 7, 5, 3, 1
+        }
     
-	for (i = 0; i < 10; i += 2)  {
-	    d.put_in_order(&array[i]);	// insert 0, 2, 4, 6, 8
-	}
+        for (i = 0; i < 10; i += 2)  {
+            d.put_in_order(&array[i]);        // insert 0, 2, 4, 6, 8
+        }
 
-	for (i = 0; i < 10; i++)  {
-	    p = d.search(i);
-	    w_assert3(p == &array[i]);
-	}
+        for (i = 0; i < 10; i++)  {
+            p = d.search(i);
+            w_assert9(p == &array[i]);
+        }
 
-	{
-	    w_list_i<elem3_t> iter(d);
-	    for (i = 0; i < 10; i++)  {
-		p = iter.next();
-		w_assert3(p && p->i == 9 - i);
-	    }
-	    w_assert3(iter.next() == 0);
-	}
+        {
+            w_list_i<elem3_t, unsafe_list_dummy_lock_t> iter(d);
+            for (i = 0; i < 10; i++)  {
+                p = iter.next();
+                w_assert9(p && p->i == 9 - i);
+            }
+            w_assert9(iter.next() == 0);
+        }
 
-	p = d.first();
-	w_assert3(p && p->i == 9);
+        p = d.first();
+        w_assert9(p && p->i == 9);
 
-	p = d.last();
-	w_assert3(p && p->i == 0);
+        p = d.last();
+        w_assert9(p && p->i == 0);
 
-	for (i = 0; i < 10; i++)  {
-	    p = d.first();
-	    w_assert3(p && p->i == 9 - i);
-	    p = d.pop();
-	    w_assert3(p && p->i == 9 - i);
-	}
+        for (i = 0; i < 10; i++)  {
+            p = d.first();
+            w_assert9(p && p->i == 9 - i);
+            p = d.pop();
+            w_assert9(p && p->i == 9 - i);
+        }
 
-	p = d.pop();
-	w_assert3(!p);
+        p = d.pop();
+        w_assert9(!p);
     }
 
     return 0;
 }
 
-#ifdef __BORLANDC__
-#pragma option -Jgd
-#include <w_list.cpp>
-typedef w_list_t<elem3_t> w_list_t_elem3_t_dummy;
-#endif /*__BORLANDC__*/
-
 #ifdef EXPLICIT_TEMPLATE
-template class w_ascend_list_t<elem3_t, int>;
-template class w_descend_list_t<elem3_t, int>;
-template class w_keyed_list_t<elem3_t, int>;
-template class w_list_t<elem3_t>;
-template class w_list_i<elem3_t>;
+template class w_ascend_list_t<elem3_t, unsafe_list_dummy_lock_t, int>;
+template class w_descend_list_t<elem3_t, unsafe_list_dummy_lock_t, int>;
+template class w_keyed_list_t<elem3_t, unsafe_list_dummy_lock_t, int>;
+template class w_list_t<elem3_t, unsafe_list_dummy_lock_t>;
+template class w_list_i<elem3_t, unsafe_list_dummy_lock_t>;
 #endif
 

@@ -1,6 +1,6 @@
 # <std-header style='tcl' orig-src='shore'>
 #
-#  $Id: trans.all,v 1.15 1999/06/07 19:05:49 kupsch Exp $
+#  $Id: trans.all,v 1.15.4.4 2010/01/12 02:02:04 nhall Exp $
 #
 # SHORE -- Scalable Heterogeneous Object REpository
 #
@@ -28,21 +28,35 @@
 #   -- do not edit anything above this line --   </std-header>
 
 set do_file_create 1
-set docheckpoint 0
+set nrecs 0
+set nrecsnow 0
+set f0 ""
+addcleanupvars {nrecs nrecsnow f0}
 addcleanupvars {do_file_create}
 addcleanupvars {docheckpoint}
-# source $script_dir/trans.lib
+# addcleanupvars {errorInfo}
+# addcleanupvars {errorCode}
+source $script_dir/trans.tcl
 
-set scripts [list trans.4 trans.1 trans.2]
+set scripts [list trans.4 trans.3 trans.2 trans.1]
+# set scripts [list trans.2]
 
-echo RUNNING: scripts (without checkpoint)
+set docheckpoint 0
+echo RUNNING(from trans.all): (without checkpoint: $docheckpoint) scripts $scripts
 runscripts $scripts
 
 set docheckpoint 1
-echo RUNNING: script (with checkpoint)
+echo RUNNING(from trans.all): (with checkpoint: $docheckpoint) scripts $scripts
 runscripts $scripts
 
-unset do_file_create docheckpoint 
+# deletecleanupvars {errorInfo}
+# deletecleanupvars {errorCode}
 deletecleanupvars {do_file_create}
 deletecleanupvars {docheckpoint}
+deletecleanupvars {nrecs nrecsnow f0}
 
+unset docheckpoint
+unset do_file_create
+
+# nrecs and nrecsnow set by procs in trans.tcl
+unset nrecs nrecsnow f0

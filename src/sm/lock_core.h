@@ -1,6 +1,30 @@
+/* -*- mode:C++; c-basic-offset:4 -*-
+     Shore-MT -- Multi-threaded port of the SHORE storage manager
+   
+                       Copyright (c) 2007-2009
+      Data Intensive Applications and Systems Labaratory (DIAS)
+               Ecole Polytechnique Federale de Lausanne
+   
+                         All Rights Reserved.
+   
+   Permission to use, copy, modify and distribute this software and
+   its documentation is hereby granted, provided that both the
+   copyright notice and this permission notice appear in all copies of
+   the software, derivative works or modified versions, and any
+   portions thereof, and that both notices appear in supporting
+   documentation.
+   
+   This code is distributed in the hope that it will be useful, but
+   WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. THE AUTHORS
+   DISCLAIM ANY LIABILITY OF ANY KIND FOR ANY DAMAGES WHATSOEVER
+   RESULTING FROM THE USE OF THIS SOFTWARE.
+*/
+
+// -*- mode:c++; c-basic-offset:4 -*-
 /*<std-header orig-src='shore' incl-file-exclusion='LOCK_CORE_H'>
 
- $Id: lock_core.h,v 1.41 2007/05/18 21:43:26 nhall Exp $
+ $Id: lock_core.h,v 1.41.2.12 2010/03/19 22:20:24 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -41,214 +65,125 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 
 class LockCoreFunc {
  public:
-	virtual ~LockCoreFunc();
+    virtual ~LockCoreFunc();
 
-	virtual void operator()(const xct_t* xct) = 0;
+    virtual void operator()(const xct_t* xct) = 0;
 };
 
 
-class bucket_t;
-class callback_m;
+class bucket_t; // defined in lock_core.cpp
 
 class lock_core_m : public lock_base_t {
     enum { BPB=CHAR_BIT };
-
-friend class callback_m;
 
 public:
     typedef lock_base_t::lmode_t lmode_t;
     typedef lock_base_t::duration_t duration_t;
 
-    NORET		lock_core_m(uint sz);
-    NORET		~lock_core_m();
+    NORET        lock_core_m(uint sz);
+    NORET        ~lock_core_m();
 
-    int   		collect(vtable_info_array_t&);
+    int          collect(vtable_t&, bool names_too);
 
-#ifdef EXPENSIVE_LOCK_STATS
-    void		stats(
-			    u_long & buckets_used,
-			    u_long & max_bucket_len, 
-			    u_long & min_bucket_len, 
-			    u_long & mode_bucket_len, 
-			    float & avg_bucket_len,
-			    float & var_bucket_len,
-			    float & std_bucket_len
-			    ) const;
-#endif /* EXPENSIVE_LOCK_STATS */
+    void        assert_empty() const;
+    void        dump();
+    void        dump(ostream &o);
+    void        _dump(ostream &o);
 
 
-    void		dump(ostream &o);
-    void		_dump(ostream &o);
-    void		ForEachLockGranteeXctWithoutMutexes(
-				const lockid_t&			n,
-				LockCoreFunc&			f);
-
-    lock_head_t*	find_lock(
-				const lockid_t&			n,
-				bool				create);
-    lock_head_t*	find_lock(
-				w_list_t<lock_head_t>&		l,
-				const lockid_t&			n);
-    lock_request_t*	find_req(
-				w_list_t<lock_request_t>&	l,
-				const xct_t*			xd);
-    lock_request_t*	find_req(
-				w_list_t<lock_request_t>&	l,
-				const tid_t&			tid);
-
-    rc_t		acquire(
-				xct_t*			xd,
-				const lockid_t&		name,
-				lock_head_t*		lock,
-				lock_request_t**	request,
-				lmode_t			mode,
-				lmode_t&			prev_mode,
-				duration_t		duration,
-				timeout_in_ms		timeout,
-				lmode_t&			ret);
-
-#ifdef NOTDEF
-    rc_t		downgrade(
-				xct_t*			xd,
-				const lockid_t&		name,
-				lock_head_t*		lock,
-				lock_request_t*		request,
-				lmode_t			mode,
-				bool			force);
-#endif
-
-    rc_t		release(
-				xct_t*			xd,
-				const lockid_t&		name,
-				lock_head_t*		lock,
-				lock_request_t*		request,
-				bool			force);
-
-    void		wakeup_waiters(lock_head_t*& lock);
-
-    bool		upgrade_ext_req_to_EX_if_should_free(
-				lock_request_t*		req);
-
-    rc_t		release_duration(
-				xct_t*			xd,
-				duration_t		duration,
-				bool			all_less_than,
-				extid_t*		ext_to_free);
-
-    rc_t		open_quark(xct_t*		xd);
-    rc_t		close_quark(
-				xct_t*			xd,
-				bool			release_locks);
-
-    lock_head_t*	GetNewLockHeadFromPool(
-				const lockid_t&		name,
-				lmode_t			mode);
-    
-    void		FreeLockHeadToPool(lock_head_t* theLockHead);
+    lock_head_t*    find_lock_head(
+                const lockid_t&            n,
+                bool                create);
+public:
+    typedef     w_list_t<lock_head_t,queue_based_lock_t> chain_list_t;
+    typedef     w_list_i<lock_head_t,queue_based_lock_t> chain_list_i;
 
 private:
-    uint4_t		deadlock_check_id;
-    uint4_t		_hash(uint4_t) const;
-    rc_t	_check_deadlock(xct_t* xd, bool* deadlock_found = 0);
-    rc_t	_find_cycle(xct_t* self);
-    void	_update_cache(xct_t *xd, const lockid_t& name, lmode_t m);
+    lock_head_t*    _find_lock_head_in_chain(
+                chain_list_t               &l,
+                const lockid_t&            n);
 
-#ifndef NOT_PREEMPTIVE
-#define ONE_MUTEX
-#ifdef ONE_MUTEX
-    smutex_t 		    mutex;
+public:
+    w_rc_t::errcode_t  acquire(
+                xct_t*            xd,
+                const lockid_t&   name,
+                lock_head_t*      lock,
+                lock_request_t**  request,
+                lmode_t           mode,
+                lmode_t&          prev_mode,
+                duration_t        duration,
+                timeout_in_ms     timeout,
+                lmode_t&          ret);
+
+    rc_t        release(
+                xct_lock_info_t*  theLockInfo,
+                const lockid_t&   name,
+                lock_head_t*      lock,
+                lock_request_t*   request,
+                bool              force);
+
+    void        wakeup_waiters(lock_head_t*& lock);
+
+    bool        upgrade_ext_req_to_EX_if_should_free(
+                lock_request_t*        req);
+
+    rc_t        release_duration(
+                xct_lock_info_t*    theLockInfo,
+                duration_t        duration,
+                bool            all_less_than,
+                extid_t*        ext_to_free);
+
+    rc_t        open_quark(xct_t*        xd);
+    rc_t        close_quark(
+                xct_t*            xd,
+                bool            release_locks);
+
+    lock_head_t*    GetNewLockHeadFromPool(
+                const lockid_t&        name,
+                lmode_t            mode);
+    
+    void        FreeLockHeadToPool(lock_head_t* theLockHead);
+
+
+    /* search the lock cache. if reclaim=true, attempt to reclaim the
+       node (possibly failing to do so); otherwise ignore inactive
+       requests.
+     */
+    lock_cache_elem_t*    search_cache(
+                xct_lock_info_t* theLockInfo,
+                lockid_t const &name,
+                bool reclaim=false);
+
+    void        put_in_cache(xct_lock_info_t* theLockInfo,
+                     lockid_t const &name,
+                     lock_mode_t mode,
+                     lock_request_t* req);
+    
+private:
+    uint4_t        _table_hash(uint4_t) const; // mod it to fit table size
+    w_rc_t::errcode_t _check_deadlock(
+                    xct_t* xd, bool first_time, lock_request_t *myreq);
+    void    _update_cache(xct_lock_info_t *theLockInfo, const lockid_t& name, lmode_t m);
+    
+    // internal version that does the actual release
+    rc_t    _release(lock_request_t* request, bool force);
+
+#define DEBUG_LOCK_HASH 0
+#if DEBUG_LOCK_HASH
+    void               compute_lock_hash_numbers() const;
+    void               dump_lock_hash_numbers() const;
 #endif
-#endif
-
-
-    bucket_t* 			_htab;
-    uint4_t			_htabsz;
-    uint4_t			_hashmask;
-    uint4_t			_hashshift;
-
-    w_list_t<lock_head_t>	lockHeadPool;
-#ifndef ONE_MUTEX
-    smutex_t			lockHeadPoolMutex("lockpool");
-#endif
-
-    int				_requests_allocated;
+    bucket_t*          _htab;
+    uint4_t            _htabsz;
+    int                _requests_allocated; // currently-allocated requests.
+    // For further study.
 };
 
 
-#ifdef ONE_MUTEX
-#define ACQUIRE(i) MUTEX_ACQUIRE(mutex);
-#define RELEASE(i) MUTEX_RELEASE(mutex);
-#define IS_MINE(i) w_assert3(MUTEX_IS_MINE(mutex));
-#define LOCK_HEAD_POOL_ACQUIRE(mutex)  /* do nothing */
-#define LOCK_HEAD_POOL_RELEASE(mutex)  /* do nothing */
-#else
-#define ACQUIRE(i) MUTEX_ACQUIRE(_htab[i].mutex);
-#define RELEASE(i) MUTEX_RELEASE(_htab[i].mutex);
-#define IS_MINE(i) w_assert3(MUTEX_IS_MINE(_htab[i].mutex));
-#define LOCK_HEAD_POOL_ACQUIRE(mutex)  MUTEX_ACQUIRE(mutex)
-#define LOCK_HEAD_POOL_RELEASE(mutex)  MUTEX_ACQUIRE(mutex)
-#endif
+#define ACQUIRE_BUCKET_MUTEX(i) MUTEX_ACQUIRE(_htab[i].mutex);
+#define RELEASE_BUCKET_MUTEX(i) MUTEX_RELEASE(_htab[i].mutex);
+#define BUCKET_MUTEX_IS_MINE(i) w_assert3(MUTEX_IS_MINE(_htab[i].mutex));
 
-
-inline lock_head_t*
-lock_core_m::GetNewLockHeadFromPool(const lockid_t& name, lmode_t mode)
-{
-    LOCK_HEAD_POOL_ACQUIRE(lockHeadPoolMutex);
-
-    lock_head_t*	result;
-    if ((result = lockHeadPool.pop()))  {
-	result->name = name;
-	result->granted_mode = mode;
-    }  else  {
-	result = new lock_head_t(name, mode);
-    }
-
-    LOCK_HEAD_POOL_RELEASE(lockHeadPoolMutex);
-
-    return result;
-}
-
-
-inline void
-lock_core_m::FreeLockHeadToPool(lock_head_t* theLockHead)
-{
-    LOCK_HEAD_POOL_ACQUIRE(lockHeadPoolMutex);
-
-    theLockHead->chain.detach();
-    lockHeadPool.push(theLockHead);
-
-    LOCK_HEAD_POOL_RELEASE(lockHeadPoolMutex);
-}
-
-
-inline lock_head_t*
-lock_core_m::find_lock(w_list_t<lock_head_t>& l, const lockid_t& n)
-{
-    lock_head_t* lock;
-    w_list_i<lock_head_t> iter(l);
-    while ((lock = iter.next()) && lock->name != n) ;
-    return lock;
-}
-
-
-inline lock_request_t*
-lock_core_m::find_req(w_list_t<lock_request_t>& l, const xct_t* xd)
-{
-    lock_request_t* request;
-    w_list_i<lock_request_t> iter(l);
-    while ((request = iter.next()) && request->xd != xd);
-    return request;
-}
-
-
-inline lock_request_t*
-lock_core_m::find_req(w_list_t<lock_request_t>& l, const tid_t& tid)
-{
-    lock_request_t* request;
-    w_list_i<lock_request_t> iter(l);
-    while ((request = iter.next()) && request->xd->tid() != tid);
-    return request;
-}
 
 /*<std-footer incl-file-exclusion='LOCK_CORE_H'>  -- do not edit anything below this line -- */
 

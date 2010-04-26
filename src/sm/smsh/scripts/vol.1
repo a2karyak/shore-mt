@@ -1,6 +1,6 @@
 # <std-header style='tcl' orig-src='shore'>
 #
-#  $Id: vol.1,v 1.17 2007/08/21 19:44:01 nhall Exp $
+#  $Id: vol.1,v 1.16.2.3 2009/10/08 20:52:36 nhall Exp $
 #
 # SHORE -- Scalable Heterogeneous Object REpository
 #
@@ -30,12 +30,11 @@
 #
 #	Test volume dismount, create, destroy
 #
-
 source $script_dir/vol.init
 
 sm begin_xct
-set root_iid [sm vol_root_index $volid]
-verbose root_index_id $root_iid
+	set root_iid [sm vol_root_index $volid]
+	verbose root_index_id $root_iid
 sm commit_xct
 
 verbose testing that duplicate mount_dev calls are ok
@@ -53,6 +52,7 @@ source $script_dir/vol.init
 verbose testing dismount_all
 sm dismount_all
 
+verbose rerunning vol.init
 set volid 0
 source $script_dir/vol.init
 

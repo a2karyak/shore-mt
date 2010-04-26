@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: errcodes.cpp,v 1.13 2006/03/14 05:31:23 bolo Exp $
+ $Id: errcodes.cpp,v 1.13.2.4 2010/03/19 22:19:21 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -38,17 +38,17 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 
 int main()
 {
-	cout << "ERROR CODES:\n"; 
-	(void) w_error_t::print(cout);
+    cout << "ERROR CODES:\n"; 
+    (void) w_error_t::print(cout);
 
-	return 0;
+    return 0;
 }
 option_group_t t(2); // causes error codes for options to
-	// be included.
+    // be included.
 
 #ifdef __GNUC__
 typedef w_auto_delete_array_t<char> gcc_kludge_1;
-typedef w_list_i<option_t> 			gcc_kludge_0;
+typedef w_list_i<option_t, unsafe_list_dummy_lock_t>             gcc_kludge_0;
 
 #endif /* __GNUC__*/
 

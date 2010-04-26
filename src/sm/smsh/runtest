@@ -2,7 +2,7 @@
 
 # <std-header style='shell' orig-src='shore'>
 #
-#  $Id: runtest,v 1.12 2007/05/18 21:50:58 nhall Exp $
+#  $Id: runtest,v 1.12.2.2 2009/12/14 23:58:40 nhall Exp $
 #
 # SHORE -- Scalable Heterogeneous Object REpository
 #
@@ -55,5 +55,5 @@ echo $SSMTEST $SSMTEST_ITER $SSMTEST_KIND $DEBUG_FLAGS > runtests.out
 ./smsh $flags scripts/$script 1 >>& runtests.out 
 
 set  s=$status
-echo exiting $s
+echo "    runtest exiting " $s
 exit $s

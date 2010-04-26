@@ -1,6 +1,6 @@
 # <std-header style='data' orig-src='shore'>
 #
-#  $Id: st_error.dat,v 1.16 1999/06/07 19:06:08 kupsch Exp $
+#  $Id: st_error.dat,v 1.16.2.1 2009/10/08 20:49:22 nhall Exp $
 #
 # SHORE -- Scalable Heterogeneous Object REpository
 #
@@ -29,20 +29,12 @@
 
 st = 0x00040000 "Shore Threads" sthread_base_t {
 TIMEOUT		Timed out waiting for resource
-SEMBUSY		Semaphore busy
-SEMPOSTED	Semaphore already posted
-SEMALREADYRESET Semaphore was already reset
-NOTHREAD	No active thread
+BADPATH		Path name cannot be stat()ed
 BADFD		Bad file descriptor for I/O operation, seek, or close
-BADIOVCNT	Bad count for io vector (too high)
-TOOMANYOPEN	Too many open files 
 BADADDR		Bad offset in shared memory segment
-BADFILEHDL	Attempt to wait on file handle that is down
-INVAL	        Invalid argument to thread I/O operation
+INVAL	    Invalid argument to thread I/O operation
 INUSE		Resource in use
 SHORTIO		Short I/O
 SHORTSEEK	Short Seek
-INVALIDIO	Invalid I/O operation
-EOF		End of File
 }
 

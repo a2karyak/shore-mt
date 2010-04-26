@@ -1,15 +1,30 @@
 ## Process this file with automake to produce Makefile.in
 include $(top_srcdir)/Makefile.generic
 AM_CXXFLAGS    += -I$(top_srcdir)/src/common \
+		  -I$(top_srcdir)/src/sthread \
 		  -I$(top_srcdir)/src/fc 
 
-EXTRA_DIST = test_stat.dat testall
+RESULT_COMPARISON_FILES = \
+	bitmap-out errcodes-out latch1-out \
+	latch2-out latch3-out opaque-out vectors-out
 
-check_HEADERS     = test_stat.h
+## no-op rule for making the -out files
+## this is to avoid automagic makefiles thinking that the -out
+## files are executable files to be made from the cpp files of the same
+## prefix
+$(RESULT_COMPARISON_FILES) : noop
+
+noop:
+
+EXTRA_DIST = testall  $(RESULT_COMPARISON_FILES)
 
 check_PROGRAMS     = bitmap$(EXEEXT)  kvl$(EXEEXT) opaque$(EXEEXT) \
-		   stats$(EXEEXT) vectors$(EXEEXT)\
-		   errcodes$(EXEEXT) 
+		   vectors$(EXEEXT) \
+		   errcodes$(EXEEXT) \
+		   lsns$(EXEEXT) \
+		   mapp$(EXEEXT) \
+		   latch1$(EXEEXT)
+
 TESTS = testall
 
 LDADD = ../libcommon.a ../../sthread/libsthread.a ../../fc/libfc.a $(LOCALLDADD)
@@ -20,19 +35,12 @@ errcodes_SOURCES      = errcodes.cpp
 
 kvl_SOURCES      = kvl.cpp
 
-opaque_SOURCES      = opaque.cpp
+lsns_SOURCES      = lsns.cpp
 
-stats_SOURCES      = test_stat.cpp stats.cpp
+mapp_SOURCES      = mapp.cpp
+
+opaque_SOURCES      = opaque.cpp
 
 vectors_SOURCES      = vectors.cpp
 
-
-TEST_STAT_GENFILES = test_stat_def_gen.h test_stat_struct_gen.h 
-
-GENFILES = $(TEST_STAT_GENFILES)
-
-test_stat.$(OBJEXT): $(TEST_STAT_GENFILES)
-stats.$(OBJEXT):  $(TEST_STAT_GENFILES)
-
-$(TEST_STAT_GENFILES): test_stat.dat
-	$(PERL) $(top_srcdir)/tools/stats.pl $<
+latch1_SOURCES      = latch1.cpp

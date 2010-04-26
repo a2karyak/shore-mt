@@ -1,6 +1,29 @@
+/* -*- mode:C++; c-basic-offset:4 -*-
+     Shore-MT -- Multi-threaded port of the SHORE storage manager
+   
+                       Copyright (c) 2007-2009
+      Data Intensive Applications and Systems Labaratory (DIAS)
+               Ecole Polytechnique Federale de Lausanne
+   
+                         All Rights Reserved.
+   
+   Permission to use, copy, modify and distribute this software and
+   its documentation is hereby granted, provided that both the
+   copyright notice and this permission notice appear in all copies of
+   the software, derivative works or modified versions, and any
+   portions thereof, and that both notices appear in supporting
+   documentation.
+   
+   This code is distributed in the hope that it will be useful, but
+   WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. THE AUTHORS
+   DISCLAIM ANY LIABILITY OF ANY KIND FOR ANY DAMAGES WHATSOEVER
+   RESULTING FROM THE USE OF THIS SOFTWARE.
+*/
+
 /*<std-header orig-src='shore' incl-file-exclusion='HASH_LRU_H'>
 
- $Id: hash_lru.h,v 1.37 2005/08/03 19:35:58 bolo Exp $
+ $Id: hash_lru.h,v 1.37.2.3 2009/09/01 21:41:15 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -31,6 +54,7 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #define HASH_LRU_H
 
 #include "w_defines.h"
+#include "w_hash.h"
 
 /*  -- do not edit anything above this line --   </std-header>*/
 
@@ -93,11 +117,13 @@ public:
 // iterator over the hash table
 template <class TYPE, class KEY> class hash_lru_i;
 
+
 // Hash table (with a fixed number of elements) where 
 // replacement is LRU.  The hash table is protected by
 // a mutex.
 template <class TYPE, class KEY>
-class hash_lru_t : public w_base_t {
+class hash_lru_t : public w_base_t 
+{
     friend class hash_lru_i<TYPE, KEY>;
 public:
     hash_lru_t(int n, const char *descriptor=0);
@@ -116,7 +142,10 @@ public:
     void remove(const TYPE*& t);
 
     // acquire the table mutex
-    void acquire_mutex(sthread_t::timeout_in_ms timeout = sthread_t::WAIT_FOREVER) {_mutex.acquire(timeout);}
+    void acquire_mutex(sthread_t::timeout_in_ms timeout = 
+                                         sthread_t::WAIT_FOREVER) 
+	      { _mutex._acquire(timeout); }
+
     // release mutex obtained by grab, find, remove or acquire_mutex
     void release_mutex() {_mutex.release();}
     bool is_mine() const {return _mutex.is_mine();}
@@ -126,14 +155,18 @@ public:
     unsigned	ref_cnt;
     unsigned	hit_cnt;
 private:
-    smutex_t _mutex; /* initialized with descriptor by constructor */
+    mutable smutex_t _mutex; /* initialized with descriptor by constructor */
+
     void _remove(const TYPE*& t);
     hash_lru_entry_t<TYPE, KEY>* _replacement();
     bool _in_htab(hash_lru_entry_t<TYPE, KEY>* e);
 
     hash_lru_entry_t<TYPE, KEY>* _entry;
-    w_hash_t< hash_lru_entry_t<TYPE, KEY>, KEY > _htab;
+
+    w_hash_t< hash_lru_entry_t<TYPE, KEY>, KEY> _htab;
+
     w_list_t< hash_lru_entry_t<TYPE, KEY> > _unused;
+
     int _clock;
     const int _total;
 
@@ -164,7 +197,7 @@ private:
     hash_lru_i& operator=(const hash_lru_i&);
 };
 
-#if defined(__GNUC__) || defined(_MSC_VER)
+#if defined(__GNUC__) 
 #if defined(IMPLEMENTATION_HASH_LRU_H) || !defined(EXTERNAL_TEMPLATES)
 #include "hash_lru.cpp"
 #endif

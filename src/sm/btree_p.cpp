@@ -1,6 +1,29 @@
+/* -*- mode:C++; c-basic-offset:4 -*-
+     Shore-MT -- Multi-threaded port of the SHORE storage manager
+   
+                       Copyright (c) 2007-2009
+      Data Intensive Applications and Systems Labaratory (DIAS)
+               Ecole Polytechnique Federale de Lausanne
+   
+                         All Rights Reserved.
+   
+   Permission to use, copy, modify and distribute this software and
+   its documentation is hereby granted, provided that both the
+   copyright notice and this permission notice appear in all copies of
+   the software, derivative works or modified versions, and any
+   portions thereof, and that both notices appear in supporting
+   documentation.
+   
+   This code is distributed in the hope that it will be useful, but
+   WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. THE AUTHORS
+   DISCLAIM ANY LIABILITY OF ANY KIND FOR ANY DAMAGES WHATSOEVER
+   RESULTING FROM THE USE OF THIS SOFTWARE.
+*/
+
 /*<std-header orig-src='shore'>
 
- $Id: btree_p.cpp,v 1.34 2008/05/28 01:28:01 nhall Exp $
+ $Id: btree_p.cpp,v 1.33.2.6 2010/01/28 04:53:59 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -35,7 +58,7 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #define BTREE_C
 
 #ifdef __GNUG__
-#   	pragma implementation "btree_p.h"
+#       pragma implementation "btree_p.h"
 #endif
 
 #include "sm_int_2.h"
@@ -67,7 +90,7 @@ btree_p::ntoh()
 /*********************************************************************
  *
  *  btree_p::distribute(right_sibling, left_heavy, slot, 
- *			addition, split_factor)
+ *            addition, split_factor)
  *
  *  Spill this page over to right_sibling. 
  *  Based on the "slot" into which an "additional" bytes 
@@ -79,11 +102,11 @@ btree_p::ntoh()
  *********************************************************************/
 rc_t
 btree_p::distribute(
-    btree_p&	rsib,		// IO- target page
-    bool& 	left_heavy,	// O-  true if insert should go to left
-    slotid_t& 	snum,		// IO- slot of insertion after split
-    smsize_t	addition,	// I-  # bytes intended to insert
-    int 	factor)		// I-  % that should remain
+    btree_p&    rsib,        // IO- target page
+    bool&     left_heavy,    // O-  true if insert should go to left
+    slotid_t&     snum,        // IO- slot of insertion after split
+    smsize_t    addition,    // I-  # bytes intended to insert
+    int     factor)        // I-  % that should remain
 {
     w_assert3(is_fixed());
     w_assert3(latch_mode() == LATCH_EX);
@@ -102,7 +125,7 @@ btree_p::distribute(
     int ls = orig + addition;
     const int keep = factor * ls / 100; // nbytes to keep on left page
 
-    int flag = 1;		// indicates if we have passed snum
+    int flag = 1;        // indicates if we have passed snum
 
     /*
      *  i points to the current slot, and i+1-flag is the first slot
@@ -112,18 +135,18 @@ btree_p::distribute(
     int i;
     for (i = nrecs(); i >= 0; i--)  {
         int c;
-	if (i == snum)  {
-	    c = addition, flag = 0;
-	} else {
-	    c = int(align(rec_size(i-flag)) + sizeof(page_s::slot_t));
-	}
-	ls -= c, rs += c;
-	if ((ls < keep && ls + c <= orig) || rs > orig)  {
-	    ls += c;
-	    rs -= c;
-	    if (i == snum) flag = 1;
-	    break;
-	}
+    if (i == snum)  {
+        c = addition, flag = 0;
+    } else {
+        c = int(align(rec_size(i-flag)) + sizeof(page_s::slot_t));
+    }
+    ls -= c, rs += c;
+    if ((ls < keep && ls + c <= orig) || rs > orig)  {
+        ls += c;
+        rs -= c;
+        if (i == snum) flag = 1;
+        break;
+    }
     }
 
     /*
@@ -131,8 +154,8 @@ btree_p::distribute(
      */
     i = i + 1 - flag;
     if (i < nrecs())  {
-	W_DO( shift(i, rsib) );
-	w_assert3( rsib.pid0() == 0);
+    W_DO( shift(i, rsib) );
+    w_assert3( rsib.pid0() == 0);
     }
     SSMTEST("btree.distribute.1");
 
@@ -142,16 +165,16 @@ btree_p::distribute(
      *  Compute left_heavy and new slot to insert additional bytes.
      */
     if (snum == nrecs())  {
-	left_heavy = flag != 0;
+    left_heavy = flag != 0;
     } else {
-	left_heavy = (snum < nrecs());
+    left_heavy = (snum < nrecs());
     }
 
     if (! left_heavy)  {
-	snum -= nrecs();
+    snum -= nrecs();
     }
 
-#ifdef W_DEBUG
+#if W_DEBUG_LEVEL > 2
     btree_p& p = (left_heavy ? *this : rsib);
     w_assert1(snum <= p.nrecs());
     w_assert1(p.usable_space() >= addition);
@@ -159,7 +182,7 @@ btree_p::distribute(
     DBG(<<"distribute: usable_space() : left=" << this->usable_space()
     << "; right=" << rsib. usable_space() );
 
-#endif /*W_DEBUG*/
+#endif 
     
     return RCOK;
 }
@@ -178,14 +201,14 @@ rc_t
 btree_p::_unlink(btree_p &rsib)
 {
     DBG(<<" unlinking page: "  << pid()
-	<< " nrecs " << nrecs()
+    << " nrecs " << nrecs()
     );
     w_assert3(is_fixed());
     w_assert3(latch_mode() == LATCH_EX);
     if(rsib.is_fixed()) {
-	// might not have a right sibling
-	w_assert3(rsib.is_fixed());
-	w_assert3(rsib.latch_mode() == LATCH_EX);
+        // might not have a right sibling
+        w_assert3(rsib.is_fixed());
+        w_assert3(rsib.latch_mode() == LATCH_EX);
     }
     lpid_t  lsib_pid = pid(); // get vol, store
     lsib_pid.page = prev();
@@ -201,20 +224,20 @@ btree_p::_unlink(btree_p &rsib)
      * pointers on *this* page
      */
     {
-	if(rsib.is_fixed()) {
-	    W_DO( rsib.link_up(prev(), rsib.next()) );
-	    SSMTEST("btree.unlink.2");
-	    rsib.unfix();
-	}
-	unfix(); // me
+        if(rsib.is_fixed()) {
+            W_DO( rsib.link_up(prev(), rsib.next()) );
+            SSMTEST("btree.unlink.2");
+            rsib.unfix();
+        }
+        unfix(); // me
 
-	btree_p lsib;
-	if(lsib_pid.page) {
-	    INC_TSTAT(bt_links);
-	    W_DO( lsib.fix(lsib_pid, LATCH_EX) ); 
-	    SSMTEST("btree.unlink.3");
-	    W_DO( lsib.link_up(lsib.prev(), rsib_page) );
-	}
+        btree_p lsib;
+        if(lsib_pid.page) {
+            INC_TSTAT(bt_links);
+            W_DO( lsib.fix(lsib_pid, LATCH_EX) ); 
+            SSMTEST("btree.unlink.3");
+            W_DO( lsib.link_up(lsib.prev(), rsib_page) );
+        }
 
     }
     SSMTEST("btree.unlink.4");
@@ -225,84 +248,84 @@ btree_p::_unlink(btree_p &rsib)
 
 rc_t
 btree_p::unlink_and_propagate(
-    const cvec_t& 	key,
-    const cvec_t& 	elem,
-    btree_p&		rsib,
-    lpid_t&		parent_pid,
-    btree_p&		root
+    const cvec_t&     key,
+    const cvec_t&     elem,
+    btree_p&          rsib,
+    lpid_t&           parent_pid,
+    lpid_t const&     root_pid
 )
 {
-#ifdef W_DEBUG
+#if W_DEBUG_LEVEL > 2
     W_DO(log_comment("start unlink_and_propagate"));
-#endif /* W_DEBUG */
+#endif 
     w_assert3(this->is_fixed());
     w_assert3(rsib.is_fixed() || next() == 0);
-    w_assert3(root.is_fixed());
 
-    if(root.pid() == pid())  {
-	unfix();
+    if(root_pid == pid())  {
+        unfix();
     } else {
-	INC_TSTAT(bt_cuts);
-	
-	lpid_t  child_pid = pid(); 
-	int 	  lev  = this->level();
+        INC_TSTAT(bt_cuts);
+        
+        lpid_t  child_pid = pid(); 
+        int       lev  = this->level();
 
-	lsn_t anchor;
-	xct_t* xd = xct();
-	if (xd)  anchor = xd->anchor();
+        lsn_t anchor;
+        xct_t* xd = xct();
+        if (xd)  anchor = xd->anchor();
 
-	/* 
-	 * remove this page if it's not the root
-	 */
+        /* 
+         * remove this page if it's not the root
+         */
 
-	X_DO(_unlink(rsib), anchor);
-	w_assert3( !rsib.is_fixed());
-	w_assert3( !is_fixed());
+        X_DO(_unlink(rsib), anchor);
+        w_assert3( !rsib.is_fixed());
+        w_assert3( !is_fixed());
 
-	SSMTEST("btree.propagate.d.1");
+        SSMTEST("btree.propagate.d.1");
 
-	/* 
-	 * cut_page out of parent as many times as
-	 * necessary until we hit the root.
-	 */
+        /* 
+         * cut_page out of parent as many times as
+         * necessary until we hit the root.
+         */
 
-	if (parent_pid.page) {
-	    cvec_t 	null;
-	    btree_p	parent;
-	    slotid_t 	slot = -1;
-	    bool 	found_key;
-	    bool 	total_match;
+        if (parent_pid.page) {
+            cvec_t     null;
+            btree_p    parent;
+            slotid_t   slot = -1;
+            bool       found_key;
+            bool       total_match;
 
-	    w_assert3( ! is_fixed());
+            w_assert3( ! is_fixed());
 
 
-	    X_DO(parent.fix(parent_pid, LATCH_EX), anchor);
-	    X_DO(parent.search(key, elem, found_key, total_match, slot), anchor)
+            X_DO(parent.fix(parent_pid, LATCH_EX), anchor);
+            X_DO(parent.search(key, elem, found_key, total_match, slot), anchor)
 
-	    // might, might not:w_assert3(found_key);
-	    if(!total_match) {
-		slot--;
-	    }
-	    if(slot<0) {
-		w_assert3(parent.pid0() == child_pid.page);
-	    } else {
-		w_assert3(parent.child(slot) == child_pid.page);
-	    }
+            // might, might not:w_assert3(found_key);
+            if(!total_match) {
+                slot--;
+            }
+            if(slot<0) {
+                w_assert3(parent.pid0() == child_pid.page);
+            } else {
+                w_assert3(parent.child(slot) == child_pid.page);
+            }
 
-	    X_DO(btree_impl::_propagate(root, key, elem, child_pid, lev, true), anchor);
-	    parent.unfix();
-	}
-	SSMTEST("btree.propagate.d.1");
+            X_DO(btree_impl::_propagate(root_pid, key, elem, 
+                        child_pid, lev, true), anchor);
+            parent.unfix();
+        }
+        SSMTEST("btree.propagate.d.1");
 
-	if (xd)  {
-	    xd->compensate(anchor);
-	}
-	SSMTEST("btree.propagate.d.3");
+        if (xd)  {
+            xd->compensate(anchor);
+        }
+        SSMTEST("btree.propagate.d.3");
     }
     w_assert3( ! is_fixed());
-#ifdef W_DEBUG
-    W_DO(log_comment("end unlink_and_propagate"));
-#endif /* W_DEBUG */
+#if W_DEBUG_LEVEL > 2
+    W_DO(log_comment("end propagate_split"));
+#endif 
     return RCOK;
 }
 
@@ -318,11 +341,7 @@ btree_p::unlink_and_propagate(
  *
  *********************************************************************/
 rc_t
-btree_p::cut_page(lpid_t &
-#ifdef W_DEBUG
-	child_pid
-#endif /* W_DEBUG */
-	, slotid_t slot)
+btree_p::cut_page(lpid_t & W_IFDEBUG3(child_pid) , slotid_t slot)
 {
     // slot <0 means pid0
     // this page is fixed, child is not
@@ -336,7 +355,7 @@ btree_p::cut_page(lpid_t &
     /*
      *  Free the child
      */
-    W_DO( io->free_page(cpid) );
+    W_DO( io->free_page(cpid, false/*checkstore*/) );
 
     SSMTEST("btree.propagate.d.6");
 
@@ -344,20 +363,20 @@ btree_p::cut_page(lpid_t &
      *  Remove the slot from the parent
      */
     if (slot >= 0)  {
-	W_DO( remove(slot, this->is_compressed()) );
+        W_DO( remove(slot, this->is_compressed()) );
     } else {
-	/*
-	 *  Special case for removing pid0 of parent. 
-	 *  Move first sep into pid0's place.
-	 */
-	shpid_t pid0 = 0;
-	if (nrecs() > 0)   {
-	    pid0 = child(0);
-	    W_DO( remove(0, this->is_compressed()) );
-	    SSMTEST("btree.propagate.d.4");
-	}
-	W_DO( set_pid0(pid0) );
-	slot = 0;
+        /*
+         *  Special case for removing pid0 of parent. 
+         *  Move first sep into pid0's place.
+         */
+        shpid_t pid0 = 0;
+        if (nrecs() > 0)   {
+            pid0 = child(0);
+            W_DO( remove(0, this->is_compressed()) );
+            SSMTEST("btree.propagate.d.4");
+        }
+        W_DO( set_pid0(pid0) );
+        slot = 0;
     }
     SSMTEST("btree.propagate.d.5");
 
@@ -427,26 +446,30 @@ btree_p::_set_flag( flag_t f, bool compensate)
     lsn_t anchor;
     xct_t* xd = xct();
     if(compensate) {
-	if (xd)  anchor = xd->anchor();
+    if (xd)  anchor = xd->anchor();
     }
 
     const btctrl_t& tmp = _hdr();
     // X_DO if compensate, W_DO if not.  Instead, we just 
     // do what the macros do 
     {
-	w_rc_t __e = set_hdr(tmp.root, tmp.level, tmp.pid0, 
-				(uint2_t)(tmp.flags | f));
-	if (__e) {
-	    if(xd && compensate) {
-		xd->rollback(anchor);
-		xd->release_anchor(true);
-	    }
-	    return RC_AUGMENT(__e);
-	}
+        w_rc_t __e = set_hdr(tmp.root, tmp.level, tmp.pid0, 
+                    (uint2_t)(tmp.flags | f));
+        if (__e.is_error()) {
+            if(xd && compensate && (__e.err_num() != eOUTOFLOGSPACE)) 
+            {
+                //Cannot rollback or do anything graceful with eOUTOFLOGSPACE,
+                //and I want to avoid an assertion we'll hit in the releasing
+                //of the anchor.
+                xd->rollback(anchor);
+                xd->release_anchor(true);
+            }
+            return RC_AUGMENT(__e);
+        }
     }
 
     if(compensate) {
-	if (xd) xd->compensate(anchor);
+        if (xd) xd->compensate(anchor);
     }
     return RCOK;
 }
@@ -469,14 +492,15 @@ btree_p::_clr_flag(flag_t f, bool compensate)
     lsn_t anchor;
     xct_t* xd = xct();
     if(compensate) {
-	if (xd)  anchor = xd->anchor();
+        if (xd)  anchor = xd->anchor();
     }
 
     const btctrl_t& tmp = _hdr();
-    X_DO( set_hdr(tmp.root, tmp.level, tmp.pid0, (uint2_t)(tmp.flags & ~f)), anchor );
+    X_DO( set_hdr(tmp.root, tmp.level, tmp.pid0, 
+                (uint2_t)(tmp.flags & ~f)), anchor );
 
     if(compensate) {
-	if (xd) xd->compensate(anchor);
+        if (xd) xd->compensate(anchor);
     }
     return RCOK;
 }
@@ -491,10 +515,10 @@ btree_p::_clr_flag(flag_t f, bool compensate)
  *********************************************************************/
 rc_t
 btree_p::format(
-    const lpid_t& 	pid, 
-    tag_t 		tag, 
-    uint4_t 		page_flags,
-    store_flag_t	store_flags
+    const lpid_t&     pid, 
+    tag_t         tag, 
+    uint4_t         page_flags,
+    store_flag_t    store_flags
     )
     
 {
@@ -519,10 +543,10 @@ btree_p::format(
  *  the key is found, and  true in found_key_elem if
  *  a total match is found. 
  *  Return the slot 
- * 	--in which <key, el> resides, if found_key_elem
+ *     --in which <key, el> resides, if found_key_elem
  *      --where <key,elem> should go, if !found_key_elem
  *  Note: if el is null, we'll return the slot of the first <key,xxx> pr
- * 	when found_key but ! found_key_elem
+ *     when found_key but ! found_key_elem
  *  NB: this works because if we put something in slot, whatever is
  *      there gets shoved up.
  *  NB: this means that given an ambiguity at level 1: aa->P1 ab->P2,
@@ -532,18 +556,18 @@ btree_p::format(
  *********************************************************************/
 rc_t
 btree_p::search(
-    const cvec_t& 	key,
-    const cvec_t& 	el,
-    bool& 		found_key, 
-    bool& 		found_key_elem, 
-    slotid_t& 		ret_slot	// origin 0 for first record
+    const cvec_t&     key,
+    const cvec_t&     el,
+    bool&         found_key, 
+    bool&         found_key_elem, 
+    slotid_t&         ret_slot    // origin 0 for first record
 ) const
 {
     FUNC(btree_p::search);
     DBG(<< "Page " << pid()
-	<< " nrecs=" << nrecs()
-	<< " search for key " << key
-	);
+        << " nrecs=" << nrecs()
+        << " search for key " << key
+    );
     
     /*
      *  Binary search.
@@ -552,48 +576,48 @@ btree_p::search(
     found_key_elem = false;
     int mi, lo, hi;
     for (mi = 0, lo = 0, hi = nrecs() - 1; lo <= hi; )  {
-	mi = (lo + hi) >> 1;	// ie (lo + hi) / 2
+        mi = (lo + hi) >> 1;    // ie (lo + hi) / 2
 
-	btrec_t r(*this, mi); 
-	int d;
-	DBG(<<"(lo=" << lo
-		<< ",hi=" << hi
-		<< ") mi=" << mi);
+        btrec_t r(*this, mi); 
+        int d;
+        DBG(<<"(lo=" << lo
+            << ",hi=" << hi
+            << ") mi=" << mi);
 
-	if ((d = r.key().cmp(key)) == 0)  {
-	    DBG( << " r=("<<r.key()
-	    << ") CMP k=(" <<key
-	    << ") = d(" << d << ")");
+        if ((d = r.key().cmp(key)) == 0)  {
+            DBG( << " r=("<<r.key()
+                << ") CMP k=(" <<key
+                << ") = d(" << d << ")");
 
-	    found_key = true;
-	    DBG(<<"FOUND KEY; comparing el: " << el 
-		<< " r.elem()=" << r.elem());
-	    d = r.elem().cmp(el);
+            found_key = true;
+            DBG(<<"FOUND KEY; comparing el: " << el 
+                << " r.elem()=" << r.elem());
+            d = r.elem().cmp(el);
 
-	   // d will be > 0 if el is null vector
-	    DBG( << " r=("<<r.elem()
-	    << ") CMP e=(" <<el
-	    << ") = d(" << d << ")");
-	} else {
-	    DBG( << " r=("<<r.key()
-	    << ") CMP k=(" <<key
-	    << ") = d(" << d << ")");
-	}
+           // d will be > 0 if el is null vector
+            DBG( << " r=("<<r.elem()
+                << ") CMP e=(" <<el
+                << ") = d(" << d << ")");
+        } else {
+            DBG( << " r=("<<r.key()
+                << ") CMP k=(" <<key
+                << ") = d(" << d << ")");
+        }
 
         // d <  0 if r.key < key; key falls between mi and hi
         // d == 0 if r.key == key; match
         // d >  0 if r.key > key; key falls between lo and mi
 
-	if (d < 0) 
-	    lo = mi + 1;
-	else if (d > 0)
-	    hi = mi - 1;
-	else {
-	    ret_slot = mi;
-	    found_key_elem = true;
-	    DBG(<<"");
-	    return RCOK;
-	}
+        if (d < 0) 
+            lo = mi + 1;
+        else if (d > 0)
+            hi = mi - 1;
+        else {
+            ret_slot = mi;
+            found_key_elem = true;
+            DBG(<<"");
+            return RCOK;
+        }
     }
     ret_slot = (lo > mi) ? lo : mi;
     /*
@@ -607,20 +631,20 @@ btree_p::search(
      * surrounding leaves, if a value were to belong between
      * leaf1.highest and leaf2.lowest.
      */ 
-#ifdef W_DEBUG
+#if W_DEBUG_LEVEL > 2
     w_assert3(ret_slot <= nrecs());
     if(ret_slot == nrecs() ) {
-	w_assert3(!found_key_elem);
-	// found_key could be true or false
+        w_assert3(!found_key_elem);
+        // found_key could be true or false
     }
     if(found_key) w_assert3(ret_slot <= nrecs());
     if(found_key_elem) w_assert3(ret_slot < nrecs());
-#endif /* W_DEBUG */
+#endif 
 
     DBG(<<" returning slot " << ret_slot
-	<<" found_key=" << found_key
-	<<" found_key_elem=" << found_key_elem
-	);
+        <<" found_key=" << found_key
+        <<" found_key_elem=" << found_key_elem
+    );
     return RCOK;
 }
 
@@ -631,25 +655,25 @@ btree_p::search(
  *  For leaf page: insert <K=key, E=el> at "slot"
  *  For node page: insert <K=(key, el), E=(key.size(), child pid)> at "slot"
  *  For both kinds of pages, an entry is:
- * 	key len(/prefix)=4 bytes, K, E
+ *     key len(/prefix)=4 bytes, K, E
  *
  *********************************************************************/
 rc_t
 btree_p::insert(
-    const cvec_t& 	key,	// I-  key
-    const cvec_t& 	el,	// I-  element
-    slotid_t 		slot,	// I-  slot number
-    shpid_t 		child,	// I-  child page pointer
+    const cvec_t&     key,    // I-  key
+    const cvec_t&     el,    // I-  element
+    slotid_t         slot,    // I-  slot number
+    shpid_t         child,    // I-  child page pointer
     bool                do_it   // I-  just compute space or really do it
 )
 {
     FUNC(btree_p::insert);
     DBG(<<"insert " << key 
-	<< " into page " << pid()
-	<< " at slot "  << slot
-	<< " REALLY? " << do_it
-	<< " nrecs="  << nrecs()
-	);
+        << " into page " << pid()
+        << " at slot "  << slot
+        << " REALLY? " << do_it
+        << " nrecs="  << nrecs()
+    );
 
     cvec_t sep(key, el);
     
@@ -657,56 +681,16 @@ btree_p::insert(
     cvec_t attr;
     attr.put(&klen, sizeof(klen));
     if (is_leaf()) {
-	w_assert3(child == 0);
+        w_assert3(child == 0);
     } else {
-	w_assert3(child);
-	attr.put(&child, sizeof(child));
+        w_assert3(child);
+        attr.put(&child, sizeof(child));
     }
     SSMTEST("btree.insert.1");
 
-    return  zkeyed_p::insert(sep, attr, slot, do_it, do_it?this->is_compressed():false);
+    return  zkeyed_p::insert(sep, attr, slot, do_it, 
+            do_it?this->is_compressed():false);
 }
-
-
-
-/*********************************************************************
- *
- *  btree_p::copy_to_new_page(new_page)
- *
- *  Copy all slots to new_page.
- *
- *********************************************************************/
-rc_t
-btree_p::copy_to_new_page(btree_p& new_page)
-{
-    FUNC(btree_p::copy_to_new_page);
-
-    /*
-     *  This code copies the old root to the new root.
-     *  This code is similar to zkeyed_p::shift() except it
-     *  does not remove entries from the old page.
-     */
-
-    int n = nrecs();
-
-    const int tmp_chunk_size = 20;	/* XXX magic number */
-    vec_t	*tp = new vec_t[tmp_chunk_size];
-    if (!tp)
-	return RC(fcOUTOFMEMORY);
-    w_auto_delete_array_t<vec_t> ad_tp(tp);
-
-    for (int i = 0; i < n; ) {
-	int j;
-	for (j = 0; j < tmp_chunk_size && i < n; j++, i++)  {
-	    tp[j].set(page_p::tuple_addr(1 + i),
-		      page_p::tuple_size(1 + i));
-	}
-	W_DO( new_page.insert_expand(1 + i - j, j, tp) );
-	SSMTEST("btree.1page.1");
-    }
-    return RCOK;
-}
-
 
 
 /*********************************************************************
@@ -735,76 +719,76 @@ btree_p::child(slotid_t slot) const
 
 // Stats on btree leaf pages
 rc_t
-btree_p::leaf_stats(btree_lf_stats_t& stats)
+btree_p::leaf_stats(btree_lf_stats_t& _stats)
 {
     btrec_t rec[2];
     int r = 0;
 
-    stats.hdr_bs += (hdr_size() + sizeof(page_p::slot_t) + 
-		     align(page_p::tuple_size(0)));
-    stats.unused_bs += persistent_part().space.nfree();
+    _stats.hdr_bs += (hdr_size() + sizeof(page_p::slot_t) + 
+             align(page_p::tuple_size(0)));
+    _stats.unused_bs += persistent_part().space.nfree();
 
     int n = nrecs();
-    stats.entry_cnt += n;
+    _stats.entry_cnt += n;
 
     for (int i = 0; i < n; i++)  {
-	rec[r].set(*this, i);
-	if (rec[r].key() != rec[1-r].key())  {
-	    /* BUG BUG : if r is the first record on the
-	     * page, we can't do this comparison, and we
-	     * don't know if the two are different.
-	     * so this count is rather meaningless
-	     */
-	    stats.unique_cnt++;
-	}
+    rec[r].set(*this, i);
+    if (rec[r].key() != rec[1-r].key())  {
+        /* BUG BUG : if r is the first record on the
+         * page, we can't do this comparison, and we
+         * don't know if the two are different.
+         * so this count is rather meaningless
+         */
+        _stats.unique_cnt++;
+    }
 
-	if( ! is_compressed()) {
-	    stats.key_bs += rec[r].klen();
-	    stats.data_bs += rec[r].elen();
-	    stats.entry_overhead_bs += (align(this->rec_size(i)) - 
-					   rec[r].klen() - rec[r].elen() + 
-					   sizeof(page_s::slot_t));
-	} else {
-	    /*
-	     * Prefix compression might have encompassed all of 
-	     * the key and part of the elem.  If the key is shorter
-	     * than the prefix, this is so, in which case, 
-	     * consider key space to be 0, and subtract the apropos
-	     * portion of the prefix from the element length.
-	     */
-	    stats.key_bs += (rec[r].klen() > rec[r].plen()) ?
-			    (rec[r].klen() - rec[r].plen()) : 0
-		    ;
-	    stats.data_bs += (rec[r].klen() > rec[r].plen()) ? 
-			     rec[r].elen() :
-			     rec[r].elen() - (rec[r].plen() - rec[r].klen())
-		     ; 
+    if( ! is_compressed()) {
+        _stats.key_bs += rec[r].klen();
+        _stats.data_bs += rec[r].elen();
+        _stats.entry_overhead_bs += (align(this->rec_size(i)) - 
+                       rec[r].klen() - rec[r].elen() + 
+                       sizeof(page_s::slot_t));
+    } else {
+        /*
+         * Prefix compression might have encompassed all of 
+         * the key and part of the elem.  If the key is shorter
+         * than the prefix, this is so, in which case, 
+         * consider key space to be 0, and subtract the apropos
+         * portion of the prefix from the element length.
+         */
+        _stats.key_bs += (rec[r].klen() > rec[r].plen()) ?
+                (rec[r].klen() - rec[r].plen()) : 0
+            ;
+        _stats.data_bs += (rec[r].klen() > rec[r].plen()) ? 
+                 rec[r].elen() :
+                 rec[r].elen() - (rec[r].plen() - rec[r].klen())
+             ; 
 
-	    DBG(<<"old entry_overhead_bs: " << stats.entry_overhead_bs);
-	    DBG(<<"entry_overhead_bs: slot:" << sizeof(page_s::slot_t)
-		    << " rec.aligned: " <<align(this->rec_size(i))
-		    << " klen: " <<rec[r].klen()
-		    << " elen: " <<rec[r].elen()
-		    << " plen: " <<rec[r].plen()
-		);
+        DBG(<<"old entry_overhead_bs: " << _stats.entry_overhead_bs);
+        DBG(<<"entry_overhead_bs: slot:" << sizeof(page_s::slot_t)
+            << " rec.aligned: " <<align(this->rec_size(i))
+            << " klen: " <<rec[r].klen()
+            << " elen: " <<rec[r].elen()
+            << " plen: " <<rec[r].plen()
+        );
 
-	    stats.entry_overhead_bs += sizeof(page_s::slot_t) +
-					(align(this->rec_size(i)) - 
-					   ((rec[r].klen()+ rec[r].elen())
-					       - rec[r].plen())
-					);
-	}
-	r = 1 - r;
+        _stats.entry_overhead_bs += sizeof(page_s::slot_t) +
+                    (align(this->rec_size(i)) - 
+                       ((rec[r].klen()+ rec[r].elen())
+                           - rec[r].plen())
+                    );
+    }
+    r = 1 - r;
     }
     return RCOK;
 }
 
 // Stats on btree interior pages
 rc_t
-btree_p::int_stats(btree_int_stats_t& stats)
+btree_p::int_stats(btree_int_stats_t& _stats)
 {
-    stats.unused_bs += persistent_part().space.nfree();
-    stats.used_bs += page_sz - persistent_part().space.nfree();
+    _stats.unused_bs += persistent_part().space.nfree();
+    _stats.used_bs += page_sz - persistent_part().space.nfree();
     return RCOK;
 }
 
@@ -829,29 +813,29 @@ btrec_t::set(const btree_p& page, slotid_t slot)
     _elem.reset();
 
     const char* aux;
-    int 	auxlen;
-    vec_t 	sep;
+    int     auxlen;
+    vec_t     sep;
     //
     // sep is the combined key-value pair
     // aux/auxlen is the meta-data: for leaves, it's a 2-byte
-    // 		length indicating the length of the key within sep,
+    //         length indicating the length of the key within sep,
     //          and for nodes, it's the above 2-byte value plus a 
     //          page id.
     //
     /* OVERHEAD per-slot overhead includes 4-byte slot table entry */
     
     if(page.is_compressed()) {
-	int pxp; // # parts to the prefix
-	W_COERCE( page.zkeyed_p::rec(slot, _prefix_bytes, pxp, sep, aux, auxlen) );
-	DBG(<<"slot " << slot << " has " << _prefix_bytes << " prefix bytes");
+        int pxp; // # parts to the prefix
+        W_COERCE( page.zkeyed_p::rec(slot, _prefix_bytes, pxp, sep, aux, auxlen) );
+        DBG(<<"slot " << slot << " has " << _prefix_bytes << " prefix bytes");
     } else {
-	W_COERCE( page.zkeyed_p::rec(slot, sep, aux, auxlen) );
+        W_COERCE( page.zkeyed_p::rec(slot, sep, aux, auxlen) );
     }
 
     if (page.is_leaf())  {
-	w_assert3(auxlen == 2);
+        w_assert3(auxlen == 2);
     } else {
-	w_assert3(auxlen == 2 + sizeof(shpid_t));
+        w_assert3(auxlen == 2 + sizeof(shpid_t));
     }
 
     // materialize the key length
@@ -859,41 +843,42 @@ btrec_t::set(const btree_p& page, slotid_t slot)
     memcpy(&k, aux, sizeof(k));
     size_t klen = k;
 
-#ifdef  W_DEBUG
+#if W_DEBUG_LEVEL > 2
     int elen_test = sep.size() - klen;
     w_assert3(elen_test >= 0);
-#endif /* W_DEBUG */
-#ifdef W_DEBUG
+
     smsize_t elen = sep.size() - klen;
-#endif /* W_DEBUG */
+#endif 
 
     sep.split(klen, _key, _elem);
     w_assert3(_key.size() == klen);
     w_assert3(_elem.size() == elen);
 
     if (page.is_node())  {
-	w_assert3(auxlen == 2 + sizeof(shpid_t));
-	memcpy(&_child, aux + 2, sizeof(shpid_t));
+        w_assert3(auxlen == 2 + sizeof(shpid_t));
+        memcpy(&_child, aux + 2, sizeof(shpid_t));
     }
     DBG(<<"slot " << slot << " has plen " << plen() );
 
     return *this;
 }
 
-smsize_t 		
+// TODO NANCY: gnats bug 86 : this computation is no longer accurate.
+// It's off by 6 for some reason
+smsize_t         
 btree_p::max_entry_size = // must be able to fit 2 entries to a page
     (
-	((smlevel_0::page_sz - 
-	    (page_p::_hdr_size +
-	    sizeof(page_p::slot_t) +
-	    align(sizeof(btree_p::btctrl_t)))) >> 1
-	) - (
-		2 // for the key length (in btree_p)
-		+
-		4 // for the key length (in zkeyed_p)
-		+
-		sizeof(shpid_t) // for the interior nodes (in btree_p)
-	    )
+    ((smlevel_0::page_sz - 
+        (page_p::_hdr_size +
+        sizeof(page_p::slot_t) +
+        align(sizeof(btree_p::btctrl_t)))) >> 1
+    ) - (
+        2 // for the key length (in btree_p)
+        +
+        4 // for the key length (in zkeyed_p)
+        +
+        sizeof(shpid_t) // for the interior nodes (in btree_p)
+        )
 
     ) 
     // round down to aligned size
@@ -912,23 +897,23 @@ btree_p::max_entry_size = // must be able to fit 2 entries to a page
  * NOT require a page split unless we KNOW that a SMO
  * is not in progress. 
  */
-rc_t 			
+rc_t             
 btree_p::set_delete() 
 { 
     xct_t* xd = xct();
     if (xd && xd->state() == smlevel_1::xct_active) {
-	return _set_flag(t_delete, true); 
+        return _set_flag(t_delete, true); 
     } else {
-	return RCOK;
+        return RCOK;
     }
 }
-rc_t 			
+rc_t             
 btree_p::clr_delete() { 
     xct_t* xd = xct();
     if (xd && xd->state() == smlevel_1::xct_active) {
-	return _clr_flag(t_delete, true); 
+        return _clr_flag(t_delete, true); 
     } else {
-	return RCOK;
+        return RCOK;
     }
 }
 
@@ -948,104 +933,104 @@ btree_p::print(
     cout << pid0() << "=" << pid0() << endl;
 
     for (i = 0; i < nrecs(); i++)  {
-	for (int j = 0; j < L - hdr.level; j++)  cout << '\t' ;
+    for (int j = 0; j < L - hdr.level; j++)  cout << '\t' ;
 
-	btrec_t r(*this, i);
-	cvec_t* real_key;
+    btrec_t r(*this, i);
+    cvec_t* real_key;
 
-	if(r.key().size() == 0) {
-	    // null
-	    cout << "<key = " << r.key() ;
-	} else switch(kt) {
-	case sortorder::kt_b: {
-		cout 	<< "<key = " << r.key() ;
-	    } break;
-	case sortorder::kt_i8: {
-		w_base_t::int8_t value;
-		key_type_s k(key_type_s::i, 0, 8);
-		W_COERCE(btree_m::_unscramble_key(real_key, r.key(), 1, &k));
-		real_key->copy_to(&value, sizeof(value));
-		cout 	<< "<key = " << value;
-	    }break;
-	case sortorder::kt_u8:{
-		uint4_t value;
-		key_type_s k(key_type_s::u, 0, 8);
-		W_COERCE(btree_m::_unscramble_key(real_key, r.key(), 1, &k));
-		real_key->copy_to(&value, sizeof(value));
-		cout 	<< "<key = " << value;
-	    } break;
+    if(r.key().size() == 0) {
+        // null
+        cout << "<key = " << r.key() ;
+    } else switch(kt) {
+    case sortorder::kt_b: {
+        cout     << "<key = " << r.key() ;
+        } break;
+    case sortorder::kt_i8: {
+        w_base_t::int8_t value;
+        key_type_s k(key_type_s::i, 0, 8);
+        W_COERCE(btree_m::_unscramble_key(real_key, r.key(), 1, &k));
+        real_key->copy_to(&value, sizeof(value));
+        cout     << "<key = " << value;
+        }break;
+    case sortorder::kt_u8:{
+        uint4_t value;
+        key_type_s k(key_type_s::u, 0, 8);
+        W_COERCE(btree_m::_unscramble_key(real_key, r.key(), 1, &k));
+        real_key->copy_to(&value, sizeof(value));
+        cout     << "<key = " << value;
+        } break;
 
-	case sortorder::kt_i4: {
-		int4_t value;
-		key_type_s k(key_type_s::i, 0, 4);
-		W_COERCE(btree_m::_unscramble_key(real_key, r.key(), 1, &k));
-		real_key->copy_to(&value, sizeof(value));
-		cout 	<< "<key = " << value;
-	    }break;
-	case sortorder::kt_u4:{
-		uint4_t value;
-		key_type_s k(key_type_s::u, 0, 4);
-		W_COERCE(btree_m::_unscramble_key(real_key, r.key(), 1, &k));
-		real_key->copy_to(&value, sizeof(value));
-		cout 	<< "<key = " << value;
-	    } break;
-	case sortorder::kt_i2: {
-		int2_t value;
-		key_type_s k(key_type_s::i, 0, 2);
-		W_COERCE(btree_m::_unscramble_key(real_key, r.key(), 1, &k));
-		real_key->copy_to(&value, sizeof(value));
-		cout 	<< "<key = " << value;
-	    }break;
-	case sortorder::kt_u2: {
-		uint2_t value;
-		key_type_s k(key_type_s::u, 0, 2);
-		W_COERCE(btree_m::_unscramble_key(real_key, r.key(), 1, &k));
-		real_key->copy_to(&value, sizeof(value));
-		cout 	<< "<key = " << value;
-	    } break;
-	case sortorder::kt_i1: {
-		int1_t value;
-		key_type_s k(key_type_s::i, 0, 1);
-		W_COERCE(btree_m::_unscramble_key(real_key, r.key(), 1, &k));
-		real_key->copy_to(&value, sizeof(value));
-		cout 	<< "<key = " << value;
-	    }break;
-	case sortorder::kt_u1: {
-		uint1_t value;
-		key_type_s k(key_type_s::u, 0, 1);
-		W_COERCE(btree_m::_unscramble_key(real_key, r.key(), 1, &k));
-		real_key->copy_to(&value, sizeof(value));
-		cout 	<< "<key = " << value;
-	    } break;
+    case sortorder::kt_i4: {
+        int4_t value;
+        key_type_s k(key_type_s::i, 0, 4);
+        W_COERCE(btree_m::_unscramble_key(real_key, r.key(), 1, &k));
+        real_key->copy_to(&value, sizeof(value));
+        cout     << "<key = " << value;
+        }break;
+    case sortorder::kt_u4:{
+        uint4_t value;
+        key_type_s k(key_type_s::u, 0, 4);
+        W_COERCE(btree_m::_unscramble_key(real_key, r.key(), 1, &k));
+        real_key->copy_to(&value, sizeof(value));
+        cout     << "<key = " << value;
+        } break;
+    case sortorder::kt_i2: {
+        int2_t value;
+        key_type_s k(key_type_s::i, 0, 2);
+        W_COERCE(btree_m::_unscramble_key(real_key, r.key(), 1, &k));
+        real_key->copy_to(&value, sizeof(value));
+        cout     << "<key = " << value;
+        }break;
+    case sortorder::kt_u2: {
+        uint2_t value;
+        key_type_s k(key_type_s::u, 0, 2);
+        W_COERCE(btree_m::_unscramble_key(real_key, r.key(), 1, &k));
+        real_key->copy_to(&value, sizeof(value));
+        cout     << "<key = " << value;
+        } break;
+    case sortorder::kt_i1: {
+        int1_t value;
+        key_type_s k(key_type_s::i, 0, 1);
+        W_COERCE(btree_m::_unscramble_key(real_key, r.key(), 1, &k));
+        real_key->copy_to(&value, sizeof(value));
+        cout     << "<key = " << value;
+        }break;
+    case sortorder::kt_u1: {
+        uint1_t value;
+        key_type_s k(key_type_s::u, 0, 1);
+        W_COERCE(btree_m::_unscramble_key(real_key, r.key(), 1, &k));
+        real_key->copy_to(&value, sizeof(value));
+        cout     << "<key = " << value;
+        } break;
 
-	case sortorder::kt_f8:{
-		f8_t value;
-		key_type_s k(key_type_s::f, 0, 8);
-		W_COERCE(btree_m::_unscramble_key(real_key, r.key(), 1, &k));
-		real_key->copy_to(&value, sizeof(value));
-		cout 	<< "<key = " << value;
-	    } break;
-	case sortorder::kt_f4:{
-		f4_t value;
-		key_type_s k(key_type_s::f, 0, 4);
-		W_COERCE(btree_m::_unscramble_key(real_key, r.key(), 1, &k));
-		real_key->copy_to(&value, sizeof(value));
-		cout 	<< "<key = " << value;
-	    } break;
+    case sortorder::kt_f8:{
+        f8_t value;
+        key_type_s k(key_type_s::f, 0, 8);
+        W_COERCE(btree_m::_unscramble_key(real_key, r.key(), 1, &k));
+        real_key->copy_to(&value, sizeof(value));
+        cout     << "<key = " << value;
+        } break;
+    case sortorder::kt_f4:{
+        f4_t value;
+        key_type_s k(key_type_s::f, 0, 4);
+        W_COERCE(btree_m::_unscramble_key(real_key, r.key(), 1, &k));
+        real_key->copy_to(&value, sizeof(value));
+        cout     << "<key = " << value;
+        } break;
 
-	default:
-	    W_FATAL(fcNOTIMPLEMENTED);
-	    break;
-	}
+    default:
+        W_FATAL(fcNOTIMPLEMENTED);
+        break;
+    }
 
-	if ( is_leaf())  {
-	    if(print_elem) {
-		cout << ", elen="  << r.elen() << " bytes: " << r.elem();
-	    }
-	} else {
-	    cout << "pid = " << r.child();
-	}
-	cout << ">" << endl;
+    if ( is_leaf())  {
+        if(print_elem) {
+        cout << ", elen="  << r.elen() << " bytes: " << r.elem();
+        }
+    } else {
+        cout << "pid = " << r.child();
+    }
+    cout << ">" << endl;
     }
     for (i = 0; i < L - hdr.level; i++)  cout << '\t';
     cout << "]" << endl;

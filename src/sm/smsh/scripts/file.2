@@ -1,6 +1,6 @@
 # <std-header style='tcl' orig-src='shore'>
 #
-#  $Id: file.2,v 1.44 2006/06/01 17:09:43 nhall Exp $
+#  $Id: file.2,v 1.44.2.1 2009/09/14 00:10:46 nhall Exp $
 #
 # SHORE -- Scalable Heterogeneous Object REpository
 #
@@ -85,11 +85,13 @@ verbose check of truncate $r3: [sm read_rec $r3 0 0]
 sm append_rec $r3 abcd
 verbose check of append $r3: [sm read_rec $r3 0 0]
 
-verbose Attempting scans ...
+verbose Attempting scans 1  $f1 
 sm scan_recs $f1
+
+verbose Attempting scans 2  $f1 $r2
 sm scan_recs $f1 $r2
 
-verbose Attempting scans ...
+verbose Attempting scans 3 from start...
 set scan [sm scan_file_create $f1 t_cc_record]
 set pin [sm scan_file_next $scan 0]
 while {$pin != "NULL"} {
@@ -113,11 +115,16 @@ sm begin_xct
 
 verbose destroying all records ...
 set scan [sm scan_file_create $f1 t_cc_record]
+verbose set pin ...
 set pin [sm scan_file_next $scan 0]
 while {$pin != "NULL"} {
+	verbose sm destroy_rec [sm pin_rid $pin]
     sm destroy_rec [sm pin_rid $pin]
+	verbose destroyed ... getting next
     set pin [sm scan_file_next $scan 0]
+	verbose next returned $pin
 }
+verbose destroy $scan
 sm scan_file_destroy $scan
 
 sm destroy_file $f1

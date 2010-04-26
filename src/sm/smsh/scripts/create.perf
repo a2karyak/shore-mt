@@ -1,6 +1,6 @@
 # <std-header style='tcl' orig-src='shore'>
 #
-#  $Id: create.perf,v 1.10 2007/05/18 21:49:00 nhall Exp $
+#  $Id: create.perf,v 1.10.2.1 2009/10/08 20:52:30 nhall Exp $
 #
 # SHORE -- Scalable Heterogeneous Object REpository
 #
@@ -148,3 +148,4 @@ set sec [lindex $wtime 0]
 set tbytes [expr $objsize * $nobjs]
 echo [expr {$tbytes / $sec}] bytes per second
 
+unset r

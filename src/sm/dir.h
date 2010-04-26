@@ -1,6 +1,29 @@
+/* -*- mode:C++; c-basic-offset:4 -*-
+     Shore-MT -- Multi-threaded port of the SHORE storage manager
+   
+                       Copyright (c) 2007-2009
+      Data Intensive Applications and Systems Labaratory (DIAS)
+               Ecole Polytechnique Federale de Lausanne
+   
+                         All Rights Reserved.
+   
+   Permission to use, copy, modify and distribute this software and
+   its documentation is hereby granted, provided that both the
+   copyright notice and this permission notice appear in all copies of
+   the software, derivative works or modified versions, and any
+   portions thereof, and that both notices appear in supporting
+   documentation.
+   
+   This code is distributed in the hope that it will be useful, but
+   WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. THE AUTHORS
+   DISCLAIM ANY LIABILITY OF ANY KIND FOR ANY DAMAGES WHATSOEVER
+   RESULTING FROM THE USE OF THIS SOFTWARE.
+*/
+
 /*<std-header orig-src='shore' incl-file-exclusion='DIR_H'>
 
- $Id: dir.h,v 1.41 1999/06/07 19:04:01 kupsch Exp $
+ $Id: dir.h,v 1.41.2.6 2010/03/19 22:20:23 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -60,155 +83,141 @@ class dir_vol_m : public smlevel_3 {
 public:
     enum { max = max_vols };
 
-    NORET		dir_vol_m() : _cnt(0), _mutex("dir_mutex") {};
-    NORET		~dir_vol_m()
+    NORET        dir_vol_m() : _cnt(0) {};
+    NORET        ~dir_vol_m()
     {
-	// everything must already be dismounted
-	for (int i = 0; i < max; i++)  {
-	    w_assert1(!_root[i]);
-	}
+    // everything must already be dismounted
+    for (int i = 0; i < max; i++)  {
+      w_assert1(!_root[i].valid());
+    }
     }
 
-    rc_t		create_dir(vid_t vid);
-    rc_t		mount(const char* const devname, vid_t vid);
-    rc_t		dismount(vid_t vid, bool flush = true, bool dismount_if_locked = true);
-    rc_t		dismount_all(bool flush = true, bool dismount_if_locked = true);
+    rc_t        create_dir(vid_t vid);
+    rc_t        mount(const char* const devname, vid_t vid);
+    rc_t        dismount(vid_t vid, bool flush = true, bool dismount_if_locked = true);
+    rc_t        dismount_all(bool flush = true, bool dismount_if_locked = true);
 
-    rc_t		insert(const stpgid_t& stpgid, const sinfo_s& si);
-    rc_t		remove(const stpgid_t& stpgid);
-    rc_t		access(const stpgid_t& stpgid, sinfo_s& si);
-    rc_t		modify(
-	const stpgid_t& 	    stpgid,
-	uint4_t 		    dpages,
-	uint4_t 		    dcard,
-	const lpid_t& 		    root);
-    rc_t		catalog(vid_t vid);
+    rc_t        insert(const stid_t& stpgid, const sinfo_s& si);
+    rc_t        remove(const stid_t& stpgid);
+    rc_t        access(const stid_t& stpgid, sinfo_s& si);
+    rc_t        modify(
+                        const stid_t&     stpgid,
+                        uint4_t             dpages,
+                        uint4_t             dcard,
+                        const lpid_t&         root);
 
 private:
-    int 		_cnt;
-    lpid_t 		_root[max];
+    int         _cnt;
+    lpid_t         _root[max];
     // allow only one thread access to _root
     // this is ok, since dir_m caches stuff
-    smutex_t 		_mutex; 
+    // FRJ: no, it's not ok --
+    // many trx only touch a few records and the cache is useless
+    // new approach: use optimistic concurrency control for reads
+    occ_rwlock        _occ; // allow all readers unless a writer arrives
 
-    rc_t		_create_dir(vid_t vid);
-    rc_t		_mount(const char* const devname, vid_t vid);
-    rc_t		_dismount(vid_t vid, bool flush, bool dismount_if_locked);
-    rc_t		_dismount_all(bool flush, bool dismount_if_locked);
-    rc_t		_destroy_temps(vid_t vid);
+    rc_t        _create_dir(vid_t vid);
+    rc_t        _mount(const char* const devname, vid_t vid);
+    rc_t        _dismount(vid_t vid, bool flush, bool dismount_if_locked);
+    rc_t        _dismount_all(bool flush, bool dismount_if_locked);
+    rc_t        _destroy_temps(vid_t vid);
 
-    rc_t		_insert(const stpgid_t& stpgid, const sinfo_s& sd);
-    rc_t		_remove(const stpgid_t& stpgid);
-    rc_t		_access(const stpgid_t& stpgid, sinfo_s& sd);
+    rc_t        _insert(const stid_t& stpgid, const sinfo_s& sd);
+    rc_t        _remove(const stid_t& stpgid);
+    rc_t        _access(const stid_t& stpgid, sinfo_s& sd);
 
-    rc_t 		_find_root(vid_t vid, int &i);
-    static sm_store_property_t	_make_store_property(store_flag_t flag);
+    rc_t         _find_root(vid_t vid, int &i);
+    static sm_store_property_t    _make_store_property(store_flag_t flag);
 
     // disabled
-    NORET		dir_vol_m(const dir_vol_m&);
-    dir_vol_m&		operator=(const dir_vol_m&);
+    NORET        dir_vol_m(const dir_vol_m&);
+    dir_vol_m&        operator=(const dir_vol_m&);
 };    
 
 /*
  * TODO: dir_m cache entries are currently added on first access 
- *	 and all are removed at EOT.  Instead, entries should be
- *	 reference counted, added when locked, and removed when
- *	 unlocked.
+ *     and all are removed at EOT.  Instead, entries should be
+ *     reference counted, added when locked, and removed when
+ *     unlocked.
  */
 
 class dir_m : public smlevel_3 {
 public:
 
-    NORET		dir_m() {};
-    NORET		~dir_m();
+    NORET        dir_m() {};
+    NORET        ~dir_m();
 
-    rc_t		create_dir(vid_t vid);
-    rc_t		mount(
-	const char* const 	    devname,
-	vid_t			    vid);
-    rc_t		dismount(vid_t vid, bool flush = true, bool dismount_if_locked = true);
-    rc_t		dismount_all(bool flush = true, bool dismount_if_locked = true);
+    rc_t        create_dir(vid_t vid);
+    rc_t        mount(
+    const char* const         devname,
+    vid_t                vid);
+    rc_t        dismount(vid_t vid, bool flush = true, bool dismount_if_locked = true);
+    rc_t        dismount_all(bool flush = true, bool dismount_if_locked = true);
 
-    rc_t		insert(const stpgid_t& stpgid, const sinfo_s& sinfo);
-    rc_t		remove(const stpgid_t& stpgid);
-    rc_t 		access(const stpgid_t& stpgid, sdesc_t*& sd, lock_mode_t lock_mode,
-				bool lklarge=false);
+    rc_t        insert(const stid_t& stpgid, const sinfo_s& sinfo);
+    rc_t        remove(const stid_t& stpgid);
+    rc_t         access(const stid_t& stpgid, sdesc_t*& sd, lock_mode_t lock_mode,
+                bool lklarge=false);
    
-    rc_t		remove_n_swap(
-	const stid_t&		    old_stid, 
-	const stid_t&		    new_stid);
+    rc_t        remove_n_swap(
+    const stid_t&            old_stid, 
+    const stid_t&            new_stid);
 
-    //modify(const stid_t& stid, uint4_t dpages, uint4_t dcard, const lpid_t& root);
-    //catalog(vid_t vid);
 private:
-    dir_vol_m		_dir;
+    dir_vol_m        _dir;
 
     // disabled
-    NORET		dir_m(const dir_m&);
-    dir_m&		operator=(const dir_m&);
+    NORET        dir_m(const dir_m&);
+    dir_m&        operator=(const dir_m&);
 };    
 
 inline rc_t
 dir_vol_m::mount(const char* const devname, vid_t vid)
 {
-    W_COERCE( _mutex.acquire() );
-    rc_t r = _mount(devname, vid);
-    _mutex.release();
-    return r;
+    CRITICAL_SECTION(ocs, _occ.write_lock());
+    return _mount(devname, vid);
 }
 
 inline rc_t
 dir_vol_m::dismount(vid_t vid, bool flush, bool dismount_if_locked)
 {
-    W_COERCE( _mutex.acquire() );
-    rc_t r = _dismount(vid, flush, dismount_if_locked);
-    _mutex.release();
-    return r;
+    CRITICAL_SECTION(ocs, _occ.write_lock());
+    return _dismount(vid, flush, dismount_if_locked);
 }
 
 inline rc_t
 dir_vol_m::dismount_all(bool flush, bool dismount_if_locked)
 {
-    W_COERCE( _mutex.acquire() );
-    rc_t r = _dismount_all(flush, dismount_if_locked);
-    _mutex.release();
-    return r;
+    CRITICAL_SECTION(ocs, _occ.write_lock());
+    return _dismount_all(flush, dismount_if_locked);
 }
 
 inline rc_t
-dir_vol_m::insert(const stpgid_t& stpgid, const sinfo_s& sd)
+dir_vol_m::insert(const stid_t& stid, const sinfo_s& sd)
 {
-    W_COERCE( _mutex.acquire() );
-    rc_t r = _insert(stpgid, sd);
-    _mutex.release();
-    return r;
+    CRITICAL_SECTION(ocs, _occ.write_lock());
+    return _insert(stid, sd);
 }
 
 inline rc_t
-dir_vol_m::remove(const stpgid_t& stpgid)
+dir_vol_m::remove(const stid_t& stid)
 {
-    W_COERCE( _mutex.acquire() );
-    rc_t r = _remove(stpgid);
-    _mutex.release();
-    return r;
+    CRITICAL_SECTION(ocs, _occ.write_lock());
+    return _remove(stid);
 }
 
 inline rc_t
-dir_vol_m::access(const stpgid_t& stpgid, sinfo_s& sd)
+dir_vol_m::access(const stid_t& stid, sinfo_s& sd)
 {
-    W_COERCE( _mutex.acquire() );
-    rc_t r = _access(stpgid, sd);
-    _mutex.release();
-    return r;
+    CRITICAL_SECTION(ocs, _occ.read_lock());
+    return _access(stid, sd);
 }
 
 inline rc_t
 dir_vol_m::create_dir(vid_t vid)
 {
-    W_COERCE( _mutex.acquire() );
-    rc_t r = _create_dir(vid);
-    _mutex.release();
-    return r;
+    CRITICAL_SECTION(ocs, _occ.write_lock());
+    return _create_dir(vid);
 }
 
 inline rc_t

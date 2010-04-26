@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: hash1.cpp,v 1.25 2006/01/29 18:09:01 bolo Exp $
+ $Id: hash1.cpp,v 1.25.2.5 2010/03/19 22:17:53 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -40,37 +40,38 @@ const int htsz = 3;
 const int nrecs = 20;
 
 struct element_t {
-    int 	i;
-    w_link_t	link;
+    int         i;
+    w_link_t        link;
 };
 
 int main()
 {
-    w_hash_t<element_t, int> h(htsz, W_HASH_ARG(element_t, i, link));
+    w_hash_t<element_t, unsafe_list_dummy_lock_t, int> 
+		h(htsz, W_HASH_ARG(element_t, i, link), unsafe_nolock);
     element_t array[nrecs];
 
     int i;
     for (i = 0; i < nrecs; i++)  {
-	array[i].i = i;
-	h.push(&array[i]);
+        array[i].i = i;
+        h.push(&array[i]);
     }
 
     for (i = 0; i < nrecs; i++)  {
-#ifdef W_DEBUG
-	element_t* p = h.remove(i);
+#if W_DEBUG_LEVEL>0
+        element_t* p = h.remove(i);
+        w_assert1(p);
+        w_assert1(p->i == i);
 #else
-	(void) h.remove(i);
+        (void) h.remove(i);
 #endif
-	w_assert3(p);
-	w_assert3(p->i == i);
     }
 
     for (i = 0; i < nrecs; i++)  {
-	h.append(&array[i]);
+        h.append(&array[i]);
     }
 
     for (i = 0; i < nrecs; i++)  {
-	h.remove(&array[i]);
+        h.remove(&array[i]);
     }
 
     return 0;
@@ -80,13 +81,13 @@ int main()
 #pragma option -Jgd
 #include <w_list.cpp>
 #include <w_hash.cpp>
-typedef w_list_t<element_t> w_list_t_element_t_dummy;
-typedef w_hash_t<element_t, int> w_hash_t_element_t_dummy;
+typedef w_list_t<element_t, unsafe_list_dummy_lock_t> w_list_t_element_t_dummy;
+typedef w_hash_t<element_t, unsafe_list_dummy_lock_t, int> w_hash_t_element_t_dummy;
 #endif /*__BORLANDC__*/
 
 #ifdef EXPLICIT_TEMPLATE
-template class w_hash_t<element_t, int>;
-template class w_list_t<element_t>;
-template class w_list_i<element_t>;
+template class w_hash_t<element_t, unsafe_list_dummy_lock_t, int>;
+template class w_list_t<element_t, unsafe_list_dummy_lock_t>;
+template class w_list_i<element_t, unsafe_list_dummy_lock_t>;
 #endif
 

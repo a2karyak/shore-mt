@@ -1,6 +1,29 @@
+/* -*- mode:C++; c-basic-offset:4 -*-
+     Shore-MT -- Multi-threaded port of the SHORE storage manager
+   
+                       Copyright (c) 2007-2009
+      Data Intensive Applications and Systems Labaratory (DIAS)
+               Ecole Polytechnique Federale de Lausanne
+   
+                         All Rights Reserved.
+   
+   Permission to use, copy, modify and distribute this software and
+   its documentation is hereby granted, provided that both the
+   copyright notice and this permission notice appear in all copies of
+   the software, derivative works or modified versions, and any
+   portions thereof, and that both notices appear in supporting
+   documentation.
+   
+   This code is distributed in the hope that it will be useful, but
+   WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. THE AUTHORS
+   DISCLAIM ANY LIABILITY OF ANY KIND FOR ANY DAMAGES WHATSOEVER
+   RESULTING FROM THE USE OF THIS SOFTWARE.
+*/
+
 /*<std-header orig-src='shore'>
 
- $Id: btcursor.cpp,v 1.14 2007/05/18 21:43:24 nhall Exp $
+ $Id: btcursor.cpp,v 1.14.2.5 2010/01/28 04:53:57 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -43,29 +66,28 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #include "btree_p.h"
 #include "btcursor.h"
 
-W_FASTNEW_STATIC_DECL(bt_cursor_t, 32) 
-
 rc_t
 bt_cursor_t::set_up( const lpid_t& root, int nkc, const key_type_s* kc,
-		     bool unique, concurrency_t cc, 
-		     cmp_t cond2, const cvec_t& bound2)
+                     bool unique, concurrency_t cc, 
+                     cmp_t cond2, const cvec_t& bound2, lock_mode_t mode)
 {
     if(
-	(cc != t_cc_none) && (cc != t_cc_file) &&
-	(cc != t_cc_im) &&
-	(cc != t_cc_kvl) && (cc != t_cc_modkvl)
-	) return RC(smlevel_0::eBADCCLEVEL);
+        (cc != t_cc_none) && (cc != t_cc_file) &&
+        (cc != t_cc_im) &&
+        (cc != t_cc_kvl) && (cc != t_cc_modkvl)
+        ) return RC(smlevel_0::eBADCCLEVEL);
     _root = root;
     _nkc = nkc;
     _kc = kc;
     _unique = unique;
     _cc = cc;
     _cond2 = cond2;
+    _mode = mode;
 
     if (_bound2_buf) {
-	// get rid of old _bound2_buf
-	delete [] _bound2_buf;
-	_bound2_buf = 0;
+        // get rid of old _bound2_buf
+        delete [] _bound2_buf;
+        _bound2_buf = 0;
     }
 
     /*
@@ -94,9 +116,9 @@ bt_cursor_t::set_up_part_2(cmp_t cond1, const cvec_t& bound1)
     _cond1 = cond1;
 
     if (_bound1_buf) {
-	// get rid of old _bound1_buf
-	delete [] _bound1_buf;
-	_bound1_buf = 0;
+        // get rid of old _bound1_buf
+        delete [] _bound1_buf;
+        _bound1_buf = 0;
     }
     /*
      * Cache bound 1
@@ -133,17 +155,17 @@ bt_cursor_t::set_up_part_2(cmp_t cond1, const cvec_t& bound1)
  *  This can only happen if 
  *    bounds: >10 && == 20, and r points at, say, 12, or
  *    bounds: >10 && < 20, and r points at, say, 9 (shouldn't ever
- *    			get there, though -- other aspects of the
+ *                            get there, though -- other aspects of the
  *                      algorithm should prevent us from ever getting
- * 			this case)
+ *                         this case)
  *
  *********************************************************************/
 
 bool
 bt_cursor_t::inbounds(
-	const cvec_t &v, 
-	bool check_both_bounds,
-	bool& keep_going
+        const cvec_t &v, 
+        bool check_both_bounds,
+        bool& _keep_going
 ) const
 {
     /*
@@ -158,18 +180,18 @@ bt_cursor_t::inbounds(
     bool ok1 = false;  // true if meets criterion 1
     bool ok2 = false;  // true if meets criterion 2
     bool _in_bounds = false;  // set to true if this
-			// kv pair meets BOTH criteria
+                        // kv pair meets BOTH criteria
     bool more = false;  // might be more if we were to keep going
 
     // because we start by traversing for the lower(upper) bound,
     // this should be true:
-#if defined(W_DEBUG)||defined(W_TRACE)
+#if defined(W_TRACE)
     if(is_backward()) {
-	DBG(<<"v <= bound2() == " << (bool)(v <= bound2()) );
-	if(!v.is_null()) w_assert3(v <= bound2());
+        DBG(<<"v <= bound2() == " << (bool)(v <= bound2()) );
+        if(!v.is_null()) w_assert3(v <= bound2());
     } else {
-	DBG(<<"v >= bound1() == " << (bool)(v <= bound1()) );
-	if(!v.is_null()) w_assert3(v >= bound1());
+        DBG(<<"v >= bound1() == " << (bool)(v <= bound1()) );
+        if(!v.is_null()) w_assert3(v >= bound1());
     }
 #endif
 
@@ -190,83 +212,83 @@ bt_cursor_t::inbounds(
     DBG(<< "bound2: " << bound2() << " cond2()=" <<  int(cond2()));
 
     if(ok1 && ok2) {
-	_in_bounds = true;
-	keep_going = false;
+        _in_bounds = true;
+        _keep_going = false;
     } else {
-	_in_bounds = false;
-	keep_going = more2; // more --> ok1
-	    // this happens if upper bound is == x,
-	    // and we haven't yet reached x
+        _in_bounds = false;
+        _keep_going = more2; // more --> ok1
+            // this happens if upper bound is == x,
+            // and we haven't yet reached x
 
     }
     DBG(<< "in_bounds: " << _in_bounds
-	<< " keep_going: " << keep_going);
+        << " keep_going: " << _keep_going);
     return _in_bounds;
 }
 
 bool
 bt_cursor_t::inbound(
-    const cvec_t &	v, 
-    cmp_t		cond,
-    const cvec_t &	bound,
-    bool&		more
+    const cvec_t &        v, 
+    cmp_t                cond,
+    const cvec_t &        bound,
+    bool&                more
 ) const
 {
     bool ok=false;
     switch (cond) {
     case eq:
-	ok = (v == bound);
-	more = _backward? (v > bound) : (v < bound);
-	break;
+        ok = (v == bound);
+        more = _backward? (v > bound) : (v < bound);
+        break;
 
     case ge:
-	ok = (v >= bound);
-	break;
+        ok = (v >= bound);
+        break;
 
     case gt:
-	if(_include_nulls && v.is_null() && bound.is_neg_inf()) {
-	    ok = true;
-	} else {
-	    ok = (v > bound);
-	}
-	break;
+        if(_include_nulls && v.is_null() && bound.is_neg_inf()) {
+            ok = true;
+        } else {
+            ok = (v > bound);
+        }
+        break;
 
     case le:
-	ok= (v <= bound);
-	break;
+        ok= (v <= bound);
+        break;
 
     case lt:
-	if(_include_nulls && v.is_null() && bound.is_pos_inf()) {
-	    ok = true;
-	} else {
-	    ok = (v < bound);
-	}
-	break;
+        if(_include_nulls && v.is_null() && bound.is_pos_inf()) {
+            ok = true;
+        } else {
+            ok = (v < bound);
+        }
+        break;
 
     default:
-	W_FATAL(eINTERNAL);
+        W_FATAL(eINTERNAL);
     }
     DBG(<< "ok=" << ok
-	<< " v=" << v
-	<< " bound=" << bound 
-	<< " cond=" << int(cond)
-	<< " more=" << more
+        << " v=" << v
+        << " bound=" << bound 
+        << " cond=" << int(cond)
+        << " more=" << more
 
-	);
+        );
     return ok;
 }
 
 bool
 bt_cursor_t::inbounds(
-	const btrec_t &r, 
-	bool check_both_bounds,
-	bool& keep_going) 
-	const
+        const btrec_t &r, 
+        bool check_both_bounds,
+        bool& _keep_going) 
+        const
 {
-    return inbounds(r.key(), check_both_bounds, keep_going);
+    return inbounds(r.key(), check_both_bounds, _keep_going);
 }
 
-void 			
+void                         
 bt_cursor_t::update_lsn(const btree_p& page)
 {
     if(_pid == page.pid()) _lsn = page.lsn();
@@ -300,11 +322,11 @@ bt_cursor_t::make_rec(const btree_p& page, int slot)
     _klen = r.klen();
     _elen = r.elen();
     if (_klen + _elen > _splen)  {
-	if (_space) delete[] _space;
-	if (! (_space = new char[_splen = _klen + _elen]))  {
-	    _klen = 0;
-	    return RC(eOUTOFMEMORY);
-	}
+        if (_space) { delete[] _space; _space=0; }
+        if (! (_space = new char[_splen = _klen + _elen]))  {
+            _klen = 0;
+            return RC(eOUTOFMEMORY);
+        }
     }
     w_assert3(_klen + _elen <= _splen);
 
@@ -313,15 +335,15 @@ bt_cursor_t::make_rec(const btree_p& page, int slot)
     DBG(<< "in_bounds: " << in_bounds << " keep_going: " << keep_going);
 
     if (in_bounds) {
-	// key is in bounds, so put it into proper order
-	cvec_t* user_key;
-	if(_klen > 0) {
-	    W_DO(bt->_unscramble_key(user_key, r.key(), _nkc, _kc));
-	    user_key->copy_to(_space);
-	}
-	r.elem().copy_to(_space + _klen);
+        // key is in bounds, so put it into proper order
+        cvec_t* user_key;
+        if(_klen > 0) {
+            W_DO(bt->_unscramble_key(user_key, r.key(), _nkc, _kc));
+            user_key->copy_to(_space);
+        }
+        r.elem().copy_to(_space + _klen);
     } else if(!keep_going) {
-	free_rec();
+        free_rec();
     } // else do nothing -- don't want to blow away pid
 
     return RCOK;
@@ -343,42 +365,42 @@ bt_cursor_t::check_bounds()
     w_assert3(!_backward);
 
     if (! (cond1() == eq || cond1() == gt || cond1() == ge) )  {
-	b1 = true;
+        b1 = true;
     }
 
     if (! (cond2() == eq || cond2() == lt || cond2() == le) )  {
-	b2 = true;
+        b2 = true;
     }
 
     if (cond1() == eq || cond2()== eq) {
-	if((cond1() == eq)  && (cond2() == eq) ) {
-	    if (bound1() != bound2()) {
-		return RC(eBADCMPOP);
-	    }
-	}
+        if((cond1() == eq)  && (cond2() == eq) ) {
+            if (bound1() != bound2()) {
+                return RC(eBADCMPOP);
+            }
+        }
     }
     if(b1 != b2) return RC(eBADCMPOP);
 
     if(b1 && b2) {
-	if (bound1() >= bound2()) {
-	    _backward = true;
-	} else {
-	    return RC(eBADCMPOP);
-	}
+        if (bound1() >= bound2()) {
+            _backward = true;
+        } else {
+            return RC(eBADCMPOP);
+        }
     } else { // b1 == b2 == false
-	if (bound1() > bound2()) {
-	    return RC(eBADCMPOP);
-	}
+        if (bound1() > bound2()) {
+            return RC(eBADCMPOP);
+        }
     }
     if(is_backward()) {
-	DBG(<<"BACKWARD SCAN " );
-	cvec_t  *b= _bound2;
-	_bound2 = _bound1;
-	_bound1 = b;
+        DBG(<<"BACKWARD SCAN " );
+        cvec_t  *b= _bound2;
+        _bound2 = _bound1;
+        _bound1 = b;
 
-	cmp_t	c = cond2();
-	_cond2 = cond1();
-	_cond1 = c;
+        cmp_t        c = cond2();
+        _cond2 = cond1();
+        _cond1 = c;
     }
 
     return RCOK;

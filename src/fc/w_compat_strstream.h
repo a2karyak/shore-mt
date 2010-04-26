@@ -43,15 +43,17 @@
 #include <iostream>
 #include <ios>
 
+/** \brief  A namespace for implementations of old-style streambufs.
+ */
 namespace shore_compat {
 
 using namespace std;
 
 
-//----------------------------------------------------------------------
-// Class strstreambuf, a streambuf class that manages an array of char.
-// Note that this class is not a template.
-
+/**\brief Streambuf class that manages an array of char.
+ *
+ * Note that this class is not a template.
+ */
 class strstreambuf : public basic_streambuf<char, char_traits<char> >
 {
 public:                         // Types.
@@ -73,7 +75,6 @@ public:                         // Constructor, destructor
   virtual ~strstreambuf();
 
 public:                         // strstreambuf operations.
-  void freeze(bool = true);
   char* str();
   int pcount() const;
 
@@ -101,13 +102,10 @@ private:                        // Data members.
   void  (*_M_free_fun)(void*);
 
   bool _M_dynamic  : 1;
-  bool _M_frozen   : 1;
   bool _M_constant : 1;
 };
 
-//----------------------------------------------------------------------
-// Class istrstream, an istream that manages a strstreambuf.
-
+/// Class istrstream, an istream that manages a strstreambuf.
 class istrstream : public basic_istream<char>
 {
 public:
@@ -124,9 +122,8 @@ private:
   strstreambuf _M_buf;
 };
 
-//----------------------------------------------------------------------
-// Class ostrstream
 
+/// Class ostrstream, an ostream that manages a strstreambuf.
 class ostrstream : public basic_ostream<char>
 {
 public:
@@ -135,7 +132,6 @@ public:
   virtual ~ostrstream();
 
   strstreambuf* rdbuf() const;
-  void freeze(bool = true);
   char* str();
   int pcount() const;
 
@@ -143,29 +139,6 @@ private:
   strstreambuf _M_buf;
 };
 
-//----------------------------------------------------------------------
-// Class strstream
-
-class strstream : public basic_iostream<char>
-{
-public:
-  typedef char                        char_type;
-  typedef char_traits<char>::int_type int_type;
-  typedef char_traits<char>::pos_type pos_type;
-  typedef char_traits<char>::off_type off_type;
-
-  strstream();
-  strstream(char*, int, ios_base::openmode = ios_base::in | ios_base::out);
-  virtual ~strstream();
-
-  strstreambuf* rdbuf() const;
-  void freeze(bool = true);
-  int pcount() const;
-  char* str();
-
-private:
-  strstreambuf _M_buf;
-};
 
 } /* namespace shore compat */
 

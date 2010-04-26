@@ -2,7 +2,7 @@
 
 # <std-header style='shell' orig-src='shore'>
 #
-#  $Id: testall,v 1.1 2007/05/18 21:35:44 nhall Exp $
+#  $Id: testall,v 1.1.2.10 2009/12/03 00:19:45 nhall Exp $
 #
 # SHORE -- Scalable Heterogeneous Object REpository
 #
@@ -29,6 +29,36 @@
 #
 #   -- do not edit anything above this line --   </std-header>
 
+function executeWithResult  {
+print -n "$1\t--> running --> "
+print "running $1" >> $2
+
+if [[ -a $3 ]]; then
+	of=/tmp/$$
+	if $1 1> $of 2> $of.err ; then
+	    if diff $of $3 >> $2; then
+			print "ok"
+	    else
+			print "diff failed; results in " $of " and " $of.err 
+			print "  expected results in " $3
+			print "  All diffs in " $2
+			exit 1
+	    fi
+	else
+	    print "failed to execute $1 ( $? )"
+		exit 1
+	fi
+	cat $of >> $2
+	rm $of
+
+elif $1 >> $2 2>&1; then
+	print "ok"
+else
+	print "failed to execute $1 ( $? )"
+	exit 1
+fi
+}
+
 function execute  {
     print -n "$1\t--> running --> "
     print "running $1" >> $2
@@ -42,40 +72,36 @@ function execute  {
 
 rm -f /tmp/all*.out
 outf=/tmp/all$$.out
-execute bit $outf
-execute "box 4 5,-908,300,44444/55555,-1,1,82"  $outf
-execute "box 3 -908,300,44444/-1,1,82"  $outf
-execute "box 2 -908,44444/-1,1"  $outf
 
-execute cq1 $outf
-execute cq2 $outf
+#
+# NB: many of these report addresses, random things, or timing,
+# so they cannot be compared against output files. 
+#
+
+executeWithResult "box 4 5,-908,300,44444/55555,-1,1,82"  $outf box.4.out
+executeWithResult "box 3 -908,300,44444/-1,1,82"  $outf box.3.out
+executeWithResult "box 2 -908,44444/-1,1"  $outf box.2.out
 
 execute errlogtest $outf
-execute "fastnew fast 100000 200"  $outf
-execute "fastnew regular 100000 200"  $outf
 
 execute hash1 $outf
 execute hash2 $outf
 
-execute list1 $outf
+executeWithResult list1 $outf list1.out
 execute list2 $outf
 execute list3 $outf
 
+execute bitvector $outf
 execute heap $outf
-
 execute ntime $outf
-
 execute random $outf
-
 execute rc $outf
-
 execute stats $outf
-
-echo "timer takes about 20 sec to run..."
-execute timer $outf
-
-execute vector $outf
-
+execute "container -n 100"  $outf
+execute "rand -n 30"  $outf
+execute "ss 40 abcd fghi klmn pqrs uvwxyz"  $outf
+execute "cuckoo -n 1000 -s 1024" $outf
+executeWithResult stats2 $outf stats2-out
 
 print
 print "result in $outf"

@@ -2,7 +2,7 @@
 
 # <std-header style='shell' orig-src='shore'>
 #
-#  $Id: testall,v 1.9 2007/05/19 02:03:00 nhall Exp $
+#  $Id: testall,v 1.9.2.5 2010/01/12 02:01:53 nhall Exp $
 #
 # SHORE -- Scalable Heterogeneous Object REpository
 #
@@ -47,8 +47,10 @@ else
 	cp .smshrc.example .smshrc
 endif
 
-echo "SCRIPTS...."
-./smsh -lf ./scripts/all
+echo "SCRIPTS/ALL...."
+./smsh -f ./scripts/all
+echo "SCRIPTS/ALL.INDIVIDUALLY..."
+./smsh -f ./scripts/all.individually
 
 #
 # To run the rest of these, use testall.maintainer.

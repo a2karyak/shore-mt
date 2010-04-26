@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='VTABLE_ENUM_H'>
 
- $Id: sthread_vtable_enum.h,v 1.1 2007/05/18 21:53:44 nhall Exp $
+ $Id: sthread_vtable_enum.h,v 1.1.2.4 2010/03/19 22:20:01 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -34,38 +34,29 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 
 /*  -- do not edit anything above this line --   </std-header>*/
 
+#include <vtable.h>
 /*
  * Enum definition used for converting per-thread info
  * to a virtual table.  The enum assigns a distinct number to each
- * "attribute" of a thread, and takes into account a bunch of
- * derived thread types (for Paradise)
- * This acts as an index into a vtable_info_t;
+ * "attribute" of a thread.
+ * This acts as an index into a vtable_row_t;
+ *
+ * The attribute names are defined
  */
-#include "w_factory_vtable_enum.h"
 
-enum {
-	/* for sthreads */
-	sthread_id_attr,
-	sthread_name_attr,
-	sthread_status_attr,
-	sthread_bytes_alloc_attr, // bytes in use, does not include overhead
-	sthread_bytes_high_water_attr, // highest of sthread_bytes_alloc_attr
-	sthread_inuse_attr,	// number allocated blobs in use (== news  
-				// + new[]s - deletes - delete[]s)
-#define sthread_news_attr sthread_inuse_attr
-	sthread_bytes_overhead_attr, // sthread_inuse_attr * overhead
-				// unfortunately, this is bogus at the 
-				// moment, since not all factories have
-				// the same overhead (TODO: fix)
+enum sthread_vtable_attr_index {
+    /* for sthreads */
+    sthread_id_attr,
+    sthread_name_attr,
+    sthread_status_attr,
 
-	/* for smthreads */
-	smthread_tid_attr,
 #include "sthread_stats_collect_enum_gen.h"
-	
 
-	/* last number! */
-	thread_last 
+    /* last number! */
+    sthread_last 
 };
+
+extern const char *sthread_vtable_attr_names[];  // in vtable_sthread.cpp
 
 /*<std-footer incl-file-exclusion='VTABLE_ENUM_H'>  -- do not edit anything below this line -- */
 

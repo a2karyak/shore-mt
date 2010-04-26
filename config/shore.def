@@ -1,71 +1,34 @@
 /*
- * If you want 64 bit serial numbers (logical IDs)
- * rather that 32 bit, define this:
+ * Define this if you want to use a different location for a
+ * Linux-based huge tlb filesystem.
  */
-/* for sources */
-#undef SERIAL_BITS64
-
-/*
- * Define this if you want to use the server-to-server coordination
- * stuff for two-phase commit.
- * This requires #define USE_OCOMM, which is not available with
- * the public release, so external (non-UW-Madison CSD) users
- * cannot build anything with this defined.
- */
-#undef  USE_COORD
+#define HUGETLBFS_PATH "/mnt/huge/SSM-BUFPOOL"
 
 /*
  * Define this if you want to include crash test hooks in your
  * executable.  (For use with ssh, really).
+ * A release executable should not be built with this unless you
+ * are a maintainer and want to test it.
  */
-#undef USE_SSMTEST
-
-/*
- * Say whether threads are preemptive or not.  This is a hack to
- * reduce the size of lock manager objects by changing the locking
- * hierarchy to take advantage of the non-preemptive threads.
- * NB: disregard
- */
-#undef NOT_PREEMPTIVE
+#define USE_SSMTEST
 
 
 /*
- * Define this to use named temporaries for 'vec_t' and 'cvec_t' instead
- * of the existing anonymous temporaries.  Newer c++ compilers require
- * that copy constructors be available for classes which use anonymous
- * temporary variables.  However, vec_t are non-copyable.
- *
- * This is ifdef-ed so this item can be revisited in the future
- * to consider copyable vec_ts.   It is a "negative" so that existing
- * shore.def files can be used automatically with newer compilers, w/out
- * change.
+ * Undefine this if you want to restore the non-r-w mutex for
+ * the volume (vol_t) structure.
+ * I replaced it with a r/w lock because statistics showed
+ * that the vast majority of the times we grab the mutex, it
+ * is for read-operations. 
+ * Having changed this to a read-write lock, we now see that
+ * <10% of the time does the read-lock request have to wait,
+ * and roughly 40% of the time the write-lock request has to wait.  
  */
-#undef NO_VEC_TMP_HACK
+#define VOL_LOCK_IS_RW 1
 
-/*
- * Undefine this if you want the recovery code to trust the page
- * lsn of pages on a raw device.  This requires that a raw
- * device have every page wirtten when it is formatted to
- * initialize the page lsn.  If you set this raw volume pages
- * will not have to be initialized, but there might be a bit more
- * expense during recovery since every log record for a page
- * after a page format will have to be redone.
- *
- * NOTE: not a config option. This is the only place you can
- * change this, because it is so unlikely tht you will want to do so...
+/* 
+ * Define these if you do not like the default lengths (in tid_t.h)
  */
-/* for sources */
-#define DONT_TRUST_PAGE_LSN
+#undef COMMON_GTID_LENGTH
+#undef COMMON_SERVER_HANDLE_LENGTH
 
-/*
- * If you want the lock manager to keep some expensive lock
- * statisitics, define this.
- */
-#undef EXPENSIVE_LOCK_STATS
-
-/*
- *
- * if you want to use 64-bit page ids (more than 4Gig pages/volume)
- * you need this: #define LARGE_PID
- * or configure --enable-largevolumes, which does the same thing
- */
+#define GNATS110_FIX 1

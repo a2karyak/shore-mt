@@ -1,6 +1,6 @@
 # <std-header style='tcl' orig-src='shore'>
 #
-#  $Id: btree.2all,v 1.15 1999/06/07 19:05:13 kupsch Exp $
+#  $Id: btree.2all,v 1.15.4.2 2010/01/12 02:01:58 nhall Exp $
 #
 # SHORE -- Scalable Heterogeneous Object REpository
 #
@@ -46,15 +46,13 @@ source $script_dir/vol.init
 set ok 1
 set bad 0
 set save_random 0
-global verbose_flag
-set verbose_flag 0
-
 set nrec 80
 
 verbose "testing integer key btree (non-unique)"
 
 foreach cc {t_cc_none t_cc_kvl t_cc_im} {
     sm begin_xct
+verbose tid [sm xct_to_tid [sm xct]]
 
     if { $ok } {
 	# OK on pentium
@@ -75,6 +73,7 @@ foreach cc {t_cc_none t_cc_kvl t_cc_im} {
 
     sm commit_xct
     sm begin_xct
+verbose tid [sm xct_to_tid [sm xct]]
 
 	verbose sm test_typed_btree $volid $nrec i4 $cc
 	if { $save_random } { write_random ssh.seed.i4 }
@@ -107,6 +106,7 @@ foreach cc {t_cc_none t_cc_kvl t_cc_im} {
      
     sm commit_xct
     sm begin_xct
+verbose tid [sm xct_to_tid [sm xct]]
 
 	verbose sm test_typed_btree $volid $nrec b1 $cc
 	if { $save_random } { write_random ssh.seed.b1 }
@@ -133,6 +133,7 @@ foreach cc {t_cc_none t_cc_kvl t_cc_im} {
 
     sm commit_xct
     sm begin_xct
+verbose tid [sm xct_to_tid [sm xct]]
 
     }
 

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='LID_S_H'>
 
- $Id: lid_s.h,v 1.31 2007/08/21 19:50:42 nhall Exp $
+ $Id: lid_s.h,v 1.30.2.2 2009/10/08 20:51:25 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 

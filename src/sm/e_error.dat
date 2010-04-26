@@ -1,6 +1,6 @@
 # <std-header style='data' orig-src='shore'>
 #
-#  $Id: e_error.dat,v 1.54 2008/05/07 23:27:00 nhall Exp $
+#  $Id: e_error.dat,v 1.53.2.7 2010/03/19 22:20:23 nhall Exp $
 #
 # SHORE -- Scalable Heterogeneous Object REpository
 #
@@ -33,18 +33,14 @@ ASSERT			Assertion failed
 USERABORT		User initiated abort
 CRASH			Server told to crash or shutdown immediately
 
-# 
-# errors from other subsystems
 #
-COMM			Error from shore communication facility
-
+# SSM errors
 #
-# Actual SSM errors
-#
-OUTOFSPACE		out of disk space
-ALIGNPARM		parameter is not aligned
+OUTOFSPACE		Out of disk space
+ALIGNPARM		Parameter is not aligned
 BADSTID			Malformed or invalid store id
-1PAGESTORELIMIT		1-page store needs to grown beyond 1 page
+FRAMENOTFOUND	Frame not found in buffer pool 
+SPACENOTFOUND	No page with space in store
 BADPID			invalid page id
 BADVOL			invalid volume id
 VOLTOOLARGE		volume is too large for device
@@ -74,17 +70,15 @@ BADSTART		start parameter larger than record size
 BADAPPEND		append size too large for the record
 BADLENGTH		bad length parameter
 BADSAVEPOINT		bad save point 
-TOOMANYLOADONCEFILES	too many load-once files
 PAGECHANGED		page has changed
 
 INSUFFICIENTMEM		memory limit imposed on function was insufficient
 BADARGUMENT		bad argument or combination of arguments to function
-NOTSORTED		input file for bulk load was not sorted
 
-TWOTRANS		second transaction in one thread
+TWOTRANS		transaction already attached to thread
 TWOTHREAD		multiple threads not allowed for this operation
 NOTRANS			no active transaction
-INTRANS			in active transaction (not allowed)
+INTRANS			in active transaction (not allowed for this operation)
 TWOQUARK		second quark in a single transaction is not allowed
 NOQUARK			no quark is open
 INQUARK			a quark is open
@@ -95,36 +89,18 @@ EXTERN2PCTHREAD		transaction is (already) participating in external 2-phase comm
 NOTEXTERN2PC		transaction is not participating in external 2-phase commit 
 NOSUCHPTRANS		could not find a prepared transaction with given global transaction id
 
+THREADMAPFULL		No more bits for thread maps
 BADLOCKMODE		invalid lock mode
 LOCKTIMEOUT		lock timeout
-MAYBLOCK		lock req will block locally or may block remotely
+NOTBLOCKED		smthread is not blocked
 DEADLOCK		deadlock detected
-REMOTEDEADLOCK		callback req received deadlock notification from server
-PREEMPTED		lock req cancelled by another xact
 BADCCLEVEL		unsupported concurrency control level
 RETRY			retry the request (used internally)
 FOUNDEXTTOFREE		unlock duration found an ext to free (used internally)
-NOGLOBALDEADLOCKCLIENT	no global deadlock client installed
-
-NOCOPIES		no copies in the copy table
-COPYNOTEXISTS		copy does not exist
-
-BADCBREPLY		invalid reply to callback request
-CBEXISTS		duplicate callback proxy
-
-SERVERNOTCONNECTED	not connected to server
-BADMSGTYPE              unknown or unsupported message type
-NOFREESERVER            no free slot in the server table
-VOTENO            	prepare resulted in vote to abort (abort done)
-VOTEREADONLY           	prepare resulted in vote readonly (commit done)
 
 CANTWHILEACTIVEXCTS	can't do to volume while there are active transactions
 
-INTRANSIT		had to wait for pending remote read
-NOTONREMOTEVOL		this volume operation disallowed on remote volume 
 NOHANDLE		Missing coordinator handle
-PROTOCOL		Two-phase commit protocol error
-MIXED			Aborted two-phase commit got mixed results
 
 LOGVERSIONTOONEW	Log created with newer incompatible server
 LOGVERSIONTOOOLD	Log created with older incompatible server
@@ -132,5 +108,14 @@ BADMASTERCHKPTFORMAT	Bad format for master checkpoint
 
 ABORTED			Transaction aborted by another thread
 LOGSPACEWARN		log space warning (not necessarily out)
+BADCOMPENSATION		log could not apply requested compensation
+APPENDFILEINOSCAN		append_file_i does not support scanning
+
+INVALIDHINT      Invalid cluster hint 
+DUAUDITFAILED      Audit failed for du statistics
+PINACTIVE        Thread has something pinned
+HOTPAGE          Another thread pinned this page in the buffer pool
+BPFORCEFAILED   Could not force all the necessary pages from the buffer pool
+
 }
 

@@ -1,6 +1,6 @@
 # <std-header style='tcl' orig-src='shore'>
 #
-#  $Id: multi.3.save,v 1.8 1999/06/07 19:05:39 kupsch Exp $
+#  $Id: multi.3.save,v 1.8.4.1 2009/10/13 22:10:47 nhall Exp $
 #
 # SHORE -- Scalable Heterogeneous Object REpository
 #
@@ -66,8 +66,8 @@ verbose starting 2 threads
 
 sm begin_xct
 set tid [sm xct]
-set t1 [fork_thread go_go_gadget {"t1" $tid} ]
-set t2 [fork_thread go_go_gadget {"t2" $tid} ]
+set t1 [fork_thread go_go_gadget "t1" $tid ]
+set t2 [fork_thread go_go_gadget "t2" $tid ]
 
 verbose waiting for threads
 

@@ -2,7 +2,7 @@
 
 # <std-header style='shell' orig-src='shore'>
 #
-#  $Id: testall,v 1.2 2007/08/21 19:50:06 nhall Exp $
+#  $Id: testall,v 1.1.2.9 2009/12/14 23:55:02 nhall Exp $
 #
 # SHORE -- Scalable Heterogeneous Object REpository
 #
@@ -70,15 +70,18 @@ function execute  {
     fi
 }
 
-
 outf=/tmp/all$$.out
 rm -f /tmp/all*.out
-execute bitmap $outf bitmap.out
-execute errcodes $outf
-execute opaque $outf opaque.out
-execute vectors $outf vectors.out
-execute stats $outf stats.out
-execute run_kvl $outf kvl.out
+execute bitmap $outf bitmap-out
+execute errcodes $outf errcodes-out
+execute opaque $outf opaque-out
+execute vectors $outf vectors-out
+execute run_kvl $outf kvl-out.`uname -m`
+execute "latch1 -t 1" $outf latch1-out
+execute "latch1 -t 2" $outf latch2-out
+execute "latch1 -t 3" $outf latch3-out
+execute "lsns" $outf lsns-out
+execute "mapp" $outf mapp-out
 
 print
 print "result in $outf"

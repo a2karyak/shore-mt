@@ -1,6 +1,29 @@
+/* -*- mode:C++; c-basic-offset:4 -*-
+     Shore-MT -- Multi-threaded port of the SHORE storage manager
+   
+                       Copyright (c) 2007-2009
+      Data Intensive Applications and Systems Labaratory (DIAS)
+               Ecole Polytechnique Federale de Lausanne
+   
+                         All Rights Reserved.
+   
+   Permission to use, copy, modify and distribute this software and
+   its documentation is hereby granted, provided that both the
+   copyright notice and this permission notice appear in all copies of
+   the software, derivative works or modified versions, and any
+   portions thereof, and that both notices appear in supporting
+   documentation.
+   
+   This code is distributed in the hope that it will be useful, but
+   WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. THE AUTHORS
+   DISCLAIM ANY LIABILITY OF ANY KIND FOR ANY DAMAGES WHATSOEVER
+   RESULTING FROM THE USE OF THIS SOFTWARE.
+*/
+
 /*<std-header orig-src='shore'>
 
- $Id: smfile.cpp,v 1.60 2008/05/28 01:28:02 nhall Exp $
+ $Id: smfile.cpp,v 1.57.2.7 2010/03/19 22:20:27 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -44,6 +67,12 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #include "sm.h"
 
 
+#if W_DEBUG_LEVEL > 3
+#define  FILE_LOG_COMMENT_ON 1
+#else
+#define  FILE_LOG_COMMENT_ON 0
+#endif
+
 /*==============================================================*
  *  Physical ID version of all the storage operations           *
  *==============================================================*/
@@ -55,7 +84,6 @@ rc_t
 ss_m::set_store_property(stid_t stid, store_property_t property)
 {
     SM_PROLOGUE_RC(ss_m::set_store_property, in_xct, 0);
-    SMSCRIPT(<<"set_store_property " <<stid << " " << property );
     W_DO( _set_store_property( stid, property) );
     return RCOK;
 }
@@ -67,133 +95,158 @@ rc_t
 ss_m::get_store_property(stid_t stid, store_property_t& property)
 {
     SM_PROLOGUE_RC(ss_m::get_store_property, in_xct, 0);
-    RES_SMSCRIPT(<<"get_store_property " <<stid );
     W_DO( _get_store_property( stid, property) );
     return RCOK;
 }
 
-
 /*--------------------------------------------------------------*
- *  ss_m::create_file()						*
- * purely physical version
+ *  ss_m::create_file()                                                *
  *--------------------------------------------------------------*/
 rc_t
 ss_m::create_file(
-    vid_t 			vid, 
-    stid_t& 			fid, 
-    store_property_t 		property,
-    shpid_t			cluster_hint // = 0
+    vid_t                         vid, 
+    stid_t&                         fid, 
+    store_property_t                 property,
+    shpid_t                        cluster_hint // = 0
 )
 {
+#if FILE_LOG_COMMENT_ON
+    W_DO(log_comment("create_file"));
+#endif
     SM_PROLOGUE_RC(ss_m::create_file, in_xct, 0);
     DBGTHRD(<<"create_file " <<vid << " " << property );
-    W_DO(_create_file(vid, fid, property, 
-			    cluster_hint));
+    W_DO(_create_file(vid, fid, property, cluster_hint));
     DBGTHRD(<<"create_file returns " << fid);
     return RCOK;
 }
+
 /*--------------------------------------------------------------*
- *  ss_m::destroy_file()					*
+ *  ss_m::destroy_file()                                        *
  *--------------------------------------------------------------*/
 rc_t
 ss_m::destroy_file(const stid_t& fid)
 {
     SM_PROLOGUE_RC(ss_m::destroy_file, in_xct, 0);
-    RES_SMSCRIPT(<<"destroy_file " <<fid);
+    DBGTHRD(<<"destroy_file " <<fid);
     W_DO(_destroy_file(fid));
     return RCOK;
 }
 
 /*--------------------------------------------------------------*
- *  ss_m::create_rec()						*
+ *  ss_m::create_rec()                                                *
  *--------------------------------------------------------------*/
 rc_t
 ss_m::create_rec(const stid_t& fid, const vec_t& hdr,
-		 smsize_t len_hint, const vec_t& data, rid_t& new_rid
-		 )
+                 smsize_t len_hint, const vec_t& data, rid_t& new_rid)
 {
+#if FILE_LOG_COMMENT_ON
+    {
+        w_ostrstream s;
+        s << "create_rec " << fid;
+        W_DO(log_comment(s.c_str()));
+    }
+#endif
     SM_PROLOGUE_RC(ss_m::create_rec, in_xct, 0);
-    RES_SMSCRIPT(<<"create_rec " <<fid
-	<<" " << hdr 
-	<<" " << len_hint
-	<<" " << data
-	<<" " << serial );
-    W_DO(_create_rec(fid, hdr, len_hint, data, new_rid
-			    ));
+    W_DO(_create_rec(fid, hdr, len_hint, data, new_rid));
     return RCOK;
 }
 
 /*--------------------------------------------------------------*
- *  ss_m::destroy_rec()						*
+ *  ss_m::destroy_rec()                                                *
  *--------------------------------------------------------------*/
 rc_t
 ss_m::destroy_rec(const rid_t& rid)
 {
     SM_PROLOGUE_RC(ss_m::destroy_rec, in_xct, 0);
     DBG(<<"destroy_rec " <<rid);
-    W_DO(_destroy_rec(rid
-			    ));
+    W_DO(_destroy_rec(rid));
     return RCOK;
 }
 
 /*--------------------------------------------------------------*
- *  ss_m::update_rec()						*
+ *  ss_m::update_rec()                                                *
  *--------------------------------------------------------------*/
 rc_t
 ss_m::update_rec(const rid_t& rid, smsize_t start, const vec_t& data)
 {
+#if FILE_LOG_COMMENT_ON
+    {
+        w_ostrstream s;
+        s << "update_rec " << rid;
+        W_DO(log_comment(s.c_str()));
+    }
+#endif
     SM_PROLOGUE_RC(ss_m::update_rec, in_xct, 0);
-    RES_SMSCRIPT(<<"update_rec " <<rid <<" "<<start
-	<<" [vec " <<data << "] "
-    );
-    W_DO(_update_rec(rid, start, data
-			    ));
+    W_DO(_update_rec(rid, start, data));
     return RCOK;
 }
 
 /*--------------------------------------------------------------*
- *  ss_m::update_rec_hdr()					*
+ *  ss_m::update_rec_hdr()                                        *
  *--------------------------------------------------------------*/
 rc_t
 ss_m::update_rec_hdr(const rid_t& rid, smsize_t start, const vec_t& hdr)
 {
     SM_PROLOGUE_RC(ss_m::update_rec_hdr, in_xct, 0);
-    RES_SMSCRIPT(<<"update_rec_hdr " <<rid <<" " << hdr );
-    W_DO(_update_rec_hdr(rid, start, hdr
-			    ));
+    W_DO(_update_rec_hdr(rid, start, hdr));
     return RCOK;
 }
 
 /*--------------------------------------------------------------*
- *  ss_m::append_rec()						*
+ *  ss_m::append_rec()                                                *
  *--------------------------------------------------------------*/
 rc_t
 ss_m::append_rec(const rid_t& rid, const vec_t& data)
 {
+#if FILE_LOG_COMMENT_ON
+    {
+        w_ostrstream s;
+        s << "append_rec " << rid;
+        W_DO(log_comment(s.c_str()));
+    }
+#endif
     SM_PROLOGUE_RC(ss_m::append_rec, in_xct, 0);
-    RES_SMSCRIPT(<<"append_rec " <<rid <<data );
     W_DO(_append_rec(rid, data));
     return RCOK;
 }
 
 /*--------------------------------------------------------------*
- *  ss_m::truncate_rec()					*
+ *  ss_m::truncate_rec()                                        *
  *--------------------------------------------------------------*/
 rc_t
-ss_m::truncate_rec(const rid_t& rid, smsize_t amount, bool& should_forward)
+ss_m::truncate_rec(const rid_t& rid, smsize_t amount, bool &should_forward)
 {
-    SM_PROLOGUE_RC(ss_m::truncate_rec, in_xct, 0);
-    RES_SMSCRIPT(<<"truncate_rec " <<rid <<" " << amount);
-    // export this info to the VAS so it can forward the
-    // record at its discretion
-    W_DO(_truncate_rec(rid, amount, should_forward
-			    ));
-    if (should_forward) {
-	// The record is still implemented as large, even though
-	// it could fit on a page (though not on this one).
-	// It's possible to forward it, but that only seems useful
-	// in the context of logical IDs.
+#if FILE_LOG_COMMENT_ON
+    {
+        w_ostrstream s;
+        s << "truncate_rec " << rid;
+        W_DO(log_comment(s.c_str()));
     }
+#endif
+    SM_PROLOGUE_RC(ss_m::truncate_rec, in_xct, 0);
+    W_DO(_truncate_rec(rid, amount, should_forward));
+    if (should_forward) {
+        // The record is still implemented as large, even though
+        // it could fit on a page (though not on this one).
+        // It's possible to forward it, but that only seems useful
+        // in the context of logical IDs.
+    }
+    return RCOK;
+}
+
+rc_t
+ss_m::truncate_rec(const rid_t& rid, smsize_t amount)
+{
+#if FILE_LOG_COMMENT_ON
+    {
+        w_ostrstream s;
+        s << "truncate_rec " << rid;
+        W_DO(log_comment(s.c_str()));
+    }
+#endif
+    W_DO(lm->lock(rid, EX, t_long, WAIT_SPECIFIED_BY_XCT));
+    bool should_forward;
+    W_DO(fi->truncate_rec(rid, amount, should_forward));
     return RCOK;
 }
 
@@ -202,7 +255,6 @@ rc_t
 ss_m::lvid_to_vid(const lvid_t& lvid, vid_t& vid)
 {
     SM_PROLOGUE_RC(ss_m::lvid_to_vid, can_be_in_xct, 0);
-    RES_SMSCRIPT(<<"lvid_to_lvid " <<lvid );
     vid = io->get_vid(lvid);
     if (vid == vid_t::null) return RC(eBADVOL);
     return RCOK;
@@ -212,7 +264,6 @@ rc_t
 ss_m::vid_to_lvid(vid_t vid, lvid_t& lvid)
 {
     SM_PROLOGUE_RC(ss_m::lvid_to_vid, can_be_in_xct, 0);
-    RES_SMSCRIPT(<<"vid_to_lvid " <<vid );
     lvid = io->get_lvid(vid);
     if (lvid == lvid_t::null) return RC(eBADVOL);
     return RCOK;
@@ -225,67 +276,72 @@ ss_m::vid_to_lvid(vid_t vid, lvid_t& lvid)
 rc_t
 ss_m::_set_store_property(
     stid_t              stid,
-    store_property_t	property)
+    store_property_t        property)
 {
-    store_flag_t oldflags = st_bad;
-    store_flag_t newflags = _make_store_flag(property);
 
     /*
      * can't change to a load file
      */
     if (property & st_load_file)  {
-	return RC(eBADSTOREFLAGS);
+        return RC(eBADSTOREFLAGS);
+    }
+
+    /*
+     * can't change to a t_temporary file. You can change
+     * to an insert file, which combines with st_tmp.
+     */
+    store_flag_t newflags = _make_store_flag(property);
+    if (newflags == st_tmp)  {
+        return RC(eBADSTOREFLAGS);
     }
 
     /*
      * find out the current property
      */
+    store_flag_t oldflags = st_bad;
 
     W_DO( io->get_store_flags(stid, oldflags) );
 
     if (oldflags == newflags)  {
-	return RCOK;
+        return RCOK;
     }
 
-    if (newflags == st_tmp)  {
-	return RC(eBADSTOREFLAGS);
-    }
 
     sdesc_t* sd;
     W_DO( dir->access(stid, sd, EX) );  // also locks the store in EX
 
     if (newflags == st_regular)  {
-	/*
-	 *  Set the io store flags for both stores and discard
-	 *  the pages from the buffer pool.
-	 *
-	 *  Set the flags BEFORE forcing  the stores 
-	 *  to handle this case: there's another thread
-	 *  in this xct (the lock doesn't control concurrency
-	 *  in this case); the other thread is reading pages in this 
-	 *  file.
-	 *  A page is read back in immediately after we forced it,
-	 *  and its page flags are set when the read is done. 
-	 *
-	 */
-	W_DO( io->set_store_flags(stid, newflags) );
+        /*
+         *  Set the io store flags for both stores and discard
+         *  the pages from the buffer pool.
+         *
+         *  Set the flags BEFORE forcing  the stores 
+         *  to handle this case: there's another thread
+         *  in this xct (the lock doesn't control concurrency
+         *  in this case); the other thread is reading pages in this 
+         *  file.
+         *  A page is read back in immediately after we forced it,
+         *  and its page flags are set when the read is done. 
+         *
+         */
+        W_DO( io->set_store_flags(stid, newflags) );
 
-	if (sd->large_stid())  {
-	    W_DO( io->set_store_flags(sd->large_stid(), newflags) ) ;
-	}
+        if (sd->large_stid())  {
+            W_DO( io->set_store_flags(sd->large_stid(), newflags) ) ;
+        }
     }  else if (newflags == st_insert_file)  {
-	// only allow the changing for a regular file, not indices
-	if (sd->sinfo().stype != t_file)  {
-	    return RC(eBADSTOREFLAGS);
-	}
+        // only allow the changing for a regular file, not indices
+        if (sd->sinfo().stype != t_file)  {
+            return RC(eBADSTOREFLAGS);
+        }
 
-	W_DO( io->set_store_flags(stid, newflags) );
+        W_DO( io->set_store_flags(stid, newflags) );
 
-	if (sd->large_stid())  {
-	    W_DO( io->set_store_flags(sd->large_stid(), newflags) );
-	}
+        if (sd->large_stid())  {
+            W_DO( io->set_store_flags(sd->large_stid(), newflags) );
+        }
     }  else  {
-	W_FATAL(eINTERNAL);
+        W_FATAL(eINTERNAL);
     }
 
     return RCOK;
@@ -297,19 +353,19 @@ ss_m::_set_store_property(
 rc_t
 ss_m::_get_store_property(
     stid_t              stid,
-    store_property_t&	property)
+    store_property_t&        property)
 {
     store_flag_t flags = st_bad;
     W_DO( io->get_store_flags(stid, flags) );
 
     if (flags & st_tmp)  {
-	property = t_temporary;
+        property = t_temporary;
     } else if (flags & st_regular) {
-	property = t_regular;
+        property = t_regular;
     } else if (flags & st_insert_file) {
-	property = t_insert_file;
+        property = t_insert_file;
     } else {
-	W_FATAL(eINTERNAL);
+        W_FATAL(eINTERNAL);
     }
 
     return RCOK;
@@ -317,13 +373,13 @@ ss_m::_get_store_property(
 
 
 /*--------------------------------------------------------------*
- *  ss_m::_create_file()					*
+ *  ss_m::_create_file()                                        *
  *--------------------------------------------------------------*/
 rc_t
 ss_m::_create_file(vid_t vid, stid_t& fid,
-		   store_property_t property,
-		   shpid_t	cluster_hint // = 0
-		   )
+                   store_property_t property,
+                   shpid_t        cluster_hint // = 0
+                   )
 {
     FUNC(ss_m::_create_file);
     DBG( << "Attempting to create a file on volume " << vid.vol );
@@ -334,25 +390,35 @@ ss_m::_create_file(vid_t vid, stid_t& fid,
     DBGTHRD(<<"about to create a store starting about extent " << first_extent);
     W_DO( io->create_store(vid, 100/*unused*/, st_flag, fid, first_extent) );
 
-    DBGTHRD(<<"created store " << fid);
+    DBGTHRD(<<"created first store " << fid << " now create 2nd...");
 
     /*
     // create a store for holding large record pages 
-    // Don't allocate any extents for it yet (num_exts == 0)
-    // unless the cluster hint is used.
-    // NB: disabled: always allocates 1 extent -- otherwise
+    // always allocates 1 extent -- otherwise
     // asserts fail elsewhere
+    // If this fails, we have to by-hand back out the creation
+    // of the first store
     */
     stid_t lg_stid;
-    W_DO( io->create_store(vid, 100/*unused*/, 
-		st_flag, lg_stid, first_extent, 1) );
+    w_rc_t rc= io->create_store(vid, 100/*unused*/, 
+                st_flag, lg_stid, first_extent, 1);
+    if(rc.is_error()) {
+#define GNATS_77_FIX_5 1
+#if GNATS_77_FIX_5
+        // it would be a problem if this didn't work, but
+        // if all else fails, abort should work.
+        DBGTHRD(<<"2nd create failed; destroying first= " << fid);
+        W_DO( io->destroy_store(fid) );
+#endif
+        return rc;
+    }
 
     DBGTHRD(<<"created 2nd store (for lg recs) " << lg_stid);
 
-    // Note: theoretically, some other thread could destroy
-    // 	     the above stores before the following lock request
-    // 	     is granted.  The only forseable way for this to
-    //	     happen would be due to a bug in a vas causing
+    // RACE: theoretically, some other thread could use/destroy
+    //       the above stores before the following lock request
+    //       is granted.  The only forseable way for this to
+    //       happen would be due to a bug in a vas causing
     //       it to destroy the wrong store.  We make no attempt
     //       to prevent this.
     W_DO(lm->lock(fid, EX, t_long, WAIT_SPECIFIED_BY_XCT));
@@ -364,11 +430,9 @@ ss_m::_create_file(vid_t vid, stid_t& fid,
     DBGTHRD(<<"locked &created -- put in store directory: " << fid);
 
     sinfo_s sinfo(fid.store, t_file, 100/*unused*/, 
-	   t_bad_ndx_t, t_cc_none/*not used*/, first.page, 
-	   0, 0);
+           t_bad_ndx_t, t_cc_none/*not used*/, first.page, 0, 0);
     sinfo.set_large_store(lg_stid.store);
-    stpgid_t stpgid(fid);
-    W_DO( dir->insert(stpgid, sinfo) );
+    W_DO( dir->insert(fid, sinfo) );
 
     DBGTHRD(<<"inserted " << fid.store);
 
@@ -379,12 +443,19 @@ ss_m::_create_file(vid_t vid, stid_t& fid,
 #include "histo.h"
 
 /*--------------------------------------------------------------*
- *  ss_m::_destroy_file()					*
+ *  ss_m::_destroy_file()                                        *
  *--------------------------------------------------------------*/
 rc_t
 ss_m::_destroy_file(const stid_t& fid)
 {
     FUNC(ss_m::_destroy_file);
+#if FILE_LOG_COMMENT_ON
+    {
+        w_ostrstream s;
+        s << "_destroy_file " << fid;
+        W_DO(log_comment(s.c_str()));
+    }
+#endif
 
     sdesc_t* sd;
 
@@ -409,10 +480,10 @@ ss_m::_destroy_file(const stid_t& fid)
     W_DO( io->destroy_store(sd->large_stid()) );
 
     if (store_flags & st_tmp)  { // for temporary
-	// we can discard the buffers to save
-	// some disk I/O.
-	W_IGNORE( bf->discard_store(fid) );
-	W_IGNORE( bf->discard_store(sd->large_stid()) );
+            // we can discard the buffers to save
+            // some disk I/O.
+            W_IGNORE( bf->discard_store(fid) );
+            W_IGNORE( bf->discard_store(sd->large_stid()) );
     }
     
     DBGTHRD(<<"about to remove directory entry " << fid);
@@ -422,14 +493,13 @@ ss_m::_destroy_file(const stid_t& fid)
 }
 
 /*--------------------------------------------------------------*
- *  ss_m::_destroy_n_swap_file()				*
- *      destroy the old file and shift the large object store	*
- * 	to new file.						*
+ *  ss_m::_destroy_n_swap_file()                                *
+ *      destroy the old file and shift the large object store        *
+ *         to new file.                                                *
  *--------------------------------------------------------------*/
 rc_t
 ss_m::_destroy_n_swap_file(const stid_t& old_fid, const stid_t& new_fid)
 {
-
     sdesc_t *sd1, *sd2;
 
     W_DO( dir->access(old_fid, sd1, EX) );
@@ -451,15 +521,15 @@ ss_m::_destroy_n_swap_file(const stid_t& old_fid, const stid_t& new_fid)
     W_DO( io->destroy_store(sd2->large_stid()) );
 
     if (old_store_flags & st_tmp)  { // for temporary and no-log files, 
-	// we can discard the buffers to save
-	// some disk I/O.
-	W_IGNORE( bf->discard_store(old_fid) );
+                // we can discard the buffers to save
+                // some disk I/O.
+                W_IGNORE( bf->discard_store(old_fid) );
     }
     
     if (new_store_flags & st_tmp)  { // for temporary and no-log  files, 
-	// we can discard the buffers to save
-	// some disk I/O.
-	W_IGNORE( bf->discard_store(sd2->large_stid()) );
+                // we can discard the buffers to save
+                // some disk I/O.
+                W_IGNORE( bf->discard_store(sd2->large_stid()) );
     }
 
     // do the actual swap in directory
@@ -470,13 +540,13 @@ ss_m::_destroy_n_swap_file(const stid_t& old_fid, const stid_t& new_fid)
 
 
 /*--------------------------------------------------------------*
- *  ss_m::_create_rec()						*
+ *  ss_m::_create_rec()                                                *
  *--------------------------------------------------------------*/
 rc_t
 ss_m::_create_rec(const stid_t& fid, const vec_t& hdr, smsize_t len_hint, 
-		 const vec_t& data, rid_t& new_rid,
-		 bool 
-		 )
+                 const vec_t& data, rid_t& new_rid,
+                 bool  // TODO NANCY REMOVE
+                 )
 {
     FUNC(ss_m::_create_rec);
     sdesc_t* sd;
@@ -484,8 +554,7 @@ ss_m::_create_rec(const stid_t& fid, const vec_t& hdr, smsize_t len_hint,
 
     DBG( << "create in fid " << fid << " data.size " << data.size());
 
-    W_DO( fi->create_rec(fid, len_hint, hdr, data, 
-		*sd, new_rid) );
+    W_DO( fi->create_rec(fid, len_hint, hdr, data, *sd, new_rid) );
 
     // NOTE: new_rid need not be locked, since lock escalation
     // or explicit file/page lock might obviate it.
@@ -496,48 +565,42 @@ ss_m::_create_rec(const stid_t& fid, const vec_t& hdr, smsize_t len_hint,
 }
 
 /*--------------------------------------------------------------*
- *  ss_m::_destroy_rec()					*
+ *  ss_m::_destroy_rec()                                        *
  *--------------------------------------------------------------*/
 rc_t
-ss_m::_destroy_rec(const rid_t& rid
-		)
+ss_m::_destroy_rec(const rid_t& rid)
 {
     DBG(<<"_destroy_rec " << rid);
     W_DO(lm->lock(rid, EX, t_long, WAIT_SPECIFIED_BY_XCT));
-    W_DO(fi->destroy_rec(rid
-		));
+    W_DO(fi->destroy_rec(rid));
     //cout << "sm destroy_rec " << rid << endl;
     return RCOK;
 }
 
 /*--------------------------------------------------------------*
- *  ss_m::_update_rec()						*
+ *  ss_m::_update_rec()                                                *
  *--------------------------------------------------------------*/
 rc_t
-ss_m::_update_rec(const rid_t& rid, smsize_t start, const vec_t& data
-		)
+ss_m::_update_rec(const rid_t& rid, smsize_t start, const vec_t& data)
 {
     W_DO(lm->lock(rid, EX, t_long, WAIT_SPECIFIED_BY_XCT));
-    W_DO(fi->update_rec(rid, start, data
-		));
+    W_DO(fi->update_rec(rid, start, data));
     return RCOK;
 }
 
 /*--------------------------------------------------------------*
- *  ss_m::_update_rec_hdr()					*
+ *  ss_m::_update_rec_hdr()                                        *
  *--------------------------------------------------------------*/
 rc_t
-ss_m::_update_rec_hdr(const rid_t& rid, smsize_t start, const vec_t& hdr
-		)
+ss_m::_update_rec_hdr(const rid_t& rid, smsize_t start, const vec_t& hdr)
 {
     W_DO(lm->lock(rid, EX, t_long, WAIT_SPECIFIED_BY_XCT));
-    W_DO(fi->splice_hdr(rid, u4i(start), hdr.size(), hdr
-		));
+    W_DO(fi->splice_hdr(rid, u4i(start), hdr.size(), hdr));
     return RCOK;
 }
 
 /*--------------------------------------------------------------*
- *  ss_m::_append_rec()						*
+ *  ss_m::_append_rec()                                                *
  *--------------------------------------------------------------*/
 rc_t
 ss_m::_append_rec(const rid_t& rid, const vec_t& data)
@@ -552,16 +615,14 @@ ss_m::_append_rec(const rid_t& rid, const vec_t& data)
 }
 
 /*--------------------------------------------------------------*
- *  ss_m::_truncate_rec()					*
+ *  ss_m::_truncate_rec()                                        *
  *--------------------------------------------------------------*/
 rc_t
-ss_m::_truncate_rec(const rid_t& rid, smsize_t amount,
-		    bool& should_forward
-		    )
+ss_m::_truncate_rec(const rid_t& rid, smsize_t amount, bool& should_forward)
 {
     W_DO(lm->lock(rid, EX, t_long, WAIT_SPECIFIED_BY_XCT));
-    W_DO(fi->truncate_rec(rid, amount, should_forward
-		));
+    W_DO(fi->truncate_rec(rid, amount, should_forward));
     return RCOK;
 }
+
 

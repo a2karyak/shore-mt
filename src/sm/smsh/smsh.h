@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='SSH_H'>
 
- $Id: smsh.h,v 1.1 2007/05/18 21:50:59 nhall Exp $
+ $Id: smsh.h,v 1.1.2.6 2010/03/19 22:20:31 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -62,41 +62,24 @@ extern rc_t stop_comm();
 extern rc_t start_comm();
 
 struct linked_vars {
-	w_base_t::uint4_t  sm_page_sz;
-	w_base_t::uint4_t  sm_max_exts;
-	w_base_t::uint4_t  sm_max_vols;
-	w_base_t::uint4_t  sm_max_servers;
-	w_base_t::uint4_t  sm_max_keycomp;
-	w_base_t::uint4_t  sm_max_dir_cache;
-	w_base_t::uint4_t  sm_max_rec_len;
-	w_base_t::uint4_t  sm_srvid_map_sz;
-	w_base_t::uint4_t  verbose_flag;
-	w_base_t::uint4_t  verbose2_flag;
-	w_base_t::uint4_t  compress_flag;
-	w_base_t::uint4_t  log_warn_callback_flag;
-	w_base_t::uint4_t  instrument_flag;
+    w_base_t::uint4_t  sm_page_sz;
+    w_base_t::uint4_t  sm_max_exts;
+    w_base_t::uint4_t  sm_max_vols;
+    w_base_t::uint4_t  sm_max_servers;
+    w_base_t::uint4_t  sm_max_keycomp;
+    w_base_t::uint4_t  sm_max_dir_cache;
+    w_base_t::uint4_t  sm_max_rec_len;
+    w_base_t::uint4_t  sm_srvid_map_sz;
+    w_base_t::uint4_t  verbose_flag;
+    w_base_t::uint4_t  verbose2_flag;
+    w_base_t::uint4_t  compress_flag;
+    w_base_t::uint4_t  log_warn_callback_flag;
+    w_base_t::uint4_t  instrument_flag;
 } ;
 extern linked_vars linked;
 
 extern bool force_compress;
 extern bool log_warn_callback;
-
-
-#ifdef USE_SSMTEST
-/* defined in bf.cpp */
-extern "C" {
-    void simulate_preemption(bool);
-    bool preemption_simulated();
-}
-#endif
-
-#ifdef _WINDOWS
-extern "C" void compat_exit(int);
-extern "C" int compat_unlink();
-extern "C" int compat_isatty(int);
-extern "C" int compat_setisatty(int);
-#endif
-
 extern void dispatch_init();
 
 /*<std-footer incl-file-exclusion='SSH_H'>  -- do not edit anything below this line -- */

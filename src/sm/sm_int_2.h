@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='SM_INT_2_H'>
 
- $Id: sm_int_2.h,v 1.8 1999/06/07 19:04:37 kupsch Exp $
+ $Id: sm_int_2.h,v 1.8.2.4 2010/01/28 04:54:16 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -56,14 +56,14 @@ public:
 #if (SM_LEVEL >= 2)
 #    include <sdesc.h>
 #    ifdef BTREE_C
-#	define RTREE_H
+#    define RTREE_H
 #    endif
 #    ifdef RTREE_C
-#	define BTREE_H
+#    define BTREE_H
 #    endif
 #    if defined(FILE_C) || defined(SMFILE_C)
-#	define BTREE_H
-#	define RTREE_H
+#    define BTREE_H
+#    define RTREE_H
 #    endif
 #    include <btree.h>
 #    include <nbox.h>

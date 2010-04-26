@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: lid_t.cpp,v 1.37 2007/08/21 19:49:59 nhall Exp $
+ $Id: lid_t.cpp,v 1.36.2.5 2010/01/28 04:53:22 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -51,10 +51,10 @@ ostream& operator<<(ostream& o, const lvid_t& lvid)
     const u_char* p = (const u_char*) &lvid.high;
     //(char*)inet_ntoa(lvid.net_addr)
 
-	// WARNING: byte-order-dependent
+        // WARNING: byte-order-dependent
     return o << u_int(p[0]) << '.' << u_int(p[1]) << '.'
-	     << u_int(p[2]) << '.' << u_int(p[3]) << ':'
-	     <<	lvid.low;
+             << u_int(p[2]) << '.' << u_int(p[3]) << ':'
+             <<        lvid.low;
 }
 
 istream& operator>>(istream& is, lvid_t& lvid)
@@ -72,36 +72,36 @@ istream& operator>>(istream& is, lvid_t& lvid)
     // read each part of the lvid "address" and stop if
     // it ends early
     for (i=0, c='.'; i<parts && c!='\0'; i++) {
-	is >> temp[i];	
-	// peek to see the delimiters of lvid pieces.
-	if (is.peek() == '.' || is.peek()== ':') {
-	    is >> c;
-	} else {
-	    c = '\0';
-	    break;
-	}
+        is >> temp[i];        
+        // peek to see the delimiters of lvid pieces.
+        if (is.peek() == '.' || is.peek()== ':') {
+            is >> c;
+        } else {
+            c = '\0';
+            break;
+        }
     }
     if (i==1) {
-	// we had a simple integer: put it
-	// int the low part
-	lvid.low = temp[0];
-	temp[0]=0;
+        // we had a simple integer: put it
+        // int the low part
+        lvid.low = temp[0];
+        temp[0]=0;
     } else if (c == ':') {
-	// we had a.b.c.d:l
-	// we had a.b.c:l
-	// we had a.b:l
-	// we had a:l
-	if(i!=parts) {
-	    is.clear(ios::badbit);
-	} else {
-	    is >> lvid.low;
-	}
+        // we had a.b.c.d:l
+        // we had a.b.c:l
+        // we had a.b:l
+        // we had a:l
+        if(i!=parts) {
+            is.clear(ios::badbit);
+        } else {
+            is >> lvid.low;
+        }
     } else  {
-	// we had
-	// a.b
-	// a.b.c
-	// a.b.c.d
-	is.clear(ios::badbit);
+        // we had
+        // a.b
+        // a.b.c
+        // a.b.c.d
+        is.clear(ios::badbit);
     }
 
     ((char*)&lvid.high)[0] = temp[0];
@@ -118,7 +118,7 @@ istream& operator>>(istream& is, lvid_t& lvid)
  * the structure-only, non-c++ definitions (rpcgen output)
  * of  lvid_t 
  */
-EXTERN bool lvid_t_is_null(const lvid_t &x); 
+extern "C" bool lvid_t_is_null(const lvid_t &x); 
 
 bool
 lvid_t_is_null(const lvid_t &x)

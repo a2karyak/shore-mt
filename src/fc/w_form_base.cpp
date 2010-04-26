@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: w_form_base.cpp,v 1.1 2004/10/05 20:36:09 bolo Exp $
+ $Id: w_form_base.cpp,v 1.1.2.3 2010/03/19 22:17:19 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -35,7 +35,7 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
  *   This software is Copyright 1989, 1991, 1992, 1993, 1994, 1998,
  *                              2003, 2004 by:
  *
- *	Josef Burger	<bolo@cs.wisc.edu>
+ *    Josef Burger    <bolo@cs.wisc.edu>
  *
  *   All Rights Reserved.
  *
@@ -46,18 +46,18 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #include "w_form.h"
 
 // XXX an alias would be better, but this works
-#define	w_form	form
+#define    w_form    form
 
 // really want this from the include, but compatability problems
 // with anything wanting to use form() are an issue.
 extern const char *w_form(const char *, ...);
 
 
-#define FMT(name, type, format)	\
-	const char *name(type t, int length)	\
-	{	\
-		return w_form(format, length, t);	\
-	}
+#define FMT(name, type, format)    \
+    const char *name(type t, int length)    \
+    {    \
+        return w_form(format, length, t);    \
+    }
 
 FMT(dec, int, "%*d")
 FMT(dec, unsigned, "%*u")

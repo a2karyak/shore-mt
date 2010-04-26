@@ -1,6 +1,29 @@
+/* -*- mode:C++; c-basic-offset:4 -*-
+     Shore-MT -- Multi-threaded port of the SHORE storage manager
+   
+                       Copyright (c) 2007-2009
+      Data Intensive Applications and Systems Labaratory (DIAS)
+               Ecole Polytechnique Federale de Lausanne
+   
+                         All Rights Reserved.
+   
+   Permission to use, copy, modify and distribute this software and
+   its documentation is hereby granted, provided that both the
+   copyright notice and this permission notice appear in all copies of
+   the software, derivative works or modified versions, and any
+   portions thereof, and that both notices appear in supporting
+   documentation.
+   
+   This code is distributed in the hope that it will be useful, but
+   WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. THE AUTHORS
+   DISCLAIM ANY LIABILITY OF ANY KIND FOR ANY DAMAGES WHATSOEVER
+   RESULTING FROM THE USE OF THIS SOFTWARE.
+*/
+
 /*<std-header orig-src='shore'>
 
- $Id: bitmapvector.cpp,v 1.6 2007/05/18 21:43:24 nhall Exp $
+ $Id: bitmapvector.cpp,v 1.6.2.3 2009/10/30 23:52:17 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -36,9 +59,6 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 
 #include <sm_int_1.h>
 #include <bitmapvector.h>
-
-W_FASTNEW_STATIC_DECL(BitMapVector, 64)
-
 
 /***************************************************************************
  *                                                                         *

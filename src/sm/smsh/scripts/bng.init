@@ -1,6 +1,6 @@
 # <std-header style='tcl' orig-src='shore'>
 #
-#  $Id: bng.init,v 1.12 2007/08/21 19:43:59 nhall Exp $
+#  $Id: bng.init,v 1.11.2.4 2010/03/25 18:05:29 nhall Exp $
 #
 # SHORE -- Scalable Heterogeneous Object REpository
 #
@@ -70,6 +70,7 @@ if {$volid == 0} {
 
 	verbose formatting $dev $force_arg
 	catch {sm format_dev $dev $size $force_arg} err
+	unset force_arg
 
 	verbose "mounting " $dev "..."
 	set err 0
@@ -142,12 +143,13 @@ if {$volid == 0} {
 set id_hdr_width %06d
 set id_body_width %08d
 
-unset i err
+unset i err 
+# unset volid_list -- this is used by bng.1
 
-checkstats  "end of vol.init"
+checkpinstats  "end of bng.init"
 
 addcleanupvars {quota vol_list id_body_width size_page_align size dev
-				id_hdr_width vol existing force_arg}
+				id_hdr_width vol existing}
 
-return "leaving vol.init"
+return "leaving bng.init"
 

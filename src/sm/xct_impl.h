@@ -1,6 +1,29 @@
+/* -*- mode:C++; c-basic-offset:4 -*-
+     Shore-MT -- Multi-threaded port of the SHORE storage manager
+   
+                       Copyright (c) 2007-2009
+      Data Intensive Applications and Systems Labaratory (DIAS)
+               Ecole Polytechnique Federale de Lausanne
+   
+                         All Rights Reserved.
+   
+   Permission to use, copy, modify and distribute this software and
+   its documentation is hereby granted, provided that both the
+   copyright notice and this permission notice appear in all copies of
+   the software, derivative works or modified versions, and any
+   portions thereof, and that both notices appear in supporting
+   documentation.
+   
+   This code is distributed in the hope that it will be useful, but
+   WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. THE AUTHORS
+   DISCLAIM ANY LIABILITY OF ANY KIND FOR ANY DAMAGES WHATSOEVER
+   RESULTING FROM THE USE OF THIS SOFTWARE.
+*/
+
 /*<std-header orig-src='shore' incl-file-exclusion='XCT_IMPL_H'>
 
- $Id: xct_impl.h,v 1.25 2007/05/18 21:43:30 nhall Exp $
+ $Id: xct_impl.h,v 1.25.2.14 2010/03/25 18:05:18 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -40,23 +63,21 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 
 class stid_list_elem_t  {
     public:
-	stid_t		stid;
-	w_link_t	_link;
+    stid_t        stid;
+    w_link_t    _link;
 
-	stid_list_elem_t(const stid_t& theStid)
-	    : stid(theStid)
-	    {};
-	~stid_list_elem_t()
-	    {
-		if (_link.member_of() != NULL)
-		    _link.detach();
-	    }
-	static w_base_t::uint4_t	link_offset()
-	    {
-		return W_LIST_ARG(stid_list_elem_t, _link);
-	    }
-	
-	W_FASTNEW_CLASS_DECL(stid_list_elem_t);
+    stid_list_elem_t(const stid_t& theStid)
+        : stid(theStid)
+        {};
+    ~stid_list_elem_t()
+    {
+        if (_link.member_of() != NULL)
+            _link.detach();
+    }
+    static w_base_t::uint4_t    link_offset()
+    {
+        return W_LIST_ARG(stid_list_elem_t, _link);
+    }
 };
 
 class xct_impl : public smlevel_1 
@@ -67,273 +88,259 @@ class xct_impl : public smlevel_1
 
     typedef xct_t::commit_t commit_t;
 private:
-    xct_t*	_that;
-    tid_t&	nxt_tid() { return _that->_nxt_tid; }
+    xct_t*    _that;
+    tid_t&    nxt_tid() { return _that->_nxt_tid; }
 
 public:
-    typedef xct_t::state_t 	state_t;
+    typedef xct_t::state_t     state_t;
 
-    NORET			xct_impl(
-	xct_t*			    that);
-    NORET			xct_impl(
-	xct_t*			    that,
-	state_t 		    s, 
-	const lsn_t&		    last_lsn,
-	const lsn_t& 		    undo_nxt
-	);
-    // NORET			xct_impl(const logrec_t& r);
-    NORET			~xct_impl();
+    NORET            xct_impl(
+        xct_t*                that);
+    NORET            xct_impl(
+        xct_t*                that,
+        state_t               s, 
+        const lsn_t&          last_lsn,
+        const lsn_t&          undo_nxt
+    );
+    // NORET         xct_impl(const logrec_t& r);
+    NORET            ~xct_impl();
 
 
 private:
-    void			acquire_1thread_log_mutex();
-    void			release_1thread_log_mutex();
-    void			assert_1thread_log_mutex_free()const;
-    void			acquire_1thread_xct_mutex();
-    void			release_1thread_xct_mutex();
-    void			assert_1thread_xct_mutex_free()const;
+    void            acquire_1thread_log_mutex();
+#if GNATS_69_FIX
+    rc_t            acquire_1thread_log_mutex_conditional();
+#endif
+    void            release_1thread_log_mutex();
+    bool            is_1thread_log_mutex_mine() const;
+    void            assert_1thread_log_mutex_free()const;
+    void            acquire_1thread_xct_mutex();
+    void            release_1thread_xct_mutex();
+    bool            is_1thread_xct_mutex_mine() const;
+    void            assert_1thread_xct_mutex_free()const;
 
 private:
-    vote_t 			vote() const;
+    vote_t          vote() const;
 
 public:
-    state_t			state() const;
+    state_t         state() const;
 
 
-    bool			is_extern2pc() const;
-    rc_t			enter2pc(const gtid_t &g);
-    const gtid_t*   		gtid() const;
-    const server_handle_t& 	get_coordinator()const; 
-    void 			set_coordinator(const server_handle_t &); 
+    bool            is_extern2pc() const;
+    rc_t            enter2pc(const gtid_t &g);
+    const gtid_t*           gtid() const;
+    const server_handle_t&     get_coordinator()const; 
+    void             set_coordinator(const server_handle_t &); 
 
-    rc_t			prepare();
-    rc_t			log_prepared(bool in_chkpt=false);
-    rc_t			commit(bool lazy = false);
-    rc_t			rollback(lsn_t save_pt);
-    rc_t			save_point(lsn_t& lsn);
-    rc_t			abort();
-    rc_t			dispose();
+    rc_t            prepare();
+    rc_t            log_prepared(bool in_chkpt=false);
+    rc_t            commit(w_base_t::uint4_t flags);
+    rc_t            rollback(lsn_t save_pt);
+    rc_t            save_point(lsn_t& lsn);
+    rc_t            abort();
+    rc_t            dispose();
 
-    rc_t			add_dependent(xct_dependent_t* dependent);
-    bool			find_dependent(xct_dependent_t* dependent);
+    rc_t            add_dependent(xct_dependent_t* dependent);
+    rc_t            remove_dependent(xct_dependent_t* dependent);
+    bool            find_dependent(xct_dependent_t* dependent);
 
 protected:
     // for xct_log_switch_t:
-    switch_t 			set_log_state(switch_t s, bool &nested);
-    void 			restore_log_state(switch_t s, bool nested);
+    switch_t             set_log_state(switch_t s, bool &nested);
+    void             restore_log_state(switch_t s, bool nested);
 
 private:
-    bool			one_thread_attached() const;   // assertion
+    rc_t            check_one_thread_attached() const;   // returns rc_t
+    bool            one_thread_attached() const;   // assertion
     // helper function for compensate() and compensate_undo()
-    void 			_compensate(const lsn_t&, bool undoable = false);
+    void             _compensate(const lsn_t&, bool undoable = false);
 
 protected:
-    int 			detach_thread() ;
-    int 			attach_thread() ;
+    void             detach_thread() ;
+    void             attach_thread() ;
 
 public:
-    const lsn_t& 		anchor(bool grabit = true);
-    void 			release_anchor(bool compensate=true);
-    void 			compensate(const lsn_t&, bool undoable = false);
-    void 			compensate_undo(const lsn_t&);
+    const lsn_t&     anchor(bool grabit = true);
+    void             release_anchor(bool compensate=true);
+    void             compensate(const lsn_t&, bool undoable = false);
+    void             compensate_undo(const lsn_t&);
 
-    NORET			operator bool() const;
+    NORET            operator bool() const;
 
     /*
-     *	logging functions -- used in logstub_gen.cpp
+     *    logging functions -- used in logstub_gen.cpp
      */
-    rc_t			get_logbuf(logrec_t*&);
-    void			give_logbuf(logrec_t*, const page_p *p = 0);
+    rc_t            get_logbuf(logrec_t*&);
+    void            give_logbuf(logrec_t*, const page_p *p = 0);
  private: // disabled for now
-    // void			invalidate_logbuf();
+    // void            invalidate_logbuf();
 
-    w_base_t::int4_t		escalationThresholds[lockid_t::NUMLEVELS-1];
+    w_base_t::int4_t  escalationThresholds[lockid_t::NUMLEVELS-1];
  public:
-    void			SetEscalationThresholds(w_base_t::int4_t toPage,
-		   			w_base_t::int4_t toStore, 							w_base_t::int4_t toVolume);
-    void			SetDefaultEscalationThresholds();
-    void			GetEscalationThresholds(w_base_t::int4_t &toPage, 
-		    			w_base_t::int4_t &toStore, 
-					w_base_t::int4_t &toVolume);
-    const w_base_t::int4_t*	GetEscalationThresholdsArray();
-    void			AddStoreToFree(const stid_t& stid);
-    void			AddLoadStore(const stid_t& stid);
+    void            SetEscalationThresholds(w_base_t::int4_t toPage,
+                       w_base_t::int4_t toStore,                             w_base_t::int4_t toVolume);
+    void            SetDefaultEscalationThresholds();
+    void            GetEscalationThresholds(w_base_t::int4_t &toPage, 
+                        w_base_t::int4_t &toStore, 
+                    w_base_t::int4_t &toVolume);
+    const w_base_t::int4_t*    GetEscalationThresholdsArray();
+
+    void            AddStoreToFree(const stid_t& stid);
+    void            AddLoadStore(const stid_t& stid);
     
-    void			ClearAllStoresToFree();
-    void			FreeAllStoresToFree();
+    void            ClearAllStoresToFree();
+    void            FreeAllStoresToFree();
 
-    rc_t			PrepareLogAllStoresToFree();
-    void			DumpStoresToFree();
-    rc_t			ConvertAllLoadStoresToRegularStores();
-    void			ClearAllLoadStores();
+    rc_t            PrepareLogAllStoresToFree();
+    void            DumpStoresToFree();
+    rc_t            ConvertAllLoadStoresToRegularStores();
+    void            ClearAllLoadStores();
 
-    void 			num_extents_marked_for_deletion(
-					base_stat_t &num);
+    void             num_extents_marked_for_deletion(
+                    base_stat_t &num);
 
  public:
-    void			flush_logbuf();
-    ostream &			dump_locks(ostream &) const;
+    void            flush_logbuf();
+    ostream &       dump_locks(ostream &) const;
 
-    /////////////////////////////////////////////////////////////////
-    void                        set_alloced();
-    void                        set_freed();
     /////////////////////////////////////////////////////////////////
 
  public:
-    concurrency_t		get_lock_level(); // non-const because it acquires mutex 
-    void		   	lock_level(concurrency_t l);
+    concurrency_t   get_lock_level(); // non-const because it acquires mutex 
+    void            lock_level(concurrency_t l);
 private:
     /////////////////////////////////////////////////////////////////
     // non-const because it acquires mutex:
     // removed, now that the lock mgrs use the const,inline-d form
-    // timeout_in_ms		timeout(); 
+    // timeout_in_ms        timeout(); 
 
     // does not acquire the mutex :
     inline
-    timeout_in_ms		timeout_c() const { 
-				    return  _that->_timeout; 
-				}
-    // not used
-    // void			set_timeout(timeout_in_ms t) ;
+    timeout_in_ms  timeout_c() const { return  _that->_timeout; }
 
-
-    /////////////////////////////////////////////////////////////////
-    // use faster new/delete
-    NORET			W_FASTNEW_CLASS_DECL(xct_impl);
-
-    rc_t			_commit(w_base_t::uint4_t flags);
-    static void 		xct_stats(
-	u_long& 		    begins,
-	u_long& 		    commits,
-	u_long& 		    aborts,
-	bool 			    reset);
-    bool			is_local() const;
+    static void    xct_stats(
+            u_long&             begins,
+            u_long&             commits,
+            u_long&             aborts,
+            bool                 reset);
 
     friend ostream& operator<<(ostream&, const xct_impl&);
 
-    tid_t 			tid() const { return _that->tid(); }	
+    tid_t           tid() const { return _that->tid(); }    
 
-    void 			force_readonly();
-    bool 			forced_readonly() const;
+    void            force_readonly();
+    bool            forced_readonly() const;
 
-    void                        change_state(state_t new_state);
-    void			set_first_lsn(const lsn_t &) ;
-    void			set_last_lsn(const lsn_t &) ;
-    void			set_undo_nxt(const lsn_t &) ;
+    void            change_state(state_t new_state);
+    void            set_first_lsn(const lsn_t &) ;
+    void            set_last_lsn(const lsn_t &) ;
+    void            set_undo_nxt(const lsn_t &) ;
 
 public:
 
     // used by checkpoint, restart:
-    const lsn_t&		last_lsn() const;
-    const lsn_t&		first_lsn() const;
-    const lsn_t&		undo_nxt() const;
-    const logrec_t*		last_log() const;
+    const lsn_t&        last_lsn() const;
+    const lsn_t&        first_lsn() const;
+    const lsn_t&        undo_nxt() const;
+    const logrec_t*     last_log() const;
 
 public:
 
     // NB: TO BE USED ONLY BY LOCK MANAGER 
-    w_rc_t			lockblock(timeout_in_ms timeout);// await other thread's wake-up in lm
-    void			lockunblock(); 	 // inform other waiters
-    int				num_threads(); 	 // 
+    w_rc_t             lockblock(timeout_in_ms timeout);// await other 
+                                           // thread's wake-up in lm
+    void               lockunblock();      // inform other waiters
+    int                num_threads() const { return _threads_attached; }
 
 private:
-    void			_flush_logbuf(bool sync=false);
+    void               _flush_logbuf(bool sync=false);
 
 private: // all data members private
-				// to be manipulated only by smthread funcs
-    int				_threads_attached; 
-    scond_t			_waiters; // for preserving deadlock detector's assumptions
-					
-    timeout_in_ms		_timeout; // default timeout value for lock reqs
-					  // duplicated in xct_t : TODO remove from xct_impl
+                // to be manipulated only by smthread funcs
+    volatile int       _threads_attached; 
+                    
+    timeout_in_ms     _timeout; // default timeout value for lock reqs
+                      // duplicated in xct_t : TODO remove from xct_impl
 
     // the 1thread_xct mutex is used to ensure that only one thread
     // is using the xct structure on behalf of a transaction 
-    smutex_t			_1thread_xct;
-    static const char*		_1thread_xct_name; // name of xct mutex
+    // It protects a number of things, including the xct_dependents list
+    mutable queue_based_lock_t   _1thread_xct;
+    static const char* _1thread_xct_name; // name of xct mutex
+
+    // used in lockblock, lockunblock, by lock_core 
+    pthread_cond_t            _waiters_cond;  // paired with _waiters_mutex
+    mutable pthread_mutex_t   _waiters_mutex;  // paired with _waiters_cond
 
     // the 1thread_log mutex is used to ensure that only one thread
     // is logging on behalf of this xct 
-    smutex_t			_1thread_log;
-    static const char*		_1thread_log_name; // name of log mutex
+    mutable queue_based_lock_t   _1thread_log;
+    static const char* _1thread_log_name; // name of log mutex
 
-    state_t 			_state;
-    bool 			_forced_readonly;
-    vote_t 			_vote;
-    gtid_t *			_global_tid; // null if not participating
-    server_handle_t*		_coord_handle; // ignored for now
-    bool			_read_only;
-    lsn_t			_first_lsn;
-    lsn_t			_last_lsn;
-    lsn_t			_undo_nxt;
-    bool			_lock_cache_enable;
+    state_t             _state;
+    bool                _forced_readonly;
+    vote_t              _vote;
+    gtid_t *            _global_tid; // null if not participating
+    server_handle_t*    _coord_handle; // ignored for now
+    bool                _read_only;
+    lsn_t               _first_lsn;
+    lsn_t               _last_lsn;
+    lsn_t               _undo_nxt;
+    bool                _lock_cache_enable;
 
-    // list of dependents
-    w_list_t<xct_dependent_t>	_dependent_list;
+    // list of dependents: protected by _1thread_xct
+    w_list_t<xct_dependent_t,queue_based_lock_t>    _dependent_list;
 
     /*
      *  lock request stuff
      */
-    lockid_t::name_space_t	convert(concurrency_t cc);
-    concurrency_t		convert(lockid_t::name_space_t n);
+    lockid_t::name_space_t    convert(concurrency_t cc);
+    concurrency_t             convert(lockid_t::name_space_t n);
 
-    xct_lock_info_t*  		lock_info() const {
-				    return _that->_lock_info;
-				}
+    xct_lock_info_t*          lock_info() const { return _that->_lock_info; }
 
     /*
      *  log_m related
      */
-    logrec_t*			_last_log;	// last log generated by xct
-    logrec_t*			_log_buf;
-    page_p 			_last_mod_page; // fix page affected
-						// by _last_log so bf
-						// cannot flush it out
-						// without first writing _last_log
+    logrec_t*          _last_log;    // last log generated by xct
+    logrec_t*          _log_buf;
     /*
      * For figuring the amount of log bytes needed to roll back
      */
-    u_int			_log_bytes_fwd; // bytes written during forward 
-						    // progress
-    u_int			_log_bytes_bwd; // bytes written during rollback
+    u_int              _log_bytes_fwd; // bytes written during forward 
+                            // progress
+    u_int              _log_bytes_bwd; // bytes written during rollback
 
 
     /*
      * List of stores which this xct will free after completion
+     * Protected by _1thread_xct.
      */
-    w_list_t<stid_list_elem_t>	_storesToFree;
+    w_list_t<stid_list_elem_t,queue_based_lock_t>    _storesToFree;
 
     /*
      * List of load stores:  converted to regular on xct commit,
-     *				act as a temp files during xct
+     *                act as a temp files during xct
      */
-    w_list_t<stid_list_elem_t>	_loadStores;
+    w_list_t<stid_list_elem_t,queue_based_lock_t>    _loadStores;
 
 
-    /*
-       This flag is set whenever a page/store is free'd/alloced.  If set
-       the transaction will call io_m::invalidate_free_page_cache()
-       indicating that the io_m must invalidate it's cache of last
-       extents in files with free pages.  In the future it might be wise
-       to extend this to hold info about which stores were involved so
-       that only specific store entries need be removed from the cache.
-     */
-     bool			_alloced_page;
-     bool			_freed_page;
-     int			_in_compensated_op; 
-		// in the midst of a compensated operation
-		// use an int because they can be nested.
-     lsn_t			_anchor;
-		// the anchor for the outermost compensated op
+     volatile int            _in_compensated_op; 
+        // in the midst of a compensated operation
+        // use an int because they can be nested.
+     lsn_t            _anchor;
+        // the anchor for the outermost compensated op
 
      // for two-phase commit:
-     time_t			_last_heard_from_coord;
+     time_t            _last_heard_from_coord;
+
+     volatile int      _xct_ended; // used for self-checking (assertions) only
 
 private:
 
     // disabled
-    NORET			xct_impl(const xct_impl&);
-    xct_impl& 			operator=(const xct_impl&);
+    NORET            xct_impl(const xct_impl&);
+    xct_impl&             operator=(const xct_impl&);
 };
 
 
@@ -353,28 +360,32 @@ operator>(const xct_t& x1, const xct_t& x2)
 }
 
 inline void
-xct_impl::SetEscalationThresholds(w_base_t::int4_t toPage, w_base_t::int4_t toStore, w_base_t::int4_t toVolume)
+xct_impl::SetEscalationThresholds(w_base_t::int4_t toPage, 
+                w_base_t::int4_t toStore, 
+                w_base_t::int4_t toVolume)
 {
     if (toPage != dontModifyThreshold)
-	escalationThresholds[2] = toPage;
+                escalationThresholds[2] = toPage;
     
     if (toStore != dontModifyThreshold)
-	escalationThresholds[1] = toStore;
+                escalationThresholds[1] = toStore;
     
     if (toVolume != dontModifyThreshold)
-	escalationThresholds[0] = toVolume;
+                escalationThresholds[0] = toVolume;
 }
 
 inline void
 xct_impl::SetDefaultEscalationThresholds()
 {
     SetEscalationThresholds(smlevel_0::defaultLockEscalateToPageThreshold,
-			smlevel_0::defaultLockEscalateToStoreThreshold,
-			smlevel_0::defaultLockEscalateToVolumeThreshold);
+            smlevel_0::defaultLockEscalateToStoreThreshold,
+            smlevel_0::defaultLockEscalateToVolumeThreshold);
 }
 
 inline void
-xct_impl::GetEscalationThresholds(w_base_t::int4_t &toPage, w_base_t::int4_t &toStore, w_base_t::int4_t &toVolume)
+xct_impl::GetEscalationThresholds(w_base_t::int4_t &toPage, 
+                w_base_t::int4_t &toStore, 
+                w_base_t::int4_t &toVolume)
 {
     toPage = escalationThresholds[2];
     toStore = escalationThresholds[1];
@@ -486,7 +497,7 @@ xct_impl::forced_readonly() const
  *  which is effected by calling enter2pc() on this
  *
  *********************************************************************/
-inline bool			
+inline bool            
 xct_impl::is_extern2pc() 
 const
 {
@@ -495,24 +506,8 @@ const
 }
 
 
-inline void                        
-xct_impl::set_alloced() 
-{
-    acquire_1thread_xct_mutex();
-    _alloced_page = true;
-    release_1thread_xct_mutex();
-}
-
-inline void                        
-xct_impl::set_freed() 
-{	
-    acquire_1thread_xct_mutex();
-    _freed_page = true;
-    release_1thread_xct_mutex();
-}
-
 inline
-const gtid_t*   		
+const gtid_t*           
 xct_impl::gtid() const 
 {
     return _global_tid;

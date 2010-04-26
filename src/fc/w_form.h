@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='W_FORM_H'>
 
- $Id: w_form.h,v 1.2 2006/03/25 23:30:27 bolo Exp $
+ $Id: w_form.h,v 1.2.2.4 2010/03/19 22:17:19 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -34,42 +34,22 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 
 /*  -- do not edit anything above this line --   </std-header>*/
 
+/** \cond skip */
+/**\ingroup TLS */
+__thread char* formbuf(NULL);
+class formbuf_t {
+public:
+        enum { bufsize = 1024 };
+    static char *get_formbuf() {
+       if(!formbuf) formbuf=new char[bufsize]; 
+       return formbuf;
+    }
+};
+/** \endcond skip */
 
-/*
- *   This software is Copyright 1989, 1991, 1992, 1993, 1994, 1998,
- *                              2003, 2004 by:
- *
- *	Josef Burger	<bolo@cs.wisc.edu>
- *
- *   All Rights Reserved.
- *
- *   This software may be freely used as long as credit is given
- *   to the author and this copyright is maintained.
+/** \todo 
+ * TODO NANCY remove or document W_FORM() W_FORM2 
  */
-
-#if 0
-// Just use the system ... if it is available
-
-#include "stream.h"
-
-#else
-
-extern const char *hex(int, int=0);
-extern const char *hex(unsigned, int=0);
-extern const char *hex(long, int=0);
-extern const char *hex(unsigned long, int=0);
-
-extern const char *dec(int, int=0);
-extern const char *dec(unsigned, int=0);
-extern const char *dec(long, int=0);
-extern const char *dec(unsigned long, int=0);
-
-extern const char *oct(int, int=0);
-extern const char *oct(unsigned, int=0);
-extern const char *oct(long, int=0);
-extern const char *oct(unsigned long, int=0);
-
-#endif
 
 /*<std-footer incl-file-exclusion='W_FORM_H'>  -- do not edit anything below this line -- */
 

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='DUAL_ASSERT_H'>
 
- $Id: dual_assert.h,v 1.16 2006/01/29 19:03:13 bolo Exp $
+ $Id: dual_assert.h,v 1.16.2.2 2009/10/30 23:51:02 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 

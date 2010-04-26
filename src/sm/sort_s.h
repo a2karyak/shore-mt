@@ -1,6 +1,29 @@
+/* -*- mode:C++; c-basic-offset:4 -*-
+     Shore-MT -- Multi-threaded port of the SHORE storage manager
+   
+                       Copyright (c) 2007-2009
+      Data Intensive Applications and Systems Labaratory (DIAS)
+               Ecole Polytechnique Federale de Lausanne
+   
+                         All Rights Reserved.
+   
+   Permission to use, copy, modify and distribute this software and
+   its documentation is hereby granted, provided that both the
+   copyright notice and this permission notice appear in all copies of
+   the software, derivative works or modified versions, and any
+   portions thereof, and that both notices appear in supporting
+   documentation.
+   
+   This code is distributed in the hope that it will be useful, but
+   WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. THE AUTHORS
+   DISCLAIM ANY LIABILITY OF ANY KIND FOR ANY DAMAGES WHATSOEVER
+   RESULTING FROM THE USE OF THIS SOFTWARE.
+*/
+
 /*<std-header orig-src='shore' incl-file-exclusion='SORT_S_H'>
 
- $Id: sort_s.h,v 1.31 2007/08/21 19:50:44 nhall Exp $
+ $Id: sort_s.h,v 1.30.2.8 2010/03/19 22:20:28 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -38,6 +61,8 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #pragma interface
 #endif
 
+#define OLDSORT_COMPATIBILITY
+#ifdef OLDSORT_COMPATIBILITY
 
 //
 // info on keys
@@ -46,27 +71,27 @@ struct key_info_t {
     typedef sortorder::keytype key_type_t;
 
     // for backward compatibility only: should use keytype henceforth
-    enum dummy_t { t_char=sortorder::kt_u1,
-	t_int=sortorder::kt_i4,
-	t_float=sortorder::kt_f4,
-	t_string=sortorder::kt_b, 
-	t_spatial=sortorder::kt_spatial};
+    enum dummy_t {  t_char=sortorder::kt_u1,
+                    t_int=sortorder::kt_i4,
+                    t_float=sortorder::kt_f4,
+                    t_string=sortorder::kt_b, 
+                    t_spatial=sortorder::kt_spatial};
 
     enum where_t { t_hdr = 0, t_body };
 
-    key_type_t  type;	    // key type
-    nbox_t 	universe;   // for spatial object only
-    bool	derived;    // if true, the key must be the only item in rec
+    key_type_t  type;       // key type
+    nbox_t      universe;   // for spatial object only
+    bool        derived;    // if true, the key must be the only item in rec
                             // header, and the header will not be copied to
                             // the result record (allow user to store derived
                             // key temporarily for sorting purpose).
 
 
     // following applies to file sort only
-    where_t 	where;      // where the key resides
-    w_base_t::uint4_t	offset;	    // offset fron the begin
-    w_base_t::uint4_t	len;	    // key length
-    w_base_t::uint4_t     est_reclen; // estimated record length
+    where_t              where;      // where the key resides
+    w_base_t::uint4_t    offset;     // offset fron the begin
+    w_base_t::uint4_t    len;        // key length
+    w_base_t::uint4_t    est_reclen; // estimated record length
     
     key_info_t() {
       type = sortorder::kt_i4;
@@ -78,30 +103,67 @@ struct key_info_t {
     }
 };
 
-
 //
 // sort parameter
 //
 struct sort_parm_t {
-    uint2_t run_size;		// size for each run (# of pages)
-    vid_t   vol;		// volume for files
-    bool   unique;		// result unique ?
-    bool   ascending;		// ascending order ?
-    bool   destructive;	// destroy the input file at the end ?
+    uint2_t run_size;        // size for each run (# of pages)
+    vid_t   vol;        // volume for files
+    bool   unique;        // result unique ?
+    bool   ascending;        // ascending order ?
+    bool   destructive;    // destroy the input file at the end ?
+    bool   keep_lid;        // preserve logical oid for recs in sorted
+                // file -- only for destructive sort
     smlevel_3::sm_store_property_t property; // temporary file ?
 
     sort_parm_t() : run_size(10), unique(false), ascending(true),
-		    destructive(false), 
-		    property(smlevel_3::t_regular) {}
+            destructive(false), keep_lid(false),
+            property(smlevel_3::t_regular) {}
 };
 
-#define OLDSORT_COMPATIBILITY
+#endif /* OLDSORT_COMPATIBILITY */
 
 /*
  * For new sort:
  */
 
-typedef void * key_cookie_t;
+// typedef void * key_cookie_t;
+// This type was originally a void * as a way to make it
+// a typeless thing; but that's most uncool now .
+// When it's cast to an smsize_t, it's 'known' that the
+// values are never really pointers, but are small integers.
+// So here we assert that these are small ints when we make
+// the type conversion.
+// TODO: NANCY should come up with a better way to fix this.
+struct key_cookie_t {
+    void *   c;
+    explicit key_cookie_t () : c(NULL) { }
+    explicit key_cookie_t (int i) {
+        union { int _i; void *v; } _pun = {i};
+        c = _pun.v;
+    }
+    explicit key_cookie_t (void *v):c(v) { }
+
+    int make_int() const { return operator int(); }
+    int make_smsize_t() const { return operator smsize_t(); }
+
+    static key_cookie_t   null; // newsort.cpp
+
+private:
+
+    operator int () const { 
+         union { void *v; int _i; } _pun = {c};
+             return _pun._i;
+    }
+    operator smsize_t () const { 
+         union { void *v; int _i; } _pun = {c};
+         smsize_t t =  _pun._i & 0xffffffff;
+#ifdef ARCH_LP64
+         w_assert1((_pun._i & 0xffffffff00000000) == 0);
+#endif
+         return t;
+    }
+};
 
 
 class factory_t 
@@ -111,22 +173,22 @@ class factory_t
     */
 public:
    factory_t();
-   virtual	NORET ~factory_t();
+   virtual    NORET ~factory_t();
 
-   virtual	void* allocfunc(smsize_t)=0;
-   virtual	void freefunc(const void *, smsize_t)=0;
+   virtual    void* allocfunc(smsize_t)=0;
+   virtual    void freefunc(const void *, smsize_t)=0;
 
    // none: causes no delete - used for statically allocated space
-   static factory_t*	none;
+   static factory_t*    none;
 
    // cpp_vector - simply calls delete[] 
-   static factory_t*	cpp_vector;
+   static factory_t*    cpp_vector;
 
    void freefunc(vec_t&v) {
-	for(int i=v.count()-1; i>=0; i--) {
-	    DBG(<<"freefuncVEC(ptr=" << (void*)v.ptr(i) << " len=" << v.len(i));
-	    freefunc((void *)v.ptr(i), v.len(i));
-	}
+    for(int i=v.count()-1; i>=0; i--) {
+        DBG(<<"freefuncVEC(ptr=" << (void*)v.ptr(i) << " len=" << v.len(i));
+        freefunc((void *)v.ptr(i), v.len(i));
+    }
    }
 };
 
@@ -137,13 +199,13 @@ inline NORET factory_t::~factory_t() {}
 class key_location_t 
 {
 public:
-    bool 		_in_hdr;
-    smsize_t 		_off;
-    smsize_t 		_length;
+    bool         _in_hdr;
+    smsize_t         _off;
+    smsize_t         _length;
     key_location_t() : _in_hdr(false), _off(0), _length(0)  {}
     key_location_t(const key_location_t &old) : 
-	_in_hdr(old._in_hdr), 
-	_off(old._off), _length(old._length) {}
+    _in_hdr(old._in_hdr), 
+    _off(old._off), _length(old._length) {}
     bool is_in_hdr() const { return _in_hdr; }
 };
 
@@ -152,206 +214,206 @@ class file_p;
 class record_t;
 class object_t : public smlevel_top 
 {
-	friend class skey_t;
-	static const object_t& none;
+    friend class skey_t;
+    static const object_t& none;
 protected:
-	void  	  _construct(file_p&, slotid_t);
-	void  	  _construct(const void *hdr, smsize_t hdrlen, factory_t *,
-			  const void *body, smsize_t bodylen, factory_t *);
+    void        _construct(file_p&, slotid_t);
+    void        _construct(const void *hdr, smsize_t hdrlen, factory_t *,
+              const void *body, smsize_t bodylen, factory_t *);
 
-	void      _replace(const object_t&); // copy over
-	NORET 	  object_t();
+    void      _replace(const object_t&); // copy over
+    NORET       object_t();
 public:
-	NORET     object_t(const object_t&o) 
-		       :
-		       _valid(false),
-		       _in_bp(false),
-		       _rec(0),
-		       _fp(0),
-		       _hdrfact(factory_t::none),
-		       _hdrlen(0),
-		       _hdrbuf(0),
-		       _bodyfact(factory_t::none),
-		       _bodylen(0),
-		       _bodybuf(0)
-			{ _replace(o); }
+    NORET     object_t(const object_t&o) 
+               :
+               _valid(false),
+               _in_bp(false),
+               _rec(0),
+               _fp(0),
+               _hdrfact(factory_t::none),
+               _hdrlen(0),
+               _hdrbuf(0),
+               _bodyfact(factory_t::none),
+               _bodylen(0),
+               _bodybuf(0)
+            { _replace(o); }
 
-	NORET     object_t(const void *hdr, smsize_t hdrlen, factory_t& hf,
-		       const void *body, smsize_t bodylen, factory_t& bf) 
-		       :
-		       _valid(false),
-		       _in_bp(false),
-		       _rec(0),
-		       _fp(0),
-		       _hdrfact(&hf),
-		       _hdrlen(hdrlen),
-		       _hdrbuf(hdr),
-		       _bodyfact(&bf),
-		       _bodylen(bodylen),
-		       _bodybuf(body)
-		       { }
+    NORET     object_t(const void *hdr, smsize_t hdrlen, factory_t& hf,
+               const void *body, smsize_t bodylen, factory_t& bf) 
+               :
+               _valid(false),
+               _in_bp(false),
+               _rec(0),
+               _fp(0),
+               _hdrfact(&hf),
+               _hdrlen(hdrlen),
+               _hdrbuf(hdr),
+               _bodyfact(&bf),
+               _bodylen(bodylen),
+               _bodybuf(body)
+               { }
 
-	NORET     ~object_t();
+    NORET     ~object_t();
 
-	bool  	  is_valid() const  { return _valid; }
-	bool  	  is_in_buffer_pool() const { return is_valid() && _in_bp; }
-	smsize_t  hdr_size() const { return _hdrlen; }
-	smsize_t  body_size() const { return _bodylen; }
+    bool        is_valid() const  { return _valid; }
+    bool        is_in_buffer_pool() const { return is_valid() && _in_bp; }
+    smsize_t  hdr_size() const { return _hdrlen; }
+    smsize_t  body_size() const { return _bodylen; }
 
-	const void *hdr(smsize_t offset) const; 
-	const void *body(smsize_t offset) const;
-	void  	  freespace();
-	void  	  assert_nobuffers() const;
-	smsize_t  contig_body_size() const; // pinned amt
+    const void *hdr(smsize_t offset) const; 
+    const void *body(smsize_t offset) const;
+    void        freespace();
+    void        assert_nobuffers() const;
+    smsize_t  contig_body_size() const; // pinned amt
 
-	w_rc_t    copy_out(bool in_hdr, smsize_t offset, 
-				smsize_t length, vec_t&dest) const;
+    w_rc_t    copy_out(bool in_hdr, smsize_t offset, 
+                smsize_t length, vec_t&dest) const;
 
 
-private:  	// data
-	bool		_valid;
-	bool		_in_bp; // in buffer pool or in memory
+private:      // data
+    bool        _valid;
+    bool        _in_bp; // in buffer pool or in memory
 
-	// for in_buffer_pool:
-	record_t*	_rec;
-	file_p*		_fp;
+    // for in_buffer_pool:
+    record_t*    _rec;
+    file_p*        _fp;
 
-	// for in_memory:
-	factory_t*	_hdrfact;
-	smsize_t	_hdrlen;
-	const void*	_hdrbuf;
+    // for in_memory:
+    factory_t*    _hdrfact;
+    smsize_t    _hdrlen;
+    const void*    _hdrbuf;
 
-	factory_t*	_bodyfact;
-	smsize_t	_bodylen;
-	const void*	_bodybuf;
+    factory_t*    _bodyfact;
+    smsize_t    _bodylen;
+    const void*    _bodybuf;
 
 protected:
-    int 	_save_pin_count;
-		// for callback
-    void  	_callback_prologue() const {
-#		ifdef W_DEBUG
-		    /*
-		     * leaving SM
-		     */
-		    // escape const-ness of the method
-		    int *save_pin_count = (int *)&_save_pin_count;
-		    *save_pin_count = me()->pin_count();
-		    w_assert3(_save_pin_count == 0);
-		    me()->check_pin_count(0);
-		    me()->in_sm(false);
-#		endif /* W_DEBUG */
-		}
-    void  	_callback_epilogue() const {
-#		ifdef W_DEBUG
-		    /*
-		     * re-entering SM
-		     */
-		    me()->check_actual_pin_count(_save_pin_count);
-		    me()->in_sm(true);
-#		endif /* W_DEBUG */
-		}
-    void	_invalidate() {
-		       _valid=false;
-		       _in_bp=false;
-		       _rec = 0;
-		       _fp=0;
-		       _hdrfact=factory_t::none;
-		       _hdrlen=0;
-		       _hdrbuf=0;
-		       _bodyfact=factory_t::none;
-		       _bodylen=0;
-		       _bodybuf=0;
-		       _save_pin_count=0;
-    		}
+    int     _save_pin_count;
+        // for callback
+    void      _callback_prologue() const {
+#        if W_DEBUG_LEVEL > 2
+            /*
+             * leaving SM
+             */
+            // escape const-ness of the method
+            int *save_pin_count = (int *)&_save_pin_count;
+            *save_pin_count = me()->pin_count();
+            w_assert3(_save_pin_count == 0);
+            me()->check_pin_count(0);
+            me()->in_sm(false);
+#        endif 
+        }
+    void      _callback_epilogue() const {
+#        if W_DEBUG_LEVEL > 2
+            /*
+             * re-entering SM
+             */
+            me()->check_actual_pin_count(_save_pin_count);
+            me()->in_sm(true);
+#        endif 
+        }
+    void    _invalidate() {
+               _valid=false;
+               _in_bp=false;
+               _rec = 0;
+               _fp=0;
+               _hdrfact=factory_t::none;
+               _hdrlen=0;
+               _hdrbuf=0;
+               _bodyfact=factory_t::none;
+               _bodylen=0;
+               _bodybuf=0;
+               _save_pin_count=0;
+            }
 };
 
 class run_mgr;
 class skey_t 
 {
-	// To let run_mgr construct empty skey_t
+    // To let run_mgr construct empty skey_t
         friend class run_mgr;
 public:
-	NORET 	skey_t(const object_t& o, smsize_t offset,
-			smsize_t len, bool in_hdr) 
-			: _valid(true), _in_obj(true),
-			_length(len),
-			_obj(&o), _offset(offset),
-			_in_hdr(in_hdr), 
-			_fact(factory_t::none), _buf(0)
-			{
-			}
-	NORET 	skey_t(void *buf, smsize_t offset,
-			smsize_t len,  // KEY len, NOT NECESSARILY BUF len
-			factory_t& f) 
-			: _valid(true), _in_obj(false),
-			_length(len),
-			_obj(&object_t::none),
-			_offset(offset),
-			_in_hdr(false), 
-			_fact(&f), _buf(buf)
-			{
-			}
-	NORET   ~skey_t() {}
+    NORET     skey_t(const object_t& o, smsize_t offset,
+            smsize_t len, bool in_hdr) 
+            : _valid(true), _in_obj(true),
+            _length(len),
+            _obj(&o), _offset(offset),
+            _in_hdr(in_hdr), 
+            _fact(factory_t::none), _buf(0)
+            {
+            }
+    NORET     skey_t(void *buf, smsize_t offset,
+            smsize_t len,  // KEY len, NOT NECESSARILY BUF len
+            factory_t& f) 
+            : _valid(true), _in_obj(false),
+            _length(len),
+            _obj(&object_t::none),
+            _offset(offset),
+            _in_hdr(false), 
+            _fact(&f), _buf(buf)
+            {
+            }
+    NORET   ~skey_t() {}
 
-	smsize_t  size() const { return _length; }
-	bool  	  is_valid() const  { return _valid; }
-	bool      is_in_obj() const { return is_valid() && _in_obj; }
-	bool      consistent_with_object(const object_t&o ) const { 
-					 return ((_obj == &o) || !_in_obj); }
-	bool      is_in_hdr() const { return is_in_obj() && _in_hdr; }
+    smsize_t  size() const { return _length; }
+    bool        is_valid() const  { return _valid; }
+    bool      is_in_obj() const { return is_valid() && _in_obj; }
+    bool      consistent_with_object(const object_t&o ) const { 
+                     return ((_obj == &o) || !_in_obj); }
+    bool      is_in_hdr() const { return is_in_obj() && _in_hdr; }
 
-	const void *ptr(smsize_t offset) const;  // key
-	void  	  freespace();
-	void  	  assert_nobuffers()const;
-	smsize_t  contig_length() const; // pinned amt or key length
-	w_rc_t    copy_out(vec_t&dest) const;
+    const void *ptr(smsize_t offset) const;  // key
+    void        freespace();
+    void        assert_nobuffers()const;
+    smsize_t  contig_length() const; // pinned amt or key length
+    w_rc_t    copy_out(vec_t&dest) const;
 
 
 private:
-	bool		_valid; 
-	bool		_in_obj; // else in mem
-	smsize_t	_length;
+    bool        _valid; 
+    bool        _in_obj; // else in mem
+    smsize_t    _length;
 
 protected:
-	// for in_obj case;
-	const object_t*	_obj;	 
-	smsize_t	_offset; // into buf or object of start of key
+    // for in_obj case;
+    const object_t*    _obj;     
+    smsize_t    _offset; // into buf or object of start of key
 private:
-	bool		_in_hdr;
+    bool        _in_hdr;
 
-	// for !in_obj but valid
-	factory_t*	_fact;
-	const void*	_buf;   // buf to be deallocated -- key
-				// might not start at offset 0
+    // for !in_obj but valid
+    factory_t*    _fact;
+    const void*    _buf;   // buf to be deallocated -- key
+                // might not start at offset 0
 
 protected:
-	void  	  _invalidate();
-	NORET 	skey_t() : 
-		_valid(false), _in_obj(false), _length(0),
-		_obj(&object_t::none),
-		_offset(0), _in_hdr(false),
-		_fact(factory_t::none), _buf(0)
-		{ }
-	void    _construct(const object_t *o, smsize_t off, smsize_t l, bool h) {
-		_valid = true;
-		_in_obj = true;
-		_obj = o;
-		_offset = off;
-		_length = l;
-		_in_hdr = h;
-		_fact = factory_t::none;
-	    }
-	void  	_construct(const void *buf, smsize_t off, smsize_t l, factory_t* f) {
-		_valid = true;
-		_obj = 0;
-		_in_obj = false;
-		_offset = off;
-		_length = l;
-		_fact = f;
-		_buf = buf;
-	    }
-	void    _replace(const skey_t&); // copy over
-	void    _replace_relative_to_obj(const object_t &, const skey_t&); // copy over
+    void        _invalidate();
+    NORET     skey_t() : 
+        _valid(false), _in_obj(false), _length(0),
+        _obj(&object_t::none),
+        _offset(0), _in_hdr(false),
+        _fact(factory_t::none), _buf(0)
+        { }
+    void    _construct(const object_t *o, smsize_t off, smsize_t l, bool h) {
+        _valid = true;
+        _in_obj = true;
+        _obj = o;
+        _offset = off;
+        _length = l;
+        _in_hdr = h;
+        _fact = factory_t::none;
+        }
+    void      _construct(const void *buf, smsize_t off, smsize_t l, factory_t* f) {
+        _valid = true;
+        _obj = 0;
+        _in_obj = false;
+        _offset = off;
+        _length = l;
+        _fact = f;
+        _buf = buf;
+        }
+    void    _replace(const skey_t&); // copy over
+    void    _replace_relative_to_obj(const object_t &, const skey_t&); // copy over
 };
 
 
@@ -383,12 +445,12 @@ protected:
  
 
     typedef w_rc_t (*CSKF)(
-	const rid_t&    rid,
-	const object_t&	in_obj,
-	key_cookie_t	cookie,  // type info
-	factory_t&	internal,
-	skey_t*		out
-	);
+        const rid_t&        rid,
+        const object_t&     in_obj,
+        key_cookie_t        cookie,  // type info
+        factory_t&          internal,
+        skey_t*             out
+    );
 
 /*
  * Marshal Object Function (MOF) 
@@ -405,22 +467,22 @@ protected:
  */
 
 typedef w_rc_t (*MOF)(
-	const rid_t& 	rid,  // record id
-	const object_t&	obj_in,
-	key_cookie_t	cookie,  // type info
-				// func must allocate obj_out,
-	object_t*	obj_out	 // SM allocates, MOF initializes, SM
-				// frees its buffers
-	);
+    const rid_t&       rid,  // record id
+    const object_t&    obj_in,
+    key_cookie_t       cookie,  // type info
+                // func must allocate obj_out,
+    object_t*         obj_out     // SM allocates, MOF initializes, SM
+                // frees its buffers
+    );
 
 typedef w_rc_t (*UMOF)(
-	const rid_t& 	rid,  // orig record id of object in buffer
-	const object_t&	obj_in,
-	key_cookie_t	cookie,  // type info
-				// func must allocate obj_out,
-	object_t*	obj_out // SM allocates, UMOF initializes,
-			// SM will copy to disk, free mem
-	);
+    const rid_t&       rid,  // orig record id of object in buffer
+    const object_t&    obj_in,
+    key_cookie_t       cookie,  // type info
+                // func must allocate obj_out,
+    object_t*        obj_out // SM allocates, UMOF initializes,
+            // SM will copy to disk, free mem
+    );
 /* 
  * Key comparison func:
  * To be used on every key comparison.  The comparison is 
@@ -428,8 +490,10 @@ typedef w_rc_t (*UMOF)(
  * metadata are passed in.  This will probably change.
  */
 
-typedef int (*CF) (w_base_t::uint4_t , const void *, 
-		    w_base_t::uint4_t , const void *);
+typedef int (*CF) (w_base_t::uint4_t , 
+            const void *, 
+            w_base_t::uint4_t , 
+            const void *);
 
 /* 
  * LEXFUNC: create Index Key function
@@ -451,10 +515,10 @@ typedef w_rc_t (*LEXFUNC) (const void *, smsize_t , void *);
  */
 struct generic_CSKF_cookie 
 {
-    LEXFUNC	func; // value == noLEXFUNC means don't lexify
-    bool	in_hdr;
-    smsize_t 	offset;
-    smsize_t 	length;
+    LEXFUNC    func; // value == noLEXFUNC means don't lexify
+    bool       in_hdr;
+    smsize_t   offset;
+    smsize_t   length;
 };
 
 class sort_keys_t 
@@ -472,39 +536,35 @@ public:
  
     static w_rc_t noLEXFUNC (const void *, smsize_t , void *);
 
-    static 
-    w_rc_t noCSKF(
-	const rid_t& rid,
-	const object_t&	obj,
-	key_cookie_t	cookie,  // type info
-	factory_t&	f,
-	skey_t*		out
-	);
+    static w_rc_t noCSKF(
+                const rid_t&       rid,
+                const object_t&    obj,
+                key_cookie_t    cookie,  // type info
+                factory_t&    f,
+                skey_t*        out
+    );
 
-    static w_rc_t 
-    generic_CSKF(
-	const rid_t&    rid,
-	const object_t&	in_obj,
-	key_cookie_t	cookie,  // type info
-	factory_t&	internal,
-	skey_t*		out
-	);
+    static w_rc_t generic_CSKF(
+                const rid_t&    rid,
+                const object_t&    in_obj,
+                key_cookie_t    cookie,  // type info
+                factory_t&    internal,
+                skey_t*        out
+    );
 
-    static
-    w_rc_t noMOF (
-	const rid_t& 	rid,  // record id
-	const object_t&	obj,
-	key_cookie_t	cookie,  // type info
-	object_t*	out
-	);
+    static w_rc_t noMOF (
+                const rid_t&     rid,  // record id
+                const object_t&    obj,
+                key_cookie_t    cookie,  // type info
+                object_t*    out
+    );
 
-    static
-    w_rc_t noUMOF (
-	const rid_t& 	rid,  // record id
-	const object_t&	obj,
-	key_cookie_t	cookie,  // type info
-	object_t*	out
-	);
+    static w_rc_t noUMOF (
+                const rid_t&     rid,  // record id
+                const object_t&    obj,
+                key_cookie_t    cookie,  // type info
+                object_t*    out
+    );
 
     /*
      * Default comparision functions for in-buffer-pool
@@ -539,83 +599,82 @@ public:
 private:
 
      /* Metadata about a key -- info about the key
-     * 	as it appears in all objects, not per-object
+     *     as it appears in all objects, not per-object
      *      key info.
      */
     class key_meta_t {
     public:
-	/* 
-	 * callbacks:
-	 */ 
-	CF 		_cb_keycmp;  // comparison
-	CSKF   		_cb_keyinfo; // get location/copy/derived
-	key_cookie_t	_cookie;
-	w_base_t::int1_t    _mask;
-	fill1		_dummy1;
-	fill2		_dummy2;
-	key_meta_t() : _cb_keycmp(0), _cb_keyinfo(0), 
-	    _cookie(0),
-	    _mask(t_none) {}
-	key_meta_t(const key_meta_t &old) : 
-	    _cb_keycmp(old._cb_keycmp), 
-	    _cb_keyinfo(old._cb_keyinfo),
-	    _cookie(old._cookie),
-	    _mask(old._mask) {}
+    /* 
+     * callbacks:
+     */ 
+    CF              _cb_keycmp;  // comparison
+    CSKF            _cb_keyinfo; // get location/copy/derived
+    key_cookie_t    _cookie;
+    w_base_t::int1_t    _mask;
+    fill1        _dummy1;
+    fill2        _dummy2;
+    key_meta_t() : _cb_keycmp(0), _cb_keyinfo(0), 
+        _cookie(0),
+        _mask(t_none) {}
+    key_meta_t(const key_meta_t &old) : 
+        _cb_keycmp(old._cb_keycmp), 
+        _cb_keyinfo(old._cb_keyinfo),
+        _cookie(old._cookie),
+        _mask(old._mask) {}
     };
-    int		_nkeys;		// constructor 
-    int		_spaces;	// _grow
+    int        _nkeys;        // constructor 
+    int        _spaces;    // _grow
     key_meta_t*     _meta;
     key_location_t* _locs;
-    bool	_stable;	// set_stable, is_stable
-    bool	_for_index;	// set_for_index, is_for_index
-    bool	_remove_dups;	// set_unique
-    bool	_remove_dup_nulls; // set_null_unique
-    bool	_ascending;	// ascending, set_ascending
-    bool	_deep_copy;	// set_for_index, set_for_file
-    bool	_remap_lids;	// not supported
-    bool	_keep_orig_file;// set_for_index, set_for_file, set_keep_orig
-    bool	_carry_obj;	// set_for_file, carry_obj, set_carry_obj
+    bool    _stable;    // set_stable, is_stable
+    bool    _for_index;    // set_for_index, is_for_index
+    bool    _remove_dups;    // set_unique
+    bool    _remove_dup_nulls; // set_null_unique
+    bool    _ascending;    // ascending, set_ascending
+    bool    _deep_copy;    // set_for_index, set_for_file
+    bool    _keep_orig_file;// set_for_index, set_for_file, set_keep_orig
+    bool    _carry_obj;    // set_for_file, carry_obj, set_carry_obj
 
-    CSKF	_cb_lexify;	// set_for_index, lexify
-    key_cookie_t _cb_lexify_cookie;	// set_for_index
+    CSKF    _cb_lexify;    // set_for_index, lexify
+    key_cookie_t _cb_lexify_cookie;    // set_for_index
 
-    MOF		_cb_marshal;	// set_object_marshal
-    UMOF	_cb_unmarshal;	// set_object_marshal
-    key_cookie_t _cb_marshal_cookie;	// set_object_marshal
+    MOF        _cb_marshal;    // set_object_marshal
+    UMOF    _cb_unmarshal;    // set_object_marshal
+    key_cookie_t _cb_marshal_cookie;    // set_object_marshal
 
     void _grow(int i);
 
     void _prep(int key);
     void _set_loc(int key, smsize_t off, smsize_t len) {
-	key_location_t &t = _locs[key];
-	t._off = off;
-	t._length = len;
+        key_location_t &t = _locs[key];
+        t._off = off;
+        t._length = len;
     }
     void _set_mask(int key,
-	    bool fixed, 
-	    bool aligned, 
-	    bool lexico, 
-	    bool in_header,
-	    CSKF gfunc,
-	    CF   cfunc,
-	    key_cookie_t cookie
-	) {
-	key_meta_t &t = _meta[key];
-	if(aligned) t._mask |= t_aligned;
-	else t._mask &= ~t_aligned;
-	if(fixed) t._mask |= t_fixed;
-	else t._mask &= ~t_fixed;
-	if(lexico) t._mask |= t_lexico;
-	else t._mask &= ~t_lexico;
-	if(in_header) t._mask |= sort_keys_t::t_hdr;
-	else t._mask &= ~sort_keys_t::t_hdr;
-	t._cb_keycmp = cfunc;
-	t._cb_keyinfo = gfunc;
-	w_assert3(cfunc);
-	if( ! fixed) {
-	    w_assert3(gfunc);
-	}
-	t._cookie = cookie;
+        bool fixed, 
+        bool aligned, 
+        bool lexico, 
+        bool in_header,
+        CSKF gfunc,
+        CF   cfunc,
+        key_cookie_t cookie
+    ) {
+    key_meta_t &t = _meta[key];
+    if(aligned) t._mask |= t_aligned;
+    else t._mask &= ~t_aligned;
+    if(fixed) t._mask |= t_fixed;
+    else t._mask &= ~t_fixed;
+    if(lexico) t._mask |= t_lexico;
+    else t._mask &= ~t_lexico;
+    if(in_header) t._mask |= sort_keys_t::t_hdr;
+    else t._mask &= ~sort_keys_t::t_hdr;
+    t._cb_keycmp = cfunc;
+    t._cb_keyinfo = gfunc;
+    w_assert3(cfunc);
+    if( ! fixed) {
+        w_assert3(gfunc);
+    }
+    t._cookie = cookie;
     }
 
     void _copy(const sort_keys_t &old);
@@ -640,20 +699,20 @@ public:
      */
 
     enum { t_none = 0x0, 
-	    t_fixed = 0x1, 
-	    t_aligned =0x2, 
-	    t_lexico=0x4,
-	    t_hdr = 0x40  // key found in hdr
-	    };
+        t_fixed = 0x1, 
+        t_aligned =0x2, 
+        t_lexico=0x4,
+        t_hdr = 0x40  // key found in hdr
+        };
 
     NORET sort_keys_t(int nkeys);
     NORET ~sort_keys_t() {
-	    delete[] _meta;
-	    delete[] _locs;
+        delete[] _meta;
+        delete[] _locs;
     }
     NORET sort_keys_t(const sort_keys_t &old);
 
-    int 	nkeys() const { return _nkeys; }
+    int     nkeys() const { return _nkeys; }
 
     /* Call set_for_index() if you want the output file
      * to be written with objects of the form hdr==key, body==rid
@@ -667,29 +726,26 @@ public:
      */
     // Use sort key directly
     int     set_for_index() {
-		_keep_orig_file = true;
-		_deep_copy = false;
-		_for_index = true; 
-		if(_nkeys > 1) {
-		    return 1; // BAD 
-			// we only support single-key btrees
-		}
-		_cb_lexify = sort_keys_t::noCSKF;
-		_cb_lexify_cookie = key_cookie_t(0);
-		return 0;
-	    }
+        _keep_orig_file = true;
+        _deep_copy = false;
+        _for_index = true; 
+        if(_nkeys > 1) {
+            return 1; // BAD 
+            // we only support single-key btrees
+        }
+        _cb_lexify = sort_keys_t::noCSKF;
+        _cb_lexify_cookie = key_cookie_t(0);
+        return 0;
+        }
 
     // compute index key
-    int     set_for_index(
-		CSKF lfunc,
-		key_cookie_t ck
-		) {
-		set_for_index();
-		if(!lfunc) lfunc = sort_keys_t::noCSKF;
-		_cb_lexify = lfunc;
-		_cb_lexify_cookie = ck;
-		return 0;
-	    }
+    int     set_for_index( CSKF lfunc, key_cookie_t ck) {
+                set_for_index();
+                if(!lfunc) lfunc = sort_keys_t::noCSKF;
+                _cb_lexify = lfunc;
+                _cb_lexify_cookie = ck;
+                return 0;
+            }
     bool    is_for_index() const { return _for_index; }
     bool    is_for_file() const { return !_for_index; }
 
@@ -701,20 +757,18 @@ public:
 
     // opposite of set_for_index:
     int     set_for_file(bool deepcopy, bool keeporig, bool carry_obj) {
-		_for_index = false;
-		(void) set_carry_obj(carry_obj);
-		(void) set_deep_copy(deepcopy);
-		return set_keep_orig(keeporig);
-	    }
+            _for_index = false;
+            (void) set_carry_obj(carry_obj);
+            (void) set_deep_copy(deepcopy);
+            return set_keep_orig(keeporig);
+        }
 
-    int     set_object_marshal(
-		MOF marshal, UMOF unmarshal, 
-		key_cookie_t c) {
-		_cb_marshal = marshal;
-		_cb_unmarshal = unmarshal;
-		_cb_marshal_cookie = c;
-		return 0;
-	    }
+    int     set_object_marshal( MOF marshal, UMOF unmarshal, key_cookie_t c) {
+            _cb_marshal = marshal;
+            _cb_unmarshal = unmarshal;
+            _cb_marshal_cookie = c;
+            return 0;
+        }
     MOF     marshal_func() const { return _cb_marshal; }
     UMOF    unmarshal_func() const { return _cb_unmarshal; }
     key_cookie_t    marshal_cookie() const { return _cb_marshal_cookie; }
@@ -727,74 +781,74 @@ public:
 
     bool    null_unique() const { return _remove_dup_nulls; } 
     int     set_null_unique( bool value = true) {  _remove_dup_nulls = value; 
-			return 0; }
+            return 0; }
 
     bool    carry_obj() const {  return _carry_obj; }
     int     set_carry_obj(bool value = true) {  
-		return _carry_obj = value; 
-		return 0;
-	    }
+        return _carry_obj = value; 
+        return 0;
+        }
 
     bool    deep_copy() const {  return _deep_copy; }
     int     set_deep_copy(bool value = true ) {  
-		_deep_copy = value; 
-		return 0; 
-	    }
+        _deep_copy = value; 
+        return 0; 
+        }
 
     bool    keep_orig() const {  return _keep_orig_file; }
     int     set_keep_orig(bool value = true ) {  
-		if(value && !_deep_copy) return 1;
-		_keep_orig_file = value;
-		return 0;
-	    }
+        if(value && !_deep_copy) return 1;
+        _keep_orig_file = value;
+        return 0;
+        }
 
     /* For each key, you must call either
     *  set_sortkey_fixed (in the  fixed cases), or
     *  set_sortkey_derived (in every other case).
      */
     int set_sortkey_fixed(int key, 
-		smsize_t off, smsize_t len,
-		bool in_header,
-		bool aligned, 
-		bool lexico, 
-		CF   cfunc
-		);
+        smsize_t off, smsize_t len,
+        bool in_header,
+        bool aligned, 
+        bool lexico, 
+        CF   cfunc
+        );
     int set_sortkey_derived(int key, 
-		CSKF gfunc,
-		key_cookie_t cookie,
-		bool in_header,
-		bool aligned, 
-		bool lexico, 
-		CF   cfunc
-		);
+        CSKF gfunc,
+        key_cookie_t cookie,
+        bool in_header,
+        bool aligned, 
+        bool lexico, 
+        CF   cfunc
+        );
     key_location_t&  get_location(int i) { return _locs[i]; }
 
     smsize_t offset(int i) const {
-	    return _locs[i]._off;
+        return _locs[i]._off;
     }
     smsize_t length(int i) const {
-	    return _locs[i]._length;
+        return _locs[i]._length;
     }
     CSKF keyinfo(int i) const {
-	    return _meta[i]._cb_keyinfo;
+        return _meta[i]._cb_keyinfo;
     }
     CF keycmp(int i) const {
-	    return _meta[i]._cb_keycmp;
+        return _meta[i]._cb_keycmp;
     }
     key_cookie_t cookie(int i) const {
-	    return _meta[i]._cookie;
+        return _meta[i]._cookie;
     }
     bool     is_lexico(int i) const {
-	    return (_meta[i]._mask & t_lexico)?true:false;
+        return (_meta[i]._mask & t_lexico)?true:false;
     }
     bool     is_fixed(int i) const {
-	    return (_meta[i]._mask & t_fixed)?true:false;
+        return (_meta[i]._mask & t_fixed)?true:false;
     }
     bool     is_aligned(int i) const {
-	    return (_meta[i]._mask & t_aligned)?true:false;
+        return (_meta[i]._mask & t_aligned)?true:false;
     }
     bool     in_hdr(int i) const {
-	    return (_meta[i]._mask & t_hdr)?true:false;
+        return (_meta[i]._mask & t_hdr)?true:false;
     }
 
 
@@ -805,22 +859,22 @@ sort_keys_t::_grow(int i)
 {
     // realloc it to accommodate i more entries
     {
-	key_location_t* tmp = new key_location_t[_spaces + i];
-	if(!tmp) W_FATAL(fcOUTOFMEMORY);
-	if(_locs) {
-	    memcpy(tmp, _locs, nkeys() * sizeof(key_location_t));
-	    delete[] _locs;
-	}
-	_locs = tmp;
+    key_location_t* tmp = new key_location_t[_spaces + i];
+    if(!tmp) W_FATAL(fcOUTOFMEMORY);
+    if(_locs) {
+        memcpy(tmp, _locs, nkeys() * sizeof(key_location_t));
+        delete[] _locs;
+    }
+    _locs = tmp;
     }
     {
-	key_meta_t* tmp = new key_meta_t[_spaces + i];
-	if(!tmp) W_FATAL(fcOUTOFMEMORY);
-	if(_meta) {
-	    memcpy(tmp, _meta, nkeys() * sizeof(key_meta_t));
-	    delete[] _meta;
-	}
-	_meta = tmp;
+    key_meta_t* tmp = new key_meta_t[_spaces + i];
+    if(!tmp) W_FATAL(fcOUTOFMEMORY);
+    if(_meta) {
+        memcpy(tmp, _meta, nkeys() * sizeof(key_meta_t));
+        delete[] _meta;
+    }
+    _meta = tmp;
     }
     _spaces += i;
     // don't change nkeys
@@ -848,11 +902,11 @@ inline void
 sort_keys_t::_prep(int key) 
 {
     if(key >= _spaces) {
-	_grow(5);
+    _grow(5);
     }
     if(key >= _nkeys) {
-	// NB: hazard if not all of these filled in!
-	_nkeys = key+1;
+    // NB: hazard if not all of these filled in!
+    _nkeys = key+1;
     }
 }
 
@@ -862,13 +916,13 @@ sort_keys_t::_copy(const sort_keys_t &old)
     _prep(old.nkeys()-1);
     int i;
     for(i=0; i< old.nkeys(); i++) {
-	_locs[i] = old._locs[i];
-	_meta[i] = old._meta[i];
+    _locs[i] = old._locs[i];
+    _meta[i] = old._meta[i];
     }
     w_assert3(nkeys() == old.nkeys());
     w_assert3(_spaces >= old._spaces);
     for(i=0; i< old.nkeys(); i++) {
-	w_assert3(_meta[i]._mask == old._meta[i]._mask);
+    w_assert3(_meta[i]._mask == old._meta[i]._mask);
     }
 }
 
@@ -883,7 +937,8 @@ sort_keys_t::sort_keys_t(const sort_keys_t &old) :
 inline int 
 sort_keys_t::set_sortkey_fixed(
     int key, 
-    smsize_t off, smsize_t len,
+    smsize_t off, 
+    smsize_t len,
     bool in_header,
     bool aligned, 
     bool lexico,
@@ -891,11 +946,11 @@ sort_keys_t::set_sortkey_fixed(
 ) 
 {
     if(is_for_index() && key > 0) {
-	return 1;
+        return 1;
     }
     _prep(key);
     _set_mask(key,  true, aligned, lexico, 
-	    in_header, noCSKF, cfunc, 0);
+                in_header, noCSKF, cfunc, key_cookie_t::null);
     _set_loc(key,  off, len);
     return 0;
 }
@@ -912,13 +967,13 @@ sort_keys_t::set_sortkey_derived(
 )
 {
     if(is_for_index() && key > 0) {
-	return 1;
+    return 1;
     }
     _prep(key);
     _set_mask(key, false, aligned, lexico, 
-	    in_header,
-	    gfunc, cfunc, 
-	    cookie);
+        in_header,
+        gfunc, cfunc, 
+        cookie);
     return 0;
 }
 

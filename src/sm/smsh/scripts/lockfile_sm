@@ -1,6 +1,6 @@
 # <std-header style='tcl' orig-src='shore'>
 #
-#  $Id: lockfile_sm,v 1.19 1999/06/07 19:05:36 kupsch Exp $
+#  $Id: lockfile_sm,v 1.19.4.2 2009/12/14 23:57:55 nhall Exp $
 #
 # SHORE -- Scalable Heterogeneous Object REpository
 #
@@ -58,6 +58,7 @@
 #
 
 proc req_lock { fid rid lock op } {
+	global verbose_flag
     sm begin_xct
 
     case $lock in {
@@ -104,7 +105,7 @@ proc rel_lock { args } {
 }
 
 proc holder { fid rid type op me } {
-    global verbose_flag
+	global verbose_flag
     sync
 
     verbose "$me: $type ($op) requesting lock on $fid"
@@ -121,7 +122,7 @@ proc holder { fid rid type op me } {
 }
 
 proc requester { fid rid type op me } {
-    global verbose_flag
+	global verbose_flag
     sync
     sync
 
@@ -138,7 +139,9 @@ proc requester { fid rid type op me } {
 }
 
 proc testit { fid r1 r2 lock1 lock2 } {
+	global verbose_flag
     global ops
+	sm reinit_fingerprints
     foreach i $ops($lock1) { 
     	foreach j $ops($lock2) { 
 	    set x [ fork_thread holder $fid $r1 $lock1 $i 1 ]
@@ -146,7 +149,8 @@ proc testit { fid r1 r2 lock1 lock2 } {
 
 	    sync_thread $x $y
 	    sync_thread $x $y
-	    sync_thread $x $y
+	    sync_thread $x
+	    sync_thread $y
 	    join_thread $x $y
 	    verbose "----------------"
 	}

@@ -1,2 +1,0 @@
-hello:
-	g++ $(FLAGS) $(INCLUDES) hello.cpp -L$(libdir) -lsm -lcommon -lsthread -lfc -o hello

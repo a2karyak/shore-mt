@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: w_form.cpp,v 1.9 2007/05/18 21:38:25 nhall Exp $
+ $Id: w_form.cpp,v 1.9.2.4 2010/03/19 22:17:19 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -35,7 +35,7 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 /*
  *   This software is Copyright 1989, 1991, 1992, 1993, 1994, 1998 by:
  *
- *	Josef Burger	<bolo@cs.wisc.edu>
+ *    Josef Burger    <bolo@cs.wisc.edu>
  *
  *   All Rights Reserved.
  *
@@ -54,72 +54,85 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
  * one thread can form() at once.
  *
  * Configuration options:
- *	BUF_SLOTS	Number of outstanding formatted output buffers.
- *	MAX_BUFFER	Maximum length of each formatted output buffer.
+ *    BUF_SLOTS    Number of outstanding formatted output buffers.
+ *    MAX_BUFFER    Maximum length of each formatted output buffer.
  *
- *	FORM_PRE_ALLOCATE
- *			if defined, all buffer space that form() uses is
- *			statically allocated.  When this is not defined,
- *			a single static buffer exists to provide formatting
- *			in case memory allocatin fails.
- *	HAVE_VSNPRINTF	If defined uses the 'n' format of vsprintf which
- *			prevents the buffer from being written past its end.
+ *    FORM_PRE_ALLOCATE
+ *            if defined, all buffer space that form() uses is
+ *            statically allocated.  When this is not defined,
+ *            a single static buffer exists to provide formatting
+ *            in case memory allocatin fails.
+ *    HAVE_VSNPRINTF    If defined uses the 'n' format of vsprintf which
+ *            prevents the buffer from being written past its end.
  */
 
 #include <cstdarg>
 #include <cstdio>
 
 
-#define	BUF_SLOTS	16
-#define	MAX_BUFFER	1024
+#define    BUF_SLOTS    16
+#define    MAX_BUFFER    1024
 
 #ifdef FORM_PRE_ALLOCATE
-static char	buffers[BUF_SLOTS][MAX_BUFFER];
+static char    buffers[BUF_SLOTS][MAX_BUFFER];
 #else
-static char	*buffers[BUF_SLOTS];
-static char	default_buffer[MAX_BUFFER];
+static char    *buffers[BUF_SLOTS];
+static char    default_buffer[MAX_BUFFER];
 #endif
-static unsigned	slot = 0;
+static unsigned    slot = 0;
+
+/**\cond skip */
+struct form_cleanup
+{
+   ~form_cleanup() {
+      for(int i=0; i < BUF_SLOTS; i++)
+      {
+         delete[] buffers[i];
+         buffers[i]=NULL;
+      }
+   }
+} __cleanup__;
+/**\endcond skip */
 
 
 /* XXX Yes, this is not thread safe at the moment. */
 
 const char *form(const char *format, ...)
 {
-	va_list		ap;
-	char		*buffer;
-	unsigned	me;
-	
-	/* XXX Buffer allocation is the only thing that needs to
-	   be protected to be trivially thread safe. */
-	me = slot;
-	slot = (slot + 1) % BUF_SLOTS;
+    va_list        ap;
+    char        *buffer;
+    unsigned    me;
+    
+    /* XXX Buffer allocation is the only thing that needs to
+       be protected to be trivially thread safe. */
+    me = slot;
+    slot = (slot + 1) % BUF_SLOTS;
 
 #ifndef FORM_PRE_ALLOCATE
-	if (!buffers[me]) {
-		buffers[me] = new char[MAX_BUFFER];
-		/* backup strategy ... use one static buffer to guarantee
-		   output in case everything goes to hell. */
-		if (!buffers[me])
-			buffers[me] = default_buffer;
-	}
+    if (!buffers[me]) {
+        buffers[me] = new char[MAX_BUFFER];
+        /* backup strategy ... use one static buffer to guarantee
+           output in case everything goes to hell. */
+        if (!buffers[me])
+            buffers[me] = default_buffer;
+    }
 #endif
-	buffer = buffers[me];
+    buffer = buffers[me];
 
-	va_start(ap, format);
+    va_start(ap, format);
 #ifdef HAVE_VSNPRINTF
-	vsnprintf(buffer, MAX_BUFFER, format, ap);
+    vsnprintf(buffer, MAX_BUFFER, format, ap);
 #else
 #ifdef HAVE_VPRINTF
-	vsprintf(buffer, format, ap);
+    vsprintf(buffer, format, ap);
 #else
 #error need vsprintf
 #endif
 
 #endif
-	va_end(ap);
+    va_end(ap);
 
-	buffer[MAX_BUFFER-1] = '\0';	/* Paranoia */
+    buffer[MAX_BUFFER-1] = '\0';    /* Paranoia */
 
-	return buffer;
+    return buffer;
 }

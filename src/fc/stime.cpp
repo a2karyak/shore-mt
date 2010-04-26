@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: stime.cpp,v 1.38 2007/06/28 21:18:14 nhall Exp $
+ $Id: stime.cpp,v 1.38.2.9 2010/03/19 22:17:16 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -31,19 +31,9 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 
 /*  -- do not edit anything above this line --   </std-header>*/
 
-/*
- * SGI machines differentiate between SysV and BSD
- * get time of day sys calls. Make sure it uses the
- * BSD sys calls by defining _BSD_TIME. Check /usr/include/sys/time.h
- */
-
-#if defined(Irix)
-#define _BSD_TIME
-#endif
-
+/**\cond skip */
 #include <ctime>
 #include <cstring>
-
 #include <w_base.h>
 #include <stime.h>
 #include <w_stream.h>
@@ -54,52 +44,36 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
    to be used without code change.  It's disgusting, but it
    avoid templates.  Templates are evil.
 
-   st_tod	== time of day part of the time
-   st_hires	== "higher resolution" part of the time
-   HR_SECOND	== high-resolution units in a second
-   TOD_MAX	== low-resolution (seconds) maximum value
+   st_tod    == time of day part of the time
+   st_hires    == "higher resolution" part of the time
+   HR_SECOND    == high-resolution units in a second
+   TOD_MAX    == low-resolution (seconds) maximum value
  */  
 
-#define	NS_SECOND	1000000000	/* nanoseconds in a second */
-#define	US_SECOND	1000000	/* microseconds in a second */
-#define	MS_SECOND	1000	/* millisecs in a second */
+#define    NS_SECOND    1000000000    /* nanoseconds in a second */
+#define    US_SECOND    1000000    /* microseconds in a second */
+#define    MS_SECOND    1000    /* millisecs in a second */
 
 #ifdef USE_POSIX_TIME
-typedef	struct timespec _stime_t;
-#define	st_tod		tv_sec
-#define	st_hires	tv_nsec
-#define	HR_SECOND	NS_SECOND
+typedef    struct timespec _stime_t;
+#define    st_tod        tv_sec
+#define    st_hires    tv_nsec
+#define    HR_SECOND    NS_SECOND
 #else
-typedef struct timeval	_stime_t;
-#define	st_tod		tv_sec
-#define	st_hires	tv_usec
-#define	HR_SECOND	US_SECOND
+typedef struct timeval    _stime_t;
+#define    st_tod        tv_sec
+#define    st_hires    tv_usec
+#define    HR_SECOND    US_SECOND
 #endif
 
 #ifdef Alpha
-#define	TOD_MAX		INT_MAX
+#define    TOD_MAX        INT_MAX
 #else
-#define	TOD_MAX		LONG_MAX
+#define    TOD_MAX        LONG_MAX
 #endif
-#define	HR_MAX		(HR_SECOND-1)
+#define    HR_MAX        (HR_SECOND-1)
 
 
-#ifdef _WIN32
-#if 0
-/* XXX this works, but is only good for US timezones */
-#define	os_timezone	_timezone
-#define	os_altzone	(_timezone - (60*60))
-#else
-#include <windows.h>	// XXX use the windows-specific functions? 
-#endif
-#elif defined(SOLARIS2)
-extern long altzone;	/* XXX gcc-3.2, prior it works OK */
-#define	os_timezone	timezone
-#define	os_altzone	altzone
-#elif defined(HPUX8)
-#define	os_timezone	timezone
-#define	os_daylight	daylight
-#endif
 
 
 /*
@@ -111,102 +85,87 @@ extern long altzone;	/* XXX gcc-3.2, prior it works OK */
    fixed.
  */
 
-#if !defined(SOLARIS2) && !defined(AIX41) && !defined(HPUX8) && !defined(Linux)
-extern "C" int gettimeofday(struct timeval *, struct timezone *);
-#endif
-
-
 /* Internal constructor, exposes implementation */
 stime_t::stime_t(time_t tod, long hires)
 {
-	_time.st_tod = tod;
-	_time.st_hires = hires;
+    _time.st_tod = tod;
+    _time.st_hires = hires;
 
-	normalize();
+    normalize();
 }
 
 
 stime_t::stime_t(int secs)
 {
-	_time.st_tod = secs;
-	_time.st_hires = 0;
+    _time.st_tod = secs;
+    _time.st_hires = 0;
 
-	/* the conversion automagically normalizes */
+    /* the conversion automagically normalizes */
 }
 
 stime_t::stime_t(long secs)
 {
-	_time.st_tod = secs;
-	_time.st_hires = 0;
+    _time.st_tod = secs;
+    _time.st_hires = 0;
 
-	/* the conversion automagically normalizes */
+    /* the conversion automagically normalizes */
 }
 
 
 stime_t::stime_t(double secs)
 {
-	_time.st_tod = (long) secs;
-	_time.st_hires = (long) ((secs - _time.st_tod) * HR_SECOND);
+    _time.st_tod = (long) secs;
+    _time.st_hires = (long) ((secs - _time.st_tod) * HR_SECOND);
 
-	/* the conversion automagically normalizes */
-}
-
-
-stime_t::stime_t(const struct timeval &tv)
-{
-	_time.st_tod = tv.tv_sec;
-	_time.st_hires = tv.tv_usec * (HR_SECOND / US_SECOND);
-
-	normalize();
+    /* the conversion automagically normalizes */
 }
 
 
 #ifdef USE_POSIX_TIME
 stime_t::stime_t(const struct timespec &tv)
 {
-	_time.st_tod = tv.tv_sec;
-	_time.st_hires = tv.tv_nsec * (HR_SECOND / NS_SECOND);
+    _time.st_tod = tv.tv_sec;
+    _time.st_hires = tv.tv_nsec * (HR_SECOND / NS_SECOND);
 
-	normalize();
+    normalize();
 }
 #endif
 
-
-bool	stime_t::operator==(const stime_t &r) const
+stime_t::stime_t(const struct timeval &tv)
 {
-	return _time.st_tod == r._time.st_tod &&
-		_time.st_hires == r._time.st_hires;
+    _time.st_tod = tv.tv_sec;
+    _time.st_hires = tv.tv_usec * (HR_SECOND / US_SECOND);
+
+    normalize();
 }
 
 
-bool	stime_t::operator<(const stime_t &r) const
+bool    stime_t::operator==(const stime_t &r) const
 {
-	if (_time.st_tod == r._time.st_tod)
-		return _time.st_hires < r._time.st_hires;
-	return _time.st_tod < r._time.st_tod;
+    return _time.st_tod == r._time.st_tod &&
+        _time.st_hires == r._time.st_hires;
 }
 
 
-bool	stime_t::operator<=(const stime_t &r) const
+bool    stime_t::operator<(const stime_t &r) const
 {
-	return *this == r  ||  *this < r;
+    if (_time.st_tod == r._time.st_tod)
+        return _time.st_hires < r._time.st_hires;
+    return _time.st_tod < r._time.st_tod;
+}
+
+
+bool    stime_t::operator<=(const stime_t &r) const
+{
+    return *this == r  ||  *this < r;
 }
 
 
 static inline int sign(const int i)
 {
-	return i > 0 ? 1 : i < 0 ? -1 : 0;
-	
+    return i > 0 ? 1 : i < 0 ? -1 : 0;
+    
 }
-
-
-#if !defined(HPUX8) && !defined(__xlC__) && !defined(_WIN32) && !defined(Linux) && !defined(SOLARIS2) && !defined(OSF1) && !defined(MacOSX)
-static inline int abs(const int i)
-{
-	return i >= 0 ? i : -i;
-}
-#endif
-
 
 /* Put a stime into normal form, where the HIRES part
    will contain less than a TODs worth of HIRES time.
@@ -215,85 +174,85 @@ static inline int abs(const int i)
 
 void stime_t::signs()
 {
-	if (_time.st_tod  &&  _time.st_hires
-	    && sign(_time.st_tod) != sign(_time.st_hires)) {
+    if (_time.st_tod  &&  _time.st_hires
+        && sign(_time.st_tod) != sign(_time.st_hires)) {
 
-		if (sign(_time.st_tod) == 1) {
-			_time.st_tod--;
-			_time.st_hires += HR_SECOND;
-		}
-		else {
-			_time.st_tod++;
-			_time.st_hires -= HR_SECOND;
-		}
-	}
+        if (sign(_time.st_tod) == 1) {
+            _time.st_tod--;
+            _time.st_hires += HR_SECOND;
+        }
+        else {
+            _time.st_tod++;
+            _time.st_hires -= HR_SECOND;
+        }
+    }
 }
 
 /* off-by one */
 void stime_t::_normalize()
 {
-	if (abs(_time.st_hires) >= HR_SECOND) {
-		_time.st_tod += sign(_time.st_hires);
-		_time.st_hires -= sign(_time.st_hires) * HR_SECOND;
-	}
-	signs();
+    if (abs(_time.st_hires) >= HR_SECOND) {
+        _time.st_tod += sign(_time.st_hires);
+        _time.st_hires -= sign(_time.st_hires) * HR_SECOND;
+    }
+    signs();
 }
    
 
 /* something that could be completely wacked out */
 void stime_t::normalize()
 {
-	int	factor;
+    int    factor;
 
-	factor = _time.st_hires / HR_SECOND;
-	if (factor) {
-		_time.st_tod += factor;
-		_time.st_hires -= HR_SECOND * factor;
-	}
+    factor = _time.st_hires / HR_SECOND;
+    if (factor) {
+        _time.st_tod += factor;
+        _time.st_hires -= HR_SECOND * factor;
+    }
 
-	signs();
+    signs();
 }
 
 
-stime_t	stime_t::operator-() const
+stime_t    stime_t::operator-() const
 {
-	stime_t	result;
+    stime_t    result;
 
-	result._time.st_tod = -_time.st_tod;
-	result._time.st_hires = -_time.st_hires;
+    result._time.st_tod = -_time.st_tod;
+    result._time.st_hires = -_time.st_hires;
 
-	return result;
+    return result;
 }
 
 
-stime_t	stime_t::operator+(const stime_t &r) const
+stime_t    stime_t::operator+(const stime_t &r) const
 {
-	stime_t	result;
+    stime_t    result;
 
-	result._time.st_tod  = _time.st_tod  + r._time.st_tod;
-	result._time.st_hires = _time.st_hires + r._time.st_hires;
+    result._time.st_tod  = _time.st_tod  + r._time.st_tod;
+    result._time.st_hires = _time.st_hires + r._time.st_hires;
 
-	result._normalize();
+    result._normalize();
 
-	return result;
+    return result;
 }
 
 
-stime_t	stime_t::operator-(const stime_t &r) const
+stime_t    stime_t::operator-(const stime_t &r) const
 {
-	return *this + -r;
+    return *this + -r;
 }
 
 
 stime_t stime_t::operator*(const int factor) const
 {
-	stime_t	result;
+    stime_t    result;
 
-	result._time.st_tod = _time.st_tod * factor;
-	result._time.st_hires = _time.st_hires * factor;
-	result.normalize();
+    result._time.st_tod = _time.st_tod * factor;
+    result._time.st_hires = _time.st_hires * factor;
+    result.normalize();
 
-	return result;
+    return result;
 }
 
 /* XXX
@@ -308,83 +267,64 @@ stime_t stime_t::operator*(const int factor) const
 
 stime_t stime_t::operator/(const int factor) const
 {
-	return *this / (double)factor;
+    return *this / (double)factor;
 }
 
 
-stime_t	stime_t::operator*(const double factor) const
+stime_t    stime_t::operator*(const double factor) const
 {
-#if 1
-	double d = *this;
-	d *= factor;
-	stime_t result(d); 
-#else
-	stime_t result;
-	result._time.st_tod = (long) (_time.st_tod * factor);
-	result._time.st_hires = (long) (_time.st_hires * factor);
-#endif
-	result.normalize();
+    double d = *this;
+    d *= factor;
+    stime_t result(d); 
+    result.normalize();
 
-	return result;
+    return result;
 }
 
 
-stime_t	stime_t::operator/(const double factor) const
+stime_t    stime_t::operator/(const double factor) const
 {
-	return *this * (1.0 / factor);
+    return *this * (1.0 / factor);
 }
 
 
 /* The operator X and operator X= can be written in terms of each other */
 stime_t &stime_t::operator+=(const stime_t &r)
 {
-	_time.st_tod  += r._time.st_tod;
-	_time.st_hires += r._time.st_hires;
+    _time.st_tod  += r._time.st_tod;
+    _time.st_hires += r._time.st_hires;
 
-	_normalize();
-	
-	return *this;
+    _normalize();
+    
+    return *this;
 }
 
 
 stime_t &stime_t::operator-=(const stime_t &r)
 {
-	_time.st_tod  -= r._time.st_tod;
-	_time.st_hires -= r._time.st_hires;
+    _time.st_tod  -= r._time.st_tod;
+    _time.st_hires -= r._time.st_hires;
 
-	_normalize();
-	
-	return *this;
+    _normalize();
+    
+    return *this;
 }
 
 
 stime_t::operator double() const
 {
-	return _time.st_tod + _time.st_hires / (double) HR_SECOND;
+    return _time.st_tod + _time.st_hires / (double) HR_SECOND;
 }
 
 
 stime_t::operator float() const
 {
-	double res = (double) *this;
-	return (float)res;
-//	return _time.st_tod + _time.st_hires / (float) HR_SECOND;
+    double res = (double) *this;
+    return (float)res;
+//    return _time.st_tod + _time.st_hires / (float) HR_SECOND;
 }
 
 
-stime_t::operator struct timeval() const
-{
-	struct	timeval tv;
-	tv.tv_sec = _time.st_tod;
-#if 1
-	/* This conversion may prevent overflow which may
-	   occurs with some values on some systems. */
-	tv.tv_usec = _time.st_hires / (HR_SECOND / US_SECOND);
-#else
-	tv.tv_usec = (_time.st_hires * US_SECOND) / HR_SECOND;
-#endif
-	return tv;
-}
 
 
 /* XXX do we want this conversion even if we are using timeval
@@ -392,296 +332,201 @@ stime_t::operator struct timeval() const
 #ifdef USE_POSIX_TIME
 stime_t::operator struct timespec() const
 {
-	struct	timespec tv;
-	tv.tv_sec = _time.st_tod;
-	tv.tv_nsec = _time.st_hires;
-	return tv;
+    struct    timespec tv;
+    tv.tv_sec = _time.st_tod;
+    tv.tv_nsec = _time.st_hires;
+    return tv;
 }
 #endif
 
-
-void	stime_t::gettime()
+// for type conversion
+stime_t::operator struct timeval() const
 {
-	int	kr;
+    struct    timeval tv;
+    tv.tv_sec = _time.st_tod;
+    /* This conversion may prevent overflow which may
+       occurs with some values on some systems. */
+    tv.tv_usec = _time.st_hires / (HR_SECOND / US_SECOND);
+    return tv;
+}
+
+
+void    stime_t::gettime()
+{
+    int    kr;
 #ifdef USE_POSIX_TIME
-	kr = clock_gettime(CLOCK_REALTIME, &_time);
+    kr = clock_gettime(CLOCK_REALTIME, &_time);
 #else
-	kr = gettimeofday(&_time, 0);
+    kr = gettimeofday(&_time, 0);
 #endif
-	if (kr == -1)
-		W_FATAL(fcOS);
+    if (kr == -1)
+        W_FATAL(fcOS);
 }
 
 
-ostream	&stime_t::print(ostream &s) const
+ostream    &stime_t::print(ostream &s) const
 {
-	ctime(s);
+    ctime(s);
 
-	if (_time.st_hires) {
-		stime_t	tod(_time.st_tod, 0);
+    if (_time.st_hires) {
+        stime_t    tod(_time.st_tod, 0);
 
-		s << " and " << sinterval_t(*this - tod);
-	}
+        s << " and " << sinterval_t(*this - tod);
+    }
 
-	return s;
+    return s;
 }
 
 
 ostream &stime_t::ctime(ostream &s) const
 {
-	struct	tm	*local;
-	char	*when;
-	char	*nl;
+    /* the second field of the time structs should be a time_t */
+    time_t    kludge = _time.st_tod;
+    const   int buflen(26); 
+    char    buf[buflen];    /* XXX well known magic number */
 
-	/* the second field of the time structs should be a time_t */
-	time_t	kludge = _time.st_tod;
-
-	/* XXX use a reentrant form if available */
-#ifdef _REENTRANT
-	struct	tm	tm;
-	char	buf[26];	/* XXX well known magic number */
-	local = localtime_r(&kludge, &tm);
-#if defined(SOLARIS2) && !defined(_POSIX_PTHREAD_SEMANTICS)
-	// from solaris threads ... actually a better idea than the
-	// posix "assumed buffer size" implementation.
-	when = asctime_r(local, buf, sizeof(buf));
+#ifdef _POSIX_PTHREAD_SEMANTICS 
+    char    *when = ctime_r(&kludge, buf);
+#elif defined(SOLARIS2)
+    char    *when = ctime_r(&kludge, buf, buflen);
 #else
-	when = asctime_r(local, buf);
-#endif
-#else
-	local = localtime(&kludge);
-	when = asctime(local);
+    char    *when = ctime_r(&kludge, buf);
 #endif
 
-	/* chop the newline */
-	nl = strchr(when, '\n');
-	if (nl)
-		*nl = '\0';
+    /* chop the newline */
+    char *nl = strchr(when, '\n');
+    if (nl)
+        *nl = '\0';
 
-	return s << when;
+    return s << when;
 }
 
 
 static void factor_print(ostream &s, long what)
 {
-	struct {
-		const char	*label;
-		int		factor;
-	} factors[] = {
-		{"%02d:", 60*60},
-		{"%02d:", 60},
-		{0, 0}
-	}, *f = factors;
-	long	mine;
-	bool	printed = false;
-	bool	negative = what < 0;
+    struct {
+        const char    *label;
+        int        factor;
+    } factors[] = {
+        {"%02d:", 60*60},
+        {"%02d:", 60},
+        {0, 0}
+    }, *f = factors;
+    long    mine;
+    bool    printed = false;
+    bool    negative = what < 0;
 
-	if (negative) {
-		s << '-';
-		what = -what;
-	}
+    if (negative) {
+        s << '-';
+        what = -what;
+    }
 
-	for (f = factors; f->label; f++) {
-		mine = what / f->factor;
-		what = what % f->factor;
-		if (mine || printed) {
-			W_FORM(s)(f->label, mine);
-			printed = true;
-		}
-	}
+    for (f = factors; f->label; f++) {
+        mine = what / f->factor;
+        what = what % f->factor;
+        if (mine || printed) {
+            W_FORM(s)(f->label, mine);
+            printed = true;
+        }
+    }
 
-	/* always print a seconds field */
-	W_FORM(s)(printed ? "%02d" : "%d", what);
+    /* always print a seconds field */
+    W_FORM(s)(printed ? "%02d" : "%d", what);
 }
 
 
-ostream	&sinterval_t::print(ostream &s) const
+ostream    &sinterval_t::print(ostream &s) const
 {
-	/* XXX should decode interval in hours, min, sec, usec, nsec */
-#if 0
-	if (_time.st_tod) {
-		W_FORM(s)("%d sec%s",
-		       _time.st_tod,
-		       _time.st_hires ? " and " : "");
-		if (_time.st_hires)
-			s << " and ";
-	}
-#else
-	factor_print(s, _time.st_tod);
-#endif
+    factor_print(s, _time.st_tod);
 
-	/* XXX should print short versions, aka .375 etc */
-	if (_time.st_hires) {
-#if 0
+    if (_time.st_hires) {
 #ifdef USE_POSIX_TIME
-		W_FORM(s)("%ld ns", _time.st_hires);
+        W_FORM(s)(".%09ld", _time.st_hires);
 #else
-		W_FORM(s)("%ld us", _time.st_hires);
+        W_FORM(s)(".%06ld", _time.st_hires);
 #endif
-#else
-#ifdef USE_POSIX_TIME
-		W_FORM(s)(".%09ld", _time.st_hires);
-#else
-		W_FORM(s)(".%06ld", _time.st_hires);
-#endif
-#endif
-	}
+    }
 
-	return s;
+    return s;
 }
 
 
 ostream &operator<<(ostream &s, const stime_t &t)
 {
-	return t.print(s);
+    return t.print(s);
 }
 
 
 ostream &operator<<(ostream &s, const sinterval_t &t)
 {
-	return t.print(s);
+    return t.print(s);
 }
 
 
 /* Input Conversion operators */
 
 static inline void from_linear(int sec, int xsec,
-				int linear_secs, _stime_t &_time)
+                int linear_secs, _stime_t &_time)
 {
-	_time.st_tod = sec + xsec / linear_secs;
-	xsec = xsec % linear_secs;
-	if (linear_secs > HR_SECOND)
-		_time.st_hires = xsec / (linear_secs / HR_SECOND);
-	else
-		_time.st_hires = xsec * (HR_SECOND / linear_secs);
+    _time.st_tod = sec + xsec / linear_secs;
+    xsec = xsec % linear_secs;
+    if (linear_secs > HR_SECOND)
+        _time.st_hires = xsec / (linear_secs / HR_SECOND);
+    else
+        _time.st_hires = xsec * (HR_SECOND / linear_secs);
 }
 
 
 stime_t stime_t::sec(int sec)
 {
-	stime_t	r;
+    stime_t    r;
 
-	r._time.st_tod = sec;
-	r._time.st_hires = 0;
+    r._time.st_tod = sec;
+    r._time.st_hires = 0;
 
-	return r;
+    return r;
 }
 
 
-stime_t	stime_t::msec(int ms, int sec)
+stime_t    stime_t::msec(int ms, int sec)
 {
-	stime_t	r;
+    stime_t    r;
 
-#if 1
-	from_linear(sec, ms, MS_SECOND, r._time);
-#else
-	r._time.st_tod = sec + ms / MS_SECOND;
-	r._time.st_hires = (ms % MS_SECOND) * (HR_SECOND / MS_SECOND);
-#endif
-	/* conversion normalizes */
+    from_linear(sec, ms, MS_SECOND, r._time);
+    /* conversion normalizes */
 
-	return r;
+    return r;
 }
 
-	
-stime_t	stime_t::usec(int us, int sec)
+    
+stime_t    stime_t::usec(int us, int sec)
 {
-	stime_t	r;
+    stime_t    r;
 
-#if 1
-	from_linear(sec, us, US_SECOND, r._time);
-#else
-	r._time.st_tod = sec + us / US_SECOND;
-	r._time.st_hires = (us % US_SECOND) * (HR_SECOND / US_SECOND);
-#endif
-	/* conversion normalizes */
+    from_linear(sec, us, US_SECOND, r._time);
+    /* conversion normalizes */
 
-	return r;
+    return r;
 }
 
 
-stime_t	stime_t::nsec(int ns, int sec)
+stime_t    stime_t::nsec(int ns, int sec)
 {
-	stime_t	r;
+    stime_t    r;
 
-#if 1
-	from_linear(sec, ns, NS_SECOND, r._time);
-#else
-	r._time.st_tod = sec + ns / NS_SECOND;
-	r._time.st_hires = (ns % NS_SECOND) * (HR_SECOND / NS_SECOND);
-#endif
-	/* conversion normalizes */
+    from_linear(sec, ns, NS_SECOND, r._time);
+    /* conversion normalizes */
 
-	return r;
+    return r;
 }
 
 
-stime_t	stime_t::now()
+stime_t    stime_t::now()
 {
-	stime_t	now;
-	now.gettime();
+    stime_t    now;
+    now.gettime();
 
-	return now;
-}
-
-
-stime_t stime_t::gmtOffset()
-{
-#if defined(_WIN32) && !defined(os_altzone)
-	DWORD			w;
-	TIME_ZONE_INFORMATION	tzi;
-	time_t			bias = 0;
-
-	w = GetTimeZoneInformation(&tzi);
-	switch (w) {
-	case TIME_ZONE_ID_STANDARD:
-		bias = tzi.Bias + tzi.StandardBias;
-		break;
-	case TIME_ZONE_ID_DAYLIGHT:
-		bias = tzi.Bias + tzi.DaylightBias;
-		break;
-	case TIME_ZONE_ID_UNKNOWN:
-		bias = tzi.Bias;
-		break;
-	default:
-		w_rc_t	e = RC(fcWIN32);
-		cerr << "GetTimeZoneInformation():" << endl << e << endl;
-		break;
-	}
-	/* win32 Bias is in minutes, not seconds */
-	return sec(-bias * 60);
-#else
-	/* XXX sort of hacky.  Get current time, find it DST is in
-	   effect for it.  This will keep gmtOffset() correct even
-	   if the zone changes while we are running. */
-
-	struct	tm	*tm;
-	time_t		t;
-
-	t = time((time_t*)0);
-	if (t == (time_t)-1)
-		W_FATAL(fcOS);
-#ifdef _REENTRANT
-	struct	tm	_tm;
-	tm = localtime_r(&t, &_tm);
-#else
-	tm = localtime(&t);
-#endif
-#if defined(os_daylight)
-	/* XXX best effort to adjust for DST */
-	return sec(-(os_timezone - (daylight == 1 ? 60*60 : 0)));
-#elif defined(os_timezone)
-	return sec(-(tm->tm_isdst == 1 ? os_altzone : os_timezone));
-#else
-	return sec(tm->tm_gmtoff);
-#endif
-#endif
-}
-
-
-stime_t	stime_t::infinity()
-{
-	return stime_t(TOD_MAX, HR_MAX);
+    return now;
 }
 
 
@@ -689,51 +534,52 @@ stime_t	stime_t::infinity()
 /* For now, only the seconds conversion does rounding */ 
 
 /* roundup #seconds if hr_seconds >= this value */
-#define	HR_ROUNDUP	(HR_SECOND / 2)
+#define    HR_ROUNDUP    (HR_SECOND / 2)
 
-static	inline long to_linear(const _stime_t &_time, const int linear_secs)
+static    inline long to_linear(const _stime_t &_time, const int linear_secs)
 {
-	long	result;
-	int	factor;
+    long    result;
+    int    factor;
 
-	result = _time.st_tod * linear_secs;
+    result = _time.st_tod * linear_secs;
 
-	if (linear_secs > HR_SECOND) {
-		factor = linear_secs / HR_SECOND;
-		result += _time.st_hires * factor;
-	}
-	else {
-		factor = HR_SECOND / linear_secs;
-		result += _time.st_hires / factor;
-	}
+    if (linear_secs > HR_SECOND) {
+        factor = linear_secs / HR_SECOND;
+        result += _time.st_hires * factor;
+    }
+    else {
+        factor = HR_SECOND / linear_secs;
+        result += _time.st_hires / factor;
+    }
 
-	return result;
+    return result;
 }
 
 
-long	stime_t::secs() const
+long    stime_t::secs() const
 {
-	long	result;
+    long    result;
 
-	result = _time.st_tod;
-	if (_time.st_hires >= HR_ROUNDUP)
-		result++;
+    result = _time.st_tod;
+    if (_time.st_hires >= HR_ROUNDUP)
+        result++;
 
-	return result;
+    return result;
 }
 
-long	stime_t::msecs() const
+long    stime_t::msecs() const
 {
-	return to_linear(_time, MS_SECOND);
+    return to_linear(_time, MS_SECOND);
 }
 
-long	stime_t::usecs() const
+long    stime_t::usecs() const
 {
-	return to_linear(_time, US_SECOND);
+    return to_linear(_time, US_SECOND);
 }
 
-long	stime_t::nsecs() const
+long    stime_t::nsecs() const
 {
-	return to_linear(_time, NS_SECOND);
+    return to_linear(_time, NS_SECOND);
 }
 
+/**\endcond skip */

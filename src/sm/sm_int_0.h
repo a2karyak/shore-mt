@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='SM_INT_0_H'>
 
- $Id: sm_int_0.h,v 1.15 1999/11/02 02:44:23 kupsch Exp $
+ $Id: sm_int_0.h,v 1.15.2.5 2010/03/19 22:20:27 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -41,24 +41,17 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #include <w_debug.h>
 #include <sysdefs.h>
 #include <basics.h>
-
 #include <sthread.h>
 #include <vec_t.h>
-#include <zvec_t.h>
 #include <latch.h>
-
 #include <lid_t.h>
 #if defined(SM_SOURCE)
 /* Do not force this on VASs */
 #include <sm_s.h>
 #endif /* SM_SOURCE */
-
-
 #include <smthread.h>
-
 #include <tid_t.h>
 #include "smstats.h"
-
 
 #if defined(SM_SOURCE) && (SM_LEVEL >= 0) 
 #    include <bf.h>
@@ -69,21 +62,6 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 
 #endif
 
-#ifdef W_DEBUG
-#define SMSCRIPT(x) 
-#define RES_SMSCRIPT(x)
-
-/* REMOVED FOR THE TIME BEING
-#define SMSCRIPT(x) \
-	scriptlog->clog << info_prio << "sm " x << flushl;
-#define RES_SMSCRIPT(x)\
-	scriptlog->clog << info_prio << "set res [sm " x << "]" << flushl;\
-			scriptlog->clog << info_prio << "verbose $res" << flushl;
-*/
-#else
-#define SMSCRIPT(x) 
-#define RES_SMSCRIPT(x) 
-#endif /* W_DEBUG */
 
 /*<std-footer incl-file-exclusion='SM_INT_0_H'>  -- do not edit anything below this line -- */
 

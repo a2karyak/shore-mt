@@ -1,23 +1,32 @@
 ## Process this file with automake to produce Makefile.in
 include $(top_srcdir)/Makefile.generic
 
-EXTRA_DIST = testall
+RESULT_COMPARISON_FILES = stats2-out \
+	 box.2-out box.3-out box.4-out \
+	 list1-out
+
+EXTRA_DIST = testall test_stat.dat test_stat.h $(RESULT_COMPARISON_FILES)
 
 AM_CXXFLAGS    += -I$(top_srcdir)/src/fc
 
 check_PROGRAMS     = list1$(EXEEXT) list2$(EXEEXT) list3$(EXEEXT) \
-	       	fastnew$(EXEEXT) \
 		hash1$(EXEEXT) hash2$(EXEEXT) \
-	       	cq1$(EXEEXT) cq2$(EXEEXT) \
-	       	bit$(EXEEXT) \
-	       	timer$(EXEEXT) ntime$(EXEEXT) vector$(EXEEXT) \
+		ntime$(EXEEXT) \
 	        heap$(EXEEXT) \
-	       	rc$(EXEEXT) errlogtest$(EXEEXT) \
+	       	rc$(EXEEXT) \
+			errlogtest$(EXEEXT) \
 	       	random$(EXEEXT) \
 	       	stats$(EXEEXT) \
+	       	stats2$(EXEEXT) \
 	       	box$(EXEEXT) \
 	       	io$(EXEEXT) \
 	       	ss$(EXEEXT) \
+	       	rand$(EXEEXT) \
+	       	container$(EXEEXT) \
+	       	cuckoo$(EXEEXT) \
+	       	findprime$(EXEEXT) \
+	       	findsizes$(EXEEXT) \
+	       	bitvector$(EXEEXT) \
 	       	basic_sizes$(EXEEXT)
 
 
@@ -34,23 +43,11 @@ list2_SOURCES      = list2.cpp
 
 list3_SOURCES      = list3.cpp
 
-fastnew_SOURCES      = fastnew.cpp
-
 hash1_SOURCES      = hash1.cpp
 
 hash2_SOURCES      = hash2.cpp
 
-cq1_SOURCES      = cq1.cpp
-
-cq2_SOURCES      = cq2.cpp
-
-bit_SOURCES      = bit.cpp
-
-timer_SOURCES      = timer.cpp
-
 ntime_SOURCES      = ntime.cpp
-
-vector_SOURCES      = vector.cpp
 
 heap_SOURCES      = heap.cpp
 
@@ -62,11 +59,34 @@ random_SOURCES      = random.cpp
 
 stats_SOURCES      = stats.cpp
 
+stats2_SOURCES      = test_stat.cpp stats2.cpp
+
 box_SOURCES      = box.cpp
 
 io_SOURCES      = io.cpp
 
+rand_SOURCES      = rand.cpp
+
+container_SOURCES      = container.cpp
+
+findprime_SOURCES      = findprime.cpp
+
+findsizes_SOURCES      = findsizes.cpp
+
+cuckoo_SOURCES      = cuckoo.cpp
+
+bitvector_SOURCES      = bitvector.cpp
+
+
 TEST = testall
 testall:  $(check_PROGRAMS)
 
+TEST_STAT_GENFILES = test_stat_struct_gen.h  test_stat_msg_gen.h
 
+GENFILES = $(TEST_STAT_GENFILES)
+
+test_stat.$(OBJEXT): $(TEST_STAT_GENFILES)
+stats.$(OBJEXT):  $(TEST_STAT_GENFILES)
+
+$(TEST_STAT_GENFILES): test_stat.dat
+	$(PERL) $(top_srcdir)/tools/stats.pl $?

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='SSH_ERROR_H'>
 
- $Id: smsh_error.h,v 1.1 2007/05/18 21:50:59 nhall Exp $
+ $Id: smsh_error.h,v 1.1.2.4 2010/03/19 22:20:31 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -35,9 +35,9 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 /*  -- do not edit anything above this line --   </std-header>*/
 
 extern "C" {
-	const char *smsh_err_msg(const char *str);
-	unsigned int smsh_err_code(const char *x);
-	const char *smsh_err_name(unsigned int x);
+    const char *smsh_err_msg(const char *str);
+    unsigned int smsh_err_code(const char *x);
+    const char *smsh_err_name(unsigned int x);
 }
 
 /*<std-footer incl-file-exclusion='SSH_ERROR_H'>  -- do not edit anything below this line -- */

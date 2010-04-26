@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='FILE_S_H'>
 
- $Id: file_s.h,v 1.38 2007/08/21 19:50:42 nhall Exp $
+ $Id: file_s.h,v 1.37.2.8 2010/02/05 20:39:45 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -38,15 +38,16 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #pragma interface
 #endif
 
-typedef uint4_t clust_id_t; // not used at this time
+typedef w_base_t::uint8_t clust_id_t; // not used at this time
+
 class file_p;
 
 enum pg_policy_t { 
-    t_append		= 0x01, // retain sort order (cache 0 pages)
-    t_cache		= 0x02, // look in n cached pgs 
-    t_compact		= 0x04 // scan file for space in pages 
+    t_append        = 0x01, // retain sort order (cache 0 pages)
+    t_cache        = 0x02, // look in n cached pgs 
+    t_compact        = 0x04 // scan file for space in pages 
     /* These are masks - the following combinations are supported:
-     * t_append	-- preserve sort order
+     * t_append    -- preserve sort order
      * t_cache  -- look only in cache - error if no luck (not really sensible)
      * t_compact  -- don't bother with cache (bad idea)
      * t_cache | t_append -- check the cache first, append if no luck
@@ -54,37 +55,30 @@ enum pg_policy_t {
      *                     search the file if histogram if apropos;
      *                     error if no luck
      * t_cache | t_compact | t_append  -- like above, but append to
-     * 			   file as a last resort
+     *                file as a last resort
      * t_compact | t_append  -- don't bother with cache (bad idea)
      *
      * Of course, not all combos are sensible.
      */
-	
+    
 };
 
 enum recflags_t { 
-    t_badflag		= 0x00,
-    t_forwardroot	= 0x01,     // not used yet
-    t_forwarddata	= 0x02,     // not used yet
-    t_small		= 0x04,    // simple record
-    t_large_0 		= 0x08,    // large with short list of chunks
-    t_large_1 		= 0x10,	   // large with 1-level indirection
-    t_large_2 		= 0x20,    // large with 2-level indirection
-    t_logicalid 	= 0x40     // has serial # (uses logical ids)
+    t_badflag        = 0x00,
+    t_forwardroot    = 0x01,     // not used yet
+    t_forwarddata    = 0x02,     // not used yet
+    t_small        = 0x04,    // simple record
+    t_large_0         = 0x08,    // large with short list of chunks
+    t_large_1         = 0x10,       // large with 1-level indirection
+    t_large_2         = 0x20    // large with 2-level indirection
 };
     
 struct rectag_t {
-    uint2_t	hdr_len;	// length of user header 
-    uint2_t	flags;		// enum recflags_t
-    smsize_t	body_len;	// true length of the record 
+    uint2_t    hdr_len;    // length of user header 
+    uint2_t    flags;        // enum recflags_t
+    smsize_t    body_len;    // true length of the record 
     /* 8 */
-#ifdef notdef
-    fill4	cluster_id;	// cluster for this record
-				// not used at this time
-				// if you add it, be sure to adjust the alignment
-				// above
-#endif
-}; // end rectag_t
+};
 
 class record_t {
     friend class file_m;
@@ -94,10 +88,10 @@ class record_t {
 public:
     enum {max_len = smlevel_0::max_rec_len };
 
-    rectag_t 	tag;
-    char	info[ALIGNON];  // minimal amount of hdr/data for record
+    rectag_t     tag;
+    char    info[ALIGNON];  // minimal amount of hdr/data for record
 
-    record_t()	{};
+    record_t()    {};
     bool is_large() const;
     bool is_small() const;
     int  large_impl() const;
@@ -109,8 +103,8 @@ public:
     const char* body() const;
 
     int body_offset() const { 
-		return w_offsetof(record_t,info)+align(tag.hdr_len);
-	}
+        return w_offsetof(record_t,info)+align(tag.hdr_len);
+    }
 
     lpid_t pid_containing(smsize_t offset, smsize_t& start_byte, const file_p& page) const;
 private:
@@ -125,7 +119,12 @@ private:
  *  the first slot on the page.
  */
 struct file_p_hdr_t {
-    clust_id_t	cluster;
+    clust_id_t    cluster;
+// See DUMMY_CLUSTER_ID in page.h
+// It is the default value of the cluster id here.
+// We aren't supporting clustering so this is presently
+// overridden with 0xdeadbeef for debugging page-allocation problems
+// with file pages.
 };
 
 inline const char* record_t::hdr() const
@@ -133,19 +132,19 @@ inline const char* record_t::hdr() const
     return info;
 }
 
-inline bool record_t::is_large() const	
+inline bool record_t::is_large() const    
 { 
     return (tag.flags & (t_large_0 | t_large_1 | t_large_2)) != 0; 
 }
 
-inline int record_t::large_impl() const	
+inline int record_t::large_impl() const    
 { 
     switch ((int)(tag.flags & (t_large_0 | t_large_1 | t_large_2))) {
     case (int)t_large_0: return 0;
     case (int)t_large_1: return 1;
     case (int)t_large_2: return 2;
     default: 
-	break;
+    break;
     }
     return -1;
 }

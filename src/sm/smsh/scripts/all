@@ -1,6 +1,6 @@
 # <std-header style='tcl' orig-src='shore'>
 #
-#  $Id: all,v 1.52 2007/08/21 19:43:59 nhall Exp $
+#  $Id: all,v 1.51.2.3 2010/03/19 22:20:35 nhall Exp $
 #
 # SHORE -- Scalable Heterogeneous Object REpository
 #
@@ -33,6 +33,8 @@ source $script_dir/vol.init
 # set do_long_scripts 1
 # You can run them all separately by running scripts/long.all
 set scripts [list \
+		alloc.all \
+		\
 		recovery.all \
 		pin.all \
 		lgrec.all \
@@ -43,15 +45,13 @@ set scripts [list \
 		file.all  \
 		lock.all \
 		thread_fork_example \
-		thread.1 \
-		alloc.all \
 		trans.all \
 		\
 		rtree.all \
 		free.all \
 		vol.all \
 		quark.all\
-                scan.all 
+		scan.all 
 		]
 
 cleanup stdout

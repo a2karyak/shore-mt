@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: kvl_t.cpp,v 1.11 2007/05/18 21:33:42 nhall Exp $
+ $Id: kvl_t.cpp,v 1.11.2.2 2009/10/30 23:51:03 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -43,10 +43,10 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #include "basics.h"
 #include "kvl_t.h"
 
-const cvec_t 	kvl_t::eof("\0255EOF", 4); // the lexical order doesn't really matter;
-					// it's the likelihood of a user coming up with
-					// this as a legit key that matters
-const cvec_t 	kvl_t::bof("\0BOF", 4); // not used
+const cvec_t         kvl_t::eof("\0255EOF", 4); // the lexical order doesn't really matter;
+                                        // it's the likelihood of a user coming up with
+                                        // this as a legit key that matters
+const cvec_t         kvl_t::bof("\0BOF", 4); // not used
 
 
 /*********************************************************************
@@ -79,9 +79,9 @@ operator>>(istream& i, kvl_t& kvl)
       >> kvl.g >> c[4];
     c[5] = '\0';
     if (i) {
-	if (strcmp(c, "k(..)"))  {
-	    i.clear(ios::badbit|i.rdstate());  // error
-	}
+        if (strcmp(c, "k(..)"))  {
+            i.clear(ios::badbit|i.rdstate());  // error
+        }
     }
     return i;
 }

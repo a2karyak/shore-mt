@@ -1,6 +1,30 @@
+/* -*- mode:C++; c-basic-offset:4 -*-
+     Shore-MT -- Multi-threaded port of the SHORE storage manager
+   
+                       Copyright (c) 2007-2009
+      Data Intensive Applications and Systems Labaratory (DIAS)
+               Ecole Polytechnique Federale de Lausanne
+   
+                         All Rights Reserved.
+   
+   Permission to use, copy, modify and distribute this software and
+   its documentation is hereby granted, provided that both the
+   copyright notice and this permission notice appear in all copies of
+   the software, derivative works or modified versions, and any
+   portions thereof, and that both notices appear in supporting
+   documentation.
+   
+   This code is distributed in the hope that it will be useful, but
+   WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. THE AUTHORS
+   DISCLAIM ANY LIABILITY OF ANY KIND FOR ANY DAMAGES WHATSOEVER
+   RESULTING FROM THE USE OF THIS SOFTWARE.
+*/
+
+// -*- mode:c++; c-basic-offset:4 -*-
 /*<std-header orig-src='shore'>
 
- $Id: xct.cpp,v 1.207 2007/05/18 21:43:30 nhall Exp $
+ $Id: xct.cpp,v 1.207.2.19 2010/03/25 18:05:18 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -41,35 +65,29 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #include <new>
 #include "sm_int_1.h"
 #include "sdesc.h"
-
+#include "block_alloc.h"
+#include "tls.h"
 
 #include "sm_escalation.h"
+#include "lock_x.h"
 #include "xct_dependent.h"
 #include "xct_impl.h"
 
 #include <w_strstream.h>
 
 #ifdef EXPLICIT_TEMPLATE
-template class w_list_t<xct_t>;
-template class w_list_i<xct_t>;
-template class w_keyed_list_t<xct_t, tid_t>;
-template class w_descend_list_t<xct_t, tid_t>;
-template class w_list_t<stid_list_elem_t>;
-template class w_list_i<stid_list_elem_t>;
+template class w_list_t<xct_t, queue_based_lock_t>;
+template class w_list_i<xct_t, queue_based_lock_t>;
+template class w_keyed_list_t<xct_t, queue_based_lock_t, tid_t>;
+template class w_descend_list_t<xct_t, queue_based_lock_t, tid_t>;
+template class w_list_t<stid_list_elem_t, queue_based_lock_t>;
+template class w_list_i<stid_list_elem_t, queue_based_lock_t>;
 
 template class w_auto_delete_array_t<lock_mode_t>;
 
-template ostream &operator<<(ostream &, const opaque_quantity<max_gtid_len> &);
-template bool operator==(const opaque_quantity<max_gtid_len> &, 
-			    const opaque_quantity<max_gtid_len> &);
-
-template ostream &operator<<(ostream &, const opaque_quantity<max_server_handle_len> &);
-template bool operator==(const opaque_quantity<max_server_handle_len> &, 
-			    const opaque_quantity<max_server_handle_len> &);
-
 #endif /* __GNUG__*/
 
-#define LOGTRACE(x)	DBG(x)
+#define LOGTRACE(x)        DBG(x)
 #define DBGX(arg) DBG(<<" th."<<me()->id << " " << "tid." << _tid  arg)
 
 
@@ -79,68 +97,147 @@ template bool operator==(const opaque_quantity<max_server_handle_len> &,
  *  youngest transaction. All instantiated xct_t objects are
  *  in the list.
  *
+ *  Here are the transaction list and the mutex that protects it.
+ *  Local namespace is used so that we can see that noone 
+ *  uses these except through these 4 methods, below.
+ *
  *********************************************************************/
-smutex_t			xct_t::_xlist_mutex("_xctlist");
-w_descend_list_t<xct_t, tid_t>	xct_t::_xlist(W_KEYED_ARG(xct_t, _tid,_xlink));
+namespace  localns {
+    /**\var static __thread queue_based_lock_t::ext_qnode _xct_t_me_node;
+     * \brief Queue node for holding mutex to prevent mutiple-thread/transaction where disallowed.
+     * \ingroup TLS
+     */
+    static __thread queue_based_lock_t::ext_qnode _xct_t_me_node = 
+                                                    EXT_QNODE_INITIALIZER;
+    /**\var static __thread queue_based_lock_t::ext_qnode _xlist_mutex_node;
+     * \brief Queue node for holding mutex to serialize access transaction list.
+     * \ingroup TLS
+     */
+    static __thread queue_based_lock_t::ext_qnode _xlist_mutex_node = 
+                                                    EXT_QNODE_INITIALIZER;
+
+};
+
+queue_based_lock_t        xct_t::_xlist_mutex;
+
+w_descend_list_t<xct_t, queue_based_lock_t, tid_t>   
+        xct_t::_xlist(W_KEYED_ARG(xct_t, _tid,_xlink), &_xlist_mutex);
+
+void xct_t::assert_xlist_mutex_not_mine() 
+{
+    w_assert1(localns::_xlist_mutex_node._held == 0
+           || localns::_xlist_mutex_node._held->
+               is_mine(&localns::_xlist_mutex_node)==false);
+}
+void xct_t::assert_xlist_mutex_is_mine() 
+{
+     w_assert1(localns::_xlist_mutex_node._held 
+        && localns::_xlist_mutex_node._held->
+            is_mine(&localns::_xlist_mutex_node));
+}
+
+w_rc_t  xct_t::acquire_xlist_mutex()
+{
+     assert_xlist_mutex_not_mine();
+     _xlist_mutex.acquire(&localns::_xlist_mutex_node);
+     assert_xlist_mutex_is_mine();
+     return RCOK;
+}
+
+void  xct_t::release_xlist_mutex()
+{
+     assert_xlist_mutex_is_mine();
+     _xlist_mutex.release(localns::_xlist_mutex_node);
+     assert_xlist_mutex_not_mine();
+}
 
 /*********************************************************************
  *
  *  _nxt_tid is used to generate unique transaction id
  *  _1thread_name is the name of the mutex protecting the xct_t from
- *  	multi-thread access
+ *          multi-thread access
  *
  *********************************************************************/
-tid_t 				xct_t::_nxt_tid = tid_t::null;
-const char* 			xct_t::_1thread_xct_name = "1thX";
+tid_t                                 xct_t::_nxt_tid = tid_t::null;
 
 /*********************************************************************
  *
- *  Xcts are dynamically allocated. Use fastnew facility to 
- *  allocate many at a time.
+ *  _oldest_tid is the oldest currently-running tx (well, could be
+ *  committed by now - the xct destructor updates this)
+ *  This corresponds to the Shore-MT paper section 7.3, top of
+ *  2nd column, page 10.
+ *  TODO NANCY: make this atomic for 32-bit platforms
  *
  *********************************************************************/
-W_FASTNEW_STATIC_DECL(xct_t, 32)
+tid_t                                xct_t::_oldest_tid = tid_t::null;
 
 /*********************************************************************
  *
  *  Constructors and destructor
  *
  *********************************************************************/
+// FRJ: WARNING: xct_impl::commit has some of this code as well
+#define USE_BLOCK_ALLOC_FOR_XCT_IMPL  0
+#if USE_BLOCK_ALLOC_FOR_XCT_IMPL 
+DECLARE_TLS(block_alloc<xct_impl>, xct_impl_pool);
+#endif
+
+struct lock_info_ptr {
+    xct_lock_info_t* _ptr;
+    
+    lock_info_ptr() : _ptr(0) { }
+    
+    xct_lock_info_t* take() {
+        if(xct_lock_info_t* rval = _ptr) {
+            _ptr = 0;
+            return rval;
+        }
+        return new xct_lock_info_t;
+    }
+    void put(xct_lock_info_t* ptr) {
+        if(_ptr)
+            delete _ptr;
+        _ptr = ptr? ptr->reset_for_reuse() : 0;
+    }
+    
+    ~lock_info_ptr() { put(0); }
+};
+
+DECLARE_TLS(lock_info_ptr, agent_lock_info);
+
 xct_t::xct_t(
-	sm_stats_info_t* stats, 
-	timeout_in_ms timeout) : 
+        sm_stats_info_t* stats, 
+        timeout_in_ms timeout) : 
     __stats(stats),
     __log_bytes_generated(0),
     __saved_lockid_t(0),
     __saved_sdesc_cache_t(0),
     __saved_xct_log_t(0),
-    _tid(_nxt_tid.incr()), 
+    _tid(_nxt_tid.atomic_incr()), 
     _timeout(timeout),
     i_this(0),    
-    _lock_info(0),    
-    _lock_cache_enable(true),
-    _lock_cache_enable_mutex("lock_cache_enable"),
-    _1thread_xct(_1thread_xct_name)
+    _lock_info(agent_lock_info->take()),    
+    _lock_cache_enable(true)
 {
-    w_assert3(tid() <= _nxt_tid);
+    w_assert9(tid() <= _nxt_tid);
 
-    DBG(<<"tid= " << tid()
-	<< " __log_bytes_generated is " << __log_bytes_generated);
+    _lock_info->set_tid(_tid);
 
-    // Must be done before creating xct_impl
-    _lock_info = new xct_lock_info_t(); // deleted when xct ends
-    if (! _lock_info)  W_FATAL(eOUTOFMEMORY);
-
+#if USE_BLOCK_ALLOC_FOR_XCT_IMPL 
+    i_this = new (*xct_impl_pool) xct_impl(this); // deleted when xct finishes
+#else
     i_this = new xct_impl(this); // deleted when xct finishes
+#endif
+
     put_in_order();
     me()->attach_xct(this);
 
 
     if (timeout_c() == WAIT_SPECIFIED_BY_THREAD) {
-	// override in this case
-	set_timeout(me()->lock_timeout());
+        // override in this case
+        set_timeout(me()->lock_timeout());
     }
-    w_assert3(timeout_c() >= 0 || timeout_c() == WAIT_FOREVER);
+    w_assert9(timeout_c() >= 0 || timeout_c() == WAIT_FOREVER);
 
 #ifndef SDESC_CACHE_PER_THREAD
     __saved_sdesc_cache_t = new_sdesc_cache_t(); // deleted when xct finishes
@@ -148,7 +245,7 @@ xct_t::xct_t(
 }
 
 xct_t::xct_t(const tid_t& t, state_t s, const lsn_t& last_lsn,
-	     const lsn_t& undo_nxt, timeout_in_ms timeout) 
+             const lsn_t& undo_nxt, timeout_in_ms timeout) 
     :
     __stats(0),
     __log_bytes_generated(0),
@@ -158,32 +255,30 @@ xct_t::xct_t(const tid_t& t, state_t s, const lsn_t& last_lsn,
     _tid(t), 
     _timeout(timeout),
     i_this(0),    
-    _lock_info(0),    
-    _lock_cache_enable(true),
-    _lock_cache_enable_mutex("lock_cache_enable"),
-    _1thread_xct(_1thread_xct_name)
+    _lock_info(agent_lock_info->take()),    
+    _lock_cache_enable(true)
 {
-    // Uses user(recovery)-provided tid 
-    if (tid() > _nxt_tid)   _nxt_tid = tid();
 
-    DBG(<<"tid= " << tid()
-	<< " __log_bytes_generated is " << __log_bytes_generated);
+    // Uses user(recovery)-provided tid
+    _nxt_tid.atomic_assign_max(tid());
 
-    // Must be done before creating xct_impl
-    _lock_info = new xct_lock_info_t(); // deleted when xct finishes
-    if (! _lock_info)  W_FATAL(eOUTOFMEMORY);
+    _lock_info->set_tid(_tid);
 
+#if USE_BLOCK_ALLOC_FOR_XCT_IMPL 
+    i_this = new (*xct_impl_pool) xct_impl(this, s , last_lsn, undo_nxt); //deleted when xct ends
+#else
     i_this = new xct_impl(this, s , last_lsn, undo_nxt); //deleted when xct ends
+#endif
     put_in_order();
     /// Don't attach
     // sm.tcb()->xct = 0;
     w_assert1(me()->xct() == 0);
 
     if (timeout_c() == WAIT_SPECIFIED_BY_THREAD) {
-	// override in this case
-	set_timeout(me()->lock_timeout());
+        // override in this case
+        set_timeout(me()->lock_timeout());
     }
-    w_assert3(timeout_c() >= 0 || timeout_c() == WAIT_FOREVER);
+    w_assert9(timeout_c() >= 0 || timeout_c() == WAIT_FOREVER);
 
 #ifndef SDESC_CACHE_PER_THREAD
     __saved_sdesc_cache_t = new_sdesc_cache_t(); // deleted when thread detaches or xct finishes
@@ -193,49 +288,69 @@ xct_t::xct_t(const tid_t& t, state_t s, const lsn_t& last_lsn,
 
 xct_t::~xct_t() 
 { 
-    W_COERCE(_xlist_mutex.acquire());
-    w_assert3(__stats == 0);
 
-    /* update global log_bytes_active */
-    /* XXX multi-thread race condition */
-    base_stat_t tmp = GET_STAT(log_bytes_active);
-    tmp -= __log_bytes_generated;
-    SET_STAT(log_bytes_active,tmp);
-    DBG(<<"xct_t::~xct_t(" << this
-	    << ") log_bytes_active is now " << tmp
-	<< " after subtracting " << __log_bytes_generated
-	<< " for xct " << tid()
-	);
+    if(smlevel_1::log) {
+        smlevel_1::log->remove_obligation(__log_bytes_generated);
+    }
 
+    w_assert9(__stats == 0);
+
+    W_COERCE(acquire_xlist_mutex());
+
+    // FRJ: WARNING: xct_impl::commit has this code as well!
     _xlink.detach();
-    _xlist_mutex.release();
+    xct_t* xd = _xlist.last();
+    _oldest_tid = xd ? xd->_tid : _nxt_tid;
+    release_xlist_mutex();
 
     if(i_this) {
-	delete i_this;
-	i_this = 0;
+#if USE_BLOCK_ALLOC_FOR_XCT_IMPL 
+        xct_impl_pool->destroy_object(i_this);
+#else
+        delete i_this;
+#endif
+        i_this = 0;
     }
 
     if(_lock_info) {
-	delete _lock_info;
-	_lock_info = 0;
+        agent_lock_info->put(_lock_info);
     }
     if(__saved_lockid_t)  { 
-	delete[] __saved_lockid_t; 
-	__saved_lockid_t=0; 
+        delete[] __saved_lockid_t; 
+        __saved_lockid_t=0; 
     }
-    if(__saved_sdesc_cache_t) { 	
-	delete __saved_sdesc_cache_t;
-	__saved_sdesc_cache_t=0; 
+    if(__saved_sdesc_cache_t) {         
+        delete __saved_sdesc_cache_t;
+        __saved_sdesc_cache_t=0; 
     }
     if(__saved_xct_log_t) { 
-	delete __saved_xct_log_t; 
-	__saved_xct_log_t=0; 
+        delete __saved_xct_log_t; 
+        __saved_xct_log_t=0; 
     }
 }
+
 
 ostream&
 operator<<(ostream& o, const xct_t& x)
 {
+    /**\brief Callback function for dumping all the smthreads 
+     * attached to an xct. 
+     */
+    class PrintSmthreadsOfXct : public SmthreadFunc
+    {
+        public:
+        PrintSmthreadsOfXct(ostream& out, const xct_t* x) : o(out), xct(x) {};
+        void operator()(const smthread_t& smthread)  {
+            if (smthread.xct() == xct)  {
+                o << "--------------------" << endl << smthread;
+            }
+        }
+        private:
+        ostream&    o;
+        const xct_t*    xct;
+
+    };
+
     o << *x.i_this << endl;
     PrintSmthreadsOfXct f(o, &x);
     smthread_t::for_each_smthread(f);
@@ -243,7 +358,7 @@ operator<<(ostream& o, const xct_t& x)
     return o;
 }
 
-#ifdef W_DEBUG
+#if W_DEBUG_LEVEL > 2
 /* debugger-callable */
 extern "C" void dumpXct(const xct_t *x) { if(x) { cout << *x <<endl;} }
 
@@ -251,18 +366,18 @@ extern "C" void dumpXct(const xct_t *x) { if(x) { cout << *x <<endl;} }
 class PrintSmthreadById : public SmthreadFunc
 {
     public:
-	PrintSmthreadById(ostream& out, int i ) : o(out), _i(0) {
-		_i = sthread_base_t::id_t(i);
-	};
-	void operator()(const smthread_t& smthread);
+        PrintSmthreadById(ostream& out, int i ) : o(out), _i(0) {
+                _i = sthread_base_t::id_t(i);
+        };
+        void operator()(const smthread_t& smthread);
     private:
-	ostream&	o;
-	sthread_base_t::id_t 		_i;
+        ostream&        o;
+        sthread_base_t::id_t                 _i;
 };
 void PrintSmthreadById::operator()(const smthread_t& smthread)
 {
     if (smthread.id == _i)  {
-	o << "--------------------" << endl << smthread;
+        o << "--------------------" << endl << smthread;
     }
 }
 
@@ -272,7 +387,7 @@ dumpThreadById(int i) {
     PrintSmthreadById f(cout, i);
     smthread_t::for_each_smthread(f);
 }
-#endif /* W_DEBUG */
+#endif 
 
 xct_t::state_t
 xct_t::state() const
@@ -280,69 +395,88 @@ xct_t::state() const
     return i_this->state();
 }
 
+/*
+ * clean up existing transactions -- called from ~ss_m, so
+ * this should never be subject to multiple
+ * threads using the xct list.
+ * NANCY TODO: DOCUMENT: that proper use of the ss_m requires that the
+ * thread that creates the ssm forks all other user threads, joins them
+ * before deleting the ssm.
+ */
 int
 xct_t::cleanup(bool dispose_prepared)
 {
-    bool	changed_list;
-    int		nprepared = 0;
-    xct_t* 	xd;
+    bool        changed_list;
+    int         nprepared = 0;
+    xct_t*      xd;
+    W_COERCE(acquire_xlist_mutex());
     do {
-	/*
-	 *  We cannot delete an xct while iterating. Use a loop
-	 *  to iterate and delete one xct for each iteration.
-	 */
-	xct_i i;
-	changed_list = false;
-	if ((xd = i.next())) switch(xd->state()) {
-	case xct_active: {
-		me()->attach_xct(xd);
-		/*
-		 *  We usually want to shutdown cleanly. For debugging
-		 *  purposes, it is sometimes desirable to simply quit.
-		 *
-		 *  NB:  if a vas has multiple threads running on behalf
-		 *  of a tx at this point, it's going to run into trouble.
-		 */
-		if (shutdown_clean) {
-		    W_COERCE( xd->abort() );
-		} else {
-		    W_COERCE( xd->dispose() );
-		}
-		delete xd;
-		changed_list = true;
-	    } 
-	    break;
+        /*
+         *  We cannot delete an xct while iterating. Use a loop
+         *  to iterate and delete one xct for each iteration.
+         */
+        xct_i i(false); // do acquire the list mutex. Noone
+        // else should be iterating over the xcts at this point.
+        changed_list = false;
+        xd = i.next();
+        if (xd) {
+            // Release the mutex so we can delete the xd if need be...
+            release_xlist_mutex();
+            switch(xd->state()) {
+            case xct_active: {
+                    me()->attach_xct(xd);
+                    /*
+                     *  We usually want to shutdown cleanly. For debugging
+                     *  purposes, it is sometimes desirable to simply quit.
+                     *
+                     *  NB:  if a vas has multiple threads running on behalf
+                     *  of a tx at this point, it's going to run into trouble.
+                     */
+                    if (shutdown_clean) {
+                        W_COERCE( xd->abort() );
+                    } else {
+                        W_COERCE( xd->dispose() );
+                    }
+                    delete xd;
+                    changed_list = true;
+                } 
+                break;
 
-	case xct_freeing_space:
-	case xct_ended: {
-		DBG(<< xd->tid() <<"deleting " << " w/ state=" << xd->state() );
-		xd->change_state(xct_freeing_space);
-		delete xd;
-		changed_list = true;
-	    }
-	    break;
+            case xct_freeing_space:
+            case xct_ended: {
+                    DBG(<< xd->tid() <<"deleting " 
+                            << " w/ state=" << xd->state() );
+                    // xd->change_state(xct_freeing_space);
+                    // TODO: NANCY: what was this all about?
+                    delete xd;
+                    changed_list = true;
+                }
+                break;
 
-	case xct_prepared: {
-		if(dispose_prepared) {
-		    me()->attach_xct(xd);
-		    W_COERCE( xd->dispose() );
-		    delete xd;
-		    changed_list = true;
-		} else {
-		    DBG(<< xd->tid() <<"keep -- prepared ");
-		    nprepared++;
-		}
-	    } 
-	    break;
+            case xct_prepared: {
+                    if(dispose_prepared) {
+                        me()->attach_xct(xd);
+                        W_COERCE( xd->dispose() );
+                        delete xd;
+                        changed_list = true;
+                    } else {
+                        DBG(<< xd->tid() <<"keep -- prepared ");
+                        nprepared++;
+                    }
+                } 
+                break;
 
-	default: {
-		DBG(<< xd->tid() <<"skipping " << " w/ state=" << xd->state() );
-	    }
-	    break;
-	
-	}
-
+            default: {
+                    DBG(<< xd->tid() <<"skipping " 
+                            << " w/ state=" << xd->state() );
+                }
+                break;
+            
+            } // switch on xct state
+            W_COERCE(acquire_xlist_mutex());
+        } // xd not null
     } while (xd && changed_list);
+    release_xlist_mutex();
     return nprepared;
 }
 
@@ -361,9 +495,9 @@ w_base_t::uint4_t
 xct_t::num_active_xcts()
 {
     w_base_t::uint4_t num;
-    W_COERCE(_xlist_mutex.acquire());
+    W_COERCE(acquire_xlist_mutex());
     num = _xlist.num_members();
-    _xlist_mutex.release();
+    release_xlist_mutex();
     return  num;
 }
 
@@ -380,12 +514,12 @@ xct_t*
 xct_t::look_up(const tid_t& tid)
 {
     xct_t* xd;
-    xct_i iter;
+    xct_i iter(true);
 
     while ((xd = iter.next())) {
-	if (xd->tid() == tid) {
-	    return xd;
-	}
+        if (xd->tid() == tid) {
+            return xd;
+        }
     }
     return 0;
 }
@@ -401,44 +535,10 @@ xct_t::look_up(const tid_t& tid)
 tid_t
 xct_t::oldest_tid()
 {
-#ifndef NOT_PREEMPTIVE
-    W_COERCE(_xlist_mutex.acquire());
-#endif
-    xct_t* xd = _xlist.last();
-#ifndef NOT_PREEMPTIVE
-    _xlist_mutex.release();
-#endif
-    return xd ? xd->_tid : _nxt_tid;
+    return _oldest_tid;
 }
 
-
-#ifdef NOTDEF
-/*********************************************************************
- *
- *  xct_t::min_first_lsn()
- *
- *  Compute and return the minimum first_lsn of all active xcts.
- *
- *********************************************************************/
-lsn_t
-xct_t::min_first_lsn() 
-{
-    W_COERCE(_xlist_mutex.acquire());
-    w_list_i<xct_t> i(_xlist);
-    lsn_t lsn = lsn_t::max;
-    xct_t* xd;
-    while ((xd = i.next()))  {
-	if (xd->_first_lsn)  {
-	    if (xd->_first_lsn < lsn)  lsn = xd->_first_lsn;
-	}
-    }
-    _xlist_mutex.release();
-    return lsn;
-}
-#endif
-    
-
-bool			
+bool                        
 xct_t::is_extern2pc() 
 const
 {
@@ -469,6 +569,12 @@ xct_t::add_dependent(xct_dependent_t* dependent)
     return i_this->add_dependent(dependent);
 }
 
+rc_t
+xct_t::remove_dependent(xct_dependent_t* dependent)
+{
+    return i_this->remove_dependent(dependent);
+}
+
 bool
 xct_t::find_dependent(xct_dependent_t* ptr)
 {
@@ -491,8 +597,8 @@ rc_t
 xct_t::abort(bool save_stats_structure /* = false */)
 {
     if(is_instrumented() && !save_stats_structure) {
-	delete __stats;
-	__stats = 0;
+        delete __stats;
+        __stats = 0;
     }
     return i_this->abort();
 }
@@ -513,19 +619,19 @@ xct_t::enter2pc(const gtid_t &g)
 
 rc_t 
 xct_t::recover2pc(const gtid_t &g,
-	bool	/*mayblock*/,
-	xct_t	*&xd)
+        bool        /*mayblock*/,
+        xct_t        *&xd)
 {
-    w_list_i<xct_t> i(_xlist);
+    w_list_i<xct_t, queue_based_lock_t> i(_xlist);
     while ((xd = i.next()))  {
-	if( xd->state() == xct_prepared ) {
-	    if(xd->gtid() &&
-		*(xd->gtid()) == g) {
-		// found
-		// TODO  try to reach the coordinator
-		return RCOK;
-	    }
-	}
+        if( xd->state() == xct_prepared ) {
+            if(xd->gtid() &&
+                *(xd->gtid()) == g) {
+                // found
+                // TODO  try to reach the coordinator
+                return RCOK;
+            }
+        }
     }
     return RC(eNOSUCHPTRANS);
 }
@@ -541,49 +647,23 @@ xct_t::recover2pc(const gtid_t &g,
 rc_t 
 xct_t::query_prepared(int list_len, gtid_t list[])
 {
-    w_list_i<xct_t> iter(_xlist);
+    w_list_i<xct_t, queue_based_lock_t> iter(_xlist);
     int i=0;
     xct_t *xd;
     while ((xd = iter.next()))  {
-	if( xd->state() == xct_prepared ) {
-	    if(xd->gtid()) {
-		if(i < list_len) {
-		    list[i++]=*(xd->gtid());
-		} else {
-		    return RC(fcFULL);
-		}
-	    // } else {
-		// was not external 2pc
-	    }
-	}
+        if( xd->state() == xct_prepared ) {
+            if(xd->gtid()) {
+                if(i < list_len) {
+                    list[i++]=*(xd->gtid());
+                } else {
+                    return RC(fcFULL);
+                }
+            // } else {
+                // was not external 2pc
+            }
+        }
     }
     return RCOK;
-}
-/*********************************************************************
- *
- * static 
- * xct_t *	find_coordinated_by(const server_handle_t &t);
- *
- *  find the first prepared xct coordinated by the given server
- *
- *  TODO: remove when no longer needed
- *********************************************************************/
-xct_t * 
-xct_t::find_coordinated_by(const server_handle_t &t)
-{
-    W_COERCE(_xlist_mutex.acquire());
-    w_list_i<xct_t> iter(_xlist);
-    xct_t *xd;
-    while ((xd = iter.next()))  {
-	if( xd->state() == xct_prepared ) {
-	    if(t == xd->get_coordinator()) {
-		_xlist_mutex.release();
-		return xd;
-	    }
-	}
-    }
-    _xlist_mutex.release();
-    return 0;
 }
 
 /*********************************************************************
@@ -596,13 +676,13 @@ xct_t::find_coordinated_by(const server_handle_t &t)
 rc_t 
 xct_t::query_prepared(int &numtids)
 {
-    w_list_i<xct_t> iter(_xlist);
+    w_list_i<xct_t, queue_based_lock_t> iter(_xlist);
     numtids=0;
     xct_t *xd;
     while ((xd = iter.next()))  {
-	if( xd->state() == xct_prepared ) {
-	    numtids++;
-	}
+        if( xd->state() == xct_prepared ) {
+            numtids++;
+        }
     }
     return RCOK;
 }
@@ -691,52 +771,17 @@ xct_t::rollback(lsn_t save_pt)
     return i_this->rollback(save_pt);
 }
 
-//
-// TODO: protect all access to 
-// xct for multiple threads
-//
 
-bool			
-xct_t::is_local() const 
-{
-    // is_local means it didn't spread from HERE,
-    // that doesn't mean that this isn't a distributed
-    // tx.  It returns true for a server thread of
-    // a distributed tx.
-
-    // stub for now
-    return false;
-}
-
-bool			
-xct_t::is_distributed() const 
-{
-    return false;
-}
-
-
-void                        
-xct_t::set_alloced() 
-{
-    i_this->set_alloced();
-}
-
-void                        
-xct_t::set_freed() 
-{	
-    i_this->set_freed();
-}
-
-
-smlevel_0::concurrency_t		
+smlevel_0::concurrency_t                
 xct_t::get_lock_level()  
 { 
     return i_this->get_lock_level();
 }
 
-void		   	
+void                           
 xct_t::lock_level(concurrency_t l) 
 {
+    w_assert9(i_this->one_thread_attached());
     i_this->lock_level(l);
 }
 
@@ -746,18 +791,17 @@ xct_t::num_threads()
     return i_this->num_threads();
 }
 
-int 
+void 
 xct_t::attach_thread() 
 {
-    DBG(<<"xct has generated " << __log_bytes_generated);
-    return i_this->attach_thread();
+    i_this->attach_thread();
 }
 
 
-int 
+void 
 xct_t::detach_thread() 
 {
-    return i_this->detach_thread();
+    i_this->detach_thread();
 }
 
 w_rc_t
@@ -772,84 +816,78 @@ xct_t::lockunblock()
     i_this->lockunblock();
 }
 
+
 void
 xct_t::acquire_1thread_xct_mutex() // default: true
 {
-    DBGTHRD(<<"xct has generated " << __log_bytes_generated);
-    if(_1thread_xct.is_mine()) {
-	return;
+    if(_1thread_xct.is_mine(&localns::_xct_t_me_node)) {
+        return;
     }
-    if(_1thread_xct.is_locked()) {
-	INC_TSTAT(await_1thread_xct);
+    if( _1thread_xct.attempt(&localns::_xct_t_me_node) ) {
+        // success
+        return; 
     }
-    DBGX(    << " awaiting xct mutex");
-    W_COERCE(_1thread_xct.acquire());
-    DBGX(    << " acquired xct mutex");
+    INC_TSTAT(await_1thread_xct);
+    (void) _1thread_xct.acquire(&localns::_xct_t_me_node);
 }
 
 void
 xct_t::release_1thread_xct_mutex()
 {
-    w_assert3(_1thread_xct.is_mine());
-
     DBGX( << " release xct mutex");
 
-    _1thread_xct.release();
+    _1thread_xct.release(localns::_xct_t_me_node);
 }
 
 rc_t
 xct_t::commit(bool lazy)
 {
-    // w_assert3(one_thread_attached());
+    // w_assert9(one_thread_attached());
     // removed because a checkpoint could
     // be going on right now.... see comments
     // in log_prepared and chkpt.cpp
 
-    return i_this->_commit(t_normal | (lazy ? t_lazy : t_normal));
+    return i_this->commit(t_normal | (lazy ? t_lazy : t_normal));
 }
 
 
 rc_t
 xct_t::chain(bool lazy)
 {
-    w_assert3(i_this->one_thread_attached());
-    return i_this->_commit(t_chain | (lazy ? t_lazy : t_chain));
+    w_assert9(i_this->one_thread_attached());
+    return i_this->commit(t_chain | (lazy ? t_lazy : t_chain));
 }
 
 
 bool
 xct_t::lock_cache_enabled() 
 {
-    //PROTECT
-    bool result;
-    W_COERCE(_lock_cache_enable_mutex.acquire());
-    result =  _lock_cache_enable;
-    _lock_cache_enable_mutex.release();
-    return result;
+    bool volatile* result = &_lock_cache_enable;
+    return *result;
 }
 
 bool
 xct_t::set_lock_cache_enable(bool enable)
 {
-    //PROTECT
-    W_COERCE(_lock_cache_enable_mutex.acquire());
-    _lock_cache_enable = enable;
-    _lock_cache_enable_mutex.release();
-    return _lock_cache_enable;
+    bool result;
+    membar_exit();
+    result = atomic_swap_8((unsigned char*) &_lock_cache_enable, enable);
+    membar_enter();
+    return result;
 }
 
-sdesc_cache_t*  	
+sdesc_cache_t*          
 xct_t::new_sdesc_cache_t()
 {
     /* NB: this gets stored in the thread tcb(), so it's
     * a per-thread cache
     */
-    sdesc_cache_t*  	_sdesc_cache = new sdesc_cache_t;
+    sdesc_cache_t*          _sdesc_cache = new sdesc_cache_t;
     if (!_sdesc_cache) W_FATAL(eOUTOFMEMORY);
     return _sdesc_cache;
 }
 
-xct_log_t*  	
+xct_log_t*          
 xct_t::new_xct_log_t()
 {
     xct_log_t*  l = new xct_log_t; 
@@ -857,15 +895,15 @@ xct_t::new_xct_log_t()
     return l;
 }
 
-lockid_t*  	
+lockid_t*          
 xct_t::new_lock_hierarchy()
 {
-    lockid_t*  	l = new lockid_t [lockid_t::NUMLEVELS];
+    lockid_t*          l = new lockid_t [lockid_t::NUMLEVELS];
     if (!l) W_FATAL(eOUTOFMEMORY);
     return l;
 }
 
-sdesc_cache_t*    		
+sdesc_cache_t*                    
 xct_t::sdesc_cache() const
 {
 #ifdef SDESC_CACHE_PER_THREAD
@@ -875,70 +913,83 @@ xct_t::sdesc_cache() const
 #endif /* SDESC_CACHE_PER_THREAD */
 }
 
-void			
+/**\brief Used by smthread upon attach_xct() to avoid excess heap activity.
+ *
+ * \details
+ * If the xct has a stashed copy of the caches, hand them over to the
+ * calling smthread. If not, allocate some off the stack.
+ */
+void                        
 xct_t::steal(lockid_t*&l, sdesc_cache_t*&
 #ifdef SDESC_CACHE_PER_THREAD
-	s
+        s
 #endif
-	, xct_log_t*&x)
+        , xct_log_t*&x)
 {
     /* See comments in smthread_t::new_xct() */
     acquire_1thread_xct_mutex();
     if( (l = __saved_lockid_t) != 0 ) {
-	__saved_lockid_t = 0;
+        __saved_lockid_t = 0;
     } else {
-	l = new_lock_hierarchy(); // deleted when thread detaches or
-				  // xct goes away
+        l = new_lock_hierarchy(); // deleted when thread detaches or
+                                  // xct goes away
     }
 
 #ifdef SDESC_CACHE_PER_THREAD
     if( (s = __saved_sdesc_cache_t) ) {
-	 __saved_sdesc_cache_t = 0;
+         __saved_sdesc_cache_t = 0;
     } else {
-	s = new_sdesc_cache_t(); // deleted when thread detaches or xct finishes
+        s = new_sdesc_cache_t(); // deleted when thread detaches or xct finishes
     }
 #endif /* SDESC_CACHE_PER_THREAD */
 
     if( (x = __saved_xct_log_t) ) {
-	__saved_xct_log_t = 0;
+        __saved_xct_log_t = 0;
     } else {
-	x = new_xct_log_t(); // deleted when thread detaches or xct finishes
+        x = new_xct_log_t(); // deleted when thread detaches or xct finishes
     }
     release_1thread_xct_mutex();
 }
 
-void			
+/**\brief Used by smthread upon detach_xct() to avoid excess heap activity.
+ *
+ * \details
+ * If the xct has a stashed copy of the caches, free the caches
+ * passed in, otherwise, hang onto them to hand over to the next
+ * thread that attaches to this xct.
+ */
+void                        
 xct_t::stash(lockid_t*&l, sdesc_cache_t*&
 #ifdef SDESC_CACHE_PER_THREAD
-	s
+        s
 #endif
-	, xct_log_t*&x)
+        , xct_log_t*&x)
 {
     /* See comments in smthread_t::new_xct() */
     acquire_1thread_xct_mutex();
     if(__saved_lockid_t != (lockid_t *)0)  { 
-	DBGX(<<"stash: delete " << l);
-	if(l) {
-	    delete[] l; 
-	}
+        DBGX(<<"stash: delete " << l);
+        if(l) {
+            delete[] l; 
+        }
     } else { 
-	__saved_lockid_t = l; 
-	DBGX(<<"stash: allocated " << l);
+        __saved_lockid_t = l; 
+        DBGX(<<"stash: allocated " << l);
     }
     l = 0;
 
 #ifdef SDESC_CACHE_PER_THREAD
     if(__saved_sdesc_cache_t) {
-	DBGX(<<"stash: delete " << s);
-	delete s; 
+        DBGX(<<"stash: delete " << s);
+        delete s; 
     }
     else { __saved_sdesc_cache_t = s;}
     s = 0;
 #endif /* SDESC_CACHE_PER_THREAD */
 
     if(__saved_xct_log_t) {
-	DBGX(<<"stash: delete " << x);
-	delete x; 
+        DBGX(<<"stash: delete " << x);
+        delete x; 
     }
     else { __saved_xct_log_t = x; }
     x = 0;
@@ -947,92 +998,91 @@ xct_t::stash(lockid_t*&l, sdesc_cache_t*&
     
 
 
-rc_t			
+rc_t                        
 xct_t::check_lock_totals(int nex, int nix, int nsix, int nextents) const
 {
-    int	num_EX, num_IX, num_SIX, num_extents;
+    int        num_EX, num_IX, num_SIX, num_extents;
     W_DO(lock_info()->get_lock_totals( num_EX, num_IX, num_SIX, num_extents));
     if( nex != num_EX || nix != num_IX || nsix != num_SIX) {
-#ifdef W_DEBUG
-	// lm->dump();
-#endif /* W_DEBUG */
-	// IX and SIX are the same for this purpose,
-	// but whereas what was SH+IX==SIX when the
-	// prepare record was written, will be only
-	// IX when acquired implicitly as a side effect
-	// of acquiring the EX locks.
-	// NB: taking this out because it seems that even
-	// in the absence of escalation, and if it's
-	// not doing a lock_force, the numbers could be off.
+        // IX and SIX are the same for this purpose,
+        // but whereas what was SH+IX==SIX when the
+        // prepare record was written, will be only
+        // IX when acquired implicitly as a side effect
+        // of acquiring the EX locks.
+        // NB: taking this out because it seems that even
+        // in the absence of escalation, and if it's
+        // not doing a lock_force, the numbers could be off.
 
-	// w_assert1(nix + nsix <= num_IX + num_SIX );
-	w_assert1(nex <= num_EX);
+        // w_assert1(nix + nsix <= num_IX + num_SIX );
+        w_assert1(nex <= num_EX);
 
-	if(nextents != num_extents) {
-		cerr 
-		<< "FATAL: " <<endl
-		<< "nextents logged in xct_prepare_fi_log:" << nextents <<endl
-		<< "num_extents (extents locked) via xct_prepare_lk_log and xct_prepare_alk_logs : " << num_extents
-			<< endl;
-	}
-	w_assert1(nextents == num_extents);
+        if(nextents != num_extents) {
+            smlevel_0::errlog->clog 
+            << "FATAL: " <<endl
+            << "nextents logged in xct_prepare_fi_log:" << nextents <<endl
+            << "num_extents locked via "
+            << "xct_prepare_lk_log and xct_prepare_alk_logs : " << num_extents
+            << endl;
+            lm->dump(smlevel_0::errlog->clog);
+        }
+        w_assert1(nextents == num_extents);
     }
     return RCOK;
 }
 
-rc_t			
+rc_t                        
 xct_t::obtain_locks(lock_mode_t mode, int num, const lockid_t *locks)
 {
     // Turn off escalation for recovering prepared xcts --
     // so the assertions will work.
     sm_escalation_t SAVE;
 
-#ifdef W_DEBUG
-    int	b_EX, b_IX, b_SIX, b_extents;
+#if W_DEBUG_LEVEL > 2
+    int        b_EX, b_IX, b_SIX, b_extents;
     W_DO(lock_info()->get_lock_totals(b_EX, b_IX, b_SIX, b_extents));
     DBG(<< b_EX << "+" << b_IX << "+" << b_SIX << "+" << b_extents);
-#endif  /* W_DEBUG */
+#endif 
 
     int  i;
     rc_t rc;
 
     for (i=0; i<num; i++) {
-	DBG(<<"Obtaining lock : " << locks[i] << " in mode " << int(mode));
-#ifdef W_DEBUG
-	int	bb_EX, bb_IX, bb_SIX, bb_extents;
-	W_DO(lock_info()->get_lock_totals(bb_EX, bb_IX, bb_SIX, bb_extents));
-	DBG(<< bb_EX << "+" << bb_IX << "+" << bb_SIX << "+" << bb_extents);
-#endif /* W_DEBUG */
+        DBG(<<"Obtaining lock : " << locks[i] << " in mode " << int(mode));
+#if W_DEBUG_LEVEL > 2
+        int        bb_EX, bb_IX, bb_SIX, bb_extents;
+        W_DO(lock_info()->get_lock_totals(bb_EX, bb_IX, bb_SIX, bb_extents));
+        DBG(<< bb_EX << "+" << bb_IX << "+" << bb_SIX << "+" << bb_extents);
+#endif 
 
-	rc =lm->lock(locks[i], mode, t_long, WAIT_IMMEDIATE);
-	if(rc) {
-	    lm->dump(cerr);
-	    cerr << "can't obtain lock " <<rc <<endl;
-	    W_FATAL(eINTERNAL);
-	}
-	{
-	    int	a_EX, a_IX, a_SIX, a_extents;
-	    W_DO(lock_info()->get_lock_totals(a_EX, a_IX, a_SIX, a_extents));
-	    DBG(<< a_EX << "+" << a_IX << "+" << a_SIX << "+" << a_extents);
-	    switch(mode) {
-		case EX:
-		    w_assert3((bb_EX + 1) == (a_EX)); 
-		    break;
-		case IX:
-		case SIX:
-		    w_assert3((bb_IX + 1) == (a_IX));
-		    break;
-		default:
-		    break;
-		    
-	    }
-	}
+        rc =lm->lock(locks[i], mode, t_long, WAIT_IMMEDIATE);
+        if(rc.is_error()) {
+            lm->dump(smlevel_0::errlog->clog);
+            smlevel_0::errlog->clog << "can't obtain lock " <<rc <<endl;
+            W_FATAL(eINTERNAL);
+        }
+        {
+            int        a_EX, a_IX, a_SIX, a_extents;
+            W_DO(lock_info()->get_lock_totals(a_EX, a_IX, a_SIX, a_extents));
+            DBG(<< a_EX << "+" << a_IX << "+" << a_SIX << "+" << a_extents);
+            switch(mode) {
+                case EX:
+                    w_assert9((bb_EX + 1) == (a_EX)); 
+                    break;
+                case IX:
+                case SIX:
+                    w_assert9((bb_IX + 1) == (a_IX));
+                    break;
+                default:
+                    break;
+                    
+            }
+        }
     }
 
     return RCOK;
 }
 
-rc_t			
+rc_t                        
 xct_t::obtain_one_lock(lock_mode_t mode, const lockid_t &lock)
 {
     // Turn off escalation for recovering prepared xcts --
@@ -1041,102 +1091,95 @@ xct_t::obtain_one_lock(lock_mode_t mode, const lockid_t &lock)
 
     sm_escalation_t SAVE;
     rc_t rc;
-#ifdef W_DEBUG
-    int	b_EX, b_IX, b_SIX, b_extents;
+#if W_DEBUG_LEVEL > 2
+    int        b_EX, b_IX, b_SIX, b_extents;
     W_DO(lock_info()->get_lock_totals(b_EX, b_IX, b_SIX, b_extents));
     DBG(<< b_EX << "+" << b_IX << "+" << b_SIX << "+" << b_extents);
-#endif  /* W_DEBUG */
+#endif 
     rc = lm->lock(lock, mode, t_long, WAIT_IMMEDIATE);
-    if(rc) {
-	lm->dump(cerr);
-	cerr << "can't obtain lock " <<rc <<endl;
-	W_FATAL(eINTERNAL);
+    if(rc.is_error()) {
+        lm->dump(smlevel_0::errlog->clog);
+        smlevel_0::errlog->clog << "can't obtain lock " <<rc <<endl;
+        W_FATAL(eINTERNAL);
     }
-#ifdef W_DEBUG
+#if W_DEBUG_LEVEL > 2
     {
-	int	a_EX, a_IX, a_SIX, a_extents;
-	W_DO(lock_info()->get_lock_totals(a_EX, a_IX, a_SIX, a_extents));
-	DBG(<< a_EX << "+" << a_IX << "+" << a_SIX << "+" << a_extents);
+        int        a_EX, a_IX, a_SIX, a_extents;
+        W_DO(lock_info()->get_lock_totals(a_EX, a_IX, a_SIX, a_extents));
+        DBG(<< a_EX << "+" << a_IX << "+" << a_SIX << "+" << a_extents);
 
-	// It could be a repeat, so let's do this:
-	if(b_EX + b_IX + b_SIX == a_EX + a_IX + a_SIX) {
-	    DBG(<<"DIDN'T GET LOCK " << lock << " in mode " << int(mode));
-	} else  {
-	    switch(mode) {
-		case EX:
-		    w_assert3((b_EX +  1) == (a_EX));
-		    break;
-		case IX:
-		    w_assert3((b_IX + 1) == (a_IX));
-		    break;
-		case SIX:
-		    w_assert3((b_SIX + 1) == (a_SIX));
-		    break;
-		default:
-		    break;
-	    }
-	}
+        // It could be a repeat, so let's do this:
+        if(b_EX + b_IX + b_SIX == a_EX + a_IX + a_SIX) {
+            DBG(<<"DIDN'T GET LOCK " << lock << " in mode " << int(mode));
+        } else  {
+            switch(mode) {
+                case EX:
+                    w_assert9((b_EX +  1) == (a_EX));
+                    break;
+                case IX:
+                    w_assert9((b_IX + 1) == (a_IX));
+                    break;
+                case SIX:
+                    w_assert9((b_SIX + 1) == (a_SIX));
+                    break;
+                default:
+                    break;
+            }
+        }
     }
-#endif /* W_DEBUG */
+#endif 
     return RCOK;
 }
-
-void
-xct_t::clear_deadlock_check_ids()
-{
-    W_COERCE(_xlist_mutex.acquire());
-    w_list_i<xct_t> i(_xlist);
-    xct_t* xd;
-    while ((xd = i.next()))  {
-	xd->lock_info()->clear_last_deadlock_check_id();
-    }
-    _xlist_mutex.release();
-}
-
 
 NORET
 sm_escalation_t::sm_escalation_t( int4_t p, int4_t s, int4_t v) 
 {
-    w_assert3(me()->xct());
+    w_assert9(me()->xct());
     me()->xct()->GetEscalationThresholds(_p, _s, _v);
     me()->xct()->SetEscalationThresholds(p, s, v);
 }
 NORET
 sm_escalation_t::~sm_escalation_t() 
 {
-    w_assert3(me()->xct());
+    w_assert9(me()->xct());
     me()->xct()->SetEscalationThresholds(_p, _s, _v);
 }
 
 
+/**\brief Set the log state for this xct/thread pair to the value \e s.
+ */
 smlevel_0::switch_t 
-xct_t::set_log_state(switch_t s, bool &) 
+xct_t::set_log_state(switch_t s) 
 {
-    switch_t old = (me()->xct_log()->xct_log_off()? OFF: ON);
-    if(s==OFF) me()->xct_log()->xct_log_off() = true;
-    else me()->xct_log()->xct_log_off() = false;
+    xct_log_t *mine = me()->xct_log();
+
+    switch_t old = (mine->xct_log_is_off()? OFF: ON);
+
+    if(s==OFF) mine->set_xct_log_off();
+
+    else mine->set_xct_log_on();
+
     return old;
 }
 
 void
-xct_t::restore_log_state(switch_t s, bool n ) 
+xct_t::restore_log_state(switch_t s) 
 {
-    (void) set_log_state(s, n);
+    (void) set_log_state(s);
 }
 
 
 tid_t
 xct_t::youngest_tid()
 {
-    // not safe
+    ASSERT_FITS_IN_LONGLONG(tid_t);
     return _nxt_tid;
 }
 
 void
 xct_t::update_youngest_tid(const tid_t &t)
 {
-    // not safe
-    if (t > _nxt_tid ) _nxt_tid = t;
+    _nxt_tid.atomic_assign_max(t);
 }
 
 
@@ -1150,33 +1193,34 @@ xct_t::force_readonly()
 
 void 
 xct_t::put_in_order() {
-    W_COERCE(_xlist_mutex.acquire());
+    W_COERCE(acquire_xlist_mutex());
     _xlist.put_in_order(this);
-    _xlist_mutex.release();
+    _oldest_tid = _xlist.last()->_tid;
+    release_xlist_mutex();
 
-#ifdef W_DEBUG
-    W_COERCE(_xlist_mutex.acquire());
+#if W_DEBUG_LEVEL > 2
+    W_COERCE(acquire_xlist_mutex());
     {
-	// make sure that _xlist is in order
-	w_list_i<xct_t> i(_xlist);
-	tid_t t = tid_t::null;
-	xct_t* xd;
-	while ((xd = i.next()))  {
-	    w_assert1(t < xd->_tid);
-	}
-	w_assert1(t <= _nxt_tid);
+        // make sure that _xlist is in order
+        w_list_i<xct_t, queue_based_lock_t> i(_xlist);
+        tid_t t = tid_t::null;
+        xct_t* xd;
+        while ((xd = i.next()))  {
+            w_assert1(t < xd->_tid);
+        }
+        w_assert1(t <= _nxt_tid);
     }
-    _xlist_mutex.release();
-#endif /*W_DEBUG*/
+    release_xlist_mutex();
+#endif 
 }
 
-void			
+void                        
 xct_t::SetEscalationThresholds(int4_t toPage, int4_t toStore, int4_t toVolume)
 {
     i_this->SetEscalationThresholds(toPage, toStore, toVolume);
 }
 
-void			
+void                        
 xct_t::GetEscalationThresholds(int4_t &toPage, int4_t &toStore, int4_t &toVolume)
 {
     i_this->GetEscalationThresholds(toPage, toStore, toVolume);
@@ -1224,7 +1268,7 @@ xct_t::last_log() const
     return i_this->last_log();
 }
 
-const gtid_t*   		
+const gtid_t*                   
 xct_t::gtid() const 
 {
     return i_this->gtid();
@@ -1254,134 +1298,69 @@ xct_t::GetEscalationThresholdsArray()
     return i_this->GetEscalationThresholdsArray();
 }
 
-w_rc_t	xct_t::acquire_xlist_mutex()
-{
-	return _xlist_mutex.acquire();
-}
-
-void	xct_t::release_xlist_mutex()
-{
-	_xlist_mutex.release();
-}
 
 void
 xct_t::dump(ostream &out) 
 {
-    W_COERCE(_xlist_mutex.acquire());
+    W_COERCE(acquire_xlist_mutex());
     out << "xct_t: "
-    	<< _xlist.num_members() << " transactions"
-	<< endl;
-    w_list_i<xct_t> i(_xlist);
+            << _xlist.num_members() << " transactions"
+        << endl;
+    w_list_i<xct_t, queue_based_lock_t> i(_xlist);
     xct_t* xd;
     while ((xd = i.next()))  {
-	out << "********************" << endl;
-	out << *xd << endl;
+        out << "********************" << endl;
+        out << *xd << endl;
     }
-    _xlist_mutex.release();
+    release_xlist_mutex();
 }
 
-void			
+void                        
 xct_t::set_timeout(timeout_in_ms t) 
 { 
     _timeout = t; 
 }
-
-#include <vtable_info.h>
-#include <sm_vtable_enum.h>
-
-#ifdef __GNUG__ 
-template class vtable_func<xct_t>;
-#endif /* __GNUG__ */
-
-int
-xct_t::collect(
-    vtable_info_array_t& v
-)
-{
-    int n=0;
-    W_COERCE(_xlist_mutex.acquire());
-    {
-	w_list_i<xct_t> i(_xlist);
-	while (i.next())  { n++; }
-    }
-
-    if(v.init(n, xct_last)) return -1;
-    vtable_func<xct_t> f(v);
-
-    {
-	w_list_i<xct_t> i(_xlist);
-	while (i.next())  { 
-	    f( *i.curr());
-	}
-    }
-    _xlist_mutex.release();
-    return 0; //no error
-}
-
-void	
-xct_t::vtable_collect(vtable_info_t &t)
-{
-    t.set_int(xct_nthreads_attr, num_threads());
-
-    if(is_extern2pc()) {
-	w_ostrstream	s;
-	s << *gtid() << ends;
-	t.set_string(xct_gtid_attr, s.c_str());
-    }
-    {
-	char *p = (char *)t[xct_state_attr];
-	w_ostrstream o(p, vtable_info_t::vtable_value_size);
-	o << state() << ends;
-    }
-
-    if(state() == xct_prepared) {
-	w_ostrstream	s;
-	s << get_coordinator() << ends;
-	t.set_string(xct_coordinator_attr, s.c_str());
-    }
-
-    t.set_string(xct_forced_readonly_attr, 
-	    (i_this->forced_readonly()?"true":"false"));
-
-    {
-	char *p = (char *)t[xct_tid_attr];
-	w_ostrstream o(p, vtable_info_t::vtable_value_size);
-	o << tid() << ends;
-    }
-}
-
-void 			
+void                         
 xct_t::num_extents_marked_for_deletion( base_stat_t &num) const
 {
     i_this->num_extents_marked_for_deletion(num);
 }
 
 w_rc_t 
-xct_log_warn_check_t::check(xct_t *& _victim) 
+xct_log_warn_check_t::check(xct_t *& /*_victim */) 
 {
-    if (me()->generate_log_warnings())  {
-	_victim = 0;
-	/* XXX this is bad, using _stats_ for active calculations of
-	   system performance!   Also note the race condition on
-	   this mentiond in a couple of XXX comments. */
-	w_base_t::base_stat_t	a = GET_STAT(log_bytes_active);
-	if( log_warn_exceed > 0
-		&& 
-	    a > w_base_t::base_stat_t(log_warn_exceed)) {
-	    if(log_warn_callback) {
-		xct_t *v = xct();
-		xct_i i;
-		w_rc_t rc = (*log_warn_callback)(&i, v,
-		    a,  w_base_t::base_stat_t(log_warn_exceed)
-		    );
-		if(rc && (rc.err_num() == eUSERABORT)) {
-		    _victim = v;
-		}
-		return rc;
-	    } else {
-		return  RC(eLOGSPACEWARN);
-	    }
-	}
+    // IP: Disabling the eLOGSPACEWARN check
+#if 0
+    if (me()->generate_log_warnings())  
+    {
+        _victim = 0;
+        smlevel_0::fileoff_t left = smlevel_1::log->check_obligation() ;
+        if( left < smlevel_0::log_warn_trigger )
+        {
+            if(log_warn_callback) {
+                xct_t *v = xct();
+                xct_i i(true);
+                w_rc_t rc = (*log_warn_callback)(
+                        &i,   // iterator
+                        v,    // victim
+                        left, // space left  
+                        smlevel_0::log_warn_trigger // threshhold
+                    );
+                if(rc.is_error() && (rc.err_num() == eUSERABORT)) {
+                    _victim = v;
+                }
+                return rc;
+            } else {
+                return  RC(eLOGSPACEWARN);
+            }
+        }
     }
+#endif
     return RCOK;
+}
+
+rc_t
+xct_t::check_one_thread_attached() const
+{
+    return i_this->check_one_thread_attached();
 }

@@ -1,6 +1,6 @@
 # <std-header style='tcl' orig-src='shore'>
 #
-#  $Id: deadlock.1,v 1.13 1999/06/07 19:05:25 kupsch Exp $
+#  $Id: deadlock.1,v 1.13.4.3 2009/11/23 22:34:44 nhall Exp $
 #
 # SHORE -- Scalable Heterogeneous Object REpository
 #
@@ -29,71 +29,92 @@
 
 #  Testing that the following scenario is NOT a deadlock.
 #
-#  {1IS, 2IX} <-- 3S
-#  {3X} <-- 1IS
+#  {t1 IS, t2 IX} <-- t3 S
+#  {t3 X} <-- t1 IS
 # 
 
 ##########  global variables  ##########
 
-set o1 "10"
-set o2 "20"
+set A "s(10.0)"
+set B "s(20.0)"
 
 proc t1 {} {
-    global o1 o2
+    global A B
     sm begin_xct
-    sm lock $o1 IS LONG
-    verbose "t1: IS granted on o1"
+    verbose "t1: requesting \"$A\" IS LONG"
+    sm lock $A IS LONG
+    verbose "t1: IS granted on A=$A"
+	verbose "t1 sync"
 sync
+	verbose "t1 sync"
 sync
-    verbose "t1: IS requested on o2"
-    sm lock $o2 IS LONG
-    verbose "t1: IS granted on o2"
+    verbose "t1: requesting \"$B\" IS LONG"
+    sm lock $B IS LONG
+    verbose "t1: IS granted on B=$B"
     sm commit_xct
 }
 
 proc t2 {} {
-    global o1 o2
+    global A B
     sm begin_xct
-    sm lock $o1 IX LONG
-    verbose "t2: IX granted on o1"
+    verbose "t2: requesting \"$A\" IX LONG"
+    sm lock $A IX LONG
+    verbose "t2: IX granted on A=$A"
+	verbose "t2 sync"
 sync
+	verbose "t2 sync"
 sync
+	verbose "t2 sync"
 sync
     sm commit_xct
-    verbose "t2: commit, release IX lock on o1"
+    verbose "t2: commit, release IX lock on A"
 }
 
 proc t3 {} {
-    global o1 o2
+    global A B
     sm begin_xct
-    sm lock $o2 EX LONG
-    verbose "t3: EX granted on o2"
+    verbose "t3: requesting \"$B\" EX LONG"
+    sm lock $B EX LONG
+    verbose "t3: EX granted on B=$B"
+	verbose "t3 sync"
 sync
+	verbose "t3 sync"
 sync
-    verbose "t3: SH requested on o1"
-    sm lock $o1 SH LONG
-    verbose "t3: SH granted on o1"
+    verbose "t3: requesting \"$A\" SH LONG"
+    sm lock $A SH LONG
+    verbose "t3: SH granted on A=$A"
     sm commit_xct
 }
 
 ##########  main  ##########
 
-    set x [fork_thread t1 {}]
-    set y [fork_thread t2 {}]
-    set z [fork_thread t3 {}]
+    set x1 [fork_thread t1 {}]
+	verbose t1 is $x1
+    set x2 [fork_thread t2 {}]
+	verbose t2 is $x2
+    set x3 [fork_thread t3 {}]
+	verbose t3 is $x3
+	yield
 
-    sync_thread $x $y $z
+	verbose "sync_thread $x1 $x2 $x3"
+    # sync_thread $x1 $x2 $x3
+    sync_thread $x1 $x2 $x3
     verbose "setup completed --- {1IS, 2IX},  {3X}"
     if {$verbose_flag}  {
-	sm dump_locks
+		sm dump_locks
     }
-    sync_thread $z 
-    sync_thread $x
-    sync_thread $y
-    sync_thread $y
-    join_thread $x $y $z
+	verbose "sync_thread $x3"
+    sync_thread $x3 
+	verbose "sync_thread $x1"
+    sync_thread $x1
+	verbose "sync_thread $x2"
+    sync_thread $x2
+	verbose "sync_thread $x2"
+    sync_thread $x2
+	verbose "sync_thread $x1 $x2 $x3"
+    join_thread $x1 $x2 $x3
 verbose "SUCCESS"
 
-unset o1 o2
-unset x y z
+unset A B
+unset x1 x2 x3
 

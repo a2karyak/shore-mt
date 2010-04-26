@@ -1,6 +1,6 @@
 # <std-header style='tcl' orig-src='shore'>
 #
-#  $Id: btree.4,v 1.21 1999/06/07 19:05:14 kupsch Exp $
+#  $Id: btree.4,v 1.21.4.1 2010/01/12 02:02:00 nhall Exp $
 #
 # SHORE -- Scalable Heterogeneous Object REpository
 #
@@ -37,6 +37,7 @@
 source $script_dir/vol.init
 
 
+
 set nrec 120
 # set nrec 70
 
@@ -44,6 +45,7 @@ set nrec 120
 # create index and load it up 
 #
 sm begin_xct
+verbose [sm xct_to_tid [sm xct]]
 set ndx [sm create_index $volid uni_btree]
 verbose created index $ndx
 
@@ -61,6 +63,7 @@ if {$logging==0} {
 }
 
 sm begin_xct
+verbose [sm xct_to_tid [sm xct]]
 set ndx [sm create_index $volid uni_btree]
 verbose created index $ndx
 for {set i 1} {$i <= $nrec} {incr i} {
@@ -75,6 +78,7 @@ sm commit_xct
 # attempt reinsert
 #
 sm begin_xct
+verbose [sm xct_to_tid [sm xct]]
 verbose reinserting $nrec records --- should get $nrec duplicate errors
 set ecaught 0
 for {set i 1} {$i <= $nrec} {incr i} {
@@ -97,6 +101,7 @@ sm commit_xct
 
 verbose "scan up:"
 sm begin_xct
+verbose [sm xct_to_tid [sm xct]]
 set scan [sm create_scan $ndx >= neg_inf <= pos_inf]
 for {set i 1} {$i <= $nrec} {incr i}  {
     set r [sm scan_next $scan]
@@ -125,6 +130,7 @@ verbose "---- successful"
 sm commit_xct
 
 sm begin_xct
+verbose [sm xct_to_tid [sm xct]]
 sm destroy_index $ndx
 sm commit_xct
 verbose [sm gather_stats]

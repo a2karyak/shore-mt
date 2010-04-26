@@ -1,6 +1,6 @@
 # <std-header style='shell' orig-src='shore'>
 #
-#  $Id: .shoreconfig.example,v 1.16 2007/05/18 21:50:57 nhall Exp $
+#  $Id: .shoreconfig.example,v 1.16.2.6 2010/03/19 22:20:30 nhall Exp $
 #
 # SHORE -- Scalable Heterogeneous Object REpository
 #
@@ -50,10 +50,6 @@
 # STORAGE MANAGER OPTIONS
 #
 
-# Specify the log directory for all server programs
-*.server.*.sm_logging: yes
-
-#
 # if you want your log to be on a different device,
 # change sm_logdir or make log a link somewhere into
 # the desired device
@@ -64,19 +60,25 @@
 *.server.*.sm_reformat_log: no
 
 # Need 100000 to get through the scripts with 32KB pages
-*.server.*.sm_logsize: 100000
+#
+# For the large record scripts in smsh, with volume size 150000(KB)
+# and with 45%-full log warn we need about 9 GB log.
+*.server.*.sm_logsize: 9000000
 
 # Specify the sm buffer pool size for any program
 # 400 pages, or 3.2 meg:
 *.server.*.sm_bufpoolsize: 3200
 
-# diskrw process ...
-# Making this relative assumes that we have a symbolic
-# link from . to wherever it's installed:
-*.server.*.sm_diskrw: ../../sthread/diskrw
-#
 # Warn VAS when log is this % full -- set low for testing purposes
 *.server.*.sm_log_warn: 45
+
+# Number of page writers. Should be at least as many as you have spindles.
+# Should benefit from some parallelism even if you don't have multiple
+# spindles.
+*.server.*.sm_num_page_writers: 2
+
+# set the logging level for the error log to info
+*.server.*.sm_errlog_level: info
 
 #
 # SSH OPTIONS

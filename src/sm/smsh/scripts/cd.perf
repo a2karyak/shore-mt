@@ -1,6 +1,6 @@
 # <std-header style='tcl' orig-src='shore'>
 #
-#  $Id: cd.perf,v 1.9 2006/06/01 17:09:40 nhall Exp $
+#  $Id: cd.perf,v 1.9.2.3 2010/01/28 04:54:34 nhall Exp $
 #
 # SHORE -- Scalable Heterogeneous Object REpository
 #
@@ -69,18 +69,20 @@ set fid 0
 
 sm begin_xct
     if {$fid!=0} {
-	sm destroy_file $fid 
-	set fid 0
+		verbose destroy file $fid
+		sm destroy_file $fid 
+		set fid 0
     }
 
     # Now, start over and time it
     set fid [sm create_file $volid ]
-    echo fid=$fid
+    verbose created fid=$fid
 sm commit_xct
 
+verbose checkpoint
 sm checkpoint
 
-echo CREATING $nobjs RECS of size $objsize
+verbose CREATING $nobjs RECS of size $objsize
 
 set i 0
 
@@ -93,12 +95,15 @@ set wtime [ time {
 	sm force_buffers true
 } 1 ]
 
-echo CREATED $nobjs RECS of size $objsize, forced buffers
+verbose CREATED $nobjs RECS of size $objsize, forced buffers
 echo total create time = $wtime
+
 set dummy [sm gather_stats reset]
-echo [pnzstats $dummy]
+verbose [pnzstats $dummy]
 set dummy [sm gather_xct_stats reset]
-echo [pnzstats $dummy]
+verbose [pnzstats $dummy]
+
+verbose committing
 sm commit_xct
 
 # scan the file to gather the rids
@@ -120,15 +125,16 @@ set wtime [ time {
 } 1 ]
 assert {expr $nobjs == $i}
 
-echo SCANNED $nobjs RECS of size $objsize
+verbose SCANNED $nobjs RECS of size $objsize
 sm commit_xct
 
 
-echo forcing buffers again
+verbose forcing buffers again
 sm force_buffers true
+verbose checkpoint 
 sm checkpoint
 
-echo destroying forward
+verbose destroying forward
 
 sm begin_xct
 set dummy [sm gather_stats reset]
@@ -138,22 +144,23 @@ set wtime [ time {
 	}
 	sm force_buffers true
 } 1 ]
-echo
 
-echo DESTROYED FWD $nobjs RECS of size $objsize, forced buffers
+verbose DESTROYED FWD $nobjs RECS of size $objsize, forced buffers
 echo total destroy time = $wtime
 set dummy [sm gather_stats reset]
-echo [pnzstats $dummy]
+verbose [pnzstats $dummy]
 set dummy [sm gather_xct_stats reset]
-echo [pnzstats $dummy]
+verbose [pnzstats $dummy]
 
+verbose aborting FWD DESTROY...
 sm abort_xct
 
-echo forcing buffers again
+verbose forcing buffers again
 sm force_buffers true
+verbose checkpoint
 sm checkpoint
 
-echo destroying backward 
+verbose destroying backward 
 
 sm begin_xct
 set dummy [sm gather_stats reset]
@@ -163,16 +170,23 @@ set wtime [ time {
 	}
 	sm force_buffers true
 } 1 ]
-echo
+verbose
 
-echo DESTROYED BWD $nobjs RECS of size $objsize, forced buffers
+verbose DESTROYED BWD $nobjs RECS of size $objsize, forced buffers
 echo total destroy time = $wtime
 set dummy [sm gather_stats reset]
-echo [pnzstats $dummy]
+verbose [pnzstats $dummy]
 set dummy [sm gather_xct_stats reset]
-echo [pnzstats $dummy]
+verbose [pnzstats $dummy]
 
+verbose aborting BWD DESTROY...
 sm abort_xct
+
+set pick 1
+set pin 1
+set pin 1
+set scan 1
+set save 1
 
 # pseudo-randomly swap the list of objects
 for {set i 0} {$i < $nobjs} {incr i} {
@@ -181,11 +195,12 @@ for {set i 0} {$i < $nobjs} {incr i} {
     set r($i) $r($pick)
     set r($pick) $save
 }
-echo forcing buffers again
+verbose forcing buffers again
 sm force_buffers true
+verbose checkpoint
 sm checkpoint
 
-echo destroying randomly 
+verbose destroying randomly 
 
 sm begin_xct
 set dummy [sm gather_stats reset]
@@ -195,17 +210,28 @@ set wtime [ time {
 	}
 	sm force_buffers true
 } 1 ]
-echo
+verbose
 
-echo DESTROYED RANDOMLY $nobjs RECS of size $objsize, forced buffers
+verbose DESTROYED RANDOMLY $nobjs RECS of size $objsize, forced buffers
 echo total destroy time = $wtime
 set dummy [sm gather_stats reset]
-echo [pnzstats $dummy]
+verbose [pnzstats $dummy]
 set dummy [sm gather_xct_stats reset]
-echo [pnzstats $dummy]
+verbose [pnzstats $dummy]
+
+verbose committing RANDOM DESTROY ...
 sm commit_xct
 
-unset r wtime dummy fid i body hdr
+sm begin_xct
+    if {$fid!=0} {
+	    verbose destroying $fid
+		sm destroy_file $fid 
+		set fid 0
+    }
+sm commit_xct
 
-echo shutting down
+unset r wtime dummy fid i body hdr pick pin scan save
+unset hundred ten npages nobjs objsize
+
+verbose done.
 

@@ -1,6 +1,30 @@
+/* -*- mode:C++; c-basic-offset:4 -*-
+     Shore-MT -- Multi-threaded port of the SHORE storage manager
+   
+                       Copyright (c) 2007-2009
+      Data Intensive Applications and Systems Labaratory (DIAS)
+               Ecole Polytechnique Federale de Lausanne
+   
+                         All Rights Reserved.
+   
+   Permission to use, copy, modify and distribute this software and
+   its documentation is hereby granted, provided that both the
+   copyright notice and this permission notice appear in all copies of
+   the software, derivative works or modified versions, and any
+   portions thereof, and that both notices appear in supporting
+   documentation.
+   
+   This code is distributed in the hope that it will be useful, but
+   WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. THE AUTHORS
+   DISCLAIM ANY LIABILITY OF ANY KIND FOR ANY DAMAGES WHATSOEVER
+   RESULTING FROM THE USE OF THIS SOFTWARE.
+*/
+
+// -*- mode:c++; c-basic-offset:4 -*-
 /*<std-header orig-src='shore' incl-file-exclusion='TID_T_H'>
 
- $Id: tid_t.h,v 1.66 2007/05/18 21:33:42 nhall Exp $
+ $Id: tid_t.h,v 1.66.2.7 2010/03/19 22:19:19 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -34,63 +58,84 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 
 /*  -- do not edit anything above this line --   </std-header>*/
 
-#if defined(AIX41) || defined(HPUX8)
-/* XXX this is a giant hack because our transaction id, tid_t conflicts
-   with the 'tid_t' thread ID that AIX and later HPUX added to the system
-   header files.   This is a giant kludge, and it replaces the previous
-   giant aix_tid_t.h kludge ... since that source was horribly out of date.
-   Note there is a hack or two concerning this in the SM.  */
-
-#define	tid_t	w_tid_t
-#endif
+#include "atomic_templates.h"
 
 #ifdef __GNUG__
 #pragma interface
 #endif
 
+/**\brief Transaction ID
+ *
+ * \ingroup IDs
+ * \details
+ * Transaction IDs are 64-bit quantities.
+ * They can be constructed of and used as a pair
+ * of two 32-bit value, the high and low parts,
+ * or they can be constructed from a single 64-bit value.
+ *
+ * \note The two-part nature comes from the days before 64-bit architectures,
+ * and it's retained for the purpose of printing transaction ids.
+ * They are output in the form "hi.low", which is more readable than
+ * printing as a 64-bit value.  
+ * In no other way need we maintain high and low parts.
+ */
 class tid_t {
 public:
+    typedef w_base_t::uint8_t datum_t;
     enum { hwm = max_uint4 };
 
-    tid_t(uint4_t l = 0, uint4_t h = 0) : hi(h), lo(l)             {};
-    tid_t(const tid_t& t) : hi(t.hi), lo(t.lo)  {};
+    tid_t() : _data(0) { }
+    tid_t(uint4_t l, uint4_t h) : _data( (((datum_t) h) << 32) | l ) { }
+    tid_t(datum_t x) : _data(x) { }
 
-    uint4_t get_hi() const { return hi; }
-    uint4_t get_lo() const { return lo; }
+    uint4_t get_hi() const { return (uint4_t) (_data >> 32); }
+    uint4_t get_lo() const { return (uint4_t) _data; }
 
     tid_t& operator=(const tid_t& t)    {
-        lo = t.lo, hi = t.hi;
+        _data = t._data;
         return *this;
     }
 
-    operator const bool() const  { 
-	return (hi == 0 && lo == 0); 
-    }
+    bool invalid() const { return _data == 0; }
 
-    tid_t& incr()       {
-	if (++lo > uint4_t(hwm)) ++hi, lo = 0;
+    datum_t atomic_incr() {
+    // GNATS 59: make this atomic
+        return atomic_add_nv(_data, 1);
+    }
+    tid_t &atomic_assign_max(const tid_t &tid) {
+        datum_t old_value = _data;
+        while(tid._data > old_value) {
+            datum_t cur_value = atomic_cas_64(&_data, old_value, tid._data);
+            old_value = cur_value;
+        }
+        return *this;
+    }
+    tid_t &atomic_assign_min(const tid_t &tid) {
+        datum_t old_value = _data;
+        while(tid._data < old_value) {
+            datum_t cur_value = atomic_cas_64(&_data, old_value, tid._data);
+            old_value = cur_value;
+        }
         return *this;
     }
 
-    friend inline ostream& operator<<(ostream&, const tid_t&);
-    friend inline istream& operator>>(istream& i, tid_t& t);
     inline bool operator==(const tid_t& tid) const  {
-	return this->hi == tid.hi && this->lo == tid.lo;
+        return _data == tid._data;
     }
     inline bool operator!=(const tid_t& tid) const  {
-	return !(*this == tid);
+        return !(*this == tid);
     }
     inline bool operator<(const tid_t& tid) const  {
-	return (this->hi < tid.hi) || (this->hi == tid.hi && this->lo < tid.lo);
+        return _data < tid._data;
     }
     inline bool operator<=(const tid_t& tid) const  {
-	return !(tid < *this);
+        return !(tid < *this);
     }
     inline bool operator>(const tid_t& tid) const  {
-	return (tid < *this);
+        return (tid < *this);
     }
     inline bool operator>=(const tid_t& tid) const  {
-	return !(*this < tid);
+        return !(*this < tid);
     }
 
     static const tid_t Max;
@@ -98,8 +143,7 @@ public:
 
 private:
 
-    uint4_t       hi;
-    uint4_t       lo;
+    datum_t        _data;
 };
 
 
@@ -109,15 +153,15 @@ private:
    fair amount of problems, and it might be time to rethink the
    issue a bit. */
 #ifdef COMMON_GTID_LENGTH
-#define max_gtid_len	COMMON_GTID_LENGTH
+#define max_gtid_len        COMMON_GTID_LENGTH
 #else
-#define max_gtid_len  40
+#define max_gtid_len  96
 #endif
 
 #ifdef COMMON_SERVER_HANDLE_LENGTH
 #define max_server_handle_len  COMMON_SERVER_HANDLE_LENGTH
 #else
-#define max_server_handle_len  100
+#define max_server_handle_len  96
 #endif
 
 
@@ -125,13 +169,16 @@ private:
 
 inline ostream& operator<<(ostream& o, const tid_t& t)
 {
-    return o << t.hi << '.' << t.lo;
+    return o << t.get_hi() << '.' << t.get_lo();
 }
 
 inline istream& operator>>(istream& i, tid_t& t)
 {
     char ch;
-    return i >> t.hi >> ch >> t.lo;
+    uint4_t h, l;
+    i >> h >> ch >> l;
+    t = tid_t(l,h);
+    return i;
 }
 
 

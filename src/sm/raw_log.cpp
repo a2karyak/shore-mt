@@ -1,6 +1,29 @@
+/* -*- mode:C++; c-basic-offset:4 -*-
+     Shore-MT -- Multi-threaded port of the SHORE storage manager
+   
+                       Copyright (c) 2007-2009
+      Data Intensive Applications and Systems Labaratory (DIAS)
+               Ecole Polytechnique Federale de Lausanne
+   
+                         All Rights Reserved.
+   
+   Permission to use, copy, modify and distribute this software and
+   its documentation is hereby granted, provided that both the
+   copyright notice and this permission notice appear in all copies of
+   the software, derivative works or modified versions, and any
+   portions thereof, and that both notices appear in supporting
+   documentation.
+   
+   This code is distributed in the hope that it will be useful, but
+   WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. THE AUTHORS
+   DISCLAIM ANY LIABILITY OF ANY KIND FOR ANY DAMAGES WHATSOEVER
+   RESULTING FROM THE USE OF THIS SOFTWARE.
+*/
+
 /*<std-header orig-src='shore'>
 
- $Id: raw_log.cpp,v 1.56 2006/03/14 05:31:26 bolo Exp $
+ $Id: raw_log.cpp,v 1.56.2.7 2010/03/25 18:05:14 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -47,10 +70,21 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 
 #include <w_strstream.h>
 
-int		raw_log::_fhdl_rd = invalid_fhdl;
-int		raw_log::_fhdl_app = invalid_fhdl;
+int                raw_log::_fhdl_rd = invalid_fhdl;
+int                raw_log::_fhdl_app = invalid_fhdl;
 
 
+__thread queue_based_lock_t::ext_qnode raw_log_me_node;
+void                
+raw_log::acquire_partition_mutex() const {
+    _partition_mutex.acquire(&raw_log_me_node);
+}
+
+void             
+raw_log::partition_lock_t::release() { 
+    _log->_partition_mutex.release(raw_log_me_node);
+    dont_release(); 
+}
 /*********************************************************************
  * 
  *  raw_log::_make_master_name(master_lsn, min_chkpt_rec_lsn, buf, bufsz)
@@ -60,14 +94,14 @@ int		raw_log::_fhdl_app = invalid_fhdl;
  *********************************************************************/
 void
 raw_log::_make_master_name(
-    const lsn_t& 	master_lsn, 
-    const lsn_t&	min_chkpt_rec_lsn,
-    char* 		_buf,
-    int			_bufsz)
+    const lsn_t&         master_lsn, 
+    const lsn_t&        min_chkpt_rec_lsn,
+    char*                 buf,
+    int                        _bufsz)
 {
     FUNC(raw_log::_make_master_name);
-    w_ostrstream s(_buf, (int) _bufsz);
-    lsn_t 	array[max_open_log];
+    w_ostrstream s(buf, (int) _bufsz);
+    lsn_t         array[PARTITION_COUNT];
     array[0] = master_lsn;
     array[1] = min_chkpt_rec_lsn;
     create_master_chkpt_string(s, 2, array);
@@ -78,32 +112,14 @@ raw_log::_make_master_name(
     s << "X"; // delimiter
 
     int j=0;
-    for(int i=0; i < max_open_log; i++) {
-	const partition_t *p = this->i_partition(i);
-	if(p->num() > 0 && (p->last_skip_lsn().hi() == p->num())) {
-	    array[j++] = p->last_skip_lsn();
-	}
+    for(int i=0; i < PARTITION_COUNT; i++) {
+        const partition_t *p = this->i_partition(i);
+        if(p->num() > 0 && (p->last_skip_lsn().hi() == p->num())) {
+            array[j++] = p->last_skip_lsn();
+        }
     }
     create_master_chkpt_contents(s, j, array);
     w_assert1(s);
-}
-
-
-w_rc_t	raw_log::new_raw_log(raw_log	*&the_log,
-			     const char	*logdir, 
-			     int	rdbufsize,
-			     int	wrbufsize,
-			     char	*shmbase,
-			     bool	reformat) 
-{
-	raw_log	*log;
-
-	log = new raw_log(logdir, rdbufsize, wrbufsize, shmbase, reformat);
-	if (!log)
-		return RC(fcOUTOFMEMORY);
-
-	the_log = log;
-	return RCOK;
 }
 
 
@@ -120,418 +136,17 @@ w_rc_t	raw_log::new_raw_log(raw_log	*&the_log,
 
 NORET
 raw_log::raw_log(
-	const char* logdir, 
-	int	 rdbufsize, 
-	int	 wrbufsize,
-	char *shmbase,
-	bool reformat
+        const char* /*logdir*/, 
+        int         wrbufsize,
+        char *shmbase,
+        bool /* reformat*/
 ) 
-: srv_log(rdbufsize, wrbufsize, shmbase),
-  _dev_bsize(DEV_BSIZE)	/* unix-ish default, could be 0 */
+: srv_log(wrbufsize, shmbase),
+  _dev_bsize(DEV_BSIZE)        /* unix-ish default, could be 0 */
 {
     FUNC(raw_log::raw_log);
 
-    /* 
-     * make sure there's room for the log name
-     */
-    w_assert1(strlen(logdir) < sizeof(_logdir));
-    strcpy(_logdir, logdir);
-
-
-    fileoff_t raw_size = 0;
-    {
-	w_rc_t e1, e2;    
-	/* 
-	 * open the files
-	 *
-	 * Open for I/O; don't truncate them ... the
-	 * file is a raw device and better exist!
-	 */
-	/* XXX keep it open to fetch the geometry info */
-	int lflag = smthread_t::OPEN_KEEP;
-
-	/* XXX local I/O ? */
-	char *s = getenv("SM_LOG_LOCAL");
-	if (s && atoi(s))
-		lflag |= smthread_t::OPEN_LOCAL;
-
-	s = getenv("SM_LOG_RAW_RAW");
-	if (s && atoi(s) > 0)
-		lflag |= smthread_t::OPEN_RAW;
-
-	e1 = me()->open(logdir, lflag | smthread_t::OPEN_RDONLY, 0, _fhdl_rd);
-	e2 = me()->open(logdir, lflag | smthread_t::OPEN_RDWR | smthread_t::OPEN_SYNC, 0, _fhdl_app);
-
-	if (e1) {
-	    smlevel_0::errlog->clog << error_prio 
-		<< "ERROR: cannot open log file for read." << flushl;
-	    W_COERCE(e1);
-	}
-	if (e2) {
-	    smlevel_0::errlog->clog << error_prio 
-		<< "ERROR: cannot open log file for append." << flushl;
-	    W_COERCE(e2);
-	}
-
-	DBG(<<"Files opened");
-        w_rc_t e;
-
-	if (_shared->_max_logsz != 0)  {
-	    raw_size = _shared->_max_logsz * max_open_log;
-
-		/* Allow testing of raw log code on files, get
-		   parameters for underlying device. */
-		smthread_t::filestat_t	st;
-		w_rc_t			e;
-
-		e = smthread_t::fstat(_fhdl_app, st);
-		if (e == RCOK && st.is_file) {
-			e = smthread_t::ftruncate(_fhdl_app, raw_size);
-			W_IGNORE(e);
-			_dev_bsize = DEV_BSIZE;	/* XXX st.st_whatever */
-		}
-		else if (e == RCOK && st.is_device) {
-			smthread_t::disk_geometry_t	dg;
-			e = smthread_t::fgetgeometry(_fhdl_app, dg);
-			if (e == RCOK)
-				_dev_bsize = dg.block_size;
-			else
-				_dev_bsize = DEV_BSIZE;	/* XXX */
-			/* could check for raw_size not fitting on device,
-			  instead of seek tests later. */
-		}
-		/* fundamental assumption of log code */
-	        w_assert1(CHKPT_META_BUF == _dev_bsize);
-
-	    if (reformat)  {
-		/*
-		 * Make an even multiple of the device block size 
-		 * so write works on raw device
-		 */
-	        raw_size /= _dev_bsize;
-	        raw_size *= _dev_bsize;
-    
-	        // check to see if we can read and write the last DEV_BSIZE bytes of the log
-		fileoff_t where = raw_size - _dev_bsize;
-	        e = me()->lseek(_fhdl_app, where, sthread_t::SEEK_AT_SET);
-		if (e) {
-		    cerr << "Bad value for sm_logsize option.  "
-			<< "Cannot seek to last block." << endl;
-		    W_COERCE(e);
-	        }
-
-		/* Use the readbuffer for validating the log size */
-		w_assert1((unsigned)rdbufsize >= _dev_bsize);
-
-		/* XXX non-shm I/O */
-		e = me()->read(_fhdl_app, _readbuf, _dev_bsize);
-		if (e) {
-			/* its not really an OS error, rather a user error */
-			cerr << "Bad value for sm_logsize option, cannot read last block.";
-			cerr << endl << e << endl;
-			W_COERCE(e);
-	        }
-    
-	        e = me()->write(_fhdl_app, _readbuf, _dev_bsize);
-		if (e) {
-			/* its not really an OS error, rather a user error */
-			cerr << "Bad value for sm_logsize option, cannot write last block.";
-			cerr << endl << e << endl;
-			W_COERCE(e);
-	        }
-	    }
-	}  else  {
-	    sthread_base_t::disk_geometry_t dg;
-	    e = me()->fgetgeometry(_fhdl_rd, dg);
-	    /* XXX no way to report errors from the constructor */
-	    W_COERCE(e);
-
-	    raw_size = dg.blocks * dg.block_size;
-
-	    _dev_bsize = dg.block_size;
-	    w_assert1(CHKPT_META_BUF == _dev_bsize);
-
-	    cout << "raw log device has " << raw_size << " bytes ("
-	    	<< dg.blocks << " blocks, "
-		<< dg.block_size << " bytes/block)" << endl;
-	}
-	DBG(<< "using a raw partition of size " << raw_size << " bytes.");
-    }
-
-    /* 
-     * use the raw size computed above either from the sm_logsize configuration
-     * option or the the size of the raw partition.
-     */
-    fileoff_t	size  = raw_size - CHKPT_META_BUF;
-    fileoff_t	used  = CHKPT_META_BUF;  
-    size /= max_open_log;
-    size /= XFERSIZE;
-    size *= XFERSIZE;
-
-    // set the _max_logsz to the computed size of the partition since other parts
-    // of the code depend on this being set correctly.  also set _maxLogDataSize
-    // and chkpt_displacement since these also need adjustments in the raw case.
-
-    _shared->_max_logsz = size;
-    skip_log *s = new skip_log;
-    _shared->_maxLogDataSize = size - s->length();
-    delete s;
-    smlevel_0::chkpt_displacement = MIN(size/2, 1024*1024);
-
-    {
-	const char *s = getenv("SM_LOG_RAW_CHKPT");
-	if (s && *s && atoi(s) > 0)
-	    smlevel_0::chkpt_displacement = MIN(size/2, atoi(s) * 1024);
-    }
-
-    // partition size needs to be at least 64KB
-    w_assert1(size >= 64*1024);
-
-    w_assert1(size > (int) sizeof(logrec_t));
-
-
-    /* Create a list of lsns for the partitions - this
-     * will be used to store any hints about the last
-     * lsns of the partitions (stored with checkpoint meta-info
-     */ 
-    lsn_t  lsnlist[max_open_log];
-    int    listlength = 0;
-    {
-	DBG(<<"initialize part tbl, part size =" << size);
-	w_assert1((size / XFERSIZE)*XFERSIZE == size);
-	/*
-	 *  initialize partition table
-	 */
-	partition_index_t i;
-	for (i = 0; i < max_open_log; i++)  {
-	    _part[i]._init(this);
-	    _part[i].init_index(i);
-
-	    _part[i]._start = used;
-	    _part[i].set_size(partition_t::nosize);
-
-	    used += size;
-	    _part[i]._eop = used;
-	}
-
-#ifdef dont_do_this
-	/*
-	 * Extend the last partition if possible.
-	 * It could be extended as much as (7 * XFERSIZE)
-	 */
-    /**** DON'T DO THIS: parts of the code depend on uniform partition sizes */
-	{
-	    smsize_t left = raw_size - used;
-	    if( left >= XFERSIZE ) {
-		left /= XFERSIZE;
-		DBG( " extending last partition by " << left <<" chunks" );
-		left *= XFERSIZE;
-
-		size += left;
-		used += left;
-
-		w_assert3( raw_size - used < XFERSIZE ); 
-		w_assert3( used == left + _part[max_open_log -1]._eop);
-
-		_part[max_open_log -1]._eop = used;
-	    }
-	}
-#endif /*dont_do_this*/
-    }
-
-
-    /*
-     *  get ready to scan file for master lsn 
-     */
-    _shared->_master_lsn = 
-	_shared->_min_chkpt_rec_lsn = 
-	_shared->_curr_lsn = 
-	_shared->_durable_lsn = null_lsn;  // set_durable(...)
-
-    if(reformat) {
-	smlevel_0::errlog->clog << error_prio 
-	    << "Reformatting raw log..." << flushl;
-	int i;
-	for (i=0; i < max_open_log; i++)  {
-	    _part[i].destroy();
-	}
-    } else { 
-	smlevel_0::errlog->clog << error_prio 
-	    << "Recovering log..." << flushl;
-	/* 
-	 * find last checkpoint  
-	 */
-	_read_master(_shared->_master_lsn, 
-		_shared->_min_chkpt_rec_lsn,
-		lsnlist, listlength
-		);
-
-	smlevel_0::errlog->clog << error_prio 
-	    << "Master checkpoint at ..." 
-	    << _shared->_master_lsn
-	    << flushl;
-    }
-    DBG(<<"master=" << _shared->_master_lsn
-        <<"min chkpt rec lsn=" << _shared->_min_chkpt_rec_lsn
-    );
-
-    /*
-     *  Destroy all partitions less than _min_chkpt_rec_lsn
-     *  Open the rest and close them.
-     *  In order to find out what index a partition has,
-     *  we have to peek at the first record in it.
-     *  Determine the last partition that exists.
-     */
-
-    partition_number_t 	last_partition = 0;
-    bool                last_partition_exists = false;
-    fileoff_t 		offset = 0;
-
-    last_partition = 1;
-    if(reformat) {
-	offset = 0;
-	_shared->_curr_lsn = 
-	_shared->_durable_lsn = log_base::first_lsn(0);  // set_durable(...)
-	// last_partition_exists = false;
-    } else {
-	raw_partition 	*p;
-	int i;
-
-
-	for (i=0; i < max_open_log; i++)  {
-	    p = &_part[i];
-
-	    DBG(<<"constructor: peeking at partition# " << i);
-
-	    // Find out if there's a hint about the length of the 
-	    // partition (from the checkpoint).  This lsn serves as a
-	    // starting point from which to search for the skip_log record
-	    // in the file.  It's a performance thing...
-	    lsn_t lasthint;
-	    for(int q=0; q<listlength; q++) {
-		if(lsnlist[q].hi() == p->num()) {
-		    lasthint = lsnlist[q];
-		}
-	    }
-		
-	    p->peek(0, lasthint, true);
-
-	    if(p->num() >= last_partition) {
-		DBG(<<"new last_partition: partition# " << i);
-		last_partition = p->num();
-	        last_partition_exists = true;
-		offset = p->size();
-	    }
-	    if (p->num() > 0)  {
-	        if (p->num() < _shared->_min_chkpt_rec_lsn.hi())  {
-		    DBG(<<"destroying partition# " << i);
-		    p->destroy();
-	        }
-		else  {
-		    p->open_for_read(p->num(), true);
-		}
-	    }
-	    unset_current();
-	}
-	w_assert1(offset != partition_t::nosize);
-	/* TODO : remove
-	// _shared->_curr_lsn = 
-	// _shared->_durable_lsn =  // set_durable(...)
-        // 	lsn_t(uint4_t(last_partition), offset);
-	*/
-
-    }
-    /*
-     *  current and durable lsn are now initialized
-     *  for  the purpose of sanity checks in open*()
-     */
-
-    _shared->_curr_lsn = 
-    _shared->_durable_lsn = // set_durable(...)
-	lsn_t(uint4_t(last_partition), sm_diskaddr_t(offset));
-
-
-    DBG(<< "reformat   = " << reformat
-	<<" curr_lsn   = " << _shared->_curr_lsn
-        <<" durable lsn= " << _shared->_durable_lsn
-    );
-
-    {
-	/*
-	 *  open the "current" partition
-	 */
-
-	DBG(<<" opening last_partition " << last_partition
-		<< " expected-to-exist " << last_partition_exists
-	    );
-	lsn_t lasthint;
-	for(int q=0; q<listlength; q++) {
-	    if(lsnlist[q].hi() == last_partition) {
-		lasthint = lsnlist[q];
-	    }
-	}
-	partition_t *p = open(last_partition, 
-		lasthint, last_partition_exists, true, true);
-	/* XXXX error info lost */
-	if(!p) {
-	    smlevel_0::errlog->clog << error_prio 
-	    << "ERROR: could not open log file for partition "
-	    << last_partition << flushl;
-	    W_FATAL(eINTERNAL);
-	}
-
-	w_assert3(p->num() == last_partition);
-	w_assert3(partition_num() == last_partition);
-	w_assert3(partition_index() == p->index());
-
-#ifdef W_DEBUG
-	{
-	raw_partition *r = (raw_partition *)p;
-	fileoff_t eof = r->size();
-	w_assert1(eof != partition_t::nosize);
-	w_assert3(last_partition == durable_lsn().hi());
-	w_assert3(last_partition == curr_lsn().hi());
-	w_assert3(eof == durable_lsn().lo());
-	w_assert3(eof == curr_lsn().lo());
-	}
-#endif /* W_DEBUG */
-    }
-    DBG( << "partition num = " << partition_num()
-	    <<" current_lsn " << curr_lsn()
-	    <<" durable_lsn " << durable_lsn());
-
-    compute_space(); // does a sanity check
-    w_assert3(curr_lsn() != lsn_t::null);
-
-
-
-#ifdef W_DEBUG
-    DBG(<<"************************");
-    partition_t *p;
-    for (uint i = 0; i < max_open_log; i++)  {
-	DBG(<<"Partition " << i );
-	p = i_partition(i);
-	if( p->exists() ) {
-	    DBG( << " EXISTS ");
-	    DBG( << " NUM " << p->num());
-	    DBG( << " size " << p->size());
-	}
-	if( p->is_open_for_read() ) {
-	    DBG( << " OPEN-READ ");
-	}
-	if( p->is_open_for_append() ) {
-	    DBG( << " OPEN-APP ");
-	}
-	if( p->flushed() ) {
-	    DBG( << " FLUSHED ");
-	}
-	if( p->is_current() ) {
-	    DBG( << " CURRENT ");
-	}
-    }
-#endif /* W_DEBUG */
-
-    smlevel_0::errlog->clog << error_prio << endl<< "Log recovered." << flushl;
+    W_FATAL_MSG(eINTERNAL, << "Raw Log is not supported");
 }
 
 
@@ -549,18 +164,18 @@ raw_log::~raw_log()
 
     w_rc_t e;
     if (_fhdl_rd != invalid_fhdl)  {
-	e = me()->close(_fhdl_rd);
-	if (e) {
-		cerr << "warning: raw_log on close(rd):" << endl << e << endl;
-	}
-	_fhdl_rd = invalid_fhdl;
+                e = me()->close(_fhdl_rd);
+                if (e.is_error()) {
+                        cerr << "warning: raw_log on close(rd):" << endl << e << endl;
+                }
+                _fhdl_rd = invalid_fhdl;
     }
     if (_fhdl_app != invalid_fhdl)  {
-	e = me()->close(_fhdl_app);
-	if (e) {
-		cerr << "warning: raw log on close(app):" << endl << e << endl;
-	}
-	_fhdl_app = invalid_fhdl;
+                e = me()->close(_fhdl_app);
+                if (e.is_error()) {
+                        cerr << "warning: raw log on close(app):" << endl << e << endl;
+                }
+                _fhdl_app = invalid_fhdl;
     }
 }
 
@@ -571,6 +186,7 @@ raw_log::i_partition(partition_index_t i) const
     return i<0 ? (partition_t *)0: (partition_t *) &_part[i];
 }
 
+// MUTEX: partition
 void
 raw_log::_read_master(
     lsn_t& l,
@@ -593,79 +209,63 @@ raw_log::_read_master(
     DBG(<<"read_master seeking to " << 0);
     
     w_rc_t e;
-    e = me()->lseek(fd, 0, sthread_t::SEEK_AT_SET);
-    if (e) {
-	smlevel_0::errlog->clog << error_prio 
-	    << "ERROR: could not seek to 0 to read checkpoint: "
-	    << flushl;
-	W_COERCE(e);
-    }
-
-    e = me()->read(fd, readbuf(), CHKPT_META_BUF);
-    if (e) {
-	smlevel_0::errlog->clog << error_prio 
-	    << "ERROR: could not read checkpoint: "
-	    << flushl;
-	W_COERCE(e);
+    e = me()->pread(fd, readbuf(), CHKPT_META_BUF, 0);
+    if (e.is_error()) {
+        smlevel_0::errlog->clog << error_prio 
+            << "ERROR: could not read checkpoint: "
+            << flushl;
+        W_COERCE(e);
     } 
     /*
      * Locate the separator 
      */
     char *REST=0, *c = readbuf();
     for(int i=0; i < CHKPT_META_BUF; i++) {
-	if( *(c+i) == 'X') {
-	    // replace with a null char
-	    *(c+i) = '\0';
-	    i++;
-	    REST = (c + i);
-	    DBG(<<"Located X separator - prior buf is " << c
-		<< " REST = " << REST);
-	    break;
-	}
+        if( *(c+i) == 'X') {
+            // replace with a null char
+            *(c+i) = '\0';
+            i++;
+            REST = (c + i);
+            DBG(<<"Located X separator - prior buf is " << c
+                << " REST = " << REST);
+            break;
+        }
     }
 
     /* XXX Possible loss of bits in cast */
     w_assert1(readbufsize() < fileoff_t(w_base_t::int4_max));
     { 
-	w_istrstream s(readbuf(), int(readbufsize()));
-	lsn_t tmp; lsn_t tmp1;
+        w_istrstream s(readbuf(), int(readbufsize()));
+        lsn_t tmp; lsn_t tmp1;
 
-	bool  old_style;
-	listlength=0;
-	rc_t rc;
-	rc = parse_master_chkpt_string(s, tmp, tmp1, 
-				       listlength, lsnlist,
-				       old_style);
-	if (rc != RCOK)  {
-	    smlevel_0::errlog->clog << error_prio 
-		<< "Bad checkpoint master record name -- " 
-		<< " you must reformat the log."
-#if 0	/* XXX optional, since garbage could be output */
-		<< endl
-		<< "\tcheckpoint master = '" << (char *)readbuf() << '\''
-#endif
-		<< flushl;
-	    W_COERCE(rc);
-	}
-	l = tmp;
-	min = tmp1;
+        bool  old_style;
+        listlength=0;
+        rc_t rc;
+        rc = parse_master_chkpt_string(s, tmp, tmp1, 
+                                       listlength, lsnlist,
+                                       old_style);
+        if (rc.is_error())  {
+            smlevel_0::errlog->clog << error_prio 
+                << "Bad checkpoint master record name -- " 
+                << " you must reformat the log."
+                << flushl;
+            W_COERCE(rc);
+        }
+        l = tmp;
+        min = tmp1;
     }
 
     if( *REST != '\0' ) {
-	rc_t rc;
-	w_istrstream s(REST, int(readbufsize()) - (REST - readbuf()));
-	rc = parse_master_chkpt_contents(s, listlength, lsnlist);
-	if (rc != RCOK) {
-	    smlevel_0::errlog->clog << error_prio 
-		    << "Bad checkpoint master contents -- " 
-		    << " you must reformat the log."
-#if 0	/* XXX optional, since garbage could be output */
-		    << endl
-		    << "\tcheckpoint content = '" << REST << '\''
-#endif
-		    << flushl;
-	    W_COERCE(rc);
-	}
+        rc_t rc;
+        w_istrstream s(REST, int(readbufsize()) - (REST - readbuf()));
+        rc = parse_master_chkpt_contents(s, listlength, lsnlist);
+        if (rc.is_error()) {
+            smlevel_0::errlog->clog << error_prio 
+                    << "Bad checkpoint master contents -- " 
+                    << " you must reformat the log."
+                    << flushl;
+            W_COERCE(rc);
+        }
     }
 
 
@@ -673,38 +273,39 @@ raw_log::_read_master(
 
 void
 raw_log::_write_master(
-    const lsn_t& l,
-    const lsn_t& min
+    lsn_t l,
+    lsn_t min
 ) 
 {
     FUNC(raw_log::_write_master);
     /*
      *  create new master record
      */
+    char _chkpt_meta_buf[CHKPT_META_BUF];
     _make_master_name(l, min, _chkpt_meta_buf, CHKPT_META_BUF);
 
-    {	/* write ending lsns into the master chkpt record */
+    {        /* write ending lsns into the master chkpt record */
 
-	/* cast away const-ness of _chkpt_meta_buf */
-	char *_ptr = (char *)_chkpt_meta_buf + strlen(_chkpt_meta_buf);
+        /* cast away const-ness of _chkpt_meta_buf */
+        char *_ptr = (char *)_chkpt_meta_buf + strlen(_chkpt_meta_buf);
 
-	lsn_t 	array[max_open_log];
-	int j=0;
-	for(int i=0; i < max_open_log; i++) {
-	    const partition_t *p = this->i_partition(i);
-	    if(p->num() > 0 && (p->last_skip_lsn().hi() == p->num())) {
-		array[j++] = p->last_skip_lsn();
-	    }
-	}
-	if(j > 0) {
-	    w_ostrstream s(_ptr, CHKPT_META_BUF);
-	    create_master_chkpt_contents(s, j, array);
-	} else {
-	    memset(_ptr, '\0', 1);
-	}
-	DBG(<< " #lsns=" << j
-	    << "write this to master checkpoint record: " <<
-		_ptr);
+        lsn_t         array[PARTITION_COUNT];
+        int j=0;
+        for(int i=0; i < PARTITION_COUNT; i++) {
+            const partition_t *p = this->i_partition(i);
+            if(p->num() > 0 && (p->last_skip_lsn().hi() == p->num())) {
+                array[j++] = p->last_skip_lsn();
+            }
+        }
+        if(j > 0) {
+            w_ostrstream s(_ptr, CHKPT_META_BUF);
+            create_master_chkpt_contents(s, j, array);
+        } else {
+            memset(_ptr, '\0', 1);
+        }
+        DBG(<< " #lsns=" << j
+            << "write this to master checkpoint record: " <<
+                _ptr);
 
     }
 
@@ -716,20 +317,12 @@ raw_log::_write_master(
     w_assert3(fd);
 
     DBG(<<"write_master seeking to " << 0);
-    w_rc_t e = me()->lseek(fd, 0, sthread_t::SEEK_AT_SET);
-    if (e) {
-	smlevel_0::errlog->clog << error_prio 
-	    << "ERROR: could not seek to 0 to write checkpoint: "
-	    << _chkpt_meta_buf << flushl;
-	W_COERCE(e);
-    }
-
-    e = me()->write(fd, _chkpt_meta_buf, CHKPT_META_BUF);
-    if (e) {
-	smlevel_0::errlog->clog << error_prio
-	    << "ERROR: could not write checkpoint: "
-	    << _chkpt_meta_buf << flushl;
-	W_COERCE(e);
+    w_rc_t e = me()->pwrite(fd, _chkpt_meta_buf, CHKPT_META_BUF, 0);
+    if (e.is_error()) {
+        smlevel_0::errlog->clog << error_prio
+            << "ERROR: could not write checkpoint: "
+            << _chkpt_meta_buf << flushl;
+        W_COERCE(e);
     } 
 }
 
@@ -737,7 +330,7 @@ raw_log::_write_master(
  * raw_partition class
  *********************************************************************/
 
-void			
+void                        
 raw_partition::set_fhdl_app(int /*fd*/)
 {
    // This is a null operation in the raw case because
@@ -750,22 +343,24 @@ void
 raw_partition::open_for_read(
     partition_number_t __num,
     bool err // = true -- if true, consider it an error
-	// if the partition doesn't exist
+        // if the partition doesn't exist
 ) 
 {
     FUNC(raw_partition::open_for_read);
     w_assert3(fhdl_rd() != invalid_fhdl);
     if( err && !exists()) {
-	smlevel_0::errlog->clog << error_prio 
-	    << "raw_log: partition " << __num 
-	    << " does not exist"
-	     << flushl;
-	/* XXX bogus error info */
-	W_FATAL(smlevel_0::eINTERNAL);
+        smlevel_0::errlog->clog << error_prio 
+            << "raw_log: partition " << __num 
+            << " does not exist"
+             << flushl;
+        /* XXX bogus error info */
+        W_FATAL(smlevel_0::eINTERNAL);
     }
     set_state(m_open_for_read);
     return ;
 }
+void raw_partition::close_for_read() {}
+void raw_partition::close_for_append() {}
 
 void
 raw_partition::close(bool /* both */)
@@ -776,13 +371,15 @@ raw_partition::close(bool /* both */)
     // if it's "ours", which is to say,
     // if this is the current partition
     if(is_current()) {
-	w_assert3(
-	    writebuf().firstbyte().hi() == num()
-		||
-	    writebuf().firstbyte() == lsn_t::null);
-
-	flush(fhdl_app());
-	_owner->unset_current();
+        W_FATAL(fcINTERNAL); // this can't happen any more. Caller?
+        /*
+        w_assert3(
+            writebuf().firstbyte().hi() == num()
+                ||
+            writebuf().firstbyte() == lsn_t::null);
+        */
+        //        flush(fhdl_app());
+        _owner->unset_current();
     }
 
     // and invalidate it
@@ -811,10 +408,13 @@ raw_partition::sanity_check() const
     }
     if(is_current()) {
        w_assert3(is_open_for_append());
-	// TODO-- rewrite this
-	if(flushed() && _owner->writebuf()->firstbyte().hi()==num()) {
-	    w_assert3(_owner->writebuf()->flushed().lo() == size());
-	}
+#if dont_do_this
+       // FRJ: flushed status is too volatile to assert on
+        // TODO-- rewrite this
+        if(flushed() && _owner->writebuf()->firstbyte().hi()==num()) {
+            w_assert3(_owner->writebuf()->flushed().lo() == size());
+        }
+#endif
     }
 }
 
@@ -833,12 +433,12 @@ raw_partition::_init(srv_log *owner)
 int
 raw_partition::fhdl_rd() const
 {
-#ifdef W_DEBUG
+#if W_DEBUG_LEVEL > 2
     bool isopen = is_open_for_read();
     if(raw_log::_fhdl_rd == invalid_fhdl) {
-	w_assert3( !isopen );
+        w_assert3( !isopen );
     }
-#endif /* W_DEBUG */
+#endif 
     return raw_log::_fhdl_rd;
 }
 
@@ -867,34 +467,15 @@ raw_partition::destroy()
 
 
     if(num()>0) {
-	w_assert3(num() < _owner->global_min_lsn().hi());
-	w_assert3(  exists());
-	w_assert3(! is_current() );
-	w_assert3(! is_open_for_append() );
+        w_assert3(num() < _owner->global_min_lsn().hi());
+        w_assert3(  exists());
+        w_assert3(! is_current() );
+        w_assert3(! is_open_for_append() );
     } else {
-	_num = _index;
-    }
-
-    // must remember the current partition and number, close it,
-    // write the skip record, and then reopen the partition, so
-    // the writebuf's lsn's get set restored after the skip.
-
-    long		thePartitionIndex = _owner->partition_index(); 
-    partition_number_t	thePartitionNumber = 0;
-    partition_t		*thePartition = 0;
-
-    if (thePartitionIndex >= 0)  {
-        thePartitionNumber = _owner->partition_num();
-        thePartition = _owner->curr_partition();
-        thePartition->close(true);
+        _num = _index;
     }
 
     skip(lsn_t::null, fhdl_app());
-
-    if (thePartitionIndex >= 0)  {
-        thePartition->open_for_append(thePartitionNumber, lsn_t::null);
-        thePartition->open_for_read(thePartitionNumber, true);
-    }
 
     clear();
     clr_state(m_exists);
@@ -915,10 +496,10 @@ raw_partition::destroy()
  */
 void
 raw_partition::peek(
-    partition_number_t 	num_wanted,
-    const lsn_t&	end_hint,
-    bool 		recovery,
-    int *		fdp
+    partition_number_t         num_wanted,
+    const lsn_t&        end_hint,
+    bool                 recovery,
+    int *                fdp
 )
 {
     FUNC(raw_partition::peek);

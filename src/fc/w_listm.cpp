@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: w_listm.cpp,v 1.10 1999/06/07 19:02:54 kupsch Exp $
+ $Id: w_listm.cpp,v 1.10.2.4 2010/03/19 22:17:19 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -39,7 +39,7 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 void
 w_link_t::attach(w_link_t* prev_link)
 {
-    w_assert3(_prev == this && _next == this); // not in any list
+    w_assert9(_prev == this && _next == this); // not in any list
     _list = prev_link->_list;
     _next = prev_link->_next, _prev = prev_link;
     prev_link->_next = prev_link->_next->_prev = this;
@@ -50,13 +50,13 @@ w_link_t*
 w_link_t::detach()
 {
     if (_next != this)  {
-	w_assert3(_prev != this);
-	_prev->_next = _next, _next->_prev = _prev;
-	_list->_cnt--;
-	w_assert3(_list->_cnt ||
-	       (_list->_tail._prev == & _list->_tail &&
-		_list->_tail._next == & _list->_tail));
-	_next = _prev = this, _list = 0;
+    w_assert9(_prev != this);
+    _prev->_next = _next, _next->_prev = _prev;
+    _list->_cnt--;
+    w_assert9(_list->_cnt ||
+           (_list->_tail._prev == & _list->_tail &&
+        _list->_tail._next == & _list->_tail));
+    _next = _prev = this, _list = 0;
     }
     return this;
 }

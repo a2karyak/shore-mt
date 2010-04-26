@@ -1,6 +1,29 @@
+/* -*- mode:C++; c-basic-offset:4 -*-
+     Shore-MT -- Multi-threaded port of the SHORE storage manager
+   
+                       Copyright (c) 2007-2009
+      Data Intensive Applications and Systems Labaratory (DIAS)
+               Ecole Polytechnique Federale de Lausanne
+   
+                         All Rights Reserved.
+   
+   Permission to use, copy, modify and distribute this software and
+   its documentation is hereby granted, provided that both the
+   copyright notice and this permission notice appear in all copies of
+   the software, derivative works or modified versions, and any
+   portions thereof, and that both notices appear in supporting
+   documentation.
+   
+   This code is distributed in the hope that it will be useful, but
+   WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. THE AUTHORS
+   DISCLAIM ANY LIABILITY OF ANY KIND FOR ANY DAMAGES WHATSOEVER
+   RESULTING FROM THE USE OF THIS SOFTWARE.
+*/
+
 /*<std-header orig-src='shore'>
 
- $Id: common_templates.cpp,v 1.11 1999/06/07 19:03:59 kupsch Exp $
+ $Id: common_templates.cpp,v 1.11.2.6 2010/03/19 22:20:23 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -50,20 +73,14 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
  */
 template class w_auto_delete_array_t<char>; 
 
-#include "auto_release.h"
-/*
- * sm.cpp, sm_io.cpp, lid.cpp 
- */
-template class auto_release_t<smutex_t>; 
-
 
 /*
- * bf.cpp btree_impl.cpp, chkpt.cpp
+ * bf.cpp btree_impl.cpp, chkpt.cpp, dir.cpp, zkeyed.cpp, sm.cpp, sort.cpp
  */
 template class w_auto_delete_array_t<lpid_t>;
 
 /*
- * restart.cpp, chkpt.cpp
+ * restart.cpp, chkpt.cpp, sm.cpp, xct_impl.cpp, vol.cpp, ...
  */
 template class w_auto_delete_t<logrec_t>;
 

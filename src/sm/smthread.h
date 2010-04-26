@@ -1,6 +1,29 @@
+/* -*- mode:C++; c-basic-offset:4 -*-
+     Shore-MT -- Multi-threaded port of the SHORE storage manager
+   
+                       Copyright (c) 2007-2009
+      Data Intensive Applications and Systems Labaratory (DIAS)
+               Ecole Polytechnique Federale de Lausanne
+   
+                         All Rights Reserved.
+   
+   Permission to use, copy, modify and distribute this software and
+   its documentation is hereby granted, provided that both the
+   copyright notice and this permission notice appear in all copies of
+   the software, derivative works or modified versions, and any
+   portions thereof, and that both notices appear in supporting
+   documentation.
+   
+   This code is distributed in the hope that it will be useful, but
+   WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. THE AUTHORS
+   DISCLAIM ANY LIABILITY OF ANY KIND FOR ANY DAMAGES WHATSOEVER
+   RESULTING FROM THE USE OF THIS SOFTWARE.
+*/
+
 /*<std-header orig-src='shore' incl-file-exclusion='SMTHREAD_H'>
 
- $Id: smthread.h,v 1.97 2007/05/18 21:43:29 nhall Exp $
+ $Id: smthread.h,v 1.97.2.17 2010/03/25 18:05:17 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -34,6 +57,10 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 
 /*  -- do not edit anything above this line --   </std-header>*/
 
+/**\file smthread.h
+ * \ingroup Macros
+ */
+
 #ifndef W_H
 #include <w.h>
 #endif
@@ -43,13 +70,23 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #ifndef STHREAD_H
 #include <sthread.h>
 #endif
+#include <w_bitvector.h>
 
-enum {
+/**\enum special_timeout_in_ms_t
+ * \brief Special values for timeout_in_ms.
+ * \details
+ * - WAIT_FOREVER : no timeout
+ * - WAIT_IMMEDIATE : do not block
+ * - WAIT_SPECIFIED_BY_XCT : use the per-transaction custom timeout value
+ * - WAIT_SPECIFIED_BY_THREAD : use the per-smthread custom timeout value
+ */
+enum special_timeout_in_ms_t {
     WAIT_FOREVER = sthread_t::WAIT_FOREVER,
     WAIT_IMMEDIATE = sthread_t::WAIT_IMMEDIATE,
     WAIT_SPECIFIED_BY_XCT = sthread_t::WAIT_SPECIFIED_BY_XCT,
     WAIT_SPECIFIED_BY_THREAD = sthread_t::WAIT_SPECIFIED_BY_THREAD
 };
+
 typedef sthread_t::timeout_in_ms timeout_in_ms;
 
 class xct_t;
@@ -63,236 +100,384 @@ class lockid_t;
 
 class smthread_t;
 
+/**\brief Callback class use with smthread::for_each_smthread()
+ * \details
+ * Derive your per-smthread processing function (callback) from this.
+ */
 class SmthreadFunc {
 public:
-	virtual ~SmthreadFunc();
-	
-	virtual void operator()(const smthread_t& smthread) = 0;
-};
-
-class SelectSmthreadsFunc : public ThreadFunc
-{
-    public:
-	SelectSmthreadsFunc(SmthreadFunc& func) : f(func) {};
-	void operator()(const sthread_t& thread);
-    private:
-	SmthreadFunc&	f;
-};
-
-class PrintSmthreadsOfXct : public SmthreadFunc
-{
-    public:
-	PrintSmthreadsOfXct(ostream& out, const xct_t* x) : o(out), xct(x) {};
-	void operator()(const smthread_t& smthread);
-    private:
-	ostream&	o;
-	const xct_t*	xct;
+    virtual ~SmthreadFunc();
+    
+    virtual void operator()(const smthread_t& smthread) = 0;
 };
 
 
+/**\cond skip */
+enum { FINGER_BITS=3 };
+typedef w_bitvector_t<256>    sm_thread_map_t;
+/**\endcond skip */
 
+/**\brief Fingerprint for this smthread.
+ * \details
+ * Each smthread_t has a unique fingerprint. This is used by the
+ * deadlock detector.  The fingerprint is a bitmap; each thread's
+ * bitmap is unique, the deadlock detector ORs fingerprints together
+ * to make a "digest" of the waits-for-map.
+ * Rather than have fingerprints associated with transactions, we
+ * associate them with threads.
+ *
+ * This class provides synchronization (protection) for updating the map.
+ */
+class  atomic_thread_map_t : public sm_thread_map_t {
+private:
+    mutable srwlock_t   _map_lock;
+public:
+    bool has_reader() const {
+        return _map_lock.has_reader();
+    }
+    bool has_writer() const {
+        return _map_lock.has_writer();
+    }
+    void lock_for_read() const {
+        _map_lock.acquire_read();
+    }
+    void lock_for_write() {
+        _map_lock.acquire_write();
+    }
+    void unlock_reader() const{
+        w_assert2(_map_lock.has_reader());
+        _map_lock.release_read();
+    }
+    void unlock_writer() {
+        w_assert2(_map_lock.has_writer());
+        _map_lock.release_write();
+    }
+    atomic_thread_map_t () {
+        w_assert1(_map_lock.has_reader() == false);
+        w_assert1(_map_lock.has_writer() == false);
+    }
+    ~atomic_thread_map_t () { 
+        w_assert1(_map_lock.has_reader() == false);
+        w_assert1(_map_lock.has_writer() == false);
+    }
+
+    atomic_thread_map_t &operator=(const atomic_thread_map_t &other) {
+        // Copy only the bitmap portion; do not touch the
+        // _map_lock
+#if W_DEBUG_LEVEL > 0
+        bool X=_map_lock.has_reader();
+        bool Y=_map_lock.has_writer();
+#endif
+        copy(other);
+#if W_DEBUG_LEVEL > 0
+        w_assert1(_map_lock.has_reader() == X); 
+        w_assert1(_map_lock.has_writer() == Y); 
+#endif
+        return *this;
+    }
+}; 
+
+
+/**\cond skip */
 typedef void st_proc_t(void*);
 
-class smthread_stats_t;
+class sm_stats_info_t; // forward
+/**\endcond skip */
 
+/**\brief Storage Manager client thread.
+ * \ingroup SSMINIT
+ * \details
+ * \attention
+ * All threads that use storage manager functions must be of this type
+ * or of a derived type.
+ *
+ * This is because the storage manager keeps its own thread-local state.
+ */
 class smthread_t : public sthread_t {
     friend class smthread_init_t;
     struct tcb_t {
-	void*   user;
-	xct_t*	xct;
-	int	pin_count;  	// number of rsrc_m pins
-	int	prev_pin_count; // previous # of rsrc_m pins
-	bool	_in_sm;  	// thread is in sm ss_m:: function
-	timeout_in_ms lock_timeout;	// timeout to use for lock acquisitions
+        xct_t*   xct;
+        int      pin_count;      // number of rsrc_m pins
+        int      prev_pin_count; // previous # of rsrc_m pins
+        timeout_in_ms lock_timeout;    // timeout to use for lock acquisitions
+        bool    _in_sm;      // thread is in sm ss_m:: function
 #ifdef ARCH_LP64
-	/* XXX Really want kc_buf aligned to the alignment of the most
-	   restrictive type. It would be except sizeof above bool == 8,
-	   and timeout_in_ms is 4 bytes. */
-#ifdef notyet
-	/* This would do it but it wastes space.   Perhaps the thing to do
-	   is to make a class for the kc_stuff -- with big pages it
-	   causes offsets of commonly used things in the TCB to become
-	   large -- which causes 2 instructions to be used for the offset
-	   and blows caching out of the water.  Something that dynamically
-	   resizes might be just the ticket. */
-	most_restrictive_aligned_type	_fill;
-#else
-	fill4	_fill;		
+        /* XXX Really want kc_buf aligned to the alignment of the most
+           restrictive type. It would be except sizeof above bool == 8,
+           and timeout_in_ms is 4 bytes. */
+        fill1            _fill1;        
+        fill2            _fill2;        
 #endif
-#endif
-#if 1
-        union {
-		/* XXX see above "most restrictive aligned type" approx. */
-		double	kc_buf_align;
-		char	kc_buf[smlevel_0::page_sz];
-	};
-#else		
-	char	kc_buf[smlevel_0::page_sz];
-#endif
-	int	kc_len;
-	cvec_t	kc_vec;
-	sdesc_cache_t	*_sdesc_cache;
-	lockid_t	*_lock_hierarchy;
-	xct_log_t* _xct_log;
-	smthread_stats_t*	_stats;
 
-	void 	attach_stats();
-	void    detach_stats();
-        inline smthread_stats_t& thread_stats() { return *_stats; }
+        sdesc_cache_t     *_sdesc_cache;
+        lockid_t          *_lock_hierarchy;
+        xct_log_t*        _xct_log;
+        sm_stats_info_t*  _TL_stats; // thread-local stats
 
-	tcb_t() : user(0), xct(0), 
-	    pin_count(0), prev_pin_count(0),
-	    _in_sm(false), lock_timeout(WAIT_FOREVER), // default for a thread
-	    kc_len(0), _sdesc_cache(0), _lock_hierarchy(0), 
-	    _xct_log(0), _stats(0)
-	{ 
-#ifdef PURIFY_ZERO
-	    kc_vec.reset();
-	    memset(kc_buf, '\0', sizeof(kc_buf));
-#endif
-#ifdef BOLO_DEBUG
-	    if ((ptrdiff_t)kc_buf & 0x7)
-		    cerr << "tcb_t " << this << " kc_buf misaligned "
-			 << (void*) kc_buf << endl;
-#endif	    
-	    attach_stats();
-	}
-	~tcb_t() { detach_stats(); }
+        void    create_TL_stats();
+        void    clear_TL_stats();
+        void    destroy_TL_stats();
+        inline sm_stats_info_t& TL_stats() { return *_TL_stats;}
+        inline const sm_stats_info_t& TL_stats_const() const { 
+                                                 return *_TL_stats; }
+
+        tcb_t() : 
+            xct(0), 
+            pin_count(0), 
+            prev_pin_count(0),
+            lock_timeout(WAIT_FOREVER), // default for a thread
+            _in_sm(false), 
+            _sdesc_cache(0), 
+            _lock_hierarchy(0), 
+            _xct_log(0), 
+            _TL_stats(0)
+        { 
+            create_TL_stats();
+        }
+        ~tcb_t() { destroy_TL_stats(); }
     };
 
-    tcb_t		_tcb;
-    st_proc_t* const  	_proc;
-    void* const		_arg;
+    tcb_t              _tcb;
+    st_proc_t* const   _proc;
+    void* const        _arg;
+
+    bool               _try_initialize_fingerprint(); // true: failure false: ok
+    void               _initialize_fingerprint();
+    void               _uninitialize_fingerprint();
+    short              _fingerprint[FINGER_BITS]; // dreadlocks
+    atomic_thread_map_t  _fingerprint_map; // map containing only fingerprint
+
+public:
+    const atomic_thread_map_t&  get_fingerprint_map() const
+                            {   return _fingerprint_map; } 
 
 public:
 
-    NORET			smthread_t(
-	st_proc_t* 		    f, 
-	void* 			    arg,
-	priority_t 		    priority = t_regular,
-	const char* 		    name = 0, 
-	timeout_in_ms		    lockto = WAIT_FOREVER,
-	unsigned		    stack_size = default_stack);
-    NORET			smthread_t(
-	priority_t 		    priority = t_regular,
-	const char* 		    name = 0,
-	timeout_in_ms 		    lockto = WAIT_FOREVER,
-	unsigned		    stack_size = default_stack);
+    /**\brief Normal constructor for a storage manager client.
+     * \details
+     * @param[in] f Stored in thread for client's convenience, may
+     * be used in run() method.
+     * @param[in] arg Stored in thread for client's convenience, may
+     * be used in run() method.
+     * @param[in] priority Required, but not used in storage manager.
+     * @param[in] name Optional thread name, used for debugging.
+     * @param[in] lockto Timeout for lock waiting.  See timeout_in_ms.
+     * @param[in] stack_size Best to use default.
+     */
+    NORET            smthread_t(
+        st_proc_t*             f, 
+        void*                  arg,
+        priority_t             priority = t_regular,
+        const char*            name = 0, 
+        timeout_in_ms          lockto = WAIT_FOREVER,
+        unsigned               stack_size = default_stack);
 
-    NORET			~smthread_t();
+    /**\brief Normal constructor for a storage manager client.
+     * \details
+     * @param[in] priority Required, but not used in storage manager.
+     * @param[in] name Optional thread name, used for debugging.
+     * @param[in] lockto Timeout for lock waiting.  See timeout_in_ms.
+     * @param[in] stack_size Best to use default.
+     */
+    NORET            smthread_t(
+        priority_t             priority = t_regular,
+        const char*            name = 0,
+        timeout_in_ms          lockto = WAIT_FOREVER,
+        unsigned               stack_size = default_stack
+        );
 
-    virtual void 		run() = 0;
-    virtual smthread_t*		dynamic_cast_to_smthread();
-    virtual const smthread_t*	dynamic_cast_to_const_smthread() const;
-    enum SmThreadTypes		{smThreadType = 1, smLastThreadType};
-    virtual int			thread_type() { return smThreadType; }
-
-    static void			for_each_smthread(SmthreadFunc& f);
+    // This is helpful for debugging and besides, it returns a w_rc_t
+    // so there is an opportunity to check for things like
+    // no xcts attached, etc. and deliver this info to the client.
     
+    /**\brief  Returns when this thread ends.
+     * @param[in] timeout Not used.
+     * \details
+     * Errors:
+     * -ePINACTIVE: if the thread ended while holding a pinned record.
+     * -eINTRANS: if the thread ended while attached to a transaction.
+     */
+    w_rc_t               join(timeout_in_ms timeout = WAIT_FOREVER);
 
+    NORET                ~smthread_t();
 
-    void 			attach_xct(xct_t* x);
-    void 			detach_xct(xct_t* x);
+    /**\cond skip */
+    /* public for debugging */
+    static void          init_fingerprint_map();
+    /**\endcond skip */
 
-    // set and get lock_timeout value
+    /**\brief Called before run() is called. */
+    virtual void         before_run();
+
+    /**\brief Main work routine. */
+    virtual void         run() = 0;
+
+    /**\brief Call when run finishes, before join() returns */
+    virtual void         after_run();
+    
+    virtual smthread_t*          dynamic_cast_to_smthread();
+    virtual const smthread_t*    dynamic_cast_to_const_smthread() const;
+
+    /**\brief RTTI
+     * \details
+     * Run-time type info: Derived threads are expected to
+     * add thread types and override thread_type()
+     */
+    enum SmThreadTypes     {smThreadType = 1, smLastThreadType};
+    /**\brief RTTI
+     * \details
+     * Run-time type info: Derived threads are expected to
+     * add thread types and override thread_type()
+     */
+    virtual int            thread_type() { return smThreadType; }
+
+    /**\brief Iterator over all smthreads. Thread-safe and so use carefully.
+     * \details
+     * @param[in] f Callback function.
+     * For each smthread, this calls the callback function f.
+     * Because this grabs a lock on the list of all shore threads, 
+     * whether or not they are smthreads, this prevents new threads
+     * from starting and old ones from finishing, so don't use with
+     * long-running functions.
+     */
+    static void            for_each_smthread(SmthreadFunc& f);
+    
+    /**\cond skip
+     **\brief Attach this thread to the given transaction.
+     * \ingroup SSMXCT
+     * @param[in] x Transaction to attach to the thread
+     * \details
+     * Attach this thread to the transaction \e x or, equivalently,
+     * attach \e x to this thread.
+     * \note "this" thread need not be the running thread.
+     *
+     * Only one transaction may be attached to a thread at any time.
+     * More than one thread may attach to a transaction concurrently.
+     */
+    void             attach_xct(xct_t* x);
+    /**\brief Detach this thread from the given transaction.
+     * \ingroup SSMXCT
+     * @param[in] x Transaction to detach from the thread.
+     * \details
+     * Detach this thread from the transaction \e x or, equivalently,
+     * detach \e x from this thread.
+     * \note "this" thread need not be the running thread.
+     *
+     * If the transaction is not attached, returns error.
+     * \endcond skip
+     */
+    void             detach_xct(xct_t* x);
+
+    /// get lock_timeout value
     inline
-    timeout_in_ms		lock_timeout() { 
-				    return tcb().lock_timeout; 
-				}
+    timeout_in_ms        lock_timeout() { 
+                    return tcb().lock_timeout; 
+                }
+    /// set lock_timeout value
     inline 
-    void 			lock_timeout(timeout_in_ms i) { 
-					tcb().lock_timeout = i;
-				}
+    void             lock_timeout(timeout_in_ms i) { 
+                    tcb().lock_timeout = i;
+                }
 
-    // xct this thread is running
+    /// return xct this thread is running
     inline
-    xct_t* 			xct() { return tcb().xct; }
+    xct_t*             xct() { return tcb().xct; }
 
+    /// return xct this thread is running
     inline
-    xct_t* 			xct() const { return tcb().xct; }
+    xct_t*             xct() const { return tcb().xct; }
 
-    // XXX assumes all threads are smthreads
-    static smthread_t* 		me() { return (smthread_t*) sthread_t::me(); }
+    /**\brief Return currently-running smthread. 
+     * \details
+     * \note Assumes all threads are smthreads
+     */
+    static smthread_t*         me() { return (smthread_t*) sthread_t::me(); }
 
-    inline smthread_stats_t& thread_stats() { return tcb().thread_stats(); }
-#define GET_TSTAT(x) me()->thread_stats().x
-#define INC_TSTAT(x) me()->thread_stats().x++
-#define ADD_TSTAT(x,y) me()->thread_stats().x += (y)
-#define SET_TSTAT(x,y) me()->thread_stats().x = (y)
+    /// Return thread-local statistics collected for this thread.
+    inline sm_stats_info_t& TL_stats() { 
+                                       return tcb().TL_stats(); }
 
+    /// Add thread-local stats into the given structure.
+    void add_from_TL_stats(sm_stats_info_t &w) const;
+
+    // NOTE: These macros don't have to be atomic since these thread stats
+    // are stored in the smthread and collected when the smthread's tcb is
+    // destroyed.
+    
+/**\def GET_TSTAT(x) me()->TL_stats().sm.x
+ *\brief Get per-thread statistic named x
+*/
+#define GET_TSTAT(x) me()->TL_stats().sm.x
+
+/**\def INC_TSTAT(x) me()->TL_stats().sm.x++
+ *\brief Increment per-thread statistic named x by y
+ */
+#define INC_TSTAT(x) me()->TL_stats().sm.x++
+
+
+/**\def INC_TSTAT_BFHT(x) me()->TL_stats().bfht.bf_htab_x++
+ *\brief Increment per-thread statistic named x by y
+ */
+#define INC_TSTAT_BFHT(x) me()->TL_stats().bfht.bf_htab #x++
+
+/**\def ADD_TSTAT(x,y) me()->TL_stats().sm.x += (y)
+ *\brief Increment statistic named x by y
+ */
+#define ADD_TSTAT(x,y) me()->TL_stats().sm.x += (y)
+
+/**\def SET_TSTAT(x,y) me()->TL_stats().sm.x = (y)
+ *\brief Set per-thread statistic named x to y
+ */
+#define SET_TSTAT(x,y) me()->TL_stats().sm.x = (y)
+
+
+    /**\cond skip */
     /*
      *  These functions are used to verify than nothing is
      *  left pinned accidentally.  Call mark_pin_count before an
      *  operation and check_pin_count after it with the expected
      *  number of pins that should not have been realeased.
      */
-    void 			mark_pin_count();
-    void 			check_pin_count(int change);
-    void 			check_actual_pin_count(int actual) ;
-    void 			incr_pin_count(int amount) ;
-    int	 			pin_count() ;
+    void             mark_pin_count();
+    void             check_pin_count(int change);
+    void             check_actual_pin_count(int actual) ;
+    void             incr_pin_count(int amount) ;
+    int              pin_count() ;
    
     /*
      *  These functions are used to verify that a thread
      *  is only in one ss_m::, scan::, or pin:: function at a time.
      */
     inline
-    void 			in_sm(bool in)	{ tcb()._in_sm = in; }
-
+    void             in_sm(bool in)    { tcb()._in_sm = in; }
     inline 
-    bool 			is_in_sm() const { return tcb()._in_sm; }
+    bool             is_in_sm() const { return tcb()._in_sm; }
+
+    void             new_xct(xct_t *);
+    void             no_xct(xct_t *);
 
     inline
-    void*& 			user_p()  	{ return tcb().user; }
+    xct_log_t*       xct_log() { return tcb()._xct_log; }
+    inline
+    lockid_t *       lock_hierarchy() { return tcb()._lock_hierarchy; }
 
     inline
-    char*			kc_buf() {
-				    return tcb().kc_buf;
-				}
-    inline
-    int				kc_len() {
-				    return tcb().kc_len;
-				}
+    sdesc_cache_t *  sdesc_cache() { return tcb()._sdesc_cache; }
 
-    inline
-    cvec_t&			kc_vec() { 
-				    return tcb().kc_vec;
-				}
+    virtual void     _dump(ostream &) const; // to be over-ridden
+    static int       collect(vtable_t&, bool names_too);
+    virtual void     vtable_collect(vtable_row_t& t);
+    static  void     vtable_collect_names(vtable_row_t& t);
+    /**\endcond skip */
 
-    inline
-    void			set_kc_len(int len) {
-				    tcb().kc_len = len;
-				}
-    void			new_xct(xct_t *);
-    void			no_xct(xct_t *);
-
-    inline
-    xct_log_t*  		xct_log() {
-				    return tcb()._xct_log;
-				}
-
-
-    inline
-    lockid_t * 			lock_hierarchy() {
-				    return tcb()._lock_hierarchy;
-				}
-
-    inline
-    sdesc_cache_t * 		sdesc_cache() {
-				    return tcb()._sdesc_cache;
-				}
-
-    virtual void		_dump(ostream &) const; // to be over-ridden
-    virtual void 		vtable_collect(vtable_info_t& t);
-
-
+    /* TODO NANCY CLEAN UP THESE COMMENTS */
     /* thread-level block() and unblock aren't public or protected
        accessible.  Control sm thread-level blocking with ordinary
        synchronization tools at the sm level */
-    w_rc_t			block(timeout_in_ms WAIT_FOREVER,
-				      const char * const caller = 0,
-				      const void * id = 0);
-    w_rc_t			unblock(const w_rc_t &rc = *(w_rc_t*)0);
+    w_rc_t::errcode_t smthread_block(timeout_in_ms WAIT_FOREVER,
+                      const char * const caller = 0,
+                      const void * id = 0);
+    w_rc_t            smthread_unblock(w_rc_t::errcode_t e);
 
     /* block/unblock is used as an adhoc sync. method instead of
        using "guaranteed" synchronization.  Some places in the code
@@ -300,45 +485,47 @@ public:
        the synchronization area.  This interface allows those locations
        to block(area_mutex) and get rid of the overhead associated
        with locking another mutex for the sm-level block */
-    w_rc_t			block(smutex_t &on,
-				      timeout_in_ms WAIT_FOREVER,
-				      const char * const why =0);
-    w_rc_t			unblock(smutex_t &on,
-					const w_rc_t &rc = *(w_rc_t*)0);
-    void			prepare_to_block();
+private:
+    w_rc_t::errcode_t _smthread_block( timeout_in_ms WAIT_FOREVER,
+                              const char * const why =0);
+    w_rc_t           _smthread_unblock(w_rc_t::errcode_t e);
+public:
+    void             prepare_to_block();
 
     /* functions to get/set whether this thread should generate log warnings */
-    bool			generate_log_warnings() const;
-    void			generate_log_warnings(bool b);
-
+    /* TODO NANCY: DOCUMENT */
+    bool            generate_log_warnings() const { 
+                            return _generate_log_warnings; }
+    void            set_generate_log_warnings(bool b) { 
+                            _generate_log_warnings=b; }
 private:
-    void			user(); /* disabled sthread_t::user */
 
     /* sm-specif block / unblock implementation */
-    smutex_t			_block;
-    scond_t			_awaken;
-    bool			_unblocked;
-    bool			_waiting;
-    w_rc_t			_sm_rc;
-    bool			generateLogWarnings;
+    volatile bool   _unblocked;
+    bool            _waiting;
+
+    bool            _generate_log_warnings;
 
     inline
-    tcb_t			&tcb() { return _tcb; }
+    tcb_t           &tcb() { return _tcb; }
 
     inline
-    const tcb_t			&tcb() const { return _tcb; }
+    const tcb_t     &tcb() const { return _tcb; }
 };
 
+/**\cond skip */
 class smthread_init_t {
 public:
-    NORET			smthread_init_t();
-    NORET			~smthread_init_t();
+    NORET            smthread_init_t();
+    NORET            ~smthread_init_t();
 private:
-    static int 			count;
+    static int       count;
 };
+/**\endcond  skip */
 
 
 
+/**\cond skip */
 
 inline smthread_t* 
 me() 
@@ -356,25 +543,25 @@ xct()
 
 inline void 
 smthread_t::mark_pin_count()
-{	
+{    
     tcb().prev_pin_count = tcb().pin_count;
 }
 
 inline void 
-smthread_t::check_pin_count(int W_IFDEBUG(change)) 
+smthread_t::check_pin_count(int W_IFDEBUG4(change)) 
 {
-#ifdef W_DEBUG
+#if W_DEBUG_LEVEL > 3
     int diff = tcb().pin_count - tcb().prev_pin_count;
     if (change >= 0) {
-	w_assert3(diff <= change);
+        w_assert4(diff <= change);
     } else {
-	w_assert3(diff >= change);
+        w_assert4(diff >= change);
     }
-#endif /* W_DEBUG */
+#endif 
 }
 
 inline void 
-smthread_t::check_actual_pin_count(int W_IFDEBUG(actual)) 
+smthread_t::check_actual_pin_count(int W_IFDEBUG3(actual)) 
 {
     w_assert3(tcb().pin_count == actual);
 }
@@ -383,23 +570,13 @@ smthread_t::check_actual_pin_count(int W_IFDEBUG(actual))
 inline void 
 smthread_t::incr_pin_count(int amount) 
 {
-    tcb().pin_count += amount; // w_assert3(tcb().pin_count >= 0);
+    tcb().pin_count += amount; 
 }
 
 inline int 
 smthread_t::pin_count() 
 {
     return tcb().pin_count;
-}
-
-inline bool smthread_t::generate_log_warnings() const
-{
-    return generateLogWarnings;
-}
-
-inline void smthread_t::generate_log_warnings(bool b)
-{
-    generateLogWarnings = b;
 }
 
 void
@@ -418,34 +595,11 @@ DumpBlockedThreads(ostream& o);
  */
 #undef FUNC
 #define FUNC(fn)\
-	_w_fname_debug__ = _string(fn); DBGTHRD(<< _string(fn));
+  do { char const* fname = __func__; \
+    DBGTHRD(<< fname);} while(0)
 #endif /* W_TRACE */
 
-
-/*
- * class to set the generate log warnings for the thread and to restore when
- * the object is destroyed.
- */
-class DisableGenLogWarnings
-{
-    public:
-        DisableGenLogWarnings(bool newValue = false);
-	~DisableGenLogWarnings();
-    private:
-        bool	oldValue;
-};
-
-inline DisableGenLogWarnings::DisableGenLogWarnings(bool newValue)
-{
-    oldValue = me()->generate_log_warnings();
-    me()->generate_log_warnings(newValue);
-}
-
-inline DisableGenLogWarnings::~DisableGenLogWarnings()
-{
-    me()->generate_log_warnings(oldValue);
-}
-
+/**\endcond skip */
 
 
 /*<std-footer incl-file-exclusion='SMTHREAD_H'>  -- do not edit anything below this line -- */

@@ -5,7 +5,7 @@ smshdir = $(top_srcdir)/src/sm/smsh
 EXTRA_DIST = test-short testall testall.maintainer \
 	    .shoreconfig.example .smshrc.example runsmsh \
 	    README README.2PC README.how-to-start runtest run.cd.perf \
-	    $(check_HEADERS)
+	    $(include_HEADERS)
 
 CLEANFILES = ./log/* ./volumes/*
 
@@ -17,20 +17,18 @@ AM_CXXFLAGS          += -I$(top_srcdir)/src/fc \
 
 check_PROGRAMS     = smsh$(EXEEXT) random_kick$(EXEEXT)
 
-TEST = test-short
+TESTS = test-short
 
 random_kick_SOURCES      =  random_kick.cpp
 
-check_HEADERS      =  \
-	shell.h sm_coord.h sm_mappings.h smsh.h smsh_error.h \
-	sort_funcs.h tcl_thread.h
+include_HEADERS      =  \
+	shell.h smsh.h smsh_error.h \
+	sort_funcs.h tcl_thread.h tcl_workaround.h
 
 smsh_SOURCES      =  \
 	out_of_log_space.cpp \
 	shell.cpp \
 	shell2.cpp \
-	sm_coord.cpp \
-	sm_mappings.cpp \
 	sm_sizeof.cpp \
 	sort_funcs.cpp \
 	sort_funcs2.cpp \
@@ -56,5 +54,3 @@ smsh.quant: $(smsh_SOURCES:.cpp=.o)
 smsh.purecov: $(smsh_SOURCES:.cpp=.o)
 	$(PURECOV_BIN)/purecov $(PURECOV_FLAGS)  $(PURECOV_COLLECTOR)  $(CXX) -o $@ $(smsh_SOURCES:.cpp=.o) $(LDADD) $(LIBS)
 
-
-install-hook:

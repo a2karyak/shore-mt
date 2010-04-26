@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: hash_lru.cpp,v 1.29 2006/01/29 18:24:56 bolo Exp $
+ $Id: hash_lru.cpp,v 1.29.2.5 2009/12/08 22:05:43 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -45,19 +45,19 @@ hash_lru_t<TYPE, KEY>::_in_htab(hash_lru_entry_t<TYPE, KEY>* e)
 }
 
 /* XXX this is disgusting.   There was inline code doing
-	int(&(_entry->XXX))
+        int(&(_entry->XXX))
    Where _entry == 0 and XXX == member name, to determine the offsetof
    XXX in hash_lru_entry_t.  offsetof() should really be used for that.
    However there is a big problem betweent the CPP and the c++ compiler
    parsing that whole mess.  I introduced this macro and the comment so
    document why this is being used so it doesn't appear to be magick.
  */
-#define hash_lru_offsetof(name,member)	((size_t)(&(name->member)))
+#define hash_lru_offsetof(name,member)        ((size_t)(&(name->member)))
 
 // XXX mirror the "normal" list/keyed/hash things here so it looks normal
-#define	W_LIST_LRU_ARG(class,key)	hash_lru_offsetof(class,key)
-#define	W_HASH_LRU_ARG(class,key,link)	\
-	hash_lru_offsetof(class,key), hash_lru_offsetof(class,link)
+#define        W_LIST_LRU_ARG(class,key)        hash_lru_offsetof(class,key)
+#define        W_HASH_LRU_ARG(class,key,link)        \
+        hash_lru_offsetof(class,key), hash_lru_offsetof(class,link)
 
 template <class TYPE, class KEY>
 hash_lru_t<TYPE, KEY>::hash_lru_t(int n, const char *desc) 
@@ -70,11 +70,11 @@ hash_lru_t<TYPE, KEY>::hash_lru_t(int n, const char *desc)
   _clock(-1), 
   _total(n)
 {
-	_entry = new hash_lru_entry_t<TYPE, KEY> [_total];
-	w_assert1(_entry);
+        _entry = new hash_lru_entry_t<TYPE, KEY> [_total];
+        w_assert1(_entry);
     
-	for (int i = 0; i < _total; i++)
-		_unused.append(&_entry[i]);
+        for (int i = 0; i < _total; i++)
+                _unused.append(&_entry[i]);
 }
 
 #ifdef hash_lru_offsetof
@@ -86,9 +86,9 @@ hash_lru_t<TYPE, KEY>::~hash_lru_t()
 {
     W_COERCE( _mutex.acquire() );
     for (int i = 0; i < _total; i++) {
-	w_assert3(! _in_htab(_entry + i) );
+        w_assert9(! _in_htab(_entry + i) );
     }
-    while (_unused.pop());
+    while (_unused.pop()) ;
     delete [] _entry;
     _mutex.release();
 }
@@ -101,17 +101,17 @@ TYPE* hash_lru_t<TYPE, KEY>::grab(
 {
     is_new = false;
     
-    W_COERCE( _mutex.acquire() );		// enter monitor
+    W_COERCE( _mutex.acquire() );                // enter monitor
     ref_cnt++;
     hash_lru_entry_t<TYPE, KEY>* p = _htab.lookup(k);
     
-    if (found = (p != 0)) {
-	hit_cnt++;
+    if ( (found = (p != 0)) ) {
+        hit_cnt++;
     } else {
-	is_new = ((p = _unused.pop()) != 0);
-	if (! is_new)  p = _replacement();
-	w_assert3(p);
-	p->key = k, _htab.push(p);
+        is_new = ((p = _unused.pop()) != 0);
+        if (! is_new)  p = _replacement();
+        w_assert9(p);
+        p->key = k, _htab.push(p);
     }
     
     p->ref = true;
@@ -129,13 +129,13 @@ TYPE* hash_lru_t<TYPE, KEY>::find(
     ref_cnt++;
     hash_lru_entry_t<TYPE, KEY>* p = _htab.lookup(k);
     if (! p) {
-	_mutex.release();
-	return 0;
+        _mutex.release();
+        return 0;
     }
 
     hit_cnt++;
     if ((ref_bit>0) && !(p->ref))  
-	p->ref = true;
+        p->ref = true;
 
     return &p->entry;
 }
@@ -151,8 +151,8 @@ hash_lru_t<TYPE, KEY>::find(
     ref_cnt++;
     hash_lru_entry_t<TYPE, KEY>* p = _htab.lookup(k);
     if (! p) {
-	_mutex.release();
-	return false;
+        _mutex.release();
+        return false;
     }
 
     hit_cnt++;
@@ -166,7 +166,7 @@ hash_lru_t<TYPE, KEY>::find(
 template <class TYPE, class KEY>
 void hash_lru_t<TYPE, KEY>::remove(const TYPE*& t)
 {
-    w_assert3(_mutex.is_mine());
+    w_assert9(_mutex.is_mine());
     // caclulate offset (off) of TYPE entry in *this
 #ifdef HP_CC_BUG_3
     hash_lru_entry_t<TYPE, KEY>& tmp = *(hash_lru_entry_t<TYPE, KEY>*)0;
@@ -176,7 +176,7 @@ void hash_lru_t<TYPE, KEY>::remove(const TYPE*& t)
     int off = w_offsetof(HashType, entry);
 #endif
     hash_lru_entry_t<TYPE, KEY>* p = (hash_lru_entry_t<TYPE, KEY>*) (((char*)t)-off);
-    w_assert3(t == &p->entry);
+    w_assert9(t == &p->entry);
     _htab.remove(p);
     t = NULL;
     _unused.push(p);
@@ -190,22 +190,22 @@ hash_lru_t<TYPE, KEY>::_replacement()
     int start = (_clock+1 == _total) ? 0 : _clock+1, rounds = 0;
     int i;
     for (i = start; ; i++)  {
-	if (i == _total) i = 0;
-	if (i == start && ++rounds == 3)  {
-	    cerr << "hash_lru_t: cannot find free resource" << endl;
-	    dump();
-	    W_FATAL(fcFULL);
-	}
-	p = _entry + i;
-	w_assert3( _in_htab(p) );
-	if (!p->ref) {
-	    break;
-	}
-	p->ref = false;
+        if (i == _total) i = 0;
+        if (i == start && ++rounds == 3)  {
+            cerr << "hash_lru_t: cannot find free resource" << endl;
+            dump();
+            W_FATAL(fcFULL);
+        }
+        p = _entry + i;
+        w_assert9( _in_htab(p) );
+        if (!p->ref) {
+            break;
+        }
+        p->ref = false;
     }
-    w_assert3( _in_htab(p) );
+    w_assert9( _in_htab(p) );
     //hash_lru_entry_t<TYPE, KEY>* tmp = p;  // use tmp since remove sets arg to 0
-    _htab.remove(p);	// remove p from hash table
+    _htab.remove(p);        // remove p from hash table
     _clock = i;
     return p;
 }
@@ -216,11 +216,11 @@ hash_lru_t<TYPE,KEY>::dump()
 {
     FUNC(hash_lru_t<>::dump);
     for (int i = 0; i < _total; i++)  {
-	hash_lru_entry_t<TYPE, KEY>* p = _entry + i;
-	if (_in_htab(p))  {
-	    DBG( << i << '\t'
-		 << p->key << '\t');
-	}
+        hash_lru_entry_t<TYPE, KEY>* p = _entry + i;
+        if (_in_htab(p))  {
+            DBG( << i << '\t'
+                 << p->key << '\t');
+        }
     }
 }
 
@@ -236,11 +236,11 @@ hash_lru_i<TYPE, KEY>::next()
 {
     _curr = 0; 
     while( _idx < _h._total ) {
-	hash_lru_entry_t<TYPE, KEY>* p = &_h._entry[_idx++];
-	if (_h._in_htab(p)) {
-	    _curr = p;
-	    break;
-	}
+        hash_lru_entry_t<TYPE, KEY>* p = &_h._entry[_idx++];
+        if (_h._in_htab(p)) {
+            _curr = p;
+            break;
+        }
     }
     return _curr ? &_curr->entry : 0;
 }
@@ -249,7 +249,7 @@ template <class TYPE, class KEY>
 void 
 hash_lru_i<TYPE, KEY>::discard_curr()
 {
-    w_assert3(_curr);
+    w_assert9(_curr);
     const TYPE* tmp = &_curr->entry;
     _h.remove(tmp);
     _curr = 0;

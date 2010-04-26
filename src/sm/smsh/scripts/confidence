@@ -1,6 +1,6 @@
 # <std-header style='tcl' orig-src='shore'>
 #
-#  $Id: confidence,v 1.2 1999/06/07 19:05:24 kupsch Exp $
+#  $Id: confidence,v 1.2.4.1 2009/12/14 23:57:55 nhall Exp $
 #
 # SHORE -- Scalable Heterogeneous Object REpository
 #
@@ -33,12 +33,6 @@
 ## the base systems first before hoping more complex things
 ## will work.
 ##
-## This started out life as a re-ordered 'all'.  If anyone
-## things there is a better order than the one I choose,
-## re order to to do the job I described better.
-##
-## Bolo
-##
 
 source $script_dir/vol.init
 
@@ -53,7 +47,6 @@ set scripts [list \
 		alloc.all \
 		free.all \
 		\
-		lid.all  \
 		quark.all\
 		lock.all \
 		trans.all \

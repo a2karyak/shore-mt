@@ -1,6 +1,29 @@
+/* -*- mode:C++; c-basic-offset:4 -*-
+     Shore-MT -- Multi-threaded port of the SHORE storage manager
+   
+                       Copyright (c) 2007-2009
+      Data Intensive Applications and Systems Labaratory (DIAS)
+               Ecole Polytechnique Federale de Lausanne
+   
+                         All Rights Reserved.
+   
+   Permission to use, copy, modify and distribute this software and
+   its documentation is hereby granted, provided that both the
+   copyright notice and this permission notice appear in all copies of
+   the software, derivative works or modified versions, and any
+   portions thereof, and that both notices appear in supporting
+   documentation.
+   
+   This code is distributed in the hope that it will be useful, but
+   WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. THE AUTHORS
+   DISCLAIM ANY LIABILITY OF ANY KIND FOR ANY DAMAGES WHATSOEVER
+   RESULTING FROM THE USE OF THIS SOFTWARE.
+*/
+
 /*<std-header orig-src='shore' incl-file-exclusion='SORT_H'>
 
- $Id: sort.h,v 1.29 2007/08/21 19:50:44 nhall Exp $
+ $Id: sort.h,v 1.28.2.4 2009/10/08 22:36:56 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -54,9 +77,9 @@ struct s_chunk  {
 
     NORET s_chunk() { data = 0; next = 0; };
     NORET s_chunk(w_base_t::uint4_t size, s_chunk* tail) { 
-		      data = new char[size];
-		      next = tail;
-		};
+              data = new char[size];
+              next = tail;
+        };
     NORET ~s_chunk() { delete [] data; };
 };
 
@@ -66,13 +89,13 @@ private:
     s_chunk* head;
 
     void _free_all() { 
-	      s_chunk* curr;
-	      while (head) {
-		curr = head;
-		head = head->next;
-		delete curr;
-	      }
-	  };
+          s_chunk* curr;
+          while (head) {
+        curr = head;
+        head = head->next;
+        delete curr;
+          }
+      };
 
 public:
 
@@ -82,102 +105,92 @@ public:
     void  reset() { _free_all(); head = 0; };
 
     void* alloc(w_base_t::uint4_t size) {
-	      s_chunk* curr = new s_chunk(size, head);
-	      head = curr;
- 	      return (void*) curr->data;
-	  };
+          s_chunk* curr = new s_chunk(size, head);
+          head = curr;
+           return (void*) curr->data;
+      };
 };
 
-#if (defined(_AIX) || defined(mips) || defined(__cplusplus) || \
-     defined(c_plusplus) || defined(__GNUC__))
 #       define PROTOTYPE(_parms) _parms
-#else
-/*
- *      Turn it off for everything else
- */
-#       define PROTOTYPE(_parms) ()
-#endif
 
 #ifndef PFCDEFINED
 
 #define PFCDEFINED
 typedef int  (*PFC) PROTOTYPE((w_base_t::uint4_t kLen1, 
-	    const void* kval1, w_base_t::uint4_t kLen2, const void* kval2));
+        const void* kval1, w_base_t::uint4_t kLen2, const void* kval2));
 
 #endif
 
-class sort_stream_i : public smlevel_top, public xct_dependent_t {
+class sort_stream_i : public smlevel_top, public xct_dependent_t 
+{
 
   friend class ss_m;
 
   public:
 
-    NORET	sort_stream_i();
-    NORET	sort_stream_i(const key_info_t& k,
-			const sort_parm_t& s, uint est_rec_sz=0);
-    NORET	~sort_stream_i();
+    NORET    sort_stream_i();
+    NORET    sort_stream_i(const key_info_t& k,
+                const sort_parm_t& s, uint est_rec_sz=0);
+    NORET    ~sort_stream_i();
 
     static PFC  get_cmp_func(key_info_t::key_type_t type, bool up);
 
-    void	init(const key_info_t& k, const sort_parm_t& s,
-			uint est_rec_sz=0);
-    void	finish();
+    void    init(const key_info_t& k, const sort_parm_t& s, uint est_rec_sz=0);
+    void    finish();
 
-    rc_t	put(const cvec_t& key, const cvec_t& elem);
+    rc_t    put(const cvec_t& key, const cvec_t& elem);
 
-    rc_t	get_next(vec_t& key, vec_t& elem, bool& eof);
+    rc_t    get_next(vec_t& key, vec_t& elem, bool& eof);
 
-//    bool	is_eof() { return eof; }
-    bool	is_empty() { return empty; }
-    bool	is_sorted() { return sorted; }
+    bool    is_empty() { return empty; }
+    bool    is_sorted() { return sorted; }
 
   private:
-    void	set_file_sort() { _file_sort = true; _once = false; }
-    void	set_file_sort_once(
-			sm_store_property_t prop
-			) {
-				_file_sort = true; _once = true; 
-				_property = prop; 
-	}
-    rc_t	file_put(const cvec_t& key, const void* rec, uint rlen,
-				uint hlen, const rectag_t* tag);
-    rc_t	file_get_next(vec_t& key, vec_t& elem, w_base_t::uint4_t& blen, bool& eof);
+    void    set_file_sort() { _file_sort = true; _once = false; }
+    void    set_file_sort_once(sm_store_property_t prop) 
+                {
+                    _file_sort = true; _once = true; 
+                    _property = prop; 
+                }
+    rc_t    file_put(const cvec_t& key, const void* rec, uint rlen,
+                uint hlen, const rectag_t* tag);
 
-    rc_t        flush_run();		// sort and flush one run
+    rc_t    file_get_next(vec_t& key, vec_t& elem, 
+                w_base_t::uint4_t& blen, bool& eof);
 
-    rc_t	flush_one_rec(const record_t *rec, rid_t& rid,
-				const stid_t& out_fid, file_p& last_page,
-				bool to_final_file);
+    rc_t        flush_run();        // sort and flush one run
 
-    rc_t	remove_duplicates();	// remove duplicates for unique sort
-    rc_t	merge(bool skip_last_pass);
+    rc_t    flush_one_rec(const record_t *rec, rid_t& rid,
+                const stid_t& out_fid, file_p& last_page,
+                bool to_final_file);
 
-    void	xct_state_changed(
-			xct_state_t old_state, 
-			xct_state_t new_state);
+    rc_t    remove_duplicates();    // remove duplicates for unique sort
+    rc_t    merge(bool skip_last_pass);
 
-    key_info_t		ki;		// key info
-    sort_parm_t		sp;		// sort parameters
-    sort_desc_t*	sd;		// sort descriptor
+    void    xct_state_changed( xct_state_t old_state, xct_state_t new_state);
 
-    bool 		sorted;		// sorted flag
-    bool 		eof;		// eof flag
-    bool 		empty;		// empty flag
-    const record_t*	old_rec;	// used for sort unique
+    key_info_t        ki;        // key info
+    sort_parm_t       sp;        // sort parameters
+    sort_desc_t*      sd;        // sort descriptor
+
+    bool              sorted;        // sorted flag
+    bool              eof;        // eof flag
+    bool              empty;        // empty flag
+    const record_t*   old_rec;    // used for sort unique
   
-    bool		_file_sort;	// true if sorting a file
+    bool              _file_sort;    // true if sorting a file
 
-    int2_t*		heap;	   	// heap array
-    int			heap_size; 	// heap size
-    run_scan_t* 	sc;	   	// scan descriptor array	
-    w_base_t::uint4_t 	num_runs;  	// # of runs for each merge
-    int			r;	   	// run index
+    int2_t*           heap;           // heap array
+    int               heap_size;     // heap size
+    run_scan_t*       sc;           // scan descriptor array    
+    w_base_t::uint4_t num_runs;      // # of runs for each merge
+    int               r;           // run index
 
-    chunk_mgr_t		buf_space;	// in-memory storage
+    chunk_mgr_t       buf_space;    // in-memory storage
 
     // below vars used for speeding up sort if whole file fits in memory
-    bool		_once;		// one pass write to result file
-    sm_store_property_t _property;	// property for the result file
+    bool              _once;        // one pass write to result file
+    sm_store_property_t _property;    // property for the result file
 };
 
 class file_p;
@@ -194,8 +207,8 @@ class run_scan_t {
     bool eof;         // end of run
     key_info_t kinfo;   // key description (location, len, type)
     int2_t   toggle_base; // default = 1, unique sort = 2
-    bool   single;	// only one page
-    bool   _unique;	// unique sort
+    bool   single;    // only one page
+    bool   _unique;    // unique sort
 
 public:
     PFC cmp;

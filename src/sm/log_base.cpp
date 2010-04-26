@@ -1,6 +1,29 @@
+/* -*- mode:C++; c-basic-offset:4 -*-
+     Shore-MT -- Multi-threaded port of the SHORE storage manager
+   
+                       Copyright (c) 2007-2009
+      Data Intensive Applications and Systems Labaratory (DIAS)
+               Ecole Polytechnique Federale de Lausanne
+   
+                         All Rights Reserved.
+   
+   Permission to use, copy, modify and distribute this software and
+   its documentation is hereby granted, provided that both the
+   copyright notice and this permission notice appear in all copies of
+   the software, derivative works or modified versions, and any
+   portions thereof, and that both notices appear in supporting
+   documentation.
+   
+   This code is distributed in the hope that it will be useful, but
+   WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. THE AUTHORS
+   DISCLAIM ANY LIABILITY OF ANY KIND FOR ANY DAMAGES WHATSOEVER
+   RESULTING FROM THE USE OF THIS SOFTWARE.
+*/
+
 /*<std-header orig-src='shore'>
 
- $Id: log_base.cpp,v 1.35 2008/05/31 05:03:31 nhall Exp $
+ $Id: log_base.cpp,v 1.34.2.8 2010/01/12 02:01:29 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -42,77 +65,6 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 
 #include <w_strstream.h>
 
-/* Until/unless we put this into shared memory: */
-log_base::_shared_log_info  log_base::__shared;
-
-/*********************************************************************
- *
- *  Constructor 
- *  log_base::log_base 
- *
- *********************************************************************/
-
-NORET
-log_base::log_base(
-	char * /*shmbase*/
-	)
-    : 
-    _shared (&__shared)
-{
-    /*
-     * writebuf and readbuf are "allocated"
-     * in srv_log constructor
-     */
-
-#ifdef notdef
-    /* 
-     * create shm seg for the shared data members
-     */
-    w_assert3(_shmem_seg.base()==0);
-    if(segid) {
-	// server size -- attach to it
-	int i;
-	w_istrstream(segid) >> i;
-	w_rc_t rc = _shmem_seg.attach(i);
-	if(rc) {
-	    cerr << "log daemon:-  cannot attach to shared memroy " << segid << endl;
-	    cerr << rc;
-	    W_COERCE(rc);
-	}
-    } else {
-	// client side -- create it
-
-	// TODO add diskport-style queue
-	w_rc_t rc = _shmem_seg.create(sizeof(struct _shared_log_info));
-
-	if(rc) {
-	    cerr << "fatal error: cannot create shared memory for log" << endl;
-	    W_COERCE(rc);
-	}
-    }
-    _shared = new(_shmem_seg.base()) _shared_log_info;
-    w_assert3(_shared != 0);
-#endif
-
-    // re-initialize
-    _shared->_log_corruption_on = false;
-    _shared->_min_chkpt_rec_lsn = log_base::first_lsn(1);
-
-    DBG(<< "_shared->_min_chkpt_rec_lsn = " 
-	<<  _shared->_min_chkpt_rec_lsn);
-
-}
-
-NORET
-log_base::~log_base()
-{
-/*
-    if(_shmem_seg.base()) {
-	W_COERCE( _shmem_seg.destroy() );
-    }
-*/
-}
-
 /*********************************************************************
  *
  *  log_base::check_raw_device(devname, raw)
@@ -125,35 +77,23 @@ log_base::~log_base()
  *
  *********************************************************************/
 rc_t
-log_base::check_raw_device(const char* devname, bool& raw)
+log_m::check_raw_device(const char* devname, bool& raw)
 {
-	w_rc_t	e;
-	int	fd;
+        w_rc_t        e;
+        int        fd;
 
-	raw = false;
+        raw = false;
 
-	/* XXX should add a stat() to sthread for instances such as this */
+        /* XXX should add a stat() to sthread for instances such as this */
 
-	e = me()->open(devname,
-		smthread_t::OPEN_LOCAL|smthread_t::OPEN_RDONLY, 0,
-		fd);
+        e = me()->open(devname, smthread_t::OPEN_RDONLY, 0, fd);
 
-#if defined(_WIN32)
-	/* We get EPERM on directories, say everything is OK
-	   in that case ... it's what happened before! */
-	if (e != RCOK && e.err_num() == fcOS && e.sys_err_num() == EACCES)
-		return RCOK;
-	else if (e != RCOK && e.err_num() == fcWIN32
-		&& e.sys_err_num() == ERROR_ACCESS_DENIED)
-		return RCOK;
-#endif
+        if (!e.is_error()) {
+                e = me()->fisraw(fd, raw);
+                W_IGNORE(me()->close(fd));
+        }
 
-	if (e == RCOK) {
-		e = me()->fisraw(fd, raw);
-		W_IGNORE(me()->close(fd));
-	}
-
-	return e;
+        return e;
 }
 
 
@@ -171,12 +111,8 @@ log_base::check_raw_device(const char* devname, bool& raw)
  *
  *********************************************************************/
 
-#if defined(SM_DISKADDR_LARGE)
-uint4_t log_base::version_major = 3;
-#else
-uint4_t log_base::version_major = 2;
-#endif
-uint4_t log_base::version_minor = 1;
+uint4_t const log_m::version_major = 4;
+uint4_t const log_m::version_minor = 0;
 
 /* Changes to minor version: 
  * 6/7/99 - added last_durable_skip to each partition.
@@ -194,24 +130,24 @@ uint4_t log_base::version_minor = 1;
  *********************************************************************/
 
 rc_t
-log_base::check_version(uint4_t major, uint4_t minor)
+log_m::check_version(uint4_t major, uint4_t minor)
 {
-	if (major == version_major && minor <= version_minor)
-		return RCOK;
+        if (major == version_major && minor <= version_minor)
+                return RCOK;
 
-	int err = (major < version_major)
-			? eLOGVERSIONTOOOLD : eLOGVERSIONTOONEW;
+        int err = (major < version_major)
+                        ? eLOGVERSIONTOOOLD : eLOGVERSIONTOONEW;
 
-	smlevel_0::errlog->clog << error_prio 
-	    << "ERROR: log version too "
-	    << ((err == eLOGVERSIONTOOOLD) ? "old" : "new")
-	    << " sm ("
-	    << version_major << " . " << version_minor
-	    << ") log ("
-	    << major << " . " << minor
-	    << flushl;
+        smlevel_0::errlog->clog << error_prio 
+            << "ERROR: log version too "
+            << ((err == eLOGVERSIONTOOOLD) ? "old" : "new")
+            << " sm ("
+            << version_major << " . " << version_minor
+            << ") log ("
+            << major << " . " << minor
+            << flushl;
 
-	return RC(err);
+        return RC(err);
 }
 
 
@@ -224,13 +160,13 @@ log_base::check_version(uint4_t major, uint4_t minor)
  *
  *********************************************************************/
 rc_t
-log_base::parse_master_chkpt_string(
-		istream&	    s,
-		lsn_t&              master_lsn,
-		lsn_t&              min_chkpt_rec_lsn,
-		int&		    number_of_others,
-		lsn_t*		    others,
-		bool&		    old_style)
+log_m::parse_master_chkpt_string(
+                istream&            s,
+                lsn_t&              master_lsn,
+                lsn_t&              min_chkpt_rec_lsn,
+                int&                    number_of_others,
+                lsn_t*                    others,
+                bool&                    old_style)
 {
     uint4_t major = 1;
     uint4_t minor = 0;
@@ -238,63 +174,63 @@ log_base::parse_master_chkpt_string(
 
     s >> separator;
 
-    if (separator == 'v')  {		// has version, otherwise default to 1.0
-	old_style = false;
-	s >> major >> separator >> minor;
-	w_assert3(separator == '.');
-	s >> separator;
-	w_assert3(separator == '_');
+    if (separator == 'v')  {                // has version, otherwise default to 1.0
+        old_style = false;
+        s >> major >> separator >> minor;
+        w_assert9(separator == '.');
+        s >> separator;
+        w_assert9(separator == '_');
     }  else  {
-	old_style = true;
-	s.putback(separator);
+        old_style = true;
+        s.putback(separator);
     }
 
     s >> master_lsn >> separator >> min_chkpt_rec_lsn;
-    w_assert3(separator == '_' || separator == '.');
+    w_assert9(separator == '_' || separator == '.');
 
     if (!s)  {
-	return RC(eBADMASTERCHKPTFORMAT);
+        return RC(eBADMASTERCHKPTFORMAT);
     }
 
     number_of_others = 0;
     while(!s.eof()) {
-	s >> separator;
-	if(separator == '\0') break; // end of string
+        s >> separator;
+        if(separator == '\0') break; // end of string
 
-	if(!s.eof()) {
-	    w_assert3(separator == '_' || separator == '.');
-	    s >> others[number_of_others];
-	    DBG(<< number_of_others << ": extra lsn = " << 
-		others[number_of_others]);
-	    if(!s.fail()) {
-		number_of_others++;
-	    }
-	}
+        if(!s.eof()) {
+            w_assert9(separator == '_' || separator == '.');
+            s >> others[number_of_others];
+            DBG(<< number_of_others << ": extra lsn = " << 
+                others[number_of_others]);
+            if(!s.fail()) {
+                number_of_others++;
+            }
+        }
     }
 
     return check_version(major, minor);
 }
 
 rc_t
-log_base::parse_master_chkpt_contents(
-		istream&	    s,
-		int&		    listlength,
-		lsn_t*		    lsnlist
-		)
+log_m::parse_master_chkpt_contents(
+                istream&            s,
+                int&                    listlength,
+                lsn_t*                    lsnlist
+                )
 {
     listlength = 0;
     char separator;
     while(!s.eof()) {
-	s >> separator;
-	if(!s.eof()) {
-	    w_assert3(separator == '_' || separator == '.');
-	    s >> lsnlist[listlength];
-	    DBG(<< listlength << ": extra lsn = " << 
-		lsnlist[listlength]);
-	    if(!s.fail()) {
-		listlength++;
-	    }
-	}
+        s >> separator;
+        if(!s.eof()) {
+            w_assert9(separator == '_' || separator == '.');
+            s >> lsnlist[listlength];
+            DBG(<< listlength << ": extra lsn = " << 
+                lsnlist[listlength]);
+            if(!s.fail()) {
+                listlength++;
+            }
+        }
     }
     return RCOK;
 }
@@ -310,33 +246,33 @@ log_base::parse_master_chkpt_contents(
  *********************************************************************/
 
 void
-log_base::create_master_chkpt_string(
-		ostream&	s,
-	        int		arraysize,
-	        const lsn_t*	array,
-		bool		old_style)
+log_m::create_master_chkpt_string(
+                ostream&        s,
+                int                arraysize,
+                const lsn_t*        array,
+                bool                old_style)
 {
     w_assert1(arraysize >= 2);
     if (old_style)  {
-	s << array[0] << '.' << array[1];
+        s << array[0] << '.' << array[1];
 
     }  else  {
-	s << 'v' << version_major << '.' << version_minor ;
-	for(int i=0; i< arraysize; i++) {
-		s << '_' << array[i];
-	}
+        s << 'v' << version_major << '.' << version_minor ;
+        for(int i=0; i< arraysize; i++) {
+                s << '_' << array[i];
+        }
     }
 }
 
 void
-log_base::create_master_chkpt_contents(
-		ostream&	s,
-	        int		arraysize,
-	        const lsn_t*	array
-		)
+log_m::create_master_chkpt_contents(
+                ostream&        s,
+                int                arraysize,
+                const lsn_t*        array
+                )
 {
     for(int i=0; i< arraysize; i++) {
-	    s << '_' << array[i];
+            s << '_' << array[i];
     }
     s << ends;
 }
@@ -353,24 +289,29 @@ bool log_i::next(lsn_t& lsn, logrec_t*& r)
 {
     bool eof = (cursor == null_lsn);
     if (! eof) {
-	lsn = cursor;
-	rc_t rc = log.fetch(lsn, r, &cursor);
-	// release right away, since this is only
-	// used in recovery.
-	log.release();
-	if (rc)  {
-	    last_rc = rc;
-	    RC_AUGMENT(last_rc);
-	    RC_APPEND_MSG(last_rc, << "trying to fetch lsn " << cursor);
-	    
-	    if (rc.err_num() == smlevel_0::eEOF)  
-		eof = true;
-	    else  {
-		smlevel_0::errlog->clog << error_prio 
-		<< "Fatal error : " << RC_PUSH(rc, smlevel_0::eINTERNAL) << flushl;
-	    }
-	}
+        lsn = cursor;
+        rc_t rc = log.fetch(lsn, r, &cursor);
+        
+        // release right away, since this is only
+        // used in recovery.
+        log.release();
+
+        if (rc.is_error())  {
+            last_rc = rc;
+            RC_AUGMENT(last_rc);
+            RC_APPEND_MSG(last_rc, << "trying to fetch lsn " << cursor);
+            
+            if (last_rc.err_num() == smlevel_0::eEOF)  
+                eof = true;
+            else  {
+                smlevel_0::errlog->clog << error_prio 
+                << "Fatal error : " << RC_PUSH(last_rc, smlevel_0::eINTERNAL) << flushl;
+            }
+        }
     }
     return ! eof;
 }
+
+void    log_base::compute_space() {}
+log_base::~log_base() {}
 

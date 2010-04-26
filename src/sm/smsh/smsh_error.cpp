@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: smsh_error.cpp,v 1.1 2007/05/18 21:50:59 nhall Exp $
+ $Id: smsh_error.cpp,v 1.1.2.5 2010/03/19 22:20:31 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -37,19 +37,10 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #include "opt_error_def_gen.h"
 #include "fc_error_def_gen.h"
 
-#ifdef USE_COORD
-#include "sc_error_def_gen.h"
-#include "ns_error_def_gen.h"
-#endif
-
 #include "e_einfo_bakw_gen.h"
 #include "opt_einfo_bakw_gen.h"
 #include "st_einfo_bakw_gen.h"
 #include "fc_einfo_bakw_gen.h"
-#ifdef USE_COORD
-#include "sc_einfo_bakw_gen.h"
-#include "ns_einfo_bakw_gen.h"
-#endif
 #include <w_debug.h>
 #include "smsh_error.h"
 
@@ -73,10 +64,10 @@ smsh_err_code(const char *x)
     v = (a);\
     j = (b);\
     while( (v != 0) && j++ <= (c) ) {\
-	    if(strcmp(v->errstr,x)==0) { \
-		    return  v->err_num;\
-	    }\
-	    v++;\
+        if(strcmp(v->errstr,x)==0) { \
+            return  v->err_num;\
+        }\
+        v++;\
     }
     LOOK(e_error_info_bakw,E_ERRMIN,E_ERRMAX);
     LOOK(st_error_info_bakw,ST_ERRMIN,ST_ERRMAX);
@@ -103,20 +94,16 @@ smsh_err_name(unsigned int x)
     v = (a);\
     j = (b);\
     while( (v != 0) && j++ <= (c) ) {\
-	    if(x == v->err_num) {\
-		    return  v->errstr;\
-	    }\
-	    v++;\
+        if(x == v->err_num) {\
+            return  v->errstr;\
+        }\
+        v++;\
     }
     
     LOOK(e_error_info_bakw,E_ERRMIN,E_ERRMAX);
     LOOK(st_error_info_bakw,ST_ERRMIN,ST_ERRMAX);
     LOOK(opt_error_info_bakw,OPT_ERRMIN,OPT_ERRMAX);
     LOOK(fc_error_info_bakw,FC_ERRMIN,FC_ERRMAX);
-#ifdef USE_COORD
-    LOOK(sc_error_info_bakw,SC_ERRMIN,SC_ERRMAX);
-    LOOK(ns_error_info_bakw,NS_ERRMIN,NS_ERRMAX);
-#endif
 
 #undef LOOK
 

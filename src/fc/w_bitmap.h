@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='W_BITMAP_H'>
 
- $Id: w_bitmap.h,v 1.12 1999/06/07 19:02:50 kupsch Exp $
+ $Id: w_bitmap.h,v 1.12.2.4 2010/03/19 22:17:19 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -40,37 +40,58 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #pragma interface
 #endif
 
+/** \brief Bitmaps of arbitrary sizes (in bits).  NOT USED by the storage manager.
+ *\ingroup UNUSED 
+ */
 class w_bitmap_t : public w_base_t {
 public:
-    NORET			w_bitmap_t(uint4_t size);
-    NORET			w_bitmap_t(uint1_t* p, uint4_t size);
-    NORET			~w_bitmap_t();
+    /// construct for \e size bits
+    NORET            w_bitmap_t(uint4_t size);
+    /// construct for \e size bits, using given pointer to storage 
+    NORET            w_bitmap_t(uint1_t* p, uint4_t size);
 
-    void			zero();
-    void			fill();
+    NORET            ~w_bitmap_t();
 
-    void                        resetPtr(uint1_t* p, uint4_t size);
-    void			set(uint4_t offset);
-    int4_t			first_set(uint4_t start) const;
-    uint4_t			num_set() const;
-    bool			is_set(uint4_t offset) const;
+    /// clear all bits
+    void            zero();
+    /// set all bits
+    void            fill();
 
-    void			clr(uint4_t offset);
-    int4_t			first_clr(uint4_t start) const;
-    uint4_t			num_clr() const;
-    bool			is_clr(uint4_t offset) const;
+    void            resetPtr(uint1_t* p, uint4_t size);
+    /// set bit at offset
+    void            set(uint4_t offset);
+    /// return first set bit after bit at start
+    int4_t            first_set(uint4_t start) const;
+    /// return # bits set
+    uint4_t            num_set() const;
+    /// return true iff bit at offset is set
+    bool            is_set(uint4_t offset) const;
 
-    uint4_t			size() const;		// # bits
-    static int			bytesForBits(uint4_t numBits);
+    /// clear bit at offset
+    void            clr(uint4_t offset);
+    /// return first clear bit after bit at start
+    int4_t            first_clr(uint4_t start) const;
+    /// return # bits clear
+    uint4_t            num_clr() const;
+    /// return true iff bit at offset is clear
+    bool            is_clr(uint4_t offset) const;
 
-    uint1_t*			addr();
-    const uint1_t*		addr() const;
+    /// return size in bits
+    uint4_t            size() const;        // # bits
 
-    friend ostream&		operator<<(ostream&, const w_bitmap_t&);
+    /// return size in bytes needed for numBits
+    static int        bytesForBits(uint4_t numBits);
+
+    /// return pointer to the storage area
+    uint1_t*            addr();
+    /// return const pointer to the storage area
+    const uint1_t*        addr() const;
+
+    friend ostream&        operator<<(ostream&, const w_bitmap_t&);
 private:
-    uint1_t* 			ptr;
-    uint4_t			sz; // # bits
-    bool			mem_alloc;
+    uint1_t*             ptr;
+    uint4_t            sz; // # bits
+    bool            mem_alloc;
 
 };
 
@@ -89,7 +110,7 @@ w_bitmap_t::~w_bitmap_t()
 inline void 
 w_bitmap_t::resetPtr(uint1_t* p, uint4_t size)
 {
-   w_assert3(!mem_alloc);
+   w_assert9(!mem_alloc);
    sz = size;
    ptr = p;
 }

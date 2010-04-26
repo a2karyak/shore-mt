@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: basics.cpp,v 1.7 1999/06/07 19:02:22 kupsch Exp $
+ $Id: basics.cpp,v 1.7.2.3 2010/03/19 22:19:19 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -38,5 +38,5 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #endif
 
 #include <basics.h>
-	
+    
 

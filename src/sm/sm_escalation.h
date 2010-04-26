@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='SM_ESCALATION_H'>
 
- $Id: sm_escalation.h,v 1.10 2007/05/18 21:43:28 nhall Exp $
+ $Id: sm_escalation.h,v 1.10.2.4 2010/01/28 04:54:15 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -40,11 +40,11 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 
 class sm_escalation_t {
 public:
-    NORET		sm_escalation_t(
-			    w_base_t::int4_t p = dontEscalate,
-			    w_base_t::int4_t s = dontEscalate, 
-			    w_base_t::int4_t v = dontEscalate);
-    NORET		~sm_escalation_t(); 
+    NORET        sm_escalation_t(
+                    w_base_t::int4_t p = dontEscalate,
+                    w_base_t::int4_t s = dontEscalate, 
+                    w_base_t::int4_t v = dontEscalate);
+    NORET        ~sm_escalation_t(); 
 private:
     w_base_t::int4_t _p;
     w_base_t::int4_t _s;

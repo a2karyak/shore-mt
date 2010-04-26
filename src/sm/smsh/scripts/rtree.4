@@ -1,6 +1,6 @@
 # <std-header style='tcl' orig-src='shore'>
 #
-#  $Id: rtree.4,v 1.8 2007/08/21 19:44:00 nhall Exp $
+#  $Id: rtree.4,v 1.7.2.2 2010/01/12 02:02:04 nhall Exp $
 #
 # SHORE -- Scalable Heterogeneous Object REpository
 #
@@ -28,8 +28,6 @@
 #   -- do not edit anything above this line --   </std-header>
 
 #
-# start up
-#
 source $script_dir/vol.init
 
 set nrec 2000
@@ -42,6 +40,7 @@ if {$logging==0} {
     set nulls nullok
 
     sm begin_xct
+	verbose tid [sm xct_to_tid [sm xct]]
 	verbose sm test_bulkload_rtree $volid $nrec $nulls
 	sm test_bulkload_rtree $volid $nrec $nulls
 	set n [sm gather_xct_stats reset]

@@ -1,6 +1,6 @@
 # <std-header style='tcl' orig-src='shore'>
 #
-#  $Id: lockrec_sm,v 1.13 1999/06/07 19:05:37 kupsch Exp $
+#  $Id: lockrec_sm,v 1.13.4.1 2009/12/14 23:57:56 nhall Exp $
 #
 # SHORE -- Scalable Heterogeneous Object REpository
 #
@@ -68,13 +68,19 @@ proc rel_lock { args } {
 }
 
 proc holder { id type op me } {
+    global verbose_flag
+
+    verbose "$me: entering sync"
     sync
 
     verbose "$me: $type ($op) requesting lock on $id"
     req_lock $id $type $op
     verbose "$me: $type ($op) lock on $id granted"
 
+    verbose "$me: entering sync"
     sync
+
+    verbose "$me: entering sync"
     sync
 
     verbose "$me: $type ($op) releasing lock on $id"
@@ -82,13 +88,19 @@ proc holder { id type op me } {
 }
 
 proc requester { id type op me } {
+    global verbose_flag
+
+    verbose "$me: entering sync"
     sync
+
+    verbose "$me: entering sync"
     sync
 
     verbose "$me: $type ($op) requesting lock on $id"
     req_lock $id $type $op
     verbose "$me: $type ($op) lock on $id granted"
 
+    verbose "$me: entering sync"
     sync
 
     verbose "$me: $type ($op) releasing lock on $id"
@@ -96,12 +108,16 @@ proc requester { id type op me } {
 }
 
 proc sh_sh { id } {
+    global verbose_flag
     global sh_ops
 
     foreach i $sh_ops {
     	foreach j $sh_ops {
 
+		verbose fork thread holder $id SH $i 1
 	    set x [ fork_thread holder $id SH $i 1 ]
+
+		verbose fork thread requester $id SH $j 2
 	    set y [ fork_thread requester $id SH $j 2 ]
 
 	    sync_thread $x $y
@@ -114,18 +130,31 @@ proc sh_sh { id } {
 }
 
 proc sh_ex { id } {
+    global verbose_flag
     global sh_ops
     global ex_ops
 
     foreach i $sh_ops {
 	foreach j $ex_ops {
 
+		verbose fork thread holder $id SH $i 1
 	    set x [ fork_thread holder $id SH $i 1 ]
+
+		verbose fork thread requester $id EX $j 2
 	    set y [ fork_thread requester $id EX $j 2 ]
 
+		verbose sync_thread
 	    sync_thread $x $y
+
+		verbose sync_thread
 	    sync_thread $x $y
-	    sync_thread $x $y
+
+		verbose sync_thread 1
+	    sync_thread $x 
+		verbose sync_thread 2
+	    sync_thread $y 
+
+		verbose join_thread
 	    join_thread $x $y
 	    verbose "----------------"
 	}
@@ -133,18 +162,23 @@ proc sh_ex { id } {
 }
 
 proc ex_sh { id } {
+    global verbose_flag
     global sh_ops
     global ex_ops
 
     foreach i $ex_ops {
     	foreach j $sh_ops {
 
+		verbose fork thread holder $id EX $j 1
 	    set x [ fork_thread holder $id EX $i 1 ]
+
+		verbose fork thread requester $id SH $j 2
 	    set y [ fork_thread requester $id SH $j 2 ]
 
 	    sync_thread $x $y
 	    sync_thread $x $y
-	    sync_thread $x $y
+	    sync_thread $x
+	    sync_thread $y
 	    join_thread $x $y
 	    verbose "----------------"
     	}
@@ -152,17 +186,22 @@ proc ex_sh { id } {
 }
 
 proc ex_ex {id} {
+    global verbose_flag
     global ex_ops
 
     foreach i $ex_ops {
     	foreach j $ex_ops {
 
+		verbose fork thread holder $id EX $j 1
 	    set x [ fork_thread holder $id EX $i 1 ]
+
+		verbose fork thread requester $id EX $j 2
 	    set y [ fork_thread requester $id EX $j 2 ]
 
 	    sync_thread $x $y
 	    sync_thread $x $y
-	    sync_thread $x $y
+	    sync_thread $x 
+	    sync_thread $y
 	    join_thread $x $y
 	    verbose "----------------"
 	}

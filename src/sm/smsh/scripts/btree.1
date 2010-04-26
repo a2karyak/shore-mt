@@ -1,6 +1,6 @@
 # <std-header style='tcl' orig-src='shore'>
 #
-#  $Id: btree.1,v 1.44 1999/06/07 19:05:12 kupsch Exp $
+#  $Id: btree.1,v 1.44.4.1 2010/01/12 02:01:58 nhall Exp $
 #
 # SHORE -- Scalable Heterogeneous Object REpository
 #
@@ -103,11 +103,13 @@ if {$logging==0} {
     # create index and load it up 
     #
     sm begin_xct
+verbose tid [sm xct_to_tid [sm xct]]
     set ndx [sm create_index $volid btree]
     verbose created index $ndx
     sm commit_xct
 
     sm begin_xct
+verbose tid [sm xct_to_tid [sm xct]]
     for {set i 1} {$i <= $nrec} {incr i} {
 	verbose2 inserting $i
 	sm create_assoc $ndx [formatlong 0 $form_len %010d $i] $i
@@ -117,12 +119,14 @@ if {$logging==0} {
     restart
 
     sm begin_xct
+verbose tid [sm xct_to_tid [sm xct]]
     verbose scan_up $ndx 0
     scan_up $ndx 0
     sm destroy_index $ndx
     sm commit_xct
 
     sm begin_xct
+verbose tid [sm xct_to_tid [sm xct]]
     set ndx [sm create_index $volid btree]
     verbose created index $ndx
     for {set i 1} {$i <= $nrec} {incr i} {
@@ -138,6 +142,7 @@ if {$logging==0} {
 	restart
 
 	sm begin_xct
+verbose tid [sm xct_to_tid [sm xct]]
 	scan_up $ndx $nrec
 	probe $ndx $nrec
 	scan_up_partial $ndx [formatlong 0 $form_len %010d 2] \

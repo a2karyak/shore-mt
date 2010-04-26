@@ -1,6 +1,6 @@
 # <std-header style='data' orig-src='shore'>
 #
-#  $Id: smthread_stats.dat,v 1.2 2008/05/07 23:27:01 nhall Exp $
+#  $Id: smthread_stats.dat,v 1.1.2.6 2009/12/03 00:22:29 nhall Exp $
 #
 # SHORE -- Scalable Heterogeneous Object REpository
 #
@@ -37,7 +37,7 @@ SMT smthread = 0x00070000 smthread_stats_t {
     u_long fm_pagecache_hit	Found recently-used page
     u_long fm_nolatch	 	Couldn't latch recently-used page 
     u_long fm_page_moved	Recently-used page moved to new store
-    u_long fm_page_full	        Recently-used page was full
+    u_long fm_page_full	    Recently-used page was full
     u_long fm_histogram_hit	Histogram says file search worthwhile
     u_long fm_search_pages	Pages inspected in file search
     u_long fm_search_failed	File search unsuccessful
@@ -48,7 +48,7 @@ SMT smthread = 0x00070000 smthread_stats_t {
     u_long fm_ext_touch		Updates to extent info
     u_long fm_ext_touch_nop	No-op updates to extent info
     u_long fm_nospace		Could not create rec
-    u_long fm_cache		Policy permitted looking in cache
+    u_long fm_cache		    Policy permitted looking in cache
     u_long fm_compact		Policy permitted searching file
     u_long fm_append		Policy permitted appending to file
     u_long fm_appendonly	Policy required strict append
@@ -113,7 +113,6 @@ SMT smthread = 0x00070000 smthread_stats_t {
     u_long ext_lookup_misses	Misses in extent lookups in cache 
     u_long alloc_page_in_ext	Extent searches for free pages
     u_long extent_lsearch	Linear searches through file looking for space
-    u_long extent_lsearch_hop	Linear search hops 
 
     // Transaction related stats
     u_long begin_xct_cnt	Transactions started
@@ -132,18 +131,40 @@ SMT smthread = 0x00070000 smthread_stats_t {
     u_long acquire_1thread_log	Times acquired 1thread mutex for xct-log
     u_long get_logbuf	        Times acquired log buf for xct
     u_long await_1thread_xct	Times blocked on 1thread mutex for xct
-    u_long await_io_monitor	Times couldn't enter I/O monitor immediately
     u_long await_vol_monitor	Times couldn't grab volume mutex immediately
 
     u_long s_prepared		Externally coordinated prepares
-    u_long c_replies_dropped	Replies dropped by coordinator
 
-    // Lock table related stats
+	//
+    // Lock manager related stats
+	//
     u_long lock_query_cnt       High-level query for lock information
     u_long unlock_request_cnt	High-level unlock requests
     u_long lock_request_cnt 	High-level lock requests
     u_long lock_head_t_cnt	Locks heads put in table for chains of requests
     u_long lock_acquire_cnt	Acquires to satisfy high-level requests
+    u_long lock_await_alt_cnt	Transaction had a waiting thread in the lock manager and had to wait on alternate resource
+    u_long lock_extraneous_req_cnt Extraneous requests (already granted)
+    u_long lock_conversion_cnt  Requests requiring conversion
+
+	// Deadlock detector-related
+    u_long lock_deadlock_cnt	Deadlocks detected
+    u_long lock_false_deadlock_cnt	False positive deadlocks
+    u_long lock_dld_call_cnt	Deadlock detector total calls
+    u_long lock_dld_first_call_cnt	Deadlock detector first called for one lock
+    u_long lock_dld_false_victim_cnt	Deadlock detector victim not blocked
+    u_long lock_dld_victim_self_cnt	Deadlock detector picked self as victim 
+    u_long lock_dld_victim_other_cnt	Deadlock detector picked other as victim 
+	// Lock cache
+    u_long lock_cache_hit_cnt   Hits on lock cache (avoid acquires)
+    u_long lock_request_t_cnt	Lock request structures chained off lock heads
+
+	// Lock escalation
+    u_long lock_esc_to_page	Number of escalations to page level
+    u_long lock_esc_to_store	Number of escalations to store level
+    u_long lock_esc_to_volume	Number of escalations to volume level
+
+	// Lock types acquired
     u_long lk_vol_acq		Volume locks acquired
     u_long lk_store_acq		Store locks acquired
     u_long lk_page_acq		Page locks acquired
@@ -155,20 +176,9 @@ SMT smthread = 0x00070000 smthread_stats_t {
     u_long lk_user3_acq		User3 locks acquired
     u_long lk_user4_acq		User4 locks acquired
 
-    u_long lock_cache_hit_cnt   Hits on lock cache (avoid acquires)
-    u_long lock_request_t_cnt	Lock request structures chained off lock heads
-    u_long lock_extraneous_req_cnt Extraneous requests (already granted)
-    u_long lock_conversion_cnt  Requests requiring conversion
-    u_long lock_deadlock_cnt	Deadlocks detected
 
-    u_long lock_esc_to_page	Number of escalations to page level
-    u_long lock_esc_to_store	Number of escalations to store level
-    u_long lock_esc_to_volume	Number of escalations to volume level
-
-
+	//
     // Log operations -- per thread
-    u_long await_log_monitor	Possible long wait for log monitor 
-    u_long await_log_monitor_var Short wait for log monitor 
-    u_long xlog_records_generated Log records written for xct
-    u_long xlog_bytes_generated	Bytes written to the log for xct
+	//
+    u_long await_log_io_monitor Possible long wait for log I/O monitor
 };

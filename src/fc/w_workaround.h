@@ -1,6 +1,29 @@
+/* -*- mode:C++; c-basic-offset:4 -*-
+     Shore-MT -- Multi-threaded port of the SHORE storage manager
+   
+                       Copyright (c) 2007-2009
+      Data Intensive Applications and Systems Labaratory (DIAS)
+               Ecole Polytechnique Federale de Lausanne
+   
+                         All Rights Reserved.
+   
+   Permission to use, copy, modify and distribute this software and
+   its documentation is hereby granted, provided that both the
+   copyright notice and this permission notice appear in all copies of
+   the software, derivative works or modified versions, and any
+   portions thereof, and that both notices appear in supporting
+   documentation.
+   
+   This code is distributed in the hope that it will be useful, but
+   WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. THE AUTHORS
+   DISCLAIM ANY LIABILITY OF ANY KIND FOR ANY DAMAGES WHATSOEVER
+   RESULTING FROM THE USE OF THIS SOFTWARE.
+*/
+
 /*<std-header orig-src='shore' incl-file-exclusion='W_WORKAROUND_H'>
 
- $Id: w_workaround.h,v 1.58 2006/01/29 18:09:00 bolo Exp $
+ $Id: w_workaround.h,v 1.58.2.6 2010/03/19 22:17:21 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -34,32 +57,34 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 
 /*  -- do not edit anything above this line --   </std-header>*/
 
+/**\file w_workaround.h 
+ * Macros that allow workarounds for different compilers.
+ */
 
-/* see below for more info on GNUG_BUG_12 */
-#define GNUG_BUG_12(arg) arg
 
 #ifdef __GNUC__
 
 /* Mechanism to make disjoint gcc numbering appear linear for comparison
    purposes.  Without this all the Shore gcc hacks break when a new major
-   number is encountered. */
+   number is encountered. 
+*/
 
-#define	W_GCC_VER(major,minor)	(((major) << 16) + (minor))
+#define    W_GCC_VER(major,minor)    (((major) << 16) + (minor))
 
-#ifndef __GNUC_MINOR__	/* gcc-1.something -- No minor version number */
-#define	W_GCC_THIS_VER	W_GCC_VER(__GNUC__,0)
+#ifndef __GNUC_MINOR__    /* gcc-1.something -- No minor version number */
+#define    W_GCC_THIS_VER    W_GCC_VER(__GNUC__,0)
 #else
-#define	W_GCC_THIS_VER	W_GCC_VER(__GNUC__,__GNUC_MINOR__)
+#define    W_GCC_THIS_VER    W_GCC_VER(__GNUC__,__GNUC_MINOR__)
 #endif
 
 
 /* true if THIS gcc version is <= the specified major,minor prerequisite */
-#define	W_GCC_PREREQ(major,minor)	\
-	(W_GCC_THIS_VER >= W_GCC_VER(major,minor))
+#define    W_GCC_PREREQ(major,minor)    \
+    (W_GCC_THIS_VER >= W_GCC_VER(major,minor))
 
-#if 	W_GCC_THIS_VER < W_GCC_VER(2,5)
+#if     W_GCC_THIS_VER < W_GCC_VER(2,5)
 /* XXX all the following tests assume this filter is used */
-#error	This software requires gcc 2.5.x or a later release.
+#error    This software requires gcc 2.5.x or a later release.
 #error  Gcc 2.6.0 is preferred.
 #endif
 
@@ -96,45 +121,47 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
      * #12
      * This is a bug in parsing specific to gcc 2.6.0.
      * The compiler misinterprets:
-     *	int(j)
+     *    int(j)
      * to be a declaration of j as an int rather than the correct
      * interpretation as a cast of j to an int.  This shows up in
      * statements like:
-     * 	istrstream(c) >> i;
+     *     istrstream(c) >> i;
     */
 
+/* see below for more info on GNUG_BUG_12 */
+#define GNUG_BUG_12(arg) arg
 #if W_GCC_THIS_VER > W_GCC_VER(2,5)
-#	undef GNUG_BUG_12	
-#   	define GNUG_BUG_12(arg) (arg)
+#    undef GNUG_BUG_12    
+#       define GNUG_BUG_12(arg) (arg)
 #endif
 
 #if W_GCC_THIS_VER > W_GCC_VER(2,5)
 /*
- * 	GNU 2.6.0  : template functions that are 
+ *     GNU 2.6.0  : template functions that are 
  *  not member functions don't get exported from the
  *  implementation file.
  */
-#define 	GNUG_BUG_13 1
+#define     GNUG_BUG_13 1
 
 /*
  * Cannot explicitly instantiate function templates.
  */
-#define 	GNUG_BUG_14 1
+#define     GNUG_BUG_14 1
 #endif
 
 #if W_GCC_THIS_VER > W_GCC_VER(2,6)
 /* gcc 2.7.2 has bogus warning messages; it doesn't inherit pointer
    properties correctly */
-#define		GNUG_BUG_15  1
+#define        GNUG_BUG_15  1
 #endif
 
 /* Gcc 64 bit integer math incorrectly optimizes range comparisons such as
    if (i64 < X || i64 > Y)
-	zzz;
+    zzz;
    This should be re-examined when we upgrade to 2.8, perhaps it is fixed and
    we can make this a 2.7 dependency.
  */
-#define	GNUG_BUG_16
+#define    GNUG_BUG_16
 
 /******************************************************************************
  *
@@ -149,30 +176,29 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
  */
 #endif
 
-#if W_GCC_THIS_VER >= W_GCC_VER(2,90)
-#define EGCS_BUG_1
-    /*  Certain statements cause egc 1.1.1 to croak. */
-#define EGCS_BUG_2
-    /*  egcs 1.1.1 gives inappropriate warning about 
-     *  uninitialized variable
-     */
-#endif
-
 #if W_GCC_THIS_VER < W_GCC_VER(2,8)
-#   define BIND_FRIEND_OPERATOR_PART_1(TYP,TMPL) /**/
-#   define BIND_FRIEND_OPERATOR_PART_1B(TYP1,TYP2,TMPLa,TMPLb) /**/
+
+#   define BIND_FRIEND_OPERATOR_PART_1(TYP,L,TMPLa,TMPLb) /**/
+#   define BIND_FRIEND_OPERATOR_PART_1B(TYP1,TYP3,TYP2,TMPLa,TMPLc,TMPLb) /**/
 #   define BIND_FRIEND_OPERATOR_PART_2(TYP) /**/
 #   define BIND_FRIEND_OPERATOR_PART_2B(TYP1,TYP2) /**/
+
 #   else
-#   define BIND_FRIEND_OPERATOR_PART_1(TYP,TMPL) \
-	template <class TYP> ostream & operator<<(ostream&o, const TMPL& l);
-#   define BIND_FRIEND_OPERATOR_PART_1B(TYP1,TYP2,TMPLa,TMPLb) \
-	template <class TYP1, class TYP2> \
-	ostream & operator<<(ostream&o, const TMPLa,TMPLb& l);
-#   define BIND_FRIEND_OPERATOR_PART_2(TYP)\
-	<TYP>
-#   define BIND_FRIEND_OPERATOR_PART_2B(TYP1,TYP2)\
-	<TYP1, TYP2>
+
+#   define BIND_FRIEND_OPERATOR_PART_1(TYP,L,TMPLa,TMPLb) \
+    template <class TYP, class L> \
+    ostream & operator<<(ostream&o, const TMPLa,TMPLb& l);
+
+#   define BIND_FRIEND_OPERATOR_PART_1B(TYP1,TYP3, TYP2,TMPLa,TMPLc,TMPLb) \
+    template <class TYP1, class TYP3, class TYP2> \
+                ostream & operator<<(ostream&o, const TMPLa,TMPLc,TMPLb& l);
+
+#   define BIND_FRIEND_OPERATOR_PART_2(TYP, L)\
+    <TYP, L>
+
+#   define BIND_FRIEND_OPERATOR_PART_2B(TYP1,L,TYP2)\
+    <TYP1, L, TYP2>
+
 #   endif
 
 /* XXX
@@ -188,12 +214,27 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
  *  always sucks this in and it is a compiler-dependency.
  */
 #if W_GCC_THIS_VER >= W_GCC_VER(3,0)
-#define	w_offsetof(t,f)	\
-	((size_t)((char*)&(*(t*)sizeof(t)).f - (char *)&(*(t*)sizeof(t))))
+#define    w_offsetof(t,f)    \
+    ((size_t)((char*)&(*(t*)sizeof(t)).f - (char *)&(*(t*)sizeof(t))))
 #endif
 
 #endif /* __GNUC__ */
 
+#ifdef __SUNPRO_CC
+#   define BIND_FRIEND_OPERATOR_PART_1(TYP,L,TMPLa,TMPLb) \
+    template <class TYP, class L> \
+    ostream & operator<<(ostream&o, const TMPLa,TMPLb& l);
+
+#   define BIND_FRIEND_OPERATOR_PART_1B(TYP1,TYP3, TYP2,TMPLa,TMPLc,TMPLb) \
+    template <class TYP1, class TYP3, class TYP2> \
+    ostream & operator<<(ostream&o, const TMPLa,TMPLc,TMPLb& l);
+
+#   define BIND_FRIEND_OPERATOR_PART_2(TYP,L)\
+    <TYP,L>
+
+#   define BIND_FRIEND_OPERATOR_PART_2B(TYP1,L,TYP2)\
+    <TYP1,L,TYP2>
+#endif
 /******************************************************************************
  *
  * gcc complains about big literals which don't have the LL suffix.
@@ -283,18 +324,18 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
  */  
 #if defined(__GNUG__)
 #if W_GCC_THIS_VER < W_GCC_VER(3,0)
-#define	FC_IOSTREAM_FORM_METHOD
+#define    FC_IOSTREAM_FORM_METHOD
 #else
-#define	FC_NEED_UNBOUND_FORM
+#define    FC_NEED_UNBOUND_FORM
 #endif
-#elif defined(_MSC_VER)
-#define	FC_NEED_UNBOUND_FORM
+#elif defined(__SUNPRO_CC)
+#define    FC_NEED_UNBOUND_FORM
 #endif
 
 #ifdef FC_IOSTREAM_FORM_METHOD
-#define	W_FORM(stream)		stream . form
+#define    W_FORM(stream)        stream . form
 #else
-#define	W_FORM(stream)		stream << form	
+#define    W_FORM(stream)        stream << form    
 #endif
 
 /* Grab our form if needed.  */
@@ -302,151 +343,7 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 extern const char *form(const char *, ...);
 #endif
 
-#if defined(_MSC_VER) && defined(USE_CL_MFC)
-/* MFC is a pig.  Don't use it except in extremis */
-#include <afx.h>
-#define W_FORM2(stream, args) \
-	do { \
-		CString strBuf; strBuf.Format args; stream << strBuf; \
-	} while (0)
-#else
-#define	W_FORM2(stream,args)	W_FORM(stream) args
-#endif
-
-
-#ifdef _MSC_VER
-
-	/* _MSC_VER contains a number which equates to visual c++ versions:
-	 * _MSC_VER is 1100 for VC++ 5.0
-	 * _MSC_VER is 1200 for VC++ 6.0
-	 * _MSC_VER is 1300 for VC++ 7.0
-	 * _MSC_VER is 1310 for VC++ 7.1
-	 */
-
-#define	W_MSC_VER(maj,min)	((maj+6)*100 + (min)*10)
-
-/******************************************************************************
- *
- * Migration to standard C++
- *
- ******************************************************************************/
-#   define TEMPLATE_PREFIX(TYP) /**/
-#   define BIND_FRIEND_OPERATOR_PART_1(TYP,TMPL) /**/
-#   define BIND_FRIEND_OPERATOR_PART_1B(TYP1,TYP2,TMPLa,TMPLb) /**/
-#   define BIND_FRIEND_OPERATOR_PART_2(TYP) /**/
-#   define BIND_FRIEND_OPERATOR_PART_2B(TYP1,TYP2) /**/
-
-/******************************************************************************
- *
- * Visual C++ bugs
- *
- ******************************************************************************/
-
-	/*
-	 * VC++ complains about legitimate uses of this in object
-	 * constructors.  This pragma disables the warnings so our
-	 * code compiles without generating error messages, and so
-	 * we can force the compiler to die on other errors.
-	 */
-
-#pragma warning(disable: 4355)
-
-	/*
-	 * VC++ complains about converting integers to booleans.
-	 * These are valid c++ conversions.
-	 */
-#pragma warning(disable: 4800)
-     
-	/*
-	 * When performing template expansion, symbols longer than
-	 * the 255 character maximum for the MS tools may be generated.
-	 * This disables the warnings about those long symbols.
-	 */
-#pragma warning(disable: 4786)
-
-	/*
-	 * Stop warning about no matching delete for a new in 
-	 * same function
-	 */
-#pragma warning(disable: 4291)
-
-    /*
-     * VC++ 5.0 thinks that istrstream's first argument is a char *,
-     * not a const char *
-     */
-#define VCPP_BUG_1 (char *)
-
-    /*
-     * VC++ 5.0 does not recognize the const void * operator for 
-     * w_rc_t in the following context:
-     * if (rc = c.m()) ....
-     *
-     * You must do one of the following:
-     * rc = c.m();
-     * if (rc) ...
-     * 
-     * OR
-     * if ( (rc = c.m()) != 0) ....
-     * You must do one of the following:
-     */
-#define VCPP_BUG_2  1
-
-    /*
-     * Apparently VC++ 5.0 does not instantiate non-member
-     * template functions
-     * _MSC_VER is 1200 for VC++ 6.0
-     */
-#if defined(_MSC_VER) && (_MSC_VER < 1200)
-#define VCPP_BUG_3 1
-#endif
-
-    /*  TODO: try on VCPP and remove */
-#define VCPP_BUG_4 0
-
-/* Same as GNUG_BUG_15 */
-#define	VCPP_BUG_5  1
-
-/* Setting ios::badbit, etc and base io manipulators */
-#define STD_NAMESPACE std
-
-/* Visual C++ does not understand  T x(parameters) initializers
-   which are the same as T x = T(parameters) initializers without
-   the extra cruft. */
-#define	VCPP_BUG_6	1
-
-/*
- * Visual C++ compiler generates bogus calls to 
-   class-member operator delete[].
-   If T* p was created with
-	p = new T[n],
-   the complier is supposed to generate code for
-	delete[] p
-   by calling
-	 T::operator delete[](p, s)
-   where s =  delta + sizeof(T)*n 
-
-   Unfortunately, VC++ compiler calls 
-	 T::operator delete[](p, sizeof(T))
-   (whether or not T has a destructor).
-   Interestingly enough, if T has a destructor, delta is non-zero
-   but the 2nd argument to T::operator delete[]() is still wrong.
- */
-#define VCPP_BUG_7 
-
-/*
- * Visual C++ does allow the conversion of a const char* to a void*
- * consequently the following fails without a cast to (char*):
- *
- * const char* p = new char[n];
- * delete[] p;  // only works if written as delete[] (char*)p;
- */
-#define VCPP_BUG_DELETE_CONST (char*)
-
-#else
-
-#define VCPP_BUG_DELETE_CONST
-
-#endif /* _MSC_VER */
+#define    W_FORM2(stream,args)    W_FORM(stream) args
 
 /*
  * Default definitions of macros used everywhere:
@@ -456,27 +353,32 @@ extern const char *form(const char *, ...);
  * added in by VC++, but in g++, those classes DO get an extra 1(4)
  * bytes(s) added in by the inheritance. 
  */
-
 #ifndef VCPP_BUG_1
 #define VCPP_BUG_1 
 #endif
 
 /*
- * Try to use the system definition of offsetof, provide one
+ * Try to use the system definition of offsetof, and provide one here
  * if the system's isn't in the standard place.
- * This is probably the best argument for moving offstof to w_base.h,
- * since it drags in junk ... and for w_form above, since it drags
- * in the evil microsoft everything header.
  */
 #ifndef offsetof
 #include <cstddef>
 #endif
 #ifndef offsetof
-#define offsetof(type,member)	((size_t)((&(type *)0)->member))
+#define offsetof(type,member)    ((size_t)((&(type *)0)->member))
 #endif
 
 #ifndef w_offsetof
-#define	w_offsetof(class,member)	offsetof(class,member)
+/* FRJ: Sun's CC returns an address near the top of the stack when
+   given ``offsetof(a, b.c())'', where c() returns a reference to a
+   private member of b. This seems to work around the issue (bug?).
+   OLD:
+   //template<class T>
+   //static T* get_null() { return NULL; }
+   //#define    w_offsetof(class,member)    ((size_t) &get_null<class>()->member)
+   NEW: below
+ */
+#define w_offsetof(class,member) offsetof(class,member)
 #endif
 
 /*<std-footer incl-file-exclusion='W_WORKAROUND_H'>  -- do not edit anything below this line -- */

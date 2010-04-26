@@ -1,6 +1,6 @@
 # <std-header style='tcl' orig-src='shore'>
 #
-#  $Id: pin.all,v 1.17 1999/06/07 19:05:40 kupsch Exp $
+#  $Id: pin.all,v 1.17.4.1 2009/10/27 16:44:51 nhall Exp $
 #
 # SHORE -- Scalable Heterogeneous Object REpository
 #
@@ -28,7 +28,7 @@
 #   -- do not edit anything above this line --   </std-header>
 
 set scripts [list pin.1 pin.2 pin.3 \
-	pin.5 thread.1 \
+	pin.5 \
 	]
 
 if { [is_set do_long_scripts] } {

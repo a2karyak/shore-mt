@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='W_RANDOM_H'>
 
- $Id: w_random.h,v 1.12 2004/10/05 23:19:55 bolo Exp $
+ $Id: w_random.h,v 1.12.2.4 2009/10/30 23:50:08 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -39,54 +39,25 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #endif 
 
 #include <w.h>
-
 #include <iosfwd>
+#include <rand48.h>
 
-class random_generator {
+class random_generator  : public rand48 
+{
 
 private:
     unsigned short *	get_seed() const;
     static unsigned short _original_seed[3];
     static bool 	_constructed;
-#ifdef _WINDOWS
-    static unsigned short  ncalls; // for seed maintenance
-#endif
 
 public:
-    int 	mrand_choice(int lower, int higher) const; // return an
-			// int in the range [lower, higher)
-
-    double 	drand() const;
-    w_base_t::uint8_t	qrand() const;
-    unsigned int lrand() const;
-    int 	mrand() const;
-
-    /* some compatibility methods */
-    void 	srand(int seed);
-    int 	rand() const; // may be negative
-
-    friend ostream& operator<<(ostream&, const random_generator&);
-    friend istream& operator>>(istream&, random_generator&);
-
-public:
-    NORET
-    random_generator()  
-    { 
-	// Disallow a 2nd random-number generator
-	if(!_constructed) {
-	    *_original_seed = *get_seed(); 
-	    _constructed = true;
+	// return an int in the range [lower, higher)
+    unsigned int  	mrand_choice(int lower, int higher) 
+	{
+		signed48_t tmp = randn(higher-lower);
+		return int(tmp + lower);
 	}
-#ifdef _WINDOWS
-        ncalls = 0;
-#endif
-    }
-    // For writing the current seed to a file
-    // and picking it up from a file 
-    void read(const char *fname);
-    void write(const char *fname) const;
 
-    static random_generator generator; // in w_random.cpp
 };
 
 /*<std-footer incl-file-exclusion='W_RANDOM_H'>  -- do not edit anything below this line -- */

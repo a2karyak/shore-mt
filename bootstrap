@@ -1,5 +1,6 @@
-#/bin/sh
+#!/bin/sh
 
+echo /bin/rm -f config/shore-config.h
 /bin/rm -f config/shore-config.h
 
 # aclocal: find macros needed by automake
@@ -7,18 +8,40 @@
 echo aclocal  --force  ...
 aclocal  --force 
 
-# autoheader:  create template file o #define statements
+OS=`uname`
+
+if [ "$OS" = "SunOS" ] ; then
+    t=`date +%H`
+	if test $t -gt 16 -a $t -lt 22; then
+		bev="beer"
+	else
+		bev="coffee"
+	fi
+    echo "Running autoheader. Don't expect lightning speed ..."
+fi
+
+# autoheader:  create template file of #define statements
 # for ./configure to use.
 # input: configure.ac
 # output: config/shore-config-h.in
 #       (unfortunately for debugging, the output is in alphabetic order)
+
 echo autoheader  --force  ...
 autoheader  --force 
+
+if [ "$OS" = "SunOS" ] ; then
+    t=`date +%H`
+	if test $t -gt 16 -a $t -lt 22; then
+		bev="beer"
+	else
+		bev="coffee"
+	fi
+    echo "Running autoconf.  Go have a $bev and come back later."
+fi
 
 # autoconf: produce the shore-config.h file for make to use
 # input: configure.ac
 # input: config/shore-config-h.in
-# output: config/shore-config.h
 # output: ./configure, ./configure.status (slave)
 echo autoconf --force  ...
 autoconf --force 
@@ -27,8 +50,17 @@ autoconf --force
 # input: configure.ac
 # input: <dirs>/Makefile.am
 # output: <dirs>/Makefile.in
-echo automake  -a ...
-automake  -a
+if [ "$OS" = "SunOS" ] ; then
+    t=`date +%H`
+	if test $t -gt 16 -a $t -lt 22; then
+		bev="beer"
+	else
+		bev="coffee"
+	fi
+    echo "Running autoconf.  Go have another $bev and come back later."
+fi
+echo automake  -a --include-deps ...
+automake  -a --include-deps
 
 # configure: generate the Makefiles
 # input: ./configure.status
@@ -38,10 +70,16 @@ echo ------------------------------------------------------------
 echo
 echo Run
 echo     ./configure 
-echo or
-echo     ./configure --enable-debug 
-echo or
+echo
 echo     ./configure --help 
+echo            to see the options
+echo
+echo Example configurations:
+echo      ./configure  CXX=CC
+echo     ./configure --with-debug-level2 --enable-checkrc --enable-trace
+echo     ./configure --with-hugetlbfs
+echo     ./configure --enable-dependency-tracking 
+echo      ./configure CXX=/usr/bin/g++ --enable-valgrind
 echo
 echo After you configure, run
 echo     make

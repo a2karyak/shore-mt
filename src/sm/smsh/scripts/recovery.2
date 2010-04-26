@@ -1,6 +1,6 @@
 # <std-header style='tcl' orig-src='shore'>
 #
-#  $Id: recovery.2,v 1.1 2006/06/01 17:09:51 nhall Exp $
+#  $Id: recovery.2,v 1.1.2.1 2009/10/08 20:52:34 nhall Exp $
 #
 # SHORE -- Scalable Heterogeneous Object REpository
 #
@@ -39,7 +39,7 @@ set id_width %07d
 
 sm begin_xct
 set fid [sm create_file $volid regular]
-echo  created file $fid
+verbose  created file $fid
 
 set x [sm create_rec $fid "" 10 [format %256d 1] ] 
 set x [sm create_rec $fid "" 10 [format %256d 1] ] 
@@ -185,7 +185,7 @@ set x [sm create_rec $fid "" 10 [format %64d 1] ]
 set x [sm create_rec $fid "" 10 [format %64d 1] ] 
 set x [sm create_rec $fid "" 10 [format %64d 1] ] 
 set x [sm create_rec $fid "" 10 [format %64d 1] ] 
-echo $x
+verbose $x
 
 sm abort_xct
 

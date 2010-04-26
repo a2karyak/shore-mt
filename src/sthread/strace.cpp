@@ -1,6 +1,29 @@
+/* -*- mode:C++; c-basic-offset:4 -*-
+     Shore-MT -- Multi-threaded port of the SHORE storage manager
+   
+                       Copyright (c) 2007-2009
+      Data Intensive Applications and Systems Labaratory (DIAS)
+               Ecole Polytechnique Federale de Lausanne
+   
+                         All Rights Reserved.
+   
+   Permission to use, copy, modify and distribute this software and
+   its documentation is hereby granted, provided that both the
+   copyright notice and this permission notice appear in all copies of
+   the software, derivative works or modified versions, and any
+   portions thereof, and that both notices appear in supporting
+   documentation.
+   
+   This code is distributed in the hope that it will be useful, but
+   WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. THE AUTHORS
+   DISCLAIM ANY LIABILITY OF ANY KIND FOR ANY DAMAGES WHATSOEVER
+   RESULTING FROM THE USE OF THIS SOFTWARE.
+*/
+
 /*<std-header orig-src='shore'>
 
- $Id: strace.cpp,v 1.13 2006/01/29 23:27:18 bolo Exp $
+ $Id: strace.cpp,v 1.13.2.3 2009/08/24 21:22:19 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -69,9 +92,8 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #include "w.h"
 #include "w_error.h"
 #include "w_rc.h"
-
 #include "strace.h"
-
+#include "atomic_templates.h"
 #include <new>
 
 class _strace_t {
@@ -93,8 +115,10 @@ public:
 	ostream	&print(ostream &) const;
 };
 
-
-long	strace_t::id_generator = 0;
+static unsigned long _next_id = 0;
+unsigned long strace_t::id_generator() {
+  return atomic_add_nv(_next_id, 1);
+}
 
 
 strace_t::strace_t(int hint)
@@ -152,7 +176,7 @@ _strace_t *strace_t::get(const char *name, const void *id, bool isLatch)
 	trace->id = id;
 	trace->name = name;
 	trace->isLatch = isLatch;
-	trace->event_id = id_generator++;
+	trace->event_id = id_generator();
 
 	return trace;
 }
@@ -212,7 +236,7 @@ void	strace_t::push(const char *name, const void *id, bool isLatch)
 
 	trace->name = name;
 	trace->id = id;
-	trace->event_id = id_generator++;
+	trace->event_id = id_generator();
 	trace->isLatch = isLatch;
 
 	trace->next = _held;

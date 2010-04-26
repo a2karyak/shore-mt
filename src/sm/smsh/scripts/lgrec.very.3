@@ -1,6 +1,6 @@
 # <std-header style='tcl' orig-src='shore'>
 #
-#  $Id: lgrec.very.3,v 1.4 1999/06/07 19:05:32 kupsch Exp $
+#  $Id: lgrec.very.3,v 1.4.4.4 2010/01/28 04:54:36 nhall Exp $
 #
 # SHORE -- Scalable Heterogeneous Object REpository
 #
@@ -33,25 +33,59 @@
 #
 source $script_dir/vol.init
 
-set recsz 10000000
+# set recsz 100000
+set recsz 10000
 set nrecs 1000
+verbose nrecs $nrecs of size $recsz
+
 set pgs_per_rec  [expr { ( $recsz / $lg_rec_page_space ) + 1 } ]
+verbose pages per rec $pgs_per_rec
+
 set pages_needed  [expr { $pgs_per_rec * $nrecs } ]
-set pages_in_volume [expr {$sm_max_exts * $pages_per_ext}]
-set cluster_page  [expr {(($sm_max_exts * $pages_per_ext) - $pages_needed)- 1}]
+verbose pages needed $pages_needed
+
+unset pgs_per_rec
+
+sm begin_xct
+set volinfo [sm get_volume_meta_stats $volid t_cc_none]
+sm commit_xct
+
+set ttl [select_stat $volinfo "total_pages"]
+unset volinfo
+
+## sm_max_exts is the theoretical max extent #, not representative
+## of any volume
+# echo max ext num $sm_max_exts
+# echo pages per extent $pages_per_ext
+#set pages_in_volume [expr {$sm_max_exts * $pages_per_ext}]
+#
+
+set pages_in_volume [lindex $ttl 1]
+verbose pages in volume $pages_in_volume 
+unset ttl
+
+set cluster_page  [expr {($pages_in_volume - $pages_needed) - 1}]
+verbose cluster page $cluster_page  
 
 if [ expr {$cluster_page<0}] {
-    echo "Volume not large enough"
+    echo "Volume not large enough; contains " $pages_in_volume " pages; need " $pages_needed " pages to run this script."
+	unset pages_needed pages_in_volume
     exit 1
 }
+
+unset pages_needed pages_in_volume
 
 source $script_dir/lgrec.very.0
 
 # 	Now do the reverse: create many small records
+# 	swap nrecs and recsz
 
-set nrecs 10000000
-set recsz 1000
+set tmp $nrecs
+set recsz $nrecs
+set nrecs $tmp
+unset tmp
 
-unset recsz nrecs 
 source $script_dir/lgrec.very.0
 
+unset recsz nrecs 
+unset cluster_page

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='SHELL_H'>
 
- $Id: shell.h,v 1.49 2007/05/18 21:50:58 nhall Exp $
+ $Id: shell.h,v 1.49.2.10 2010/03/19 22:20:30 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -41,7 +41,8 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 
 #include <sm_vas.h>
 #include "smsh.h"
-#include "w_random.h"
+// DEAD #include "w_random.h"
+#include "rand48.h"
 #include <cstring>
 #include "smsh_error.h"
 #undef EXTERN
@@ -49,39 +50,23 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #include "tcl_workaround.h"
 #include "tcl_thread.h"
 
-#ifdef USE_COORD
-#include <sm_coord.h>
-#include <deadlock_events.h>
-#include <sm_global_deadlock.h>
-extern sm_coordinator* co;
-extern CentralizedGlobalDeadlockServer *globalDeadlockServer;
-#endif
-
 #ifdef PURIFY
 #include <purify.h>
 #endif
 
 extern bool newsort;
 extern sm_config_info_t global_sm_config_info;
+extern __thread rand48 generator;
 
 extern void check_sp(const char *, int);
-#define	SSH_CHECK_STACK	check_sp(__FILE__, __LINE__)
+#define    SSH_CHECK_STACK    check_sp(__FILE__, __LINE__)
 
 #define SSH_VERBOSE 
 
-#if !defined(SOLARIS2) && !defined(HPUX8) && !defined(_WINDOWS) && !defined(Linux)
-extern "C" {
-    extern	int	strcasecmp(const char *, const char *);	
-}
-#endif
-
 extern ss_m* sm;
-
-extern bool start_client_support; // from ssh.cpp
 
 typedef int smproc_t(Tcl_Interp* ip, int ac, TCL_AV char* av[]);
 const int MAXRECLEN = 1000;
-
 
 typedef w_base_t::uint1_t  uint1_t;
 typedef w_base_t::uint2_t  uint2_t;
@@ -103,28 +88,25 @@ typedef w_base_t::f8_t  f8_t;
 struct typed_value {
     int _length;
     union {
-	const char	*bv;
-	char    b1;
-	w_base_t::uint8_t u8_num;
-	w_base_t::int8_t  i8_num;
-	uint4_t u4_num;
-	int4_t  i4_num;
-	uint2_t u2_num;
-	int2_t  i2_num;
-	uint1_t u1_num;
-	int1_t  i1_num;
-	f4_t    f4_num;
-	f8_t    f8_num;
-	char    polygon[sizeof(nbox_t)]; // for rtree test
+    const char    *bv;
+    char    b1;
+    w_base_t::uint8_t u8_num;
+    w_base_t::int8_t  i8_num;
+    uint4_t u4_num;
+    int4_t  i4_num;
+    uint2_t u2_num;
+    int2_t  i2_num;
+    uint1_t u1_num;
+    int1_t  i1_num;
+    f4_t    f4_num;
+    f8_t    f8_num;
+    char    polygon[sizeof(nbox_t)]; // for rtree test
     } _u; 
 };
 
-static char   outbuf[(ss_m::page_sz * 2) > (1024 * 16) ? 
-		    (ss_m::page_sz * 2) : (1024 * 16) ];
+extern w_ostrstream &get_tclout(); /* shell.cpp */
 
-// NB: just one of many things that needs to be protected by
-// a mutex for preemptive threads
-static w_ostrstream tclout(outbuf, sizeof(outbuf));
+#define tclout get_tclout()
 
 #if defined(W_DEBUG) || defined(SSH_DUMPRC)
 extern bool dumprc; // in shell.cpp
@@ -134,62 +116,65 @@ extern bool dumprc; // in shell.cpp
 #endif
 
 #undef DO
-#define DO(x)							\
-{								\
-    w_rc_t ___rc = x;						\
-    if (___rc)  {						\
-	w_reset_strstream(tclout);                              \
-	DUMPRC(___rc);                                          \
-	tclout << smsh_err_name(___rc.err_num()) << ends;	\
-	Tcl_AppendResult(ip, tclout.c_str(), 0);		\
-	w_reset_strstream(tclout);                              \
-	return TCL_ERROR;					\
-    }								\
+#define DO(x)                            \
+{                                \
+    w_rc_t ___rc = x;                        \
+    if (___rc.is_error())  {                        \
+        w_reset_strstream(tclout);                              \
+        DUMPRC(___rc);                                          \
+        tclout << smsh_err_name(___rc.err_num()) << ends;    \
+        Tcl_AppendResult(ip, tclout.c_str(), 0);        \
+        w_reset_strstream(tclout);                              \
+        return TCL_ERROR;                    \
+    }                                \
 }
 
 #undef DO_GOTO
-#define DO_GOTO(x)  						\
-{								\
-    w_rc_t ___rc = x;						\
-    if (___rc)  {						\
-	w_reset_strstream(tclout);                              \
-	tclout << smsh_err_name(___rc.err_num()) << ends;	\
-	Tcl_AppendResult(ip, tclout.c_str(), 0);		\
-	w_reset_strstream(tclout);                              \
-	goto failure;						\
-    }								\
+#define DO_GOTO(x)                          \
+{                                \
+    w_rc_t ___rc = x;                        \
+    if (___rc.is_error())  {                        \
+    w_reset_strstream(tclout);                              \
+    tclout << smsh_err_name(___rc.err_num()) << ends;    \
+    Tcl_AppendResult(ip, tclout.c_str(), 0);        \
+    w_reset_strstream(tclout);                              \
+    goto failure;                        \
+    }                                \
 }
 
-#define TCL_HANDLE_FSCAN_FAILURE(f_scan) 			\
-    if((f_scan==0) || (f_scan->error_code()!= 0)) { 		\
-       w_rc_t err; 						\
-       if(f_scan != 0) {  					\
-	    err = f_scan->error_code(); 			\
-	    delete f_scan; f_scan =0;  				\
-	} else { 						\
-	    err = RC(fcOUTOFMEMORY); 				\
-	} 							\
-	DO(err);						\
+#define TCL_HANDLE_FSCAN_FAILURE(f_scan)             \
+    if((f_scan==0) || (f_scan->error_code().is_error())) {     \
+       w_rc_t err;                         \
+       if(f_scan != 0) {                      \
+        err = RC(f_scan->error_code().err_num());          \
+        delete f_scan; f_scan =0;                  \
+    } else {                         \
+        err = RC(fcOUTOFMEMORY);                 \
+    }                             \
+    DO(err);                        \
     }
 
-#define HANDLE_FSCAN_FAILURE(f_scan)				\
-    if((f_scan==0) || (f_scan->error_code()!=0)) {			\
-       w_rc_t err; 						\
-       if(f_scan) { 						\
-	    err = f_scan->error_code(); 			\
-	    delete f_scan; f_scan =0;  				\
-	    return err; 					\
-	} else { 						\
-	    return RC(fcOUTOFMEMORY); 				\
-	} 							\
+#define HANDLE_FSCAN_FAILURE(f_scan)                \
+    if((f_scan==0) || (f_scan->error_code().is_error())) {    \
+       w_rc_t err;                         \
+       if(f_scan) {                         \
+        err = RC(f_scan->error_code().err_num());          \
+        delete f_scan; f_scan =0;                  \
+        return err;                     \
+    } else {                         \
+        return RC(fcOUTOFMEMORY);                 \
+    }                             \
     }
+
+extern "C"  void clean_up_shell();
+extern rand48 &get_generator(); /* shell.cpp */
     
 extern smsize_t   objectsize(const char *);
 extern smsize_t   numobjects(const char *);
 
 extern void   dump_pin_hdr(ostream &out, pin_i &handle); 
 extern void   dump_pin_body(w_ostrstream &out, pin_i &handle,
-	smsize_t start, smsize_t length, Tcl_Interp *ip); 
+    smsize_t start, smsize_t length, Tcl_Interp *ip); 
 extern w_rc_t dump_scan(scan_file_i &scan, ostream &out, bool hex=false); 
 extern vec_t & parse_vec(const char *c, int len) ;
 extern vid_t make_vid_from_lvid(const char* lv);
@@ -201,14 +186,14 @@ extern const char * check_compress_flag(const char *);
 
 inline const char *tcl_form_flag(int flag)
 {
-	return flag ? "1" : "0";
+    return flag ? "1" : "0";
 }
 
 extern int tcl_scan_flag(const char *s, bool &flag);
 
 inline const char *tcl_form_bool(bool flag)
 {
-	return flag ? "TRUE" : "FALSE";
+    return flag ? "TRUE" : "FALSE";
 }
 
 extern int tcl_scan_bool(const char *rep, bool &result);
@@ -253,8 +238,8 @@ inline lock_mode_t
 cvt2lock_mode(const char *s)
 {
     for (int i = lock_base_t::MIN_MODE; i <= lock_base_t::MAX_MODE; i++)  {
-	if (strcmp(s, lock_base_t::mode_str[i]) == 0)
-	    return (lock_mode_t) i;
+    if (strcmp(s, lock_base_t::mode_str[i]) == 0)
+        return (lock_mode_t) i;
     }
     cerr << "cvt2lock_mode: bad lock mode" << endl;
     W_FATAL(ss_m::eINTERNAL);
@@ -265,8 +250,8 @@ inline lock_duration_t
 cvt2lock_duration(const char *s)
 {
     for (int i = 0; i < t_num_durations; i++) {
-	if (strcmp(s, lock_base_t::duration_str[i]) == 0)
-	    return (lock_duration_t) i;
+    if (strcmp(s, lock_base_t::duration_str[i]) == 0)
+        return (lock_duration_t) i;
     }
 
     cerr << "cvt2lock_duration: bad lock duration" << endl;
@@ -279,16 +264,16 @@ cvt2store_property(const char *s)
 {
     ss_m::sm_store_property_t prop = ss_m::t_regular;
     if (strcmp(s, "tmp") == 0)  {
-	prop = ss_m::t_temporary;
+    prop = ss_m::t_temporary;
     } else if (strcmp(s, "regular") == 0)  {
-	prop = ss_m::t_regular;
+    prop = ss_m::t_regular;
     } else if (strcmp(s, "load_file") == 0) {
-	prop = ss_m::t_load_file;
+    prop = ss_m::t_load_file;
     } else if (strcmp(s, "insert_file") == 0) {
-	prop = ss_m::t_insert_file;
+    prop = ss_m::t_insert_file;
     } else {
-	cerr << "bad store property: " << s << endl;
-	W_FATAL(ss_m::eINTERNAL);
+    cerr << "bad store property: " << s << endl;
+    W_FATAL(ss_m::eINTERNAL);
     }
     return prop;
 }
@@ -322,14 +307,15 @@ inline int
 check(Tcl_Interp* ip, const char* s, int ac, int n1, int n2 = 0, int n3 = 0,
       int n4 = 0, int n5 = 0)
 {
+    SSH_CHECK_STACK;
     if (ac != n1 && ac != n2 && ac != n3 && ac != n4 && ac != n5) {
-	if (s[0])  {
-	    Tcl_AppendResult(ip, "wrong # args; should be \"", s,
-			     "\"", 0);
-	} else {
-	    Tcl_AppendResult(ip, "wrong # args, none expected", 0);
-	}
-	return -1;
+        if (s[0])  {
+            Tcl_AppendResult(ip, "wrong # args; should be \"", s,
+                     "\"", 0);
+        } else {
+            Tcl_AppendResult(ip, "wrong # args, none expected", 0);
+        }
+        return -1;
     }
     return 0;
 }
@@ -344,7 +330,9 @@ enum typed_btree_test {
     test_spatial
 };
 
-extern "C" {
+// Can't use extern "C" because CC finds it not matching the
+// type smproc_t
+// extern "C" {
     int t_multikey_sort_file(Tcl_Interp* ip, int ac, TCL_AV char* av[]);
     int t_test_bulkload_int_btree(Tcl_Interp* ip, int ac, TCL_AV char* av[]);
     int t_test_bulkload_rtree(Tcl_Interp* ip, int ac, TCL_AV char* av[]);
@@ -359,15 +347,15 @@ extern "C" {
     int t_get_store_info(Tcl_Interp* ip, int ac, TCL_AV char* av[]);
     typed_btree_test cvt2type(const char *s);
     void cvt2typed_value( typed_btree_test t, 
-				const char *string, typed_value &);
+                const char *string, typed_value &);
     int check_key_type(Tcl_Interp *ip, typed_btree_test t, 
-	const char *given, const char *stidstring);
+    const char *given, const char *stidstring);
     typed_btree_test get_key_type(Tcl_Interp *ip,  const char *stidstring );
     const char* cvt_concurrency_t( ss_m::concurrency_t cc);
     const char* cvt_ndx_t( ss_m::ndx_t cc);
     const char* cvt_store_t(ss_m::store_t n);
 
-}
+// }
 
 /*<std-footer incl-file-exclusion='SHELL_H'>  -- do not edit anything below this line -- */
 

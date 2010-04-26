@@ -1,6 +1,6 @@
 # <std-header style='tcl' orig-src='shore'>
 #
-#  $Id: btree.simple.1,v 1.5 2006/06/01 17:09:39 nhall Exp $
+#  $Id: btree.simple.1,v 1.5.2.3 2010/03/19 22:20:35 nhall Exp $
 #
 # SHORE -- Scalable Heterogeneous Object REpository
 #
@@ -28,32 +28,20 @@
 #   -- do not edit anything above this line --   </std-header>
 
 #
-# This script demonstrates many xcts causing SMOs
-# by inserting and removing large entries into btrees
-# At some point, if we crash or abort, and if -y flag is
-# used, this should demonstrate recovery's effort to order
-# the undone xcts so that the one(s) in the middle of SMOs
-# get run first.
 #
 # NB: this is for use with runtests.pl (crash testing)
 #
 
 source $script_dir/vol.init
 
-set ntries 50
-set nxct 10
-
-set mx [expr $max_btree_entry_size / 2]
-set elem [format "zvec%d" $mx]
-
 proc T3 {ndx key} {
     # T2 scans
     verbose T3 sync
-    sync
+    named_sync 3
 
     sm begin_xct
     set elem T3
-    verbose T3 addding entry: $key $elem
+    verbose T3 adding entry: $key $elem
     sm create_assoc $ndx $key $elem
     sm commit_xct
 
@@ -70,45 +58,50 @@ proc T2 { ndx key } {
     sm begin_xct
     # 10 is plenty
     set nrec 10 
-    # scan index
+    # scan index : now we hold kvl locks on each element if the index
+	# has kvl locking.  
     set scan [sm create_scan $ndx >= neg_inf <= pos_inf]
     for {set i 1} {$i <= $nrec} {incr i}  {
-	set r [sm scan_next $scan]
-	if {[string compare $r eof] == 0} then { break }
-	set key [string trimleft [lindex $r 0] 0]
-	set el [lindex $r 1]
-	verbose "scanned ($key, $el)"
-    }
+		set r [sm scan_next $scan]
+		if {[string compare $r eof] == 0} then { break }
+		set key [string trimleft [lindex $r 0] 0]
+		set el [lindex $r 1]
+		verbose "T2 scanned ($key, $el)"
+		}
+    verbose "T2 eof"
+    sm destroy_scan $scan
+
+    verbose T2 sync 
+    named_sync 3
+    # T3 inserts -- but will be held up by the kvl locking.
+    verbose T2 sync 
+    sync
+	
+    verbose T2 scan again
+    # scan index again
+    set nrec 10
+    set scan [sm create_scan $ndx >= neg_inf <= pos_inf]
+	for {set i 1} {$i <= $nrec} {incr i}  {
+		set r [sm scan_next $scan]
+		if {[string compare $r eof] == 0} then { break }
+		set key [string trimleft [lindex $r 0] 0]
+		set el [lindex $r 1]
+		verbose "scanned ($key, $el)"
+	}
     verbose "eof"
     sm destroy_scan $scan
 
     verbose T2 sync 
     sync
-    # T3 inserts
 
-    verbose T2 sync again
-    sync
-
-    verbose T2 scan again
-    # scan index again
-    set nrec 10
-    set scan [sm create_scan $ndx >= neg_inf <= pos_inf]
-    for {set i 1} {$i <= $nrec} {incr i}  {
-	set r [sm scan_next $scan]
-	if {[string compare $r eof] == 0} then { break }
-	set key [string trimleft [lindex $r 0] 0]
-	set el [lindex $r 1]
-	verbose "scanned ($key, $el)"
-    }
-    verbose "eof"
-    sm destroy_scan $scan
     sm commit_xct
+
 
     verbose T2 done.
 }
 
 
-foreach cc {t_cc_kvl t_cc_im } {
+foreach cc { t_cc_kvl t_cc_im } {
     verbose "******************************************" $cc
     sm begin_xct
     set ndx [sm create_index $volid btree regular b*1000 $cc]
@@ -119,14 +112,37 @@ foreach cc {t_cc_kvl t_cc_im } {
     sm create_assoc $ndx $key $elem
 
     sm commit_xct
+	verbose index $ndx created with one entry $key -> $elem
 
     set i 1
     set t($i) [fork_thread T2 $ndx $key ]
     incr i
     set t($i) [fork_thread T3 $ndx $key ]
 
-    sync_thread $t(1) $t(2)
-    sync_thread $t(1) $t(2)
+	verbose named_sync 3 "T2 T3"
+	named_sync 3 "T2 T3"
+
+	# give T3 time to start xct and grab locks and wait
+	sm sleep 1
+
+	verbose -----------------------------------------------------------
+	verbose dumping locks after T2 scan and T3 waits for lock
+	if {$verbose_flag} {
+		sm dump_locks
+	}
+	verbose -----------------------------------------------------------
+
+	# Let T2 scan again and wait before committing
+	verbose sync_thread T2 again
+    sync_thread $t(1) 
+
+	#  NOTE: order must be T2 T3
+	verbose sync_thread T2 last time
+    sync_thread $t(1)
+	verbose sync_thread T3 last time
+    sync_thread $t(2) 
+
+	verbose join_thread T2 T3
     join_thread $t(1) $t(2)
 
     sm begin_xct
@@ -136,6 +152,5 @@ foreach cc {t_cc_kvl t_cc_im } {
 
 verbose threads done
 
-unset t mx elem cc key i
-unset ntries nxct ndx
+unset t cc key i elem ndx
 

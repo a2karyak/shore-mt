@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: thread4.cpp,v 1.30 2007/05/18 21:52:31 nhall Exp $
+ $Id: thread4.cpp,v 1.30.2.6 2010/03/19 22:20:03 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -33,13 +33,27 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 
 #include <cstdlib>
 #include <ctime>
-#include <os_memory.h>
 
 #include <w.h>
 #include <sthread.h>
 
 #include <iostream>
+#include <sstream>
 #include <w_strstream.h>
+
+__thread stringstream *_safe_io(NULL);
+void safe_io_init() 
+{ 
+	if (_safe_io==NULL) _safe_io = new stringstream; 
+}
+void safe_io_fini() 
+{ 
+	if (_safe_io!=NULL) delete _safe_io; _safe_io=NULL;
+}
+
+#define SAFE_IO(XXXX) { safe_io_init(); \
+	*_safe_io <<  XXXX; \
+	fprintf(stdout, _safe_io->str().c_str()); }
 
 class timer_thread_t : public sthread_t {
 public:
@@ -90,7 +104,7 @@ int main(int argc, char **argv)
 	}
 
 	for (i = 0; i < timeouts; i++)  {
-		W_COERCE( timer_thread[i]->wait());
+		W_COERCE( timer_thread[i]->join());
 		delete timer_thread[i];
 	}
 
@@ -101,6 +115,7 @@ int main(int argc, char **argv)
 	if (verbose)
 		sthread_t::dump_stats(cout);
 
+        delete _safe_io; _safe_io = NULL;
 	return 0;
 }
 
@@ -119,8 +134,8 @@ void timer_thread_t::run()
 {
 	stime_t	start, stop;
 
-	cout << "[" << setw(2) << setfill('0') << id 
-		<< "] going to sleep for " << _ms << "ms" << endl;
+	SAFE_IO( "[" << setw(2) << setfill('0') << id 
+		<< "] going to sleep for " << _ms << "ms" << endl;)
 
 	if (verbose)
 		start = stime_t::now();
@@ -130,11 +145,15 @@ void timer_thread_t::run()
 	if (verbose)
 		stop = stime_t::now();
 	
-	cout << "[" << setw(2) << setfill('0') << id 
+	SAFE_IO(
+	"[" << setw(2) << setfill('0') << id 
 		<< "] woke up after " << _ms << "ms";
-	if (verbose)
-		cout << "; measured " << (sinterval_t)(stop-start)
+        )
+	if (verbose) SAFE_IO(
+		 "; measured " << (sinterval_t)(stop-start)
 		<< " seconds.";
 	cout << endl;
+        )
+	safe_io_fini();
 }
 

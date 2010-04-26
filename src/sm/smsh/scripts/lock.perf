@@ -1,6 +1,6 @@
 # <std-header style='tcl' orig-src='shore'>
 #
-#  $Id: lock.perf,v 1.14 1999/06/07 19:05:34 kupsch Exp $
+#  $Id: lock.perf,v 1.14.4.3 2009/12/21 18:45:15 nhall Exp $
 #
 # SHORE -- Scalable Heterogeneous Object REpository
 #
@@ -42,7 +42,7 @@ proc lock_stats {} {
 }
 
 set config [sm config_info]
-echo config $config
+verbose config $config
 
 set num_req 10000
 set hdr "" 
@@ -55,8 +55,8 @@ sm begin_xct
     set rid [sm create_rec $fid $hdr 1 $data]
 sm commit_xct
 
-echo #requests $num_req 
-echo LOCK STARTING: 
+verbose #requests $num_req 
+verbose LOCK STARTING: 
 pstats
 
 sm begin_xct
@@ -67,9 +67,9 @@ sm set_lock_cache_enable enable
 set lock_time [ time {
     sm lock_many $num_req $rid EX
 } 1 ]
-echo
-echo full record locks, cached=[sm lock_cache_enabled]
-echo "\t" $lock_time , [lock_stats]
+verbose
+verbose full record locks, cached=[sm lock_cache_enabled]
+verbose "\t" $lock_time , [lock_stats]
 
 
 set dummy [sm gather_stats reset]
@@ -77,9 +77,9 @@ sm set_lock_cache_enable disable
 set lock_time [ time {
     sm lock_many $num_req $rid EX
 } 1 ]
-echo
-echo full record locks, cached=[sm lock_cache_enabled] 
-echo "\t" $lock_time , [lock_stats]
+verbose
+verbose full record locks, cached=[sm lock_cache_enabled] 
+verbose "\t" $lock_time , [lock_stats]
 
 
 set dummy [sm gather_stats reset]
@@ -88,9 +88,9 @@ sm lock $fid EX
 set lock_time [ time {
     sm lock_many $num_req $rid EX
 } 1 ]
-echo
-echo file is EX locked, cached=[sm lock_cache_enabled]
-echo "\t" $lock_time , [lock_stats]
+verbose
+verbose file is EX locked, cached=[sm lock_cache_enabled]
+verbose "\t" $lock_time , [lock_stats]
 
 
 set dummy [sm gather_stats reset]
@@ -99,9 +99,9 @@ sm lock $fid EX
 set lock_time [ time {
     sm lock_many $num_req $rid EX
 } 1 ]
-echo
-echo file is EX locked, cached=[sm lock_cache_enabled]
-echo "\t" $lock_time , [lock_stats]
+verbose
+verbose file is EX locked, cached=[sm lock_cache_enabled]
+verbose "\t" $lock_time , [lock_stats]
 
 
 set dummy [sm gather_stats reset]
@@ -110,9 +110,9 @@ sm lock $volid EX
 set lock_time [ time {
     sm lock_many $num_req $rid EX
 } 1 ]
-echo
-echo volume is EX locked, cached=[sm lock_cache_enabled]
-echo "\t" $lock_time , [lock_stats]
+verbose
+verbose volume is EX locked, cached=[sm lock_cache_enabled]
+verbose "\t" $lock_time , [lock_stats]
 
 
 set dummy [sm gather_stats reset]
@@ -121,14 +121,15 @@ sm lock $volid EX
 set lock_time [ time {
     sm lock_many $num_req $rid EX
 } 1 ]
-echo
-echo volume is EX locked, cached=[sm lock_cache_enabled]
-echo "\t" $lock_time , [lock_stats]
+verbose
+verbose volume is EX locked, cached=[sm lock_cache_enabled]
+verbose "\t" $lock_time , [lock_stats]
 
 
 pstats
 
+sm destroy_file $fid
 sm commit_xct
 
-unset rid
+unset rid dummy hdr data num_req lock_time fid config
 

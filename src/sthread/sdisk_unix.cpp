@@ -1,6 +1,29 @@
+/* -*- mode:C++; c-basic-offset:4 -*-
+     Shore-MT -- Multi-threaded port of the SHORE storage manager
+   
+                       Copyright (c) 2007-2009
+      Data Intensive Applications and Systems Labaratory (DIAS)
+               Ecole Polytechnique Federale de Lausanne
+   
+                         All Rights Reserved.
+   
+   Permission to use, copy, modify and distribute this software and
+   its documentation is hereby granted, provided that both the
+   copyright notice and this permission notice appear in all copies of
+   the software, derivative works or modified versions, and any
+   portions thereof, and that both notices appear in supporting
+   documentation.
+   
+   This code is distributed in the hope that it will be useful, but
+   WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. THE AUTHORS
+   DISCLAIM ANY LIABILITY OF ANY KIND FOR ANY DAMAGES WHATSOEVER
+   RESULTING FROM THE USE OF THIS SOFTWARE.
+*/
+
 /*<std-header orig-src='shore'>
 
- $Id: sdisk_unix.cpp,v 1.22 2007/06/28 21:23:41 nhall Exp $
+ $Id: sdisk_unix.cpp,v 1.22.2.12 2010/03/19 22:20:01 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -31,10 +54,11 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 
 /*  -- do not edit anything above this line --   </std-header>*/
 
+/**\cond skip */
 /*
  *   NewThreads I/O is Copyright 1995, 1996, 1997, 1998 by:
  *
- *	Josef Burger	<bolo@cs.wisc.edu>
+ *    Josef Burger    <bolo@cs.wisc.edu>
  *
  *   All Rights Reserved.
  *
@@ -60,51 +84,19 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #include <stime.h>
 #endif
 
-#include <w_statistics.h>
 #include <sthread_stats.h>
 extern class sthread_stats SthreadStats;
 
-#ifdef _WIN32
-#include <io.h>
-#else
-#include <unistd.h>
-#endif
 #include "os_fcntl.h"
 #include <cerrno>
 #include <sys/stat.h>
 
-#ifndef _WIN32
 #include <sys/uio.h>
-#endif
 
-#if defined(_WIN32) && defined(LARGEFILE_AWARE)
-#include <iostream>
-#endif
+#define    HAVE_IO_VECTOR
 
-#if !defined(AIX41) && !defined(SOLARIS2) && !defined(_WIN32) && !defined(OSF1) && !defined(Linux) && !defined(MacOSX)
-extern "C" {
-	extern int writev(int, const struct iovec *, int);
-	extern int readv(int, const struct iovec *, int);
-}
-#endif
-
-#if defined(OSF1)
-/* XXX some stupid readv rename going on */
-#ifdef readv
-#undef readv
-#undef writev
-#endif
-#endif
-
-#ifndef _WIN32
-#define	HAVE_IO_VECTOR
-#endif
-#ifdef SOLARIS2
-#define	HAVE_IO_POSITIONED
-#endif
-#ifdef OSF1
-#define	IOVEC_MISMATCH
-#endif
+// TODO deal with these HAVE_IO* 
+// TODO : is vector i/o ok with pthreads?
 
 #include <os_interface.h>
 
@@ -113,421 +105,360 @@ const int stBADFD = sthread_base_t::stBADFD;
 const int stINVAL = sthread_base_t::stINVAL;
 
 
-int	sdisk_unix_t::convert_flags(int sflags)
+int    sdisk_unix_t::convert_flags(int sflags)
 {
-	int	flags = 0;
+    int    flags = 0;
 
-	/* 1 of n */
-	switch (modeBits(sflags)) {
-	case OPEN_RDWR:
-		flags |= O_RDWR;
-		break;
-	case OPEN_WRONLY:
-		flags |= O_WRONLY;
-		break;
-	case OPEN_RDONLY:
-		flags |= O_RDONLY;
-		break;
-	}
+    /* 1 of n */
+    switch (modeBits(sflags)) {
+    case OPEN_RDWR:
+        flags |= O_RDWR;
+        break;
+    case OPEN_WRONLY:
+        flags |= O_WRONLY;
+        break;
+    case OPEN_RDONLY:
+        flags |= O_RDONLY;
+        break;
+    }
 
-	/* m of n */
-	/* could make a data driven flag conversion, :-) */
-	if (hasOption(sflags, OPEN_CREATE))
-		flags |= O_CREAT;
-	if (hasOption(sflags, OPEN_TRUNC))
-		flags |= O_TRUNC;
-	if (hasOption(sflags, OPEN_EXCL))
-		flags |= O_EXCL;
+    /* m of n */
+    /* could make a data driven flag conversion, :-) */
+    if (hasOption(sflags, OPEN_CREATE))
+        flags |= O_CREAT;
+    if (hasOption(sflags, OPEN_TRUNC))
+        flags |= O_TRUNC;
+    if (hasOption(sflags, OPEN_EXCL))
+        flags |= O_EXCL;
 #ifdef O_SYNC
-	if (hasOption(sflags, OPEN_SYNC))
-		flags |= O_SYNC;
+    if (hasOption(sflags, OPEN_SYNC))
+        flags |= O_SYNC;
 #endif
-	if (hasOption(sflags, OPEN_APPEND))
-		flags |= O_APPEND;
+    if (hasOption(sflags, OPEN_APPEND))
+        flags |= O_APPEND;
 #ifdef O_DIRECT
-	if (hasOption(sflags, OPEN_RAW))
-		flags |= O_DIRECT;
+    /*
+     * From the open man page:
+     *      O_DIRECT
+              Try to minimize cache effects of the I/O to and from this  file.
+              In  general  this  will degrade performance, but it is useful in
+              special situations, such  as  when  applications  do  their  own
+              caching.   File I/O is done directly to/from user space buffers.
+              The I/O is synchronous, i.e., at the completion of a read(2)  or
+              write(2),  data  is  guaranteed to have been transferred.  Under
+              Linux 2.4 transfer sizes, and the alignment of user  buffer  and
+              file  offset  must all be multiples of the logical block size of
+              the file system. Under Linux 2.6 alignment must  fit  the  block
+              size of the device.
+    */
+    if (hasOption(sflags, OPEN_RAW))
+        flags |= O_DIRECT;
 #endif
 
-#if defined(O_BINARY)
-	/* NewThreads I/O, just like Unix, I/O, is always byte-for-byte */
-	flags |= O_BINARY;
-#endif
-
-	return flags;
+    return flags;
 }
 
 
 sdisk_unix_t::~sdisk_unix_t()
 {
-	if (_fd != FD_NONE)
-		W_COERCE(close());
+    if (_fd != FD_NONE)
+        W_COERCE(close());
 }
 
 
-w_rc_t	sdisk_unix_t::make(const char *name, int flags, int mode,
-			   sdisk_t *&disk)
+w_rc_t    sdisk_unix_t::make(const char *name, int flags, int mode,
+               sdisk_t *&disk)
 {
-	sdisk_unix_t	*ud;
-	w_rc_t		e;
+    sdisk_unix_t    *ud;
+    w_rc_t        e;
 
-	disk = 0;	/* default value*/
-	
-	ud = new sdisk_unix_t;
-	if (!ud)
-		return RC(fcOUTOFMEMORY);
+    disk = 0;    /* default value*/
+    
+    ud = new sdisk_unix_t(name);
+    if (!ud)
+        return RC(fcOUTOFMEMORY);
 
-	e = ud->open(name, flags, mode);
-	if (e != RCOK) {
-		delete ud;
-		return e;
-	}
+    e = ud->open(name, flags, mode);
+    if (e.is_error()) {
+        delete ud;
+        return e;
+    }
 
-	disk = ud;
-	return RCOK;
+    disk = ud;
+    return RCOK;
 }
 
 
-w_rc_t	sdisk_unix_t::open(const char *name, int flags, int mode)
+w_rc_t    sdisk_unix_t::open(const char *name, int flags, int mode)
 {
-	if (_fd != FD_NONE)
-		return RC(stBADFD);	/* XXX in use */
+    if (_fd != FD_NONE)
+        return RC(stBADFD);    /* XXX in use */
 
-	_fd = ::os_open(name, convert_flags(flags), mode);
-	if (_fd == -1)
-		return RC(fcOS);
+    _fd = ::os_open(name, convert_flags(flags), mode);
+    if (_fd == -1) {
+        w_rc_t rc = RC(fcOS);
+        RC_APPEND_MSG(rc, << "Offending file: " << name);
+        return rc;
+    }
 
-	return RCOK;
+    return RCOK;
 }
 
-w_rc_t	sdisk_unix_t::close()
+w_rc_t    sdisk_unix_t::close()
 {
-	if (_fd == FD_NONE)
-		return RC(stBADFD);	/* XXX closed */
+    if (_fd == FD_NONE)
+        return RC(stBADFD);    /* XXX closed */
 
-	int	n;
+    int    n;
 
-	n = ::os_close(_fd);
-	if (n == -1)
-		return RC(fcOS);
+    n = ::os_close(_fd);
+    if (n == -1)
+        return RC(fcOS);
 
-	_fd = FD_NONE;
-	return RCOK;
+    _fd = FD_NONE;
+    return RCOK;
 }
 
 
-/* An I/O monitor for local I/O which will time and yield as needed */
-class IOmonitor_local {
-#ifdef EXPENSIVE_STATS
-	stime_t	start_time;
-#else
-	bool	unused;
+
+
+w_rc_t    sdisk_unix_t::read(void *buf, int count, int &done)
+{
+    if (_fd == FD_NONE)
+        return RC(stBADFD);
+
+    int    n;
+
+    INC_STH_STATS(num_io);
+
+    n = ::os_read(_fd, buf, count);
+    if (n == -1)
+        return RC(fcOS);
+
+    done = n;
+
+    return RCOK;
+}
+
+w_rc_t    sdisk_unix_t::write(const void *buf, int count, int &done)
+{
+    if (_fd == FD_NONE)
+        return RC(stBADFD);
+
+    int    n;
+
+    INC_STH_STATS(num_io);
+
+    n = ::os_write(_fd, buf, count);
+    if (n == -1)
+        return RC(fcOS);
+
+#if defined(USING_VALGRIND)
+    if(RUNNING_ON_VALGRIND)
+    {
+        check_valgrind_errors(__LINE__, __FILE__);
+    }
 #endif
-public:
-	inline IOmonitor_local(int &counter);
-	inline ~IOmonitor_local();
-};
 
-inline	IOmonitor_local::IOmonitor_local(int &counter) :
-#ifdef EXPENSIVE_STATS
-	start_time(stime_t::now())
-#else
-	unused(false)
-#endif
-{
-	counter++;
-}
+    done = n;
 
-inline	IOmonitor_local::~IOmonitor_local()
-{
-#ifdef EXPENSIVE_STATS
-	double	delta = stime_t::now() - start_time;
-
-	SthreadStats.io_time += (float) delta;
-
-	/* It's idle time because no threads can run */
-	SthreadStats.idle_time += (float) delta;
-#endif
-
-	/* XXX this is disgusting.  The threads package should yield. */
-	sthread_t::yield();
-}
-
-
-w_rc_t	sdisk_unix_t::read(void *buf, int count, int &done)
-{
-	if (_fd == FD_NONE)
-		return RC(stBADFD);
-
-	int	n;
-
-	IOmonitor_local	monitor(SthreadStats.local_io);
-
-	n = ::os_read(_fd, buf, count);
-	if (n == -1)
-		return RC(fcOS);
-
-	done = n;
-
-	return RCOK;
-}
-
-w_rc_t	sdisk_unix_t::write(const void *buf, int count, int &done)
-{
-	if (_fd == FD_NONE)
-		return RC(stBADFD);
-
-	int	n;
-
-	IOmonitor_local	monitor(SthreadStats.local_io);
-
-	n = ::os_write(_fd, buf, count);
-	if (n == -1)
-		return RC(fcOS);
-
-	done = n;
-
-	return RCOK;
+    return RCOK;
 }
 
 #ifdef HAVE_IO_VECTOR
-w_rc_t	sdisk_unix_t::readv(const iovec_t *iov, int iovcnt, int &done)
+w_rc_t    sdisk_unix_t::readv(const iovec_t *iov, int iovcnt, int &done)
 {
-	if (_fd == FD_NONE)
-		return RC(stBADFD);
+    if (_fd == FD_NONE)
+        return RC(stBADFD);
 
-	int	n;
+    int    n;
 
-	IOmonitor_local	monitor(SthreadStats.local_io);
+    INC_STH_STATS(num_io);
 
 #ifdef IOVEC_MISMATCH
-	{
-		struct iovec _iov[sthread_t::iovec_max];
-		for (int i = 0; i < iovcnt; i++) {
-			_iov[i].iov_base = (char *) iov[i].iov_base;
-			_iov[i].iov_len = iov[i].iov_len;
-		}
-		n = ::os_readv(_fd, _iov, iovcnt);
-	}
+    {
+        struct iovec _iov[sthread_t::iovec_max];
+        for (int i = 0; i < iovcnt; i++) {
+            _iov[i].iov_base = (char *) iov[i].iov_base;
+            _iov[i].iov_len = iov[i].iov_len;
+        }
+        n = ::os_readv(_fd, _iov, iovcnt);
+    }
 #else
-	n = ::os_readv(_fd, (const struct iovec *)iov, iovcnt);
+    n = ::os_readv(_fd, (const struct iovec *)iov, iovcnt);
 #endif
-	if (n == -1)
-		return RC(fcOS);
+    if (n == -1)
+        return RC(fcOS);
 
-	done = n;
+    done = n;
 
-	return RCOK;
+    return RCOK;
 }
 
-w_rc_t	sdisk_unix_t::writev(const iovec_t *iov, int iovcnt, int &done)
+w_rc_t    sdisk_unix_t::writev(const iovec_t *iov, int iovcnt, int &done)
 {
-	if (_fd == FD_NONE)
-		return RC(stBADFD);
+    if (_fd == FD_NONE)
+        return RC(stBADFD);
 
-	int	n;
+    int    n;
 
-	IOmonitor_local	monitor(SthreadStats.local_io);
+    INC_STH_STATS(num_io);
 
 #ifdef IOVEC_MISMATCH
-	{
-		struct iovec _iov[sthread_t::iovec_max];
-		for (int i = 0; i < iovcnt; i++) {
-			_iov[i].iov_base = (char *) iov[i].iov_base;
-			_iov[i].iov_len = iov[i].iov_len;
-		}
-		n = ::os_writev(_fd, _iov, iovcnt);
-	}
+    {
+        struct iovec _iov[sthread_t::iovec_max];
+        for (int i = 0; i < iovcnt; i++) {
+            _iov[i].iov_base = (char *) iov[i].iov_base;
+            _iov[i].iov_len = iov[i].iov_len;
+        }
+        n = ::os_writev(_fd, _iov, iovcnt);
+    }
 #else
-	n = ::os_writev(_fd, (const struct iovec *)iov, iovcnt);
+    n = ::os_writev(_fd, (const struct iovec *)iov, iovcnt);
 #endif
-	if (n == -1)
-		return RC(fcOS);
+    if (n == -1)
+        return RC(fcOS);
 
-	done = n;
-
-	return RCOK;
-}
+#if defined(USING_VALGRIND)
+    if(RUNNING_ON_VALGRIND)
+    {
+        check_valgrind_errors(__LINE__, __FILE__);
+    }
 #endif
 
-#ifdef HAVE_IO_POSITIONED
-w_rc_t	sdisk_unix_t::pread(void *buf, int count, fileoff_t pos, int &done)
-{
-	if (_fd == FD_NONE)
-		return RC(stBADFD);
+    done = n;
 
-	int	n;
-
-	IOmonitor_local	monitor(SthreadStats.local_io);
-
-	n = ::os_pread(_fd, buf, count, pos);
-	if (n == -1)
-		return RC(fcOS);
-
-	done = n;
-
-	return RCOK;
-}
-
-
-w_rc_t	sdisk_unix_t::pwrite(const void *buf, int count, fileoff_t pos,
-			    int &done)
-{
-	if (_fd == FD_NONE)
-		return RC(stBADFD);
-
-	int	n;
-
-	IOmonitor_local	monitor(SthreadStats.local_io);
-
-	n = ::os_pwrite(_fd, buf, count, pos);
-	if (n == -1)
-		return RC(fcOS);
-
-	done = n;
-
-	return RCOK;
+    return RCOK;
 }
 #endif
 
-w_rc_t	sdisk_unix_t::seek(fileoff_t pos, int origin, fileoff_t &newpos)
+w_rc_t    sdisk_unix_t::pread(void *buf, int count, fileoff_t pos, int &done)
 {
-	if (_fd == FD_NONE)
-		return RC(stBADFD);
+    if (_fd == FD_NONE)
+        return RC(stBADFD);
 
-	switch (origin) {
-	case SEEK_AT_SET:
-		origin = SEEK_SET;
-		break;
-	case SEEK_AT_CUR:
-		origin = SEEK_CUR;
-		break;
-	case SEEK_AT_END:
-		origin = SEEK_END;
-		break;
-	}
+    int    n;
 
-#ifdef notyet	/* XXX mismatched off_ts */
-	/* Try to do something sane if the file positions requested
-	   by the user go out of range of those that the system
-	   can deal with, or vice-versa. */
-	off_t	o;
-	off_t	l;
+    INC_STH_STATS(num_io);
 
-	if (pos < int4_min || pos > int4_max)
-		return RC(stBADADDR);	/* XXX offset out of range */
-#else
-	fileoff_t	l=0;
-	l = ::os_lseek(_fd, pos, origin);
+    n = ::os_pread(_fd, buf, count, pos);
+    if (n == -1)
+        return RC(fcOS);
+
+    done = n;
+
+    return RCOK;
+}
+
+
+w_rc_t    sdisk_unix_t::pwrite(const void *buf, int count, fileoff_t pos,
+                int &done)
+{
+    if (_fd == FD_NONE)
+        return RC(stBADFD);
+
+    int    n;
+
+    INC_STH_STATS(num_io);
+
+    n = ::os_pwrite(_fd, buf, count, pos);
+    if (n == -1)
+        return RC(fcOS);
+#if defined(USING_VALGRIND)
+    if(RUNNING_ON_VALGRIND)
+    {
+        check_valgrind_errors(__LINE__, __FILE__);
+    }
 #endif
-	if (l == -1)
-		return RC(fcOS);
 
-	newpos = l;
+    done = n;
 
-	return RCOK;
+    return RCOK;
 }
 
-w_rc_t	sdisk_unix_t::truncate(fileoff_t size)
+w_rc_t    sdisk_unix_t::seek(fileoff_t pos, int origin, fileoff_t &newpos)
 {
-	if (_fd == FD_NONE)
-		return RC(stBADFD);
+    if (_fd == FD_NONE)
+        return RC(stBADFD);
 
-	int	n;
+    switch (origin) {
+    case SEEK_AT_SET:
+        origin = SEEK_SET;
+        break;
+    case SEEK_AT_CUR:
+        origin = SEEK_CUR;
+        break;
+    case SEEK_AT_END:
+        origin = SEEK_END;
+        break;
+    }
 
-	IOmonitor_local	monitor(SthreadStats.local_io);
+    fileoff_t    l=0;
+    l = ::os_lseek(_fd, pos, origin);
+    if (l == -1)
+        return RC(fcOS);
 
-#if defined(_WIN32) && defined(LARGEFILE_AWARE)
-	if (size > w_base_t::int4_max) {
-		cerr << "Warning: LARGEFILE truncate not supported: size="
-			<< size << endl;
-		return RC(stINVAL);
-	}
-#endif
-	n = ::os_ftruncate(_fd, size);
+    newpos = l;
 
-	return (n == -1) ? RC(fcOS) : RCOK;
+    return RCOK;
 }
 
-w_rc_t	sdisk_unix_t::sync()
+w_rc_t    sdisk_unix_t::truncate(fileoff_t size)
 {
-	if (_fd == FD_NONE)
-		return RC(stBADFD);
+    if (_fd == FD_NONE)
+        return RC(stBADFD);
+    INC_STH_STATS(num_io);
+    int    n = ::os_ftruncate(_fd, size);
+    return (n == -1) ? RC(fcOS) : RCOK;
+}
 
-	int	n;
+w_rc_t    sdisk_unix_t::sync()
+{
+    if (_fd == FD_NONE)
+        return RC(stBADFD);
 
-	IOmonitor_local	monitor(SthreadStats.local_io);
+    INC_STH_STATS(num_io);
+    int n = os_fsync(_fd);
 
-	n = os_fsync(_fd);
+    /* fsync's to r/o files and devices can fail ok */
+    if (n == -1 && (errno == EBADF || errno == EINVAL))
+        n = 0;
 
-	/* fsync's to r/o files and devices can fail ok */
-	if (n == -1 && (errno == EBADF || errno == EINVAL))
-		n = 0;
-
-	return (n == -1) ? RC(fcOS) : RCOK;
+    return (n == -1) ? RC(fcOS) : RCOK;
 }
 
 
-w_rc_t	sdisk_unix_t::stat(filestat_t &st)
+w_rc_t    sdisk_unix_t::stat(filestat_t &st)
 {
-	if (_fd == FD_NONE)
-		return RC(stBADFD);
+    if (_fd == FD_NONE)
+        return RC(stBADFD);
 
-	os_stat_t	sys;
-	int		n;
+    os_stat_t    sys;
+    int n = os_fstat(_fd, &sys);
+    if (n == -1)
+        return RC(fcOS);
 
-	n = os_fstat(_fd, &sys);
-	if (n == -1)
-		return RC(fcOS);
-
-	st.st_size = sys.st_size;
-#ifdef _WIN32
-	st.st_block_size = 512;	/* XXX */
-#else
+    st.st_size = sys.st_size;
 #ifdef HAVE_STRUCT_STAT_ST_BLKSIZE
-	st.st_block_size = sys.st_blksize;
+    st.st_block_size = sys.st_blksize;
 #else
-	st.st_block_size = 512;	/* XXX */
-#endif
+    st.st_block_size = 512;    /* XXX */
 #endif
 
-	st.st_device_id = sys.st_dev;
-	st.st_file_id = sys.st_ino;
+    st.st_device_id = sys.st_dev;
+    st.st_file_id = sys.st_ino;
 
-	int mode = (sys.st_mode & S_IFMT);
-	st.is_file = (mode == S_IFREG);
-	st.is_dir = (mode == S_IFDIR);
+    int mode = (sys.st_mode & S_IFMT);
+    st.is_file = (mode == S_IFREG);
+    st.is_dir = (mode == S_IFDIR);
 #ifdef S_IFBLK
-	st.is_device = (mode == S_IFBLK);
+    st.is_device = (mode == S_IFBLK);
 #else
-	st.is_device = false;
+    st.is_device = false;
 #endif
-	st.is_device = st.is_device || (mode == S_IFCHR);
-	st.is_raw_device = (mode == S_IFCHR);
+    st.is_device = st.is_device || (mode == S_IFCHR);
 
-#ifdef _WIN32
-	/* Device and File information from Win32 POSix subsystem
-	   is bogus.  If possible, use the native Win32 facilities to 
-	   extract that info. */
-	LONG	l;
-
-	l = _get_osfhandle(_fd);
-	if (l != -1) {
-		BY_HANDLE_FILE_INFORMATION	info;
-		bool	ok;
-
-		ok = GetFileInformationByHandle((HANDLE) l, &info);
-		if (ok) {
-			st.st_device_id = info.dwVolumeSerialNumber;
-#ifdef LARGEFILE_AWARE
-			st.st_file_id = ((fileoff_t)info.nFileIndexHigh << 32)
-				| info.nFileIndexLow;
-#else
-			st.st_file_id = info.nFileIndexLow;
-#endif
-		}
-	}
-#endif
-
-	return RCOK;
+    return RCOK;
 }
+
+/**\endcond skip */

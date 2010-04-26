@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: bitmap.cpp,v 1.27 2006/01/29 18:24:56 bolo Exp $
+ $Id: bitmap.cpp,v 1.27.2.3 2010/01/28 04:52:52 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -48,163 +48,163 @@ inline int mod8(int x)         { return x & 7; }
 inline int div32(int x)        { return x >> 5; }
 inline int mod32(int x)        { return x & 31; }
 
-#define	OVERFLOW_MASK	0x100
-	
+#define    OVERFLOW_MASK    0x100
+    
 
 void bm_zero(u_char* bm, int size)
 {
-	int n = div8(size - 1) + 1;
-	for (int i = 0; i < n; i++, bm++)
-		*bm = 0;
+    int n = div8(size - 1) + 1;
+    for (int i = 0; i < n; i++, bm++)
+        *bm = 0;
 }
 
 void bm_fill(u_char* bm, int size)
 {
-	int n = div8(size - 1) + 1;
-	for (int i = 0; i < n; i++, bm++)
-		*bm = ~0;
+    int n = div8(size - 1) + 1;
+    for (int i = 0; i < n; i++, bm++)
+        *bm = ~0;
 }
 
 bool bm_is_set(const u_char* bm, int offset)
 {
-	return (bm[div8(offset)] & (1 << mod8(offset))) != 0;
+    return (bm[div8(offset)] & (1 << mod8(offset))) != 0;
 }
 
 void bm_set(u_char* bm, int offset)
 {
-	bm[div8(offset)] |= (1 << mod8(offset));
+    bm[div8(offset)] |= (1 << mod8(offset));
 }
 
 void bm_clr(u_char* bm, int offset)
 {
-	bm[div8(offset)] &= ~(1 << mod8(offset));
+    bm[div8(offset)] &= ~(1 << mod8(offset));
 }
 
 int bm_first_set(const u_char* bm, int size, int start)
 {
-#ifdef W_DEBUG
-	const u_char *bm0 = bm;
+#if W_DEBUG_LEVEL > 2
+    const u_char *bm0 = bm;
 #endif
-	register int mask;
+    register int mask;
     
-	dual_assert3(start >= 0 && start <= size);
+    w_assert3(start >= 0 && start <= size);
     
-	bm += div8(start);
-	mask = 1 << mod8(start);
+    bm += div8(start);
+    mask = 1 << mod8(start);
     
-	for (size -= start; size; start++, size--)  {
-		if (*bm & mask)  {
-			dual_assert3(bm_is_set(bm0, start));
-			return start;
-		}
-		if ((mask <<= 1) == OVERFLOW_MASK)  {
-			mask = 1;
-			bm++;
-		}
-	}
+    for (size -= start; size; start++, size--)  {
+        if (*bm & mask)  {
+            w_assert3(bm_is_set(bm0, start));
+            return start;
+        }
+        if ((mask <<= 1) == OVERFLOW_MASK)  {
+            mask = 1;
+            bm++;
+        }
+    }
     
-	return -1;
+    return -1;
 }
 
 int bm_first_clr(const u_char* bm, int size, int start)
 {
-	dual_assert3(start >= 0 && start <= size);
-	register int mask;
-#ifdef W_DEBUG
-	const u_char *bm0 = bm;
+    w_assert3(start >= 0 && start <= size);
+    register int mask;
+#if W_DEBUG_LEVEL > 2
+    const u_char *bm0 = bm;
 #endif
     
-	bm += div8(start);
-	mask = 1 << mod8(start);
+    bm += div8(start);
+    mask = 1 << mod8(start);
     
-	for (size -= start; size; start++, size--) {
-		if ((*bm & mask) == 0)	{
-			dual_assert3(bm_is_clr(bm0, start));
-			return start;
-		}
-		if ((mask <<= 1) == OVERFLOW_MASK)  {
-			mask = 1;
-			bm++;
-		}
-	}
-	
-	return -1;
+    for (size -= start; size; start++, size--) {
+        if ((*bm & mask) == 0)    {
+            w_assert3(bm_is_clr(bm0, start));
+            return start;
+        }
+        if ((mask <<= 1) == OVERFLOW_MASK)  {
+            mask = 1;
+            bm++;
+        }
+    }
+    
+    return -1;
 }
 
 
 int bm_last_set(const u_char* bm, int size, int start)
 {
-	register unsigned mask;
-#ifdef W_DEBUG
-	const	u_char *bm0 = bm;
+    register unsigned mask;
+#if W_DEBUG_LEVEL > 2
+    const    u_char *bm0 = bm;
 #endif
     
-	dual_assert3(start >= 0 && start < size);
+    w_assert3(start >= 0 && start < size);
     
-	bm += div8(start);
-	mask = 1 << mod8(start);
+    bm += div8(start);
+    mask = 1 << mod8(start);
     
-	for (size = start+1; size; start--, size--)  {
-		if (*bm & mask)  {
-			dual_assert3(bm_is_set(bm0, start));
-			return start;
-		}
-		if ((mask >>= 1) == 0)  {
-			mask = 0x80;
-			bm--;
-		}
-	}
+    for (size = start+1; size; start--, size--)  {
+        if (*bm & mask)  {
+            w_assert3(bm_is_set(bm0, start));
+            return start;
+        }
+        if ((mask >>= 1) == 0)  {
+            mask = 0x80;
+            bm--;
+        }
+    }
     
-	return -1;
+    return -1;
 }
 
 
 int bm_last_clr(const u_char* bm, int size, int start)
 {
-	register unsigned mask;
-#ifdef W_DEBUG
-	const u_char *bm0 = bm;
+    register unsigned mask;
+#if W_DEBUG_LEVEL > 2
+    const u_char *bm0 = bm;
 #endif
     
-	dual_assert3(start >= 0 && start < size);
+    w_assert3(start >= 0 && start < size);
     
-	bm += div8(start);
-	mask = 1 << mod8(start);
+    bm += div8(start);
+    mask = 1 << mod8(start);
     
-	for (size = start+1; size; start--, size--)  {
-		if ((*bm & mask) == 0)  {
-			dual_assert3(bm_is_clr(bm0, start));
-			return start;
-		}
-		if ((mask >>= 1) == 0)  {
-			mask = 0x80;
-			bm--;
-		}
-	}
+    for (size = start+1; size; start--, size--)  {
+        if ((*bm & mask) == 0)  {
+            w_assert3(bm_is_clr(bm0, start));
+            return start;
+        }
+        if ((mask >>= 1) == 0)  {
+            mask = 0x80;
+            bm--;
+        }
+    }
     
-	return -1;
+    return -1;
 }
 
 
 int bm_num_set(const u_char* bm, int size)
 {
-	int count;
-	int mask;
-	for (count = 0, mask = 1; size; size--)  {
-		if (*bm & mask)
-			count++;
-		if ((mask <<= 1) == OVERFLOW_MASK)  {
-			mask = 1;
-			bm++;
-		}
-	}
-	return count;
+    int count;
+    int mask;
+    for (count = 0, mask = 1; size; size--)  {
+        if (*bm & mask)
+            count++;
+        if ((mask <<= 1) == OVERFLOW_MASK)  {
+            mask = 1;
+            bm++;
+        }
+    }
+    return count;
 }
 
 void bm_print(u_char* bm, int size)
 {
-	for (int i = 0; i < size; i++)  {
-		cout << (bm_is_set(bm, i) != 0);
-	}
+    for (int i = 0; i < size; i++)  {
+        cout << (bm_is_set(bm, i) != 0);
+    }
 }
 

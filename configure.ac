@@ -2,55 +2,294 @@
 # Process this file with autoconf to produce a configure script.
 
 AC_PREREQ(2.59)
-AC_INIT(Shore-Storage-Manager, 5.0.3, Noone._Sadly-_this_is_unsupported_software.)
+AC_INIT(Shore-Storage-Manager, 6.0.1, Noone._Sadly-_this_is_unsupported_software.)
 AC_CONFIG_HEADERS([config/shore-config.h:config/shore-config-h.in])
 AC_CONFIG_SRCDIR([config/shore.def])
 AC_COPYRIGHT(COPYRIGHT-NOTICE)
 AC_CONFIG_AUX_DIR(config)
+##
+## Note that AM_INIT_AUTOMAKE is required.
+## Turn on all automake warnings and treat them as errors.
+## 'foreign' says that we don't follow all GNU standards
+## For some reason, dependency tracking is not enabled by default
+## on our Solaris box.
 AM_INIT_AUTOMAKE([-Wall -Werror foreign])
 
+## This package uses an assembler.
+## Define CCAS and CCASFLAGS 
 AM_PROG_AS
 
 # Checks for programs.
-
+## preprocessor required
 AC_PROG_CXXCPP
 AC_REQUIRE_CPP
-AC_PROG_INSTALL 
-## AC_PROG_LN_S 
-## AC_PROG_MAKE_SET 
+
+using_gcc=$ac_cv_cxx_compiler_gnu
+# echo using gcc $using_gcc
+
+AC_LANG_PUSH(C++)
+if [test "x$using_gcc" = xyes]; then
+    # -------------------------------------------------------------------------
+    #
+    # What compiler is indicated by CXX
+    #
+    # -------------------------------------------------------------------------
+    AC_MSG_CHECKING([GCC-specific checks])
+    AC_PREPROC_IFELSE([AC_LANG_PROGRAM(
+    [[
+    #if defined(__GNUC__) 
+    #else
+    #error "not GNU  CC"
+    #endif
+    ]])], 
+    [AM_CONDITIONAL([COMPILER_IS_GCC], [test -n "1"]) AC_MSG_RESULT[] ],
+    [AM_CONDITIONAL([COMPILER_IS_GCC], [test -z "1"])  AC_MSG_RESULT[]]
+    )
+    # empty msg result above gives us a newline in the output
+
+    # here, with certainty not sunCC or unknown
+    AM_CONDITIONAL([COMPILER_IS_SUNCC], [test -z "1"])
+    AM_CONDITIONAL([COMPILER_IS_UNKNOWN], [test -n "1"]) 
+
+    # -------------------------------------------------------------------------
+    #
+    # GCC_BROKEN_WARNINGS
+    # Needed at config time to tell make what -W flags to put on the compiles.
+    # Needed at compile time  for smsh/sm_sizeof.cpp
+    #
+    # -------------------------------------------------------------------------
+
+    AH_TEMPLATE(GCC_BROKEN_WARNINGS,	[/*is gcc 2.96*/])
+    AH_VERBATIM([GCC_BROKEN_WARNINGS],[/*if is gcc2.96*/
+#if defined(__GNUC__) && __GNUC__==2
+# if defined(__GNUC_MINOR__) && __GNUC_MINOR__==96
+# define GCC_BROKEN_WARNINGS
+#endif
+#endif
+    ])
+## NOTE: AH_VERBATIM gets processed even despite the if/else/endif
+## and the 2nd and subsequent lines must start in the first column or
+## the sparc/CC assember/cpp chokes on these lines.S
+
+    AC_MSG_CHECKING([whether the compiler is gcc 2.96])
+    AC_PREPROC_IFELSE([AC_LANG_PROGRAM(
+    [[
+    #if defined(__GNUC__) && (__GNUC__==2) && defined(__GNUC_MINOR__) && (__GNUC_MINOR__==96)
+    #else
+    #error not broken warnings
+    #endif
+    ]])], 
+    [AM_CONDITIONAL([GCC_BROKEN_WARNINGS], [test -n "1"]) AC_MSG_RESULT([yes])],
+    [AM_CONDITIONAL([GCC_BROKEN_WARNINGS], [test -z "1"]) AC_MSG_RESULT([no])]
+    )
+
+    # -------------------------------------------------------------------------
+    #
+    # NOPEDANTIC: determine if this is a compiler with known problems in
+    # its include files that prevent -pedantic from being used.
+    # Needed at config time to tell make whether to use -pedantic
+    # We find this to be a problem with 3.0 through 3.2
+    #
+    # We find this to be a problem with different Linices. Just rip it out....
+    # -------------------------------------------------------------------------
+
+    # AH_TEMPLATE(NOPEDANTIC,	[does compiler have header-file pedantic-errors])
+    # AC_MSG_CHECKING([if compiler has header-file errors precluding -pedantic])
+    # AC_COMPILE_IFELSE([AC_LANG_PROGRAM(
+    # [[
+    # if defined(__GNUC__) && (__GNUC__==3) && defined(__GNUC_MINOR__) && (__GNUC_MINOR__<=2)
+    # #else
+    # #   error 
+    # #endif
+    # ]])], 
+    # [AM_CONDITIONAL([NOPEDANTIC], [test -n "1"]) AC_MSG_RESULT([yes])],
+    # [AM_CONDITIONAL([NOPEDANTIC], [test -z "1"]) AC_MSG_RESULT([no])]
+    # )
+    AM_CONDITIONAL([NOPEDANTIC], [test -n "1"])
+
+
+    # -------------------------------------------------------------------------
+    #
+    # GCC_VER_34_WARNINGS
+    # Needed at config time to tell make what -W flags to put on the compiles.
+    #
+    # -------------------------------------------------------------------------
+
+    AH_TEMPLATE(GCC_VER_34_WARNINGS,	[hack for gcc3.4 and later])
+    AC_MSG_CHECKING([whether the compiler is gcc 3.4 or later ])
+    AC_PREPROC_IFELSE([AC_LANG_PROGRAM(
+    [[
+    #if defined(__GNUC__) && (__GNUC__==3) && defined(__GNUC_MINOR__) && (__GNUC_MINOR__>=4)
+    #else
+    #   if defined(__GNUC__) && (__GNUC__>3) 
+    #   else
+    #   error version 3.4
+    #   endif
+    #endif
+    ]])], 
+    [AM_CONDITIONAL([GCC_VER_34_WARNINGS], [test -n "1"]) AC_MSG_RESULT([yes])],
+    [AM_CONDITIONAL([GCC_VER_34_WARNINGS], [test -z "1"]) AC_MSG_RESULT([no])]
+    )
+
+
+    # -------------------------------------------------------------------------
+    #
+    # GCC_VER_3_WARNINGS
+    # Needed at config time to tell make what -W flags to put on the compiles.
+    # Needed for smsh/sm_sizeof.cpp
+    #
+    # -------------------------------------------------------------------------
+
+    AH_TEMPLATE(GCC_VER_3_WARNINGS,	[hack for gcc3.x ])
+    AC_MSG_CHECKING([whether the compiler is gcc 3.x ])
+    AC_PREPROC_IFELSE([AC_LANG_PROGRAM(
+    [[#if defined(__GNUC__) && (__GNUC__==3) 
+    #else
+    #error not version 3
+    #endif
+    ]])], 
+    [ AM_CONDITIONAL([GCC_VER_3_WARNINGS],[test -n "1"]) AC_MSG_RESULT([yes])],
+    [ AM_CONDITIONAL([GCC_VER_3_WARNINGS],[test -z "1"]) AC_MSG_RESULT([no])]
+    )
+    AH_TEMPLATE(GCC_VER_3_WARNINGS,	[/*is gcc 3.x, x < 4*/])
+    AH_VERBATIM([GCC_VER_3_WARNINGS],[/*if is gcc3.x, x < 4*/
+#if defined(__GNUC__) && (__GNUC__==3) 
+# define GCC_VER_3_WARNINGS
+#endif
+    ])
+## NOTE: AH_VERBATIM gets processed even despite the if/else/endif
+## and the 2nd and subsequent lines must start in the first column or
+## the sparc/CC assember/cpp chokes on these lines.S
+
+
+    # -------------------------------------------------------------------------
+    #
+    # No macros defined.
+    # Needed at config time to tell if the chosen compiler version is known
+    #   to fail at build time.
+    # NOTE: this used to fail for 32-bit 4.1.2, but with RHEL 4.1.2 is installed
+    # and since the code has changed so much, I've changed the config to allow 
+    # 4.1.2 to be used again; it seems to work so far. So I don't know if
+    # 4.1.[01] are a problem anymore. Maybe they aren't.
+    #
+    # -------------------------------------------------------------------------
+
+    AC_MSG_CHECKING([whether the gcc version is known broken: 4.1.x, x < 2 or 2.95])
+    AC_PREPROC_IFELSE([AC_LANG_PROGRAM(
+    [[
+    #if defined(__GNUC__) && (__GNUC__==4) && defined(__GNUC_MINOR__) && (__GNUC_MINOR__==1) && defined(__GNUC_PATCHLEVEL__) && (__GNUC_PATCHLEVEL__<2)
+    #else
+
+    #if defined(__GNUC__) && (__GNUC__==2) && defined(__GNUC_MINOR__) && (__GNUC_MINOR__==95) 
+    #else
+    #error not version 2.95 or 4.1.2
+    #endif
+
+    #endif
+    ]])], 
+    [ 
+      AC_MSG_RESULT([yes: build will fail])
+      AC_MSG_ERROR([
+    *****************************************************************************
+       You are using broken version of gcc. Please try another release.
+    *****************************************************************************
+      ])
+      ],
+    [ AC_MSG_RESULT([no])
+    ]
+    )
+
+    AC_MSG_CHECKING([whether the gcc version has known issues: 4.0.1])
+    AC_PREPROC_IFELSE([AC_LANG_PROGRAM(
+    [[
+    #if defined(__GNUC__) && (__GNUC__==4) && defined(__GNUC_MINOR__) && (__GNUC_MINOR__==0) && defined(__GNUC_PATCHLEVEL__) && (__GNUC_PATCHLEVEL__==1)
+    #else
+    #error not version 4.0.1
+    #endif
+    ]])], 
+    [ 
+      AC_MSG_RESULT([yes: build will have warnings])
+      AC_MSG_WARN([
+    *****************************************************************************
+       You are using version of gcc that generates questionale assembly. 
+       Please try another release, such as 4.0.4.
+    *****************************************************************************
+      ])
+      ],
+    [ AC_MSG_RESULT([no])]
+    )
+else
+
+    AC_MSG_CHECKING([if desired compiler is SunStudio])
+    AC_PREPROC_IFELSE([AC_LANG_PROGRAM(
+    [[
+    #if defined(__SUNPRO_CC) 
+    #else
+    #error "not SunStudio CC"
+
+    #endif
+    ]])], 
+    [AM_CONDITIONAL([COMPILER_IS_SUNCC], [test -n "1"]) AC_MSG_RESULT([yes])],
+    [AM_CONDITIONAL([COMPILER_IS_SUNCC], [test -z "1"]) AC_MSG_RESULT([no])]
+)
+
+    AC_MSG_CHECKING([if desired compiler is unknown])
+    AC_PREPROC_IFELSE([AC_LANG_PROGRAM(
+    [[
+    #if !defined(__SUNPRO_CC)  && !defined(__GNUC__)
+    #error Unknown compiler
+    #else
+    #endif
+    ]])], 
+    [AM_CONDITIONAL([COMPILER_IS_UNKNOWN], [test -n "1"]) AC_MSG_RESULT([no])],
+    [AM_CONDITIONAL([COMPILER_IS_UNKNOWN], [test -z "1"]) AC_MSG_RESULT([COMPILER IS UNKNOW])]
+    )
+
+# With certainty, not GCC
+    AM_CONDITIONAL([COMPILER_IS_GCC], [test -z "1"])
+    AM_CONDITIONAL([GCC_BROKEN_WARNINGS], [test -z "1"])
+    AM_CONDITIONAL([GCC_VER_34_WARNINGS], [test -z "1"])
+    AM_CONDITIONAL([GCC_VER_3_WARNINGS],[test -z "1"])
+    AM_CONDITIONAL([NOPEDANTIC], [test -n "1"])
+
+fi
+AC_LANG_POP(C++)
+
+## AC_PROG_INSTALL 
+
 AC_PROG_RANLIB 
+
 AC_PATH_PROG([PERL], [perl], [],[]) 
 
-
-# AC_CANONICAL_BUILD
-# AC_CANONICAL_HOST
+## set DTRACE to the path of DTRACE or leave it undefined
+AC_PATH_TOOL([DTRACE], [dtrace], [],[]) 
 
 AC_CHECK_TOOL(RMM, rm, /bin/rm)
 
-
 # Checks for header files.
+## AC_INCLUDES_DEFAULT([]) TODO: put this in
 ## AC_HEADER_STDBOOL 
 ## AC_HEADER_STDC 
 ## AC_HEADER_SYS_WAIT 
 ## AC_HEADER_TIME 
+
 ## HAVE_DIRENT_H : src/sthread/os_interface.h
 AC_HEADER_DIRENT 
+
 ## HAVE_FCNTL_H : src/sthread/os_fcntl.h
+## if not HAVE_FCNTL_H, it's assumed you have <sys/fcntl.h>
 AC_CHECK_HEADERS([fcntl.h]) 
-## AC_CHECK_HEADERS([limits.h]) 
 
-## used in src/fc/tests/ms_perf.cpp - on windows only, not
-## made by "make check"
-## AC_CHECK_HEADERS([malloc.h]) 
-
-## used in os_memory.h and tests/
+## used in os_memory.h and tests/ :
+## for definitions of memset and companions
+## if not found in memory.h, lookin string.h if we have it
 AC_CHECK_HEADERS([memory.h]) 
 AC_CHECK_HEADERS([string.h]) 
 
 ## used in lid.cpp (logical-id manager)  for volume ids
 AC_CHECK_HEADERS([netdb.h]) 
 
-## used in sthread lib
+## used in sthread lib, for ntohs, htohl, etc
 AC_CHECK_HEADERS([netinet/in.h]) 
 
 ## AC_CHECK_HEADERS([stdlib.h]) 
@@ -63,26 +302,13 @@ AC_CHECK_HEADERS([sys/param.h])
 ## used in sthread/sfile.cpp, hpp
 AC_CHECK_HEADERS([sys/socket.h]) 
 
-## in fc/w_gettimeofday.h, windows 
-AC_CHECK_HEADERS([sys/timeb.h]) 
-
-AC_CHECK_HEADERS([unistd.h]) 
-## 
-## Checks for typedefs, structures, and compiler characteristics.
-##
-## used in sthread for diskrw
-AC_FUNC_FORK 
-
-## redefined malloc/realloc if malloc/realloc doesn't return 
-## at least 1 byte of heap-allocated space when given argument of zero,
-## that is to say, doesn't return a valid pointer in this case.
-## NOTE: haven't adapted code to this, so I'm taking the check out.
-## AC_FUNC_MALLOC 
-## AC_FUNC_REALLOC 
+## unistd had better be there; we have no alternative
+## AC_CHECK_HEADERS([unistd.h]) 
 
 ## used in error log and w_form
 AC_FUNC_VPRINTF 
 
+AC_CHECK_TYPES([ptrdiff_t, uchar_t, ushort_t, ulong_t]) 
 ## these are not available in autoconf 2.59
 ## AC_TYPE_INT8_T 
 ## AC_TYPE_INT16_T
@@ -103,24 +329,42 @@ AC_FUNC_VPRINTF
 ## leave in the arcane existing handling of signals in
 ## src/fc/w_signal.h
 ## AC_TYPE_SIGNAL 
+
 AC_TYPE_SIZE_T 
 AC_TYPE_UID_T 
 AC_TYPE_PID_T 
 AC_TYPE_MODE_T 
 AC_TYPE_OFF_T 
+AC_CHECK_TYPES([ptrdiff_t]) 
+
+##
+## Check capabilities of MMAP
+##  Don't bother to check for mmap, because we have no alternatives to it
+##
+AC_CHECK_DECLS([MAP_ANONYMOUS, MAP_ANON, MAP_ALIGN, MAP_FIXED, MAP_NORESERVE],[],[],[#include <sys/mman.h>]) 
+AC_CHECK_FUNCS([memcntl]) 
+AC_CHECK_FUNCS([getpagesizes]) 
 
 ## AC_CHECK_DECLS([sys_siglist]) 
 AC_CHECK_MEMBERS([struct stat.st_blksize]) 
 ## can't build any of this if wedon't have this type.
-## AC_CHECK_TYPES([ptrdiff_t]) 
 
+## AM_CONDITIONAL HAVE_ATOMIC_OPS is removed in 
+## favor of unconditionally making the library, which depends
+## on compile-time HAVE_ATOMIC_H in the shore-config.h file 
+## AH_TEMPLATE(HAVE_ATOMIC_OPS,	[operating system provides atomic_ops])
+AC_CHECK_HEADERS([atomic.h]) 
+
+# endian checks used in unit tests
+AC_C_BIGENDIAN
 
 AH_TEMPLATE(Alpha,	[architecture])
 AH_TEMPLATE(I860,	[architecture])
 AH_TEMPLATE(I386,	[architecture])
 AH_TEMPLATE(i386,	[architecture - not always defined by compiler])
 AH_TEMPLATE(IA64,	[architecture])
-AH_TEMPLATE(ARCH_LP64,	[64 bit architecture])
+AH_TEMPLATE(amd64,	[architecture])
+AH_TEMPLATE(x86_64,	[architecture])
 AH_TEMPLATE(Snake, 	[architecture])
 AH_TEMPLATE(Sparc, 	[architecture])
 AH_TEMPLATE(PowerPC,	[architecture])
@@ -175,27 +419,35 @@ AH_TEMPLATE(IS_SPARC_SOLARIS2,	[combo])
 AH_TEMPLATE(IS_SPARC_SUNOS41,	[combo])
 AH_TEMPLATE(IS_IX86_NT,		[combo])
 AH_TEMPLATE(IS_I386_CYGWIN,	[combo])
+AH_TEMPLATE(IS_X86_64,          [combo])
+AH_TEMPLATE(IS_AMD64,          [combo])
 
 AH_TEMPLATE(IS_UNIX,		[windows or unix?])
 AH_TEMPLATE(IS_NT,		[opposite of IS_UNIX])
 AH_TEMPLATE(IS_DOSDEV,		[dos-based])
 AH_TEMPLATE(IS_CYGWIN,		[windows])
 
-# AH_TEMPLATE(DEBUG,		[debug code included])
-# AH_TEMPLATE(W_DEBUG,		[debug code included])
-# AH_TEMPLATE(NDEBUG,		[no debug code included])
+AH_TEMPLATE(DEBUG,		[old debug code included])
+AH_TEMPLATE(NDEBUG,		[no debug code included])
 AH_TEMPLATE(W_TRACE,		[tracing debugging code included])
+AH_TEMPLATE(W_DEBUG_RC,		[rc-is-checked code included])
+
+## Check for atomic ops
+AC_CHECK_FUNCS([membar_enter]) 
+AC_CHECK_FUNCS([posix_spawn]) 
+
+## check for suitable function for stime_t
+AC_CHECK_FUNCS([clock_gettime]) 
+AC_CHECK_FUNCS([gettimeofday]) 
 
 ## Checks for library functions.
 ## if any of these don't exist, we have a real problem.
 ## For now, don't bother checking, because we don't have any
 ## alternatives at the moment, and we're not trying to build this
 ## on windows..
-## AC_CHECK_FUNCS([clock_gettime]) 
 ## AC_CHECK_FUNCS([gethostbyname]) 
 ## AC_CHECK_FUNCS([gethostname]) 
 ## AC_CHECK_FUNCS([getpagesize]) 
-## AC_CHECK_FUNCS([gettimeofday]) 
 ## AC_CHECK_FUNCS([isascii]) 
 ## AC_CHECK_FUNCS([localtime_r]) 
 ## AC_CHECK_FUNCS([lstat]) 
@@ -214,17 +466,54 @@ AH_TEMPLATE(W_TRACE,		[tracing debugging code included])
 ## AC_CHECK_FUNCS([strtol]) 
 ## AC_CHECK_FUNCS([strtoul]) 
 ## AC_CHECK_FUNCS([strtoull]) 
-## AC_CHECK_FUNCS([uname]) 
-
 AC_CHECK_FUNCS([strerror]) 
+
+##  Check for size of pthread_t
+## solaris says int, linux says unsigned long
+## this affects how we define tatas_lock, among other things
+AC_CHECK_SIZEOF(pthread_t,[],[])
+
 
 ##  Checks for libraries.
 ##  For folks who have Tcl installed in a "normal" place..
+## define HAVE_LIBtcl.. and preprend -ltcl to LIBS:
 AC_CHECK_LIB([tcl], [tclCreateCommand])
 
-AC_CHECK_LIB([c], [malloc])
+## define PTHREAD_SEMAPHORE if the system
+## supports the real-time extensions
+## TODO: TEST WITHOUT:
+AC_CHECK_HEADERS([semaphore.h]) 
+
+## define HAVE_LIBrt and prepend -lrt to LIBS:
+AC_CHECK_LIB([rt], [clock_gettime])
+
+## Not any alternatives to these:
+## AC_CHECK_LIB([c], [malloc])
 ## AC_CHECK_LIB([c], [realloc])
 ## AC_CHECK_LIB([c], [memcmp])
+
+## check for the pthread func to get the stack size and addr
+AH_TEMPLATE(HAVE_PTHREAD_ATTR_GETSTACK, [have pthread_attr_getstack?] )
+
+AC_CHECK_LIB([pthread], [pthread_attr_getstack],
+[AC_DEFINE(HAVE_PTHREAD_ATTR_GETSTACK,1)],
+[AC_DEFINE(HAVE_PTHREAD_ATTR_GETSTACK,0)]
+)
+## check for the pthread func to get the stack size
+AH_TEMPLATE(HAVE_PTHREAD_ATTR_GETSTACKSIZE, [have pthread_attr_getstacksize?] )
+
+AC_CHECK_LIB([pthread], [pthread_attr_getstacksize],
+[AC_DEFINE(HAVE_PTHREAD_ATTR_GETSTACKSIZE,1)],
+[AC_DEFINE(HAVE_PTHREAD_ATTR_GETSTACKSIZE,0)]
+)
+
+## check for the pthread barriers option
+AH_TEMPLATE(HAVE_PTHREAD_BARRIERS, [have pthreads barriers?] )
+AC_CHECK_LIB([pthread], [pthread_barrier_wait], 
+[AC_DEFINE(HAVE_PTHREAD_BARRIERS,1)],
+[AC_DEFINE(HAVE_PTHREAD_BARRIERS,0)]
+)
+
 
 ## ---------------------------------------------------------------
 ## 
@@ -232,13 +521,30 @@ AC_CHECK_LIB([c], [malloc])
 ##
 ## NOTE: all these IS_xxx, including IS_NT and IS_UNIX
 ## are not used in the sources and can be removed. For now, they
-## are left in for developers' convenience.
+## are left in for developers' convenience, in event we decide
+## to port to some other platform and need them.
+## TODO: check that these still are not used.
 ##
 ## ---------------------------------------------------------------
 
 AC_LANG_PUSH(C++)
 
 AC_MSG_CHECKING([architecture])
+AC_SUBST([uname_machine], [`uname -m`])
+
+AC_PREPROC_IFELSE([AC_LANG_PROGRAM(
+[[#if defined(__SVR4) && defined(sparc) && defined(sun)
+#else
+#error not this architecture
+#endif
+]])], 
+[AC_DEFINE(Sparc,,[])
+AC_DEFINE(IS_SPARC_SOLARIS2,1,[is sparc solaris])
+AC_DEFINE(IS_SOLARIS2,1,[is solaris])
+AC_MSG_RESULT([Sparc Solaris])
+],
+[])
+
 AC_PREPROC_IFELSE([AC_LANG_PROGRAM(
 [[#if defined(_WIN32) && defined(_M_IX86) && defined(_MSC_VER)
 #else
@@ -254,6 +560,7 @@ AC_DEFINE(IS_DOSDEV,1,[dos-based])
 AC_MSG_RESULT([dos-based nt i386])
 ],
 [])
+
 AC_PREPROC_IFELSE([AC_LANG_PROGRAM(
 [[#if defined(_WIN32) && defined(__GNUC__) && defined(i386)
 #else
@@ -270,55 +577,6 @@ AC_MSG_RESULT([cygwin nt i386])
 [])
 
 AC_PREPROC_IFELSE([AC_LANG_PROGRAM(
-[[#if defined(sun) && defined(sparc) && (defined(__svr4__)||defined(FORCE_SOLARIS))
-#else
-#error not this architecture
-#endif
-]])], 
-[AC_DEFINE(Sparc,,[])
-AC_DEFINE(SOLARIS2,,[])
-AC_DEFINE(IS_SPARC_SOLARIS2,1,[is solaris])
-AC_DEFINE(IS_SOLARIS2,1,[sparc solaris])
-AC_MSG_RESULT([solaris sparc])
-],
-[])
-
-AC_PREPROC_IFELSE([AC_LANG_PROGRAM(
-[[#if defined(sun) && defined(sparc) && !defined(__svr4__) && !defined(FORCE_SOLARIS)
-#else
-#error not this architecture
-#endif
-]])], 
-[AC_DEFINE(Sparc,,[])
-AC_DEFINE(SUNOS41,,[])
-AC_DEFINE(IS_SPARC_SUNOS41,1,[is not solaris])
-AC_DEFINE(IS_SUNOS41,1,[not solaris])
-AC_MSG_RESULT([sunos  sparc])
-],
-[])
-
-AC_PREPROC_IFELSE([AC_LANG_PROGRAM(
-[[#if defined(sun) && defined(i386) && defined(FORCE_SOLARIS)
-#else
-#error not this architecture
-#endif
-]])], 
-[AC_DEFINE(I386,,[])
-AC_DEFINE(SOLARIS2,,[])
-AC_DEFINE(IS_I386_SOLARIS2,1,[is solaris])
-AC_DEFINE(IS_SOLARIS2,1,[sparc solaris])
-AC_MSG_RESULT([solaris  sparc])
-],
-[])
-
-AH_VERBATIM([sunsparc],[/*turn off sun and sparc*/
-#if defined(sun) && defined(sparc)
-#undef sun
-#undef sparc
-#endif
-])
-
-AC_PREPROC_IFELSE([AC_LANG_PROGRAM(
 [[#if defined(hpux) && defined(hp9000s800) 
 #else
 #error not this architecture
@@ -331,7 +589,7 @@ AC_DEFINE(IS_HPUX8,1,[hp unix])
 AC_MSG_RESULT([hpux  hp])
 ],
 [])
-AH_VERBATIM([hpuxhp9000],[/*turn off hpux and hp9000s800*/
+AH_VERBATIM([hpux],[/*turn off hpux and hp9000s800*/
 #if defined(hpux) && defined(hp9000s800)
 #undef hpux
 #undef hp9000s800
@@ -362,7 +620,6 @@ AC_PREPROC_IFELSE([AC_LANG_PROGRAM(
 AC_DEFINE(OSF1,,[])
 AC_DEFINE(IS_ALPHA_OSF1,1,[osf1 alpha])
 AC_DEFINE(IS_OSF1,1,[osf1])
-AC_DEFINE(ARCH_LP64,1,[64 bit])
 AC_MSG_RESULT([osf1 alpha 64 bit])
 ],
 [])
@@ -380,7 +637,7 @@ AC_DEFINE(IS_ULTRIX42,1,[ultrix])
 AC_MSG_RESULT([ultrix mips])
 ],
 [])
-AH_VERBATIM([mipsultrix],[/*turn off mips and ultrix*/
+AH_VERBATIM([mips],[/*turn off mips and ultrix*/
 #if defined(mips) && defined(ultrix)
 #undef mips
 #undef ultrix
@@ -416,12 +673,31 @@ AC_DEFINE(IS_IRIX,1,[irix])
 AC_MSG_RESULT([irix mips])
 ],
 [])
-AH_VERBATIM([nosgi],[/*turn off sgi */
+AH_VERBATIM([sgi],[/*turn off sgi */
 #if defined(sgi) 
 #undef sgi
 #endif
 ])
 
+AC_PREPROC_IFELSE([AC_LANG_PROGRAM(
+[[#if defined(linux) 
+#if defined(__amd64__) || defined(__amd64) || defined(__x86_64__) || defined(__x86_64)
+#else
+#error not this architecture
+#endif
+#else
+#error not this architecture
+#endif
+]])], 
+[AC_DEFINE(x86_64,,[])
+AC_DEFINE(amd64)
+AC_DEFINE(Linux,,[])
+AC_DEFINE(IS_X86_64_LINUX,1,[x86_64 linux])
+AC_DEFINE(IS_AMD64_LINUX,1,[amd64 linux])
+AC_DEFINE(IS_LINUX,1,[linux])
+AC_MSG_RESULT([linux amd64,x86_64])
+],
+[])
 AC_PREPROC_IFELSE([AC_LANG_PROGRAM(
 [[#if defined(linux) && defined(i386)
 #else
@@ -446,9 +722,8 @@ AC_PREPROC_IFELSE([AC_LANG_PROGRAM(
 [AC_DEFINE(IA64,,[])
 AC_DEFINE(Linux,,[])
 AC_DEFINE(IS_IA64_LINUX,1,[ia64 linux])
-AC_DEFINE(ARCH_LP64,1,[for ia64 only])
 AC_DEFINE(IS_LINUX,1,[linux])
-AC_MSG_RESULT([linux 64 bit])
+AC_MSG_RESULT([linux ia64])
 ],
 [])
 
@@ -515,14 +790,12 @@ AC_MSG_RESULT([mac osx i386])
 
 ## -------------- IS NT OR UNIX
 
-AH_VERBATIM([isunix],[/*simply !IS_NT*/
+AH_VERBATIM([IS_UNIX],[/*simply !IS_NT*/
 #ifndef IS_NT 
 #define IS_UNIX 1
 #endif
 ])
 AC_LANG_POP(C++)
-
-## -------------- Check for some specific gcc versions
 
 AC_LANG_PUSH(C++)
 # -------------------------------------------------------------------------
@@ -554,166 +827,11 @@ AC_PREPROC_IFELSE([AC_LANG_PROGRAM(
 # is mandatory
 #
 # -------------------------------------------------------------------------
-AH_VERBATIM([usecompatstrstream],[/*for in-memory str streams*/
+AH_VERBATIM([W_USE_COMPAT_STRSTREAM],[/*for in-memory str streams*/
 #define W_USE_COMPAT_STRSTREAM
 ])
 
-# -------------------------------------------------------------------------
-#
-# GCC_BROKEN_WARNINGS
-# Needed at config time to tell make what -W flags to put on the compiles.
-# Needed at compile time  for smsh/sm_sizeof.cpp
-#
-# -------------------------------------------------------------------------
 
-AH_TEMPLATE(GCC_BROKEN_WARNINGS,	[is gcc 2.96])
-AH_VERBATIM([gccbrokenwarnings],[/*if is gcc 2.96*/
-#if defined(__GNUC__) && __GNUC__==2
-# if defined(__GNUC_MINOR__) && __GNUC_MINOR__==96
-# define GCC_BROKEN_WARNINGS
-#endif
-#endif
-])
-
-AC_MSG_CHECKING([whether the compiler is gcc 2.96])
-AC_PREPROC_IFELSE([AC_LANG_PROGRAM(
-[[
-#if defined(__GNUC__) && (__GNUC__==2) && defined(__GNUC_MINOR__) && (__GNUC_MINOR__==96)
-#else
-#error not broken warnings
-#endif
-]])], 
-[AM_CONDITIONAL([GCC_BROKEN_WARNINGS], [test -n "1"]) AC_MSG_RESULT([yes])],
-[AM_CONDITIONAL([GCC_BROKEN_WARNINGS], [test -z "1"]) AC_MSG_RESULT([no])]
-)
-
-# -------------------------------------------------------------------------
-#
-# NOPEDANTIC: determine if this is a compiler with known problems in
-# its include files that prevent -pedantic from being used.
-# Needed at config time to tell make whether to use -pedantic
-# We find this to be a problem with 3.0 through 3.2
-#
-# We find this to be a problem with different Linices. Just rip it out....
-# -------------------------------------------------------------------------
-
-AH_TEMPLATE(NOPEDANTIC,	[does compiler have header-file pedantic-errors])
-# AC_MSG_CHECKING([if compiler has header-file errors precluding -pedantic])
-# AC_COMPILE_IFELSE([AC_LANG_PROGRAM(
-# [[
-# if defined(__GNUC__) && (__GNUC__==3) && defined(__GNUC_MINOR__) && (__GNUC_MINOR__<=2)
-# #else
-# #   error 
-# #endif
-# ]])], 
-# [AM_CONDITIONAL([NOPEDANTIC], [test -n "1"]) AC_MSG_RESULT([yes])],
-# [AM_CONDITIONAL([NOPEDANTIC], [test -z "1"]) AC_MSG_RESULT([no])]
-# )
-AM_CONDITIONAL([NOPEDANTIC], [test -n "1"])
-
-
-# -------------------------------------------------------------------------
-#
-# GCC_VER_34_WARNINGS
-# Needed at config time to tell make what -W flags to put on the compiles.
-#
-# -------------------------------------------------------------------------
-
-AH_TEMPLATE(GCC_VER_34_WARNINGS,	[hack for gcc3.4 and later])
-AC_MSG_CHECKING([whether the compiler is gcc 3.4 or later ])
-AC_PREPROC_IFELSE([AC_LANG_PROGRAM(
-[[
-#if defined(__GNUC__) && (__GNUC__==3) && defined(__GNUC_MINOR__) && (__GNUC_MINOR__>=4)
-#else
-#   if defined(__GNUC__) && (__GNUC__>3) 
-#   else
-#   error version 3.4
-#   endif
-#endif
-]])], 
-[AM_CONDITIONAL([GCC_VER_34_WARNINGS], [test -n "1"]) AC_MSG_RESULT([yes])],
-[AM_CONDITIONAL([GCC_VER_34_WARNINGS], [test -z "1"]) AC_MSG_RESULT([no])]
-)
-
-
-# -------------------------------------------------------------------------
-#
-# GCC_VER_3_WARNINGS
-# Needed at config time to tell make what -W flags to put on the compiles.
-# Needed for smsh/sm_sizeof.cpp
-#
-# -------------------------------------------------------------------------
-
-AH_TEMPLATE(GCC_VER_3_WARNINGS,	[hack for gcc3.x ])
-AC_MSG_CHECKING([whether the compiler is gcc 3.x ])
-AC_PREPROC_IFELSE([AC_LANG_PROGRAM(
-[[#if defined(__GNUC__) && (__GNUC__==3) 
-#else
-#error not version 3
-#endif
-]])], 
-[ AM_CONDITIONAL([GCC_VER_3_WARNINGS],[test -n "1"]) AC_MSG_RESULT([yes])],
-[ AM_CONDITIONAL([GCC_VER_3_WARNINGS],[test -z "1"]) AC_MSG_RESULT([no])]
-)
-AH_TEMPLATE(GCC_VER_3_WARNINGS,	[is gcc 3.x, x < 4])
-AH_VERBATIM([gccver3warnings],[/*if is gcc3.x, x < 4*/
-#if defined(__GNUC__) && (__GNUC__==3) 
-# define GCC_VER_3_WARNINGS
-#endif
-])
-
-
-# -------------------------------------------------------------------------
-#
-# No macros defined.
-# Needed at config time to tell if the chosen compiler version is known
-#   to fail at build time.
-#
-# -------------------------------------------------------------------------
-
-AC_MSG_CHECKING([whether the gcc version is known broken: 4.1.x, x <= 2 or 2.95])
-AC_PREPROC_IFELSE([AC_LANG_PROGRAM(
-[[
-#if defined(__GNUC__) && (__GNUC__==4) && defined(__GNUC_MINOR__) && (__GNUC_MINOR__==1) && defined(__GNUC_PATCHLEVEL__) && (__GNUC_PATCHLEVEL__<=2)
-#else
-
-#if defined(__GNUC__) && (__GNUC__==2) && defined(__GNUC_MINOR__) && (__GNUC_MINOR__==95) 
-#else
-#error not version 2.95 or 4.1.2
-#endif
-
-#endif
-]])], 
-[ 
-  AC_MSG_RESULT([yes: build will fail])
-  AC_MSG_ERROR([
-*****************************************************************************
-   You are using broken version of gcc. Please try another release.
-*****************************************************************************
-  ])
-  ],
-[ AC_MSG_RESULT([no])]
-)
-
-AC_MSG_CHECKING([whether the gcc version has known issues: 4.0.1])
-AC_PREPROC_IFELSE([AC_LANG_PROGRAM(
-[[
-#if defined(__GNUC__) && (__GNUC__==4) && defined(__GNUC_MINOR__) && (__GNUC_MINOR__==0) && defined(__GNUC_PATCHLEVEL__) && (__GNUC_PATCHLEVEL__==1)
-#else
-#error not version 4.0.1
-#endif
-]])], 
-[ 
-  AC_MSG_RESULT([yes: build will have warnings])
-  AC_MSG_WARN([
-*****************************************************************************
-   You are using version of gcc that generates questionale assembly. 
-   Please try another release, such as 4.0.4.
-*****************************************************************************
-  ])
-  ],
-[ AC_MSG_RESULT([no])]
-)
 AC_LANG_POP(C++)
 
 
@@ -724,7 +842,7 @@ AC_LANG_POP(C++)
 # User can override in shore.def
 #
 # -------------------------------------------------------------------------
-AH_VERBATIM([smpagesize],[/*1024 to 32768 inclusive*/
+AH_VERBATIM([SM_PAGESIZE],[/*1024 to 32768 inclusive*/
 #ifndef SM_PAGESIZE
 #define SM_PAGESIZE 8192
 #endif
@@ -737,90 +855,159 @@ SHORE-specific Features:], [], [])
 
 # -------------------------------------------------------------------------
 #
-# handle --enable-debug --disable-debug
-# Needed at config time to tell make what flags to put on the compiles,
-# and what symbols, -DDEBUG -DW_DEBUG, -UNDEBUG
-# We need to put the macro definitions into the shore-config.h
-# and take them out of the compile command line.
-#
-# enabling this feature is equiv to DEBUGCODE ON
+# HAVE_HUGETLBFS
+#  
+#  Generate HAVE_HUGETLBFS if so configured
 #
 # -------------------------------------------------------------------------
 
-AC_ARG_ENABLE([debug],
-[  --enable-debug	default:no	Turn on full debugging: symbols & code],
-[case "${enableval}" in
- yes) debug=true ;;
- no)  debug=false ;;
- *) AC_MSG_ERROR([bad value ${enableval} for --enable-debug]) ;;
-esac], [debug=false])
-AM_CONDITIONAL([DEBUG], [test x$debug = xtrue])
+AC_ARG_WITH([hugetlbfs],
+[AS_HELP_STRING([--with-hugetlbfs],[Use the hugetlbfs for the buffer pool])],
+[],
+[with_hugetlbfs=no])
+AS_IF([test "x$with_hugetlbfs" = xyes],
+[AC_DEFINE_UNQUOTED(HAVE_HUGETLBFS, 1, [use hugetlbfs for buffer pool])]
+)
 
-AH_VERBATIM([expensivestats],[/*for thread statistics*/
+## invoke gethugepagesize.sh to establish the page size
+## we do this regardless of the --with-hugetlbfs option; it's
+## only used if we chose the option
+hugepagesize=`./gethugepagesize.sh`
+AC_MSG_CHECKING([for Hugepagesize])
+AC_DEFINE_UNQUOTED(HUGEPAGESIZE, $hugepagesize, [huge page size])
+AC_MSG_RESULT([$hugepagesize])
+
+# -------------------------------------------------------------------------
+#
+# --without-mmap
+#  
+#  Don't bother to mmap.  --without-mmap overrides hugetlbfs use.
+#  It means just allocate aligned memory and don't bother using mmap for
+#  the buffer pool in any attempt to affect the #tlb entries. 
+#  We will use posix_memalign if it's here; else memalign if it's here,
+#  else valloc if it's here.
+#
+# -------------------------------------------------------------------------
+
+AC_ARG_WITH([mmap],
+[AS_HELP_STRING([--without-mmap],[Do not use mmap for the buffer pool. Trumps hugetlbfs option])],
+[],
+[with_mmap=yes])
+AS_IF([test "x$with_mmap" = xno],
+[AC_DEFINE_UNQUOTED(WITHOUT_MMAP, 1, [do not mmap the buffer pool])]
+)
+AC_CHECK_FUNCS([posix_memalign])
+AC_CHECK_FUNCS([memalign])
+AC_CHECK_FUNCS([valloc])
+
+
+## TODO: look into these stats
+
+AH_VERBATIM([EXPENSIVE_STATS],[/*for thread statistics*/
 #define EXPENSIVE_STATS
 ])
 
-# -------------------------------------------------------------------------
-#
-# We need to have a default stack check level, and 
-# when debugging is on, we need to raise the stack check level.
-# Note that an environment variable can be used to change the check level,
-# and the user can override this (set it to 0, for example) in shore.def
-#
-# -------------------------------------------------------------------------
-AH_VERBATIM([sthreadstackcheck],[/*0, 1 or 2*/
-#ifndef STHREAD_STACK_CHECK
-#ifdef W_DEBUG
-#define STHREAD_STACK_CHECK 2
-#else
-#define STHREAD_STACK_CHECK 1
-#endif
-#endif
-])
 
 # -------------------------------------------------------------------------
 #
-# handle --enable-dbgsymbols --disable-dbgsymbols
-# Needed at config time to tell make what flags to put on the compiles,
+# handle --enable-lp64  --disable-lp64
 #
-# enabling this feature is equiv to DEBUGGERSYMBOLS  ON
+# Determines what compile-time options to use for target machine (-m64 (gcc)
+#  or -xtarget=native64 (Sun CC)
 #
-# -------------------------------------------------------------------------
-AC_ARG_ENABLE([dbgsymbols],
-[  --enable-dbgsymbols	default:no	Turn on debugger symbols],
-[case "${enableval}" in
- yes) dbgsymbols=true ;;
- no)  dbgsymbols=false ;;
- *) AC_MSG_ERROR([bad value ${enableval} for --enable-dbgsymbols]) ;;
-esac], [dbgsymbols=false])
-AM_CONDITIONAL([DEBUGGERSYMBOLS], [test x$dbgsymbols = xtrue])
-
-
-# -------------------------------------------------------------------------
-#
-# handle --enable-lgfileaware  --disable-lgfileaware
-# Needed at config time to tell make what macros to define
-#   -DLARGEFILE_AWARE -D_FILE_OFFSET_BITS=64 
-#  These are defined on the gcc command line so they are
-# defined from the beginning.
 #
 # -------------------------------------------------------------------------
-AC_ARG_ENABLE([lgfileaware],
-[  --enable-lgfileaware	default:yes	Compile to use 64 bit file offsets],
+AC_ARG_ENABLE([lp64],
+[  --enable-lp64		default:yes	Compile to use LP 64 data model],
  [case "${enableval}" in
- yes) lgfileaware=1 ;;
- no)  lgfileaware=0 ;;
- *) AC_MSG_ERROR([bad value ${enableval} for --enable-lgfileaware]) ;;
+ yes) lp64=ON ;;
+ no)  lp64=OFF ;;
+ *) AC_MSG_ERROR([bad value ${enableval} for --enable-lp64]) ;;
 esac]
  , 
-[lgfileaware=1])
-#  AM_CONDITIONAL([W_LARGEFILE], [test x$lgfileaware = x1])
-AC_DEFINE_UNQUOTED(W_LARGEFILE, $lgfileaware,[use large files?])
-AH_VERBATIM([largefileaware],[#ifdef W_LARGEFILE
-#define _FILE_OFFSET_BITS 64
+[lp64=ON]
+)
+
+AM_CONDITIONAL([ENABLE_ARCH_LP64], [test x$lp64 = xON])
+
+#
+# Get the programming environment that allows large file offsets
+# with whatever data model the compiler can provide.  We will
+# prefer LP64, but if not available, we'll compile for ILP32,
+# even though we're not supporting it (the SM remains untested for this).
+## TODO REMOVE
+## AC_MSG_CHECKING([for LP64 make flags])
+## AC_SUBST([ARCH_LP64_CFLAGS], [`getconf POSIX_V6_LP64_OFF64_CFLAGS`])
+## AC_SUBST([ARCH_LP64_LDFLAGS], [`getconf POSIX_V6_LP64_OFF64_LDFLAGS`])
+## AC_SUBST([ARCH_LP64_LIBS], [`getconf POSIX_V6_LP64_OFF64_LIBS`])
+## 
+## AC_MSG_CHECKING([for ILP32 make flags])
+## AC_SUBST([ARCH_ILP32_CFLAGS], [`getconf POSIX_V6_ILP32_OFFBIG_CFLAGS`])
+## AC_SUBST([ARCH_ILP32_LDFLAGS], [`getconf POSIX_V6_ILP32_OFFBIG_LDFLAGS`])
+## AC_SUBST([ARCH_ILP432_LIBS], [`getconf POSIX_V6_ILP32_OFFBIG_LIBS`])
+
+## AC_DEFINE(_POSIX_C_SOURCE, 200112L, Define to activate features from IEEE Stds 1003.1-2001)
+## AC_DEFINE(_XOPEN_SOURCE, 600, Define to activate features from IEEE Stds 1003.1-2001)
+
+
+
+## The following is installed in w_defines.h (unfortunately),
+## because autoconf mangles the #undef ARCH_LP64, whether we use
+## AH_VERBATIM or AH_BOTTOM or ...
+## 
+## AH_BOTTOM([
+## #include <unistd.h>
+## #if _SC_V6_LP64_OFF64 || _XBS5_LP64_OFF64 || _SC_V6_LPBIG_OFFBIG || _XBS5_LPBIG_OFFBIG
+## #else
+## #warning Turning off ARCH_LP64
+## #undef ARCH_LP64
+## 
+## #if _SC_V6_ILP32_OFFBIG || _XBS5_ILP32_OFFBIG
+## #else
+## #warning large file off_t support seems to be missing accoring to sysconf !
+## #endif
+## #endif
+## ])
+
+# Legacy macro :
+# TODO: get rid of this and assume always large file aware
+AH_VERBATIM([W_LARGEFILE],[#if (defined(_LARGEFILE_SOURCE) && defined(_FILE_OFFSET_BITS)) || defined(ARCH_LP64)
 #define LARGEFILE_AWARE
 #endif
 ])
+
+# -------------------------------------------------------------------------
+#
+# Posix monotonic clock funcs : clock_gettime
+#  on linux, need this to implement gethrtime() lib func
+# -------------------------------------------------------------------------
+## AC_MSG_CHECKING([for posix monotonic clock library functions])
+AC_CHECK_HEADERS([time.h]) 
+AC_CHECK_FUNCS([gethrtime])
+AC_CHECK_FUNCS([getopt])
+AC_CHECK_FUNCS([uname])
+
+# -------------------------------------------------------------------------
+#
+# handle --enable-checkrc --disable-checkrc
+# Needed at config time to tell make what flags to put on the compiles,
+# and what symbols, -DW_TRACE
+#
+# enabling this feature is equiv to TRACECODE  ON
+#
+# -------------------------------------------------------------------------
+# p. 198
+AC_ARG_ENABLE([checkrc],
+[  --enable-checkrc	default:no	Generate (expensive) code to verify return-code checking],
+ [case "${enableval}" in
+ yes) checkrc=1 ;;
+ no)  checkrc=0 ;;
+ *) AC_MSG_ERROR([bad value ${enableval} for --enable-checkrc]) ;;
+esac]
+ , 
+[checkrc=0])
+AC_DEFINE_UNQUOTED(W_DEBUG_RC, $checkrc,[track return-code checking])
+
 # -------------------------------------------------------------------------
 #
 # handle --enable-trace --disable-trace
@@ -840,79 +1027,100 @@ AC_ARG_ENABLE([trace],
 esac]
  , 
 [trace=0])
-# If we want to do something different in the makefile again,
-# re-install this conditional:
-# AM_CONDITIONAL([TRACE], [test x$trace = x1])
+AM_CONDITIONAL([TRACE], [test x$trace = x1])
 
 AC_DEFINE_UNQUOTED(TRACECODE, $trace,[include tracing code?])
-AH_VERBATIM([trace],[#if TRACECODE==1
+AH_VERBATIM([W_TRACE],[#if TRACECODE==1
 #define W_TRACE
 #endif
 ])
 
+# -------------------------------------------------------------------------
+#
+# handle --with-debug-level1 --without-debug-level1
+# handle --with-debug-level2 --without-debug-level2
+# handle --with-debug-level3 --without-debug-level3
+# Needed at config time to tell make what flags to put on the compiles
+#
+# -------------------------------------------------------------------------
+# 
+AC_ARG_WITH([debug-level1],
+[AS_HELP_STRING([--with-debug-level1],[Include level 1 debug code, optimize])],
+[],
+[with_debug_level1=no])
+
+## Make needs to give the right flags
+AM_CONDITIONAL([DEBUGLEVEL1], [test x$with_debug_level1 = xyes])
+
+AS_IF([test "x$with_debug_level1" = xyes],
+[AC_DEFINE_UNQUOTED(W_DEBUG_LEVEL, 1, [use debug level 1])
+AC_MSG_RESULT([Debug level 1])
+]
+)
+
+AC_ARG_WITH([debug-level2],
+[AS_HELP_STRING([--with-debug-level2],[Include level 2 debug code, no opt])],
+[],
+[with_debug_level2=no])
+
+## Make needs to give the right flags
+AM_CONDITIONAL([DEBUGLEVEL2], [test x$with_debug_level2 = xyes])
+AS_IF([test "x$with_debug_level2" = xyes],
+[AC_DEFINE_UNQUOTED(W_DEBUG_LEVEL, 2, [use debug level 2])
+AC_MSG_RESULT([Debug level 2])
+]
+)
+
+
+AC_ARG_WITH([debug-level3],
+[AS_HELP_STRING([--with-debug-level3],[Include level 3 debug code, no opt])],
+[],
+[with_debug_level3=no])
+
+# Makefile needs to know level
+AM_CONDITIONAL([DEBUGLEVEL3], [test x$with_debug_level3 = xyes])
+
+AS_IF([test "x$with_debug_level3" = xyes],
+[AC_DEFINE_UNQUOTED(W_DEBUG_LEVEL, 3, [use debug level 3])
+AC_MSG_RESULT([Debug level 3])
+]
+)
+
+with_debug_level0=no
+
+AS_IF(
+[test "x$with_debug_level1" = xno -a "x$with_debug_level2" = xno -a "x$with_debug_level3" = xno ],
+[AC_DEFINE_UNQUOTED(W_DEBUG_LEVEL, 0, [Use debug level 0, optimized])
+AC_MSG_RESULT([Debug level 0 (optimized)])
+with_debug_level0=yes
+]
+)
+
+AM_CONDITIONAL([DEBUGLEVEL0], [test x$with_debug_level0 = xyes])
 
 # -------------------------------------------------------------------------
 #
-# removed:
-# handle --enable-largelogpart  --disable-largelogpart
-# Needed at config time to tell make what macros to define:
-#   -DSM_DISKADDR_LARGE
+# NOTE: THIS MUST COME AFTER THE handling of debuglevel* 
 #
-# Now this is the default and the only choice. Soon all references to 
-# this macro will be removed.
+# handle --enable-dbgsymbols --disable-dbgsymbols
+# Needed at config time to tell make what flags to put on the compiles,
 #
 # -------------------------------------------------------------------------
-AH_VERBATIM([diskaddrlarge],[
-#define SM_DISKADDR_LARGE 1
-])
-
-# -------------------------------------------------------------------------
-#
-# handle --enable-largepages  --disable-largepages
-# Needed at config time to tell make what macros to define
-#   -DLARGE_PAGE
-#
-#
-# -------------------------------------------------------------------------
-AC_ARG_ENABLE([largepages],
-[  --enable-largepages	default:no	Enable SM_PAGESIZE larger than 32K],
+AC_ARG_ENABLE([dbgsymbols],
+[  --enable-dbgsymbols	default:no	Turn on debugger symbols],
 [case "${enableval}" in
- yes) lgpage=1 ;;
- no)  lgpage=0 ;;
- *) AC_MSG_ERROR([bad value ${enableval} for --enable-largepages]) ;;
-esac], [lgpage=0])
-# If we want to do something different in the makefile again,
-# re-install this conditional:
-# AM_CONDITIONAL([LARGE_PAGE], [test x$lgpage = x1])
-AC_DEFINE_UNQUOTED(LARGEPAGES, $lgpage,[enable use of pages larger than 32K?])
-AH_VERBATIM([largepageenable],[#if LARGEPAGES==1
-#define LARGE_PAGE
-#endif
-])
+ yes) dbgsymbols=true ;;
+ no)  dbgsymbols=false ;;
+ *) AC_MSG_ERROR([bad value ${enableval} for --enable-dbgsymbols]) ;;
+esac], [dbgsymbols=false])
 
-# -------------------------------------------------------------------------
-#
-# handle --enable-largepids  --disable-largepids
-# Needed at config time to tell make what macros to define
-#   -DLARGE_PID 
-#
-#
-# -------------------------------------------------------------------------
-AC_ARG_ENABLE([largepids],
-[  --enable-largepids	default:no	Use 64-bit page numbers],
-[case "${enableval}" in
- yes) lgpid=1 ;;
- no)  lgpid=0 ;;
- *) AC_MSG_ERROR([bad value ${enableval} for --enable-largepids]) ;;
-esac], [lgpid=0])
-# If we want to do something different in the makefile again,
-# re-install this conditional:
-# AM_CONDITIONAL([LARGEVOLUMES], [test x$lgpid = x1])
-AC_DEFINE_UNQUOTED(LARGEVOLUMES, $lgpid,[use large page ids?])
-AH_VERBATIM([largepidenable],[#if LARGEVOLUMES==1
-#define LARGE_PID
-#endif
-])
+AS_IF(
+[test "x$with_debug_level1" = xyes -o "x$with_debug_level2" = xyes -o "x$with_debug_level3" = xyes ],
+[dbgsymbols=true]
+)
+AC_MSG_RESULT([Debugger symbols $dbgsymbols])
+AM_CONDITIONAL([DEBUGGERSYMBOLS], [test x$dbgsymbols = xtrue -o x$with_debug_level1 = xyes -o x$with_debug_level2 = xyes -o x$with_debug_level3 = xyes])
+
 
 # -------------------------------------------------------------------------
 #
@@ -931,11 +1139,24 @@ AM_CONDITIONAL([EXPLICIT_TEMPLATE], [test x$explicit = xtrue])
 
 # -------------------------------------------------------------------------
 #
-# handle --enable-purify, --enable-quantify, --enable-purecov
+# handle --enable-purify, --enable-quantify, --enable-purecov, --enable-valgrind
 # Needed at config time to tell make what include directories to add
 # and what libs to add.
 #
 # -------------------------------------------------------------------------
+AC_ARG_ENABLE([valgrind],
+[  --enable-valgrind	default:no	Enable running valgrind run-time behavior],
+[case "${enableval}" in
+ yes) valgrind=true ;;
+ no)  valgrind=false ;;
+ *) AC_MSG_ERROR([bad value ${enableval} for --enable-valgrind]) ;;
+esac], [valgrind=false])
+AS_IF([test "x$valgrind" = xtrue],
+[AC_CHECK_HEADERS([valgrind/valgrind.h])
+AC_CHECK_HEADERS([valgrind.h])
+]
+)
+
 AC_ARG_ENABLE([purify],
 [  --enable-purify	default:no	Enable build of <prog>.pure],
 [case "${enableval}" in
@@ -970,6 +1191,8 @@ AC_CONFIG_FILES([tools/Makefile])
 
 AC_CONFIG_FILES([src/Makefile])
 
+AC_CONFIG_FILES([src/atomic_ops/Makefile])
+
 AC_CONFIG_FILES([src/fc/Makefile])
 AC_CONFIG_FILES([src/fc/tests/Makefile])
 
@@ -985,16 +1208,20 @@ AC_CONFIG_FILES([src/sm/smsh/Makefile])
 AC_CONFIG_FILES([src/sm/smsh/scripts/Makefile])
 AC_CONFIG_FILES([src/sm/smsh/lib/Makefile])
 
-AC_CONFIG_FILES([doc/Makefile])
-AC_CONFIG_FILES([doc/ssmapi/Makefile])
-AC_CONFIG_FILES([doc/ssmarch/Makefile])
-AC_CONFIG_FILES([doc/man/Makefile])
-AC_CONFIG_FILES([doc/man/manfc/Makefile])
-AC_CONFIG_FILES([doc/man/mansthread/Makefile])
-AC_CONFIG_FILES([doc/man/mancommon/Makefile])
-AC_CONFIG_FILES([doc/man/manssm/Makefile])
-AC_CONFIG_FILES([doc/ssmvas/Makefile])
-AC_CONFIG_FILES([doc/ssmvas/hello/Makefile])
-
+AC_CONFIG_FILES([src/atomic_ops/asm_linkage/Makefile])
+AC_CONFIG_FILES([src/atomic_ops/asm_linkage/usr/Makefile])
+AC_CONFIG_FILES([src/atomic_ops/asm_linkage/usr/src/Makefile])
+AC_CONFIG_FILES([src/atomic_ops/asm_linkage/usr/src/uts/Makefile])
+AC_CONFIG_FILES([src/atomic_ops/asm_linkage/usr/src/uts/intel/Makefile])
+AC_CONFIG_FILES([src/atomic_ops/asm_linkage/usr/src/uts/intel/ia32/Makefile])
+AC_CONFIG_FILES([src/atomic_ops/asm_linkage/usr/src/uts/intel/ia32/sys/Makefile])
+AC_CONFIG_FILES([src/atomic_ops/asm_linkage/usr/src/uts/intel/sys/Makefile])
+AC_CONFIG_FILES([src/atomic_ops/asm_linkage/usr/src/uts/sparc/Makefile])
+AC_CONFIG_FILES([src/atomic_ops/asm_linkage/usr/src/uts/sparc/sys/Makefile])
+AC_CONFIG_FILES([src/atomic_ops/atomic_ops/Makefile])
+AC_CONFIG_FILES([src/atomic_ops/atomic_ops/amd64/Makefile])
+AC_CONFIG_FILES([src/atomic_ops/atomic_ops/i386/Makefile])
+AC_CONFIG_FILES([src/atomic_ops/atomic_ops/sparc/Makefile])
+AC_CONFIG_FILES([src/atomic_ops/atomic_ops/sparcv9/Makefile])
 
 AC_OUTPUT

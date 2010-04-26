@@ -1,6 +1,29 @@
+/* -*- mode:C++; c-basic-offset:4 -*-
+     Shore-MT -- Multi-threaded port of the SHORE storage manager
+   
+                       Copyright (c) 2007-2009
+      Data Intensive Applications and Systems Labaratory (DIAS)
+               Ecole Polytechnique Federale de Lausanne
+   
+                         All Rights Reserved.
+   
+   Permission to use, copy, modify and distribute this software and
+   its documentation is hereby granted, provided that both the
+   copyright notice and this permission notice appear in all copies of
+   the software, derivative works or modified versions, and any
+   portions thereof, and that both notices appear in supporting
+   documentation.
+   
+   This code is distributed in the hope that it will be useful, but
+   WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. THE AUTHORS
+   DISCLAIM ANY LIABILITY OF ANY KIND FOR ANY DAMAGES WHATSOEVER
+   RESULTING FROM THE USE OF THIS SOFTWARE.
+*/
+
 /*<std-header orig-src='shore'>
 
- $Id: w_shore_alloc.cpp,v 1.7 1999/06/07 19:02:56 kupsch Exp $
+ $Id: w_shore_alloc.cpp,v 1.7.2.2 2009/06/23 01:01:36 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -44,7 +67,7 @@ static int allocations=0;
 static int high_water_mark=0;
 
 w_heapid_t
-w_shore_thread_alloc(
+w_shore_count_alloc(
 	size_t amt, 
 	bool is_free// =false
 )
@@ -61,14 +84,6 @@ w_shore_thread_alloc(
     return w_no_shore_thread_id;
 }
 
-void
-w_shore_thread_dealloc(
-	size_t amt, 
-	w_heapid_t
-)
-{
-    (void) w_shore_thread_alloc(amt, false);
-}
 
 void 	
 w_shore_alloc_stats( size_t& amt, size_t& allocations, size_t& hiwat)
@@ -80,9 +95,16 @@ w_shore_alloc_stats( size_t& amt, size_t& allocations, size_t& hiwat)
     }
 }
 
-w_base_t::uint4_t 
+w_thread_id_t 
 w_id2int(w_heapid_t i)
 {
-    return (w_base_t::uint4_t) i;
+    union {
+        w_heapid_t i;
+        w_thread_id_t ret;
+    }u;
+    u.i = i;
+    w_assert1(sizeof(u.i)==sizeof(u.ret));
+    return u.ret;
+    // return (w_thread_id_t) i;
 }
 

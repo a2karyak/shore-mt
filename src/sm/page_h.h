@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='PAGE_H_H'>
 
- $Id: page_h.h,v 1.8 2008/05/31 05:03:32 nhall Exp $
+ $Id: page_h.h,v 1.6.2.4 2010/01/28 04:54:08 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -44,22 +44,22 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
  * 1) change 
  *      space_bucket_size_in_bits, space_num_buckets
  * 2) change bucket_X_min_free and bucket_X_max_free 
- *	for the buckets you want.  Larger bucket numbers MUST
+ *    for the buckets you want.  Larger bucket numbers MUST
  *      contain more free bytes. Order is significant and is assumed 
- * 	in vol.cpp and elsewhere.
+ *     in vol.cpp and elsewhere.
  */
 #define HBUCKETBITS 4
 enum    { 
 #if HBUCKETBITS==4
-  	  space_num_buckets		= 16, // 2**HBUCKETBITS,
+        space_num_buckets        = 16, // 2**HBUCKETBITS,
 #elif HBUCKETBITS==3
-  	  space_num_buckets		= 8, // 2**HBUCKETBITS,
+        space_num_buckets        = 8, // 2**HBUCKETBITS,
 #else
-  	  space_num_buckets		= 4, // 2**HBUCKETBITS,
+        space_num_buckets        = 4, // 2**HBUCKETBITS,
 #endif
-	  space_bucket_size_in_bits 	= HBUCKETBITS, 
-	  space_bucket_mask 	=    (1<<space_bucket_size_in_bits) - 1
-	};
+      space_bucket_size_in_bits     = HBUCKETBITS, 
+      space_bucket_mask     =    (1<<space_bucket_size_in_bits) - 1
+    };
 
 /*
 * Buckets are defined in terms of free space
@@ -186,42 +186,42 @@ enum {
 
 #if HBUCKETBITS == 4
     space_bucket_mask_high_bits =  
-	(  percent_07 | percent_12 | percent_25 | percent_50 )
+    (  percent_07 | percent_12 | percent_25 | percent_50 )
 #elif HBUCKETBITS == 3
     space_bucket_mask_high_bits =  
-	( percent_12 | percent_25 | percent_50 )
+    ( percent_12 | percent_25 | percent_50 )
 #else 
     space_bucket_mask_high_bits =  
-	( percent_25 | percent_50 )
+    ( percent_25 | percent_50 )
 #endif /* HBUCKETBITS */
 
-};	
+};    
 
 class pginfo_t {
 private:
-	smsize_t	_space_left;
-	shpid_t		_pgid;
+    smsize_t    _space_left;
+    shpid_t        _pgid;
 public:
-	NORET 	  pginfo_t():  _space_left(0), _pgid(0) {}
-	NORET     pginfo_t(const shpid_t& pg, smsize_t sl): 
-			_space_left(sl), _pgid(pg) { }
-	NORET 	  pginfo_t(const pginfo_t& other):  
-			_space_left(other._space_left), 
-			_pgid(other._pgid) { }
+    NORET       pginfo_t():  _space_left(0), _pgid(0) {}
+    NORET     pginfo_t(const shpid_t& pg, smsize_t sl): 
+            _space_left(sl), _pgid(pg) { }
+    NORET       pginfo_t(const pginfo_t& other):  
+            _space_left(other._space_left), 
+            _pgid(other._pgid) { }
 
-	NORET     ~pginfo_t() { }
+    NORET     ~pginfo_t() { }
 
-	smsize_t  space() const { return _space_left; }
-	shpid_t   page() const { return _pgid; }
-	void 	  update_space(smsize_t v) {
-		    _space_left = v; 
-		}
-	void set_bucket(const shpid_t& pg, space_bucket_t b);
-	void set(const shpid_t& pg, smsize_t v) {
-		    _space_left = v; 
-		    _pgid = pg;
-		}
-	friend ostream &operator<<(ostream&, const pginfo_t&p);
+    smsize_t  space() const { return _space_left; }
+    shpid_t   page() const { return _pgid; }
+    void       update_space(smsize_t v) {
+            _space_left = v; 
+        }
+    void set_bucket(const shpid_t& pg, space_bucket_t b);
+    void set(const shpid_t& pg, smsize_t v) {
+            _space_left = v; 
+            _pgid = pg;
+        }
+    friend ostream &operator<<(ostream&, const pginfo_t&p);
 };
 
 inline void 
@@ -234,32 +234,32 @@ pginfo_t::set_bucket(const shpid_t& pg, space_bucket_t b)
 
 inline 
 ostream &operator<<(ostream&o, const pginfo_t&p) {
-	o << p._pgid << ":" << p._space_left << ends;
-	return o;
+    o << p._pgid << ":" << p._space_left << ends;
+    return o;
 }
 
 class store_histo_t {
 public:
-	NORET store_histo_t();
-	void decr(space_bucket_t b);
-	void incr(space_bucket_t b) {
-	    bucket[b]++;
-	}
-	bool exists(space_bucket_t b) const {
-	    return bucket[b] > 0;
-	}
-	friend ostream &operator<<(ostream&, const store_histo_t&);
+    NORET store_histo_t();
+    void decr(space_bucket_t b);
+    void incr(space_bucket_t b) {
+        bucket[b]++;
+    }
+    bool exists(space_bucket_t b) const {
+        return bucket[b] > 0;
+    }
+    friend ostream &operator<<(ostream&, const store_histo_t&);
 private:
-	shpid_t bucket[space_num_buckets];
+    shpid_t bucket[space_num_buckets];
 };
 inline NORET 
 store_histo_t::store_histo_t() 
 {
     for (shpid_t p=0; p < space_num_buckets; p++) {
-	// Initialize to 0.
-	// This is the structure stored in the transient
-	// histoid_t and updated by reading the extent links.
-	bucket[p] =  0;
+    // Initialize to 0.
+    // This is the structure stored in the transient
+    // histoid_t and updated by reading the extent links.
+    bucket[p] =  0;
     }
 }
 
@@ -267,13 +267,7 @@ inline void
 store_histo_t::decr(space_bucket_t b) 
 {
     bucket[b]--;
-
-    // cast to signed:
-#ifdef LARGE_PID
-    if(int8_t(bucket[b])<0) bucket[b] = 0;
-#else
-    if(int4_t(bucket[b])<0) bucket[b] = 0;
-#endif
+    if(int(bucket[b])<0) bucket[b] = 0;
 }
 
 

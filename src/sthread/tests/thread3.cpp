@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: thread3.cpp,v 1.31 2007/05/18 21:52:31 nhall Exp $
+ $Id: thread3.cpp,v 1.31.2.5 2010/03/19 22:20:03 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -37,15 +37,24 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
  */
 
 #include <cassert>
-#include <os_memory.h>
-#include <getopt.h>
+#include <w_getopt.h>
 
 #include <w.h>
 #include <sthread.h>
 
 #include <iostream>
-#include <w_strstream.h>
+#include <sstream>
 #include <iomanip>
+
+__thread stringstream *_safe_io(NULL);
+void safe_io_init() 
+{ 
+	if (_safe_io==NULL) _safe_io = new stringstream; 
+}
+
+#define SAFE_IO(XXXX) { safe_io_init(); \
+	*_safe_io <<  XXXX; \
+	fprintf(stdout, _safe_io->str().c_str()); }
 
 class float_thread_t : public sthread_t {
 public:
@@ -80,8 +89,6 @@ int_thread_t::int_thread_t(int fid)
 	w_ostrstream_buf s(40);		// XXX magic number
 	s << "int[" << id << "]" << ends;
 	rename(s.c_str());
-
-	W_COERCE(set_use_float(false));
 }
 
 
@@ -100,9 +107,10 @@ void harvest(int threads)
 	int	i;
 
 	for(i=0; i < threads; ++i){
-		W_COERCE( worker[i]->wait() );
-		if (verbose)
-			cout << "Finished: " << endl << *worker[i] << endl;
+		W_COERCE( worker[i]->join() );
+		if (verbose) {
+			SAFE_IO( "Finished: " << endl << *worker[i] << endl);
+		}
 
 		w_assert1(ack[i]);
 		delete worker[i];
@@ -236,21 +244,22 @@ void float_thread_t::run()
 	r14+ r15+ r16+ r17+ r18+ r19+ r20+ r21+ r22+ r23+ r24+ r25+
 	r26+ r27+ r28+ r29+ r30+ r31;
 
-    cout << "Hello, world from " << id 
+    SAFE_IO ( "Hello, world from " << id 
 	 << ", result = " 
 	 << setprecision(6) << setiosflags(ios::fixed) 
 	 << result << resetiosflags(ios::fixed)
-	 << ", check = " << 31 * id << endl;
+	 << ", check = " << 31 * id << endl
+    )
     sthread_t::yield();
 
     result = r1+ r2+ r3+ r4+ r5+ r6+ r7+ r8+ r9+ r10+ r11+ r12+ r13+
 	r14+ r15+ r16+ r17+ r18+ r19+ r20+ r21+ r22+ r23+ r24+ r25+
 	r26+ r27+ r28+ r29+ r30+ r31;
 
-    cout << "Hello, world from " << id 
+    SAFE_IO( "Hello, world from " << id 
 	 << ", result = " << setprecision(6) << setiosflags(ios::fixed) 
 	 << result << resetiosflags(ios::fixed)
-	 << ", check = " << 31 * id << endl;
+	 << ", check = " << 31 * id << endl;)
 
     sthread_t::yield();
     ack[id] = 1;
@@ -299,17 +308,17 @@ void int_thread_t::run()
 	r14+ r15+ r16+ r17+ r18+ r19+ r20+ r21+ r22+ r23+ r24+ r25+
 	r26+ r27+ r28+ r29+ r30+ r31;
 
-    cout << "Hello, world from " << id 
+    SAFE_IO( "Hello, world from " << id 
 	 << ", result = " << result
-	 << ", check = " << 31 * id << endl;
+	 << ", check = " << 31 * id << endl;)
     sthread_t::yield();
 
     result = r1+ r2+ r3+ r4+ r5+ r6+ r7+ r8+ r9+ r10+ r11+ r12+ r13+
 	r14+ r15+ r16+ r17+ r18+ r19+ r20+ r21+ r22+ r23+ r24+ r25+
 	r26+ r27+ r28+ r29+ r30+ r31;
-    cout << "Hello, world from " << id 
+    SAFE_IO( "Hello, world from " << id 
 	 << ", result = " << result
-	 << ", check = " << 31 * id << endl;
+	 << ", check = " << 31 * id << endl;)
     sthread_t::yield();
     ack[id] = 1;
 }

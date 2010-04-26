@@ -1,6 +1,6 @@
 # <std-header style='tcl' orig-src='shore'>
 #
-#  $Id: file.all,v 1.29 2007/08/21 19:44:00 nhall Exp $
+#  $Id: file.all,v 1.28.2.3 2010/03/19 22:20:36 nhall Exp $
 #
 # SHORE -- Scalable Heterogeneous Object REpository
 #
@@ -35,7 +35,8 @@ set scripts [list \
 	 recovery.1 record_create_abort.1 \
 	 file_destroy.1 createsmall.1\
 	 file.1 file.2 file.3 file.4 file.5 \
-	 file.7 file.8 \
+	 file.6 file.7 file.8 \
+	 file.9 \
 	 tmpfile.1 tmpfile.2 tmpfile.3 \
 	 file.many \
 	 file.undo.1  \

@@ -2,7 +2,7 @@
 
 # <std-header style='perl' orig-src='shore'>
 #
-#  $Id: errors.pl,v 1.30 2007/05/18 19:44:27 nhall Exp $
+#  $Id: errors.pl,v 1.30.2.1 2009/06/01 22:21:43 nhall Exp $
 #
 # SHORE -- Scalable Heterogeneous Object REpository
 #
@@ -97,17 +97,17 @@ Usage: $progname [-d] [-e] filename...
 Generate C++ code representing error information from file.
 You must specify one of -d or -e
     
-    --d          generate defines
-    --e          generate enums
-    --help|h     print this message and exit
-    --list       generate list of error codes instead of other outputs
+    -d          generate defines
+    -e          generate enums
+    -help|h     print this message and exit
+    -list       generate list of error codes instead of other outputs
 EOF
 }
 
 my %options = (d => 0, e => 0, help => 0, 'list' => '');
 my @options = ("d!", "e!", "help|h", "list=s");
 my $ok = GetOptions(\%options, @options);
-$ok = 0 if $#ARGV == -1;
+$ok = 0 if $#options == -1;
 my $d = $options{d};
 my $e = $options{e};
 $ok = 0 if (!$d && !$e);

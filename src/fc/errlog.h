@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='ERRLOG_H'>
 
- $Id: errlog.h,v 1.17 2006/03/14 05:31:24 bolo Exp $
+ $Id: errlog.h,v 1.17.2.4 2010/03/19 22:17:16 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -42,7 +42,7 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #include <w.h>
 #include <iostream>
 #include <w_strstream.h>
-#include <cstdio>	// XXX just needs a forward decl
+#include <cstdio>    // XXX just needs a forward decl
 
 
 #ifdef __GNUG__
@@ -52,7 +52,7 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 class ErrLog; // forward
 class logstream; // forward
 
-#ifndef	_SYSLOG_H
+#ifndef    _SYSLOG_H
 #define LOG_EMERG 0 
 #define LOG_ALERT 1
 #define LOG_CRIT  2
@@ -64,19 +64,39 @@ class logstream; // forward
 #define LOG_USER  8
 #endif
 
+/** \brief A namespace for errlog-related types.
+ */
+namespace shore_errlog {
+using namespace std;
+
+/*!\enum LogPriority
+ * \brief Enumeration that enables filtering of messages by priority.
+ *
+ * The following __omanip functions are defined to correspond 
+ * to the LogPriority:
+ * emerg_prio, fatal_prio, internal_prio, 
+ * error_prio, warning_prio, info_prio, debug_prio
+ *
+ * Log messages must end with the new __omanip function
+ * flushl.
+ */
 enum LogPriority {
-	log_none = -1,	// none (for global variable logging_level only)
-	log_emerg = LOG_EMERG,		// no point in continuing (syslog's LOG_EMERG)
-	log_fatal = LOG_ALERT,		// no point in continuing (syslog's LOG_ALERT)
-	log_alert = log_fatal,		// alias
-	log_internal = LOG_CRIT,	// internal error 
-	log_error = LOG_ERR,		// client error 
-	log_warning = LOG_WARNING,	// client error 
-	log_info = LOG_INFO,		// just for yucks 
-	log_debug=LOG_DEBUG,		// for debugging gory details 
-	log_all,
-	default_prio = log_error
+    log_none = -1,    // none (for global variable logging_level only)
+    log_emerg = LOG_EMERG,        // no point in continuing (syslog's LOG_EMERG)
+    log_fatal = LOG_ALERT,        // no point in continuing (syslog's LOG_ALERT)
+    log_alert = log_fatal,        // alias
+    log_internal = LOG_CRIT,    // internal error 
+    log_error = LOG_ERR,        // client error 
+    log_warning = LOG_WARNING,    // client error 
+    log_info = LOG_INFO,        // just for yucks 
+    log_debug=LOG_DEBUG,        // for debugging gory details 
+    log_all,
+    default_prio = log_error
 };
+
+} /* namespace syslog_compat */
+
+using namespace shore_errlog;
 
 extern ostream& flushl(ostream& o);
 extern ostream& emerg_prio(ostream& o);
@@ -86,151 +106,216 @@ extern ostream& error_prio(ostream& o);
 extern ostream& warning_prio(ostream& o);
 extern ostream& info_prio(ostream& o);
 extern ostream& debug_prio(ostream& o);
-extern	void setprio(ostream&, LogPriority);
+extern void setprio(ostream&, LogPriority);
 extern logstream *is_logstream(ostream &);
-
+/** \brief A strstream-based log output stream. It responds to
+ * these iomanip functions :
+ *  emerg_prio, 
+ *  fatal_prio, 
+ *  internal_prio, 
+ *  error_prio, 
+ *  warning_prio, 
+ *  info_prio, 
+ *  debug_prio
+ */
 class logstream : public w_ostrstream {
-	friend class ErrLog;
-	friend ostream &flush_and_setprio(ostream& o, LogPriority p);
-	friend ostream& emerg_prio(ostream& o);
-	friend ostream& fatal_prio(ostream& o);
-	friend ostream& internal_prio(ostream& o);
-	friend ostream& error_prio(ostream& o);
-	friend ostream& warning_prio(ostream& o);
-	friend ostream& info_prio(ostream& o);
-	friend ostream& debug_prio(ostream& o);
+    friend class ErrLog;
+    friend ostream &flush_and_setprio(ostream& o, LogPriority p);
+    friend ostream& emerg_prio(ostream& o);
+    friend ostream& fatal_prio(ostream& o);
+    friend ostream& internal_prio(ostream& o);
+    friend ostream& error_prio(ostream& o);
+    friend ostream& warning_prio(ostream& o);
+    friend ostream& info_prio(ostream& o);
+    friend ostream& debug_prio(ostream& o);
 
-	unsigned int 	__magic1;
-	LogPriority 	_prio;
-	ErrLog*		_log;
-	unsigned int 	__magic2;
+    unsigned int     __magic1;
+    LogPriority     _prio;
+    ErrLog*        _log;
+    unsigned int     __magic2;
 
 public:
-	friend logstream *is_logstream(ostream &);
+/** \cond skip */
+    friend logstream *is_logstream(ostream &);
 
-	enum { LOGSTREAM__MAGIC = 0xad12bc45 };
-
+    enum { LOGSTREAM__MAGIC = 0xad12bc45 };
 private:
-	static w_ostrstream static_stream;
+    static w_ostrstream static_stream;
 public:
-	logstream(char *buf, size_t bufsize = 1000)
-	: w_ostrstream(buf, bufsize),
-	  __magic1(LOGSTREAM__MAGIC),
-	  _prio(log_none), 
-	  __magic2(LOGSTREAM__MAGIC)
-		{
-			// tie this to a hidden stream; 
-			tie(&static_stream);
-			assert(tie() == &static_stream) ;
-			assert(__magic1==LOGSTREAM__MAGIC);
-		}
+    logstream(char *buf, size_t bufsize = 1000)
+    : w_ostrstream(buf, bufsize),
+      __magic1(LOGSTREAM__MAGIC),
+      _prio(log_none), 
+      __magic2(LOGSTREAM__MAGIC)
+        {
+            // tie this to a hidden stream; 
+            tie(&static_stream);
+            assert(tie() == &static_stream) ;
+            assert(__magic1==LOGSTREAM__MAGIC);
+        }
 
 protected:
-	void  init_errlog(ErrLog* mine) { _log = mine; }
+    void  init_errlog(ErrLog* mine) { _log = mine; }
+/** \endcond skip
+ */
 };
 
+/** \enum LoggingDestination Describes the possible log destinations,
+ * used for the ErrLog constructor.
+ */
 enum LoggingDestination {
-	log_to_ether, // no logging
-	log_to_unix_file, 
-	log_to_open_file, 
-	log_to_stderr
+    log_to_ether, /*! no logging */
+    log_to_unix_file, /*! sent to a unix file identified by name */
+    log_to_open_file, /*! sent to an open unix FILE* */
+    log_to_stderr  /*! sent to stderr */
 }; 
 
 typedef void (*ErrLogFunc)(ErrLog *, void *);
 
+/** \brief A syslog-style output stream for logging errors, information, etc.
+ *
+ * This output stream is used for issuing errors, "information",
+ * debugging tracing, etc. to the operator (e.g., stderr) or to
+ * a file,  somewhat like syslog.
+ * \attention This predates true multi-threading and is thus not thread-safe.
+ * We have not yet replaced this code, with a thread-safe version.
+ * It is still useful for debugging non-timing-dependent issues,
+ * for issuing operator messages before multithreading really starts, e.g.,
+ * during recovery.
+ *
+ * Example:
+ * \code
+ * ErrLog errlog(log_to_unix_file, "sm.errlog");
+ * errlog->clog << info_prio << "Restart recovery : analysis phase " << flushl;
+ * \endcode
+ */
 class ErrLog {
-	friend class logstream;
-	friend logstream *is_logstream(ostream &);
-	friend ostream &flush_and_setprio(ostream& o, LogPriority p);
+    friend class logstream;
+    friend logstream *is_logstream(ostream &);
+    friend ostream &flush_and_setprio(ostream& o, LogPriority p);
 
-	LoggingDestination	_destination;
-	LogPriority 		_level;
-	FILE* 			_file;		// if local file logging is used
-	const char * 		_ident; // identity for syslog & local use
-	char *			_buffer; // default is static buffer
-	size_t			_bufsize; 
+    LoggingDestination    _destination;
+    LogPriority         _level;
+    FILE*             _file;        // if local file logging is used
+    const char *         _ident; // identity for syslog & local use
+    char *            _buffer; // default is static buffer
+    size_t            _bufsize; 
 
-	enum { ERRORLOG__MAGIC = 0xa2d29754 };
+    enum { ERRORLOG__MAGIC = 0xa2d29754 };
 
 public:
 
-	ErrLog(
-		const char *ident,
-		LoggingDestination dest, // required
-		const char *filename = 0, 			
-		LogPriority level =  default_prio,
-		char *ownbuf = 0,
-		int  ownbufsz = 0  // length of ownbuf, if ownbuf is given
-	);
-	ErrLog(
-		const char *ident,
-		LoggingDestination dest, // required
-		FILE *file = 0, 			
-		LogPriority level =  default_prio,
-		char *ownbuf = 0,
-		int  ownbufsz = 0  // length of ownbuf, if ownbuf is given
-	);
-	~ErrLog();
+    /** Create a log.
+     * @param[in] ident  The name of the log.
+     * @param[in] dest   Indicates destination (unix file, stderr, etc).
+     * @param[in] filename Name of destination or "-' .
+     * @param[in] level  Minimum priority level of messages to be sent to the file. For filtering.
+     * @param[in] ownbuf Buffer to use. Default is NULL.
+     * @param[in] ownbufsz Size of given buffer. Default is 0.
+     *
+     * Using the name "-" is the same as specifying log_to_stderr
+     */
+    ErrLog(
+        const char *ident,
+        LoggingDestination dest, // required
+        const char *filename = 0,             
+        LogPriority level =  default_prio,
+        char *ownbuf = 0,
+        int  ownbufsz = 0  // length of ownbuf, if ownbuf is given
+    );
 
-	static LogPriority parse(const char *arg, bool *ok=0);
+    /** Create a log.
+     * @param[in] ident  The name of the log.
+     * @param[in] dest   Indicates destination (unix file, stderr, etc).
+     * @param[in] file   Already open FILE*.  Default is NULL.
+     * @param[in] level  Minimum priority level of messages to be sent to the file. For filtering.
+     * @param[in] ownbuf Buffer to use. Default is NULL.
+     * @param[in] ownbufsz Size of given buffer. Default is 0.
+     */
+    ErrLog(
+        const char *ident,
+        LoggingDestination dest, // required
+        FILE *file = 0,             
+        LogPriority level =  default_prio,
+        char *ownbuf = 0,
+        int  ownbufsz = 0  // length of ownbuf, if ownbuf is given
+    );
 
-	// same name
-	logstream	clog;
-	void log(enum LogPriority prio, const char *format, ...);
+    ~ErrLog();
 
-	const char * ident() { 
-		return _ident;
-	}
-	LoggingDestination	destination() { return _destination; };
+    /** Convert a char string to an enumeration value.  
+     * @param[in] arg The string to parse.
+     * @param[out] ok Returns true/false if parse worked/not (optional)
+     */
+    static LogPriority parse(const char *arg, bool *ok=0);
 
-	LogPriority getloglevel() { return _level; }
-	const char * getloglevelname() { 
-		switch(_level) {
-			case log_none:
-				return "log_none";
-			case log_emerg:
-				return "log_emerg";
-			case log_fatal:
-				return "log_fatal";
-			case log_internal:
-				return "log_internal";
-			case log_error:
-				return "log_error";
-			case log_warning:
-				return "log_warning";
-			case log_info:
-				return "log_info";
-			case log_debug:
-				return "log_debug";
-			case log_all:
-				return "log_all";
-			default:
-				return "error: unknown";
-				// w_assert1(0);
-		}
-	}
+    /** A stream that can be used with operator<<.
+     * Example:
+     * \code
+     * ErrLog E("XXX", log_to_unix_file, "XXX.out");
+     * E->clog << obj << endl;
+     * \endcode
+     */
+    logstream    clog;
 
-	LogPriority setloglevel( LogPriority prio) {
-		LogPriority old = _level;
-		_level =  prio;
-		return old;
-	}
+    /** Format and issue a message with the given priority, that
+     * is, don't issue it unless this priority is equal to or higher 
+     * than the priority of this error log.
+     */
+    void log(enum LogPriority prio, const char *format, ...);
 
-	static ErrLog *find(const char *id);
-	static void apply(ErrLogFunc func, void *arg);
+    /** Return the name of the file if known */
+    const char * ident() { 
+        return _ident;
+    }
+    LoggingDestination    destination() { return _destination; };
+
+    /** Return the current logging level */
+    LogPriority getloglevel() { return _level; }
+
+    /** Return a static string describing the current logging level */
+    const char * getloglevelname() {
+        switch(_level) {
+            case log_none:
+                return "log_none";
+            case log_emerg:
+                return "log_emerg";
+            case log_fatal:
+                return "log_fatal";
+            case log_internal:
+                return "log_internal";
+            case log_error:
+                return "log_error";
+            case log_warning:
+                return "log_warning";
+            case log_info:
+                return "log_info";
+            case log_debug:
+                return "log_debug";
+            case log_all:
+                return "log_all";
+            default:
+                return "error: unknown";
+                // w_assert1(0);
+        }
+    }
+
+    /** Change the current logging level */
+    LogPriority setloglevel( LogPriority prio) {
+        LogPriority old = _level;
+        _level =  prio;
+        return old;
+    }
 
 private:
-	void _init1();
-	void _init2();
-	void _flush(bool in_crit);
-	void _openlogfile( const char *filename );
-	void _closelogfile();
-	NORET ErrLog(const ErrLog &); // disabled
-	
-	unsigned int _magic;
-#if defined(_WIN32) && defined(FC_ERRLOG_WIN32_LOCK)
-	CRITICAL_SECTION _crit;
-#endif
+    void _init1();
+    void _init2();
+    void _flush(bool in_crit);
+    void _openlogfile( const char *filename );
+    void _closelogfile();
+    NORET ErrLog(const ErrLog &); // disabled
+    
+    unsigned int _magic;
 
 } /* ErrLog */;
 

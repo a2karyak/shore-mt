@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='BF_PREFETCH_H'>
 
- $Id: bf_prefetch.h,v 1.9 1999/06/07 19:03:50 kupsch Exp $
+ $Id: bf_prefetch.h,v 1.9.2.7 2010/03/19 22:20:23 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -34,81 +34,82 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 
 /*  -- do not edit anything above this line --   </std-header>*/
 
-class bf_prefetch_thread_t : public smthread_t {
+class bf_prefetch_thread_t : public smthread_t 
+{
 
 public:
-    NORET			bf_prefetch_thread_t(int i=1);
-    NORET			~bf_prefetch_thread_t();
-    NORET			W_FASTNEW_CLASS_DECL(bf_prefetch_thread_t);
-    w_rc_t			request(
-				    const lpid_t&       pid,
-				    latch_mode_t	mode
-				);
-				// request prefetch of page from thread
+    NORET            bf_prefetch_thread_t(int i=1);
+    NORET            ~bf_prefetch_thread_t();
+    w_rc_t            request(
+                    const lpid_t&       pid,
+                    latch_mode_t    mode
+                );
+                // request prefetch of page from thread
 
-    w_rc_t			fetch(
-				    const lpid_t&       pid,
-				    page_p&		page		
-				);
-				// fetch prefetched page from thread
-				// if it matches pid; refix() it in given
-				// frame; return true if it worked, false
-				// if not (e.g., wrong page)
+    w_rc_t            fetch(
+                    const lpid_t&       pid,
+                    page_p&        page        
+                );
+                // fetch prefetched page from thread
+                // if it matches pid; refix() it in given
+                // frame; return true if it worked, false
+                // if not (e.g., wrong page)
 
-    void			retire();
-    virtual void		run();
+    void            retire();
+    virtual void        run();
 
 private:
-    bool			get_error();
-    void			_init(int i);
+    bool            get_error();
+    void            _init(int i);
 public:
     enum prefetch_status_t {
-	pf_init=0, pf_requested, pf_in_transit, pf_available, pf_grabbed,
-	pf_failure, 
-	pf_fatal,
-	pf_max_unused_status 
+    pf_init=0, pf_requested, pf_in_transit, pf_available, pf_grabbed,
+    pf_failure, 
+    pf_fatal,
+    pf_max_unused_status 
     };
 private:
     enum prefetch_event_t {
-	pf_request=0, pf_get_error, pf_start_fix, pf_end_fix, pf_fetch,
-	pf_error, 
-	pf_destructor, 
-	pf_max_unused_event
+    pf_request=0, pf_get_error, pf_start_fix, pf_end_fix, pf_fetch,
+    pf_error, 
+    pf_destructor, 
+    pf_max_unused_event
     };
 
-    w_rc_t			_fix_error;
-    int				_fix_error_i;
-    int				_n;
-    void			new_state(int i, prefetch_event_t e);
+    w_rc_t            _fix_error;
+    int                _fix_error_i;
+    int                _n;
+    void            new_state(int i, prefetch_event_t e);
     struct frame_info {
 public:
-	NORET frame_info():_pid(lpid_t::null),_status(pf_init),
-		_mode(LATCH_NL){}
+    NORET frame_info():_pid(lpid_t::null),_status(pf_init),
+        _mode(LATCH_NL){}
 
-	NORET ~frame_info() {}
+    NORET ~frame_info() {}
 
-	page_p            	_page;
-	lpid_t       		_pid;
+    page_p                _page;
+    lpid_t               _pid;
         prefetch_status_t       _status; // indicates request satisfied
-	latch_mode_t		_mode;
+    latch_mode_t        _mode;
     };
-    struct frame_info		*_info;
-    int				_f; // index being fetched
-				// _page[_f] is in use by this thread; 
-				// _pid[_f] is being fetched by this thread
-				// other _page[] may be in use by scan
+    struct frame_info        *_info;
+    int                _f; // index being fetched
+                // _page[_f] is in use by this thread; 
+                // _pid[_f] is being fetched by this thread
+                // other _page[] may be in use by scan
 
-    bool			_retire;
-    smutex_t			_mutex;
-    scond_t			_activate;
+    bool                       _retire;
+
+    pthread_mutex_t            _prefetch_mutex; // paired with _activate
+    pthread_cond_t             _activate; // paired with _prefetch_mutex
 
     // disabled
-    NORET			bf_prefetch_thread_t(
-				    const bf_prefetch_thread_t&);
-    bf_prefetch_thread_t&	operator=(const bf_prefetch_thread_t&);
+    NORET            bf_prefetch_thread_t(
+                    const bf_prefetch_thread_t&);
+    bf_prefetch_thread_t&    operator=(const bf_prefetch_thread_t&);
 
-    static prefetch_status_t	
-	    _table[pf_max_unused_status][pf_max_unused_event];
+    static prefetch_status_t    
+        _table[pf_max_unused_status][pf_max_unused_event];
 };
 
 /*<std-footer incl-file-exclusion='BF_PREFETCH_H'>  -- do not edit anything below this line -- */

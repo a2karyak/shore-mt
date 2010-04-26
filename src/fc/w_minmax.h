@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='W_MINMAX_H'>
 
- $Id: w_minmax.h,v 1.19 2007/05/18 21:38:25 nhall Exp $
+ $Id: w_minmax.h,v 1.19.2.4 2010/03/19 22:17:20 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -34,11 +34,11 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 
 /*  -- do not edit anything above this line --   </std-header>*/
 
-#if !defined(GNUG_BUG_14) && !defined(_WINDOWS)
+#if !defined(GNUG_BUG_14) 
 
 // WARNING: due to a gcc 2.6.* bug, do not used these
 //          since there is no way to explicitly instantiate
-//	    function templates.
+//        function templates.
 
 template <class T>
 inline const T 

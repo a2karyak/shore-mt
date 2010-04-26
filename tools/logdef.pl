@@ -2,7 +2,7 @@
 
 # <std-header style='perl' orig-src='shore'>
 #
-#  $Id: logdef.pl,v 1.13 1999/06/07 19:09:14 kupsch Exp $
+#  $Id: logdef.pl,v 1.13.2.3 2010/03/19 22:15:50 nhall Exp $
 #
 # SHORE -- Scalable Heterogeneous Object REpository
 #
@@ -52,7 +52,7 @@ EOF
 my %options = (help => 0);
 my @options = "help|h!";
 my $ok = GetOptions(\%options, @options);
-$ok = 0 if $#ARGV != 0;
+$ok = 0 if $#options != 0;
 if (!$ok || $options{help})  {
     Usage();
     die(!$ok);
@@ -228,7 +228,7 @@ CLASSDEF
         print STUB "    bool should_log = smlevel_1::log && smlevel_0::logging_enabled";
 	if($aflag==0) {
 	    if ($page eq "page") {
-		print STUB "\n\t\t\t&& (page.store_flags() & page.st_tmp) == 0";
+		print STUB "\n\t\t\t&& (page.get_store_flags() & page.st_tmp) == 0";
 	    }
 	    print STUB "\n\t\t\t&& xd && xd->is_log_on()";
 	}
@@ -254,6 +254,6 @@ CLASSDEF
 	print STUB "    return RCOK;\n";
     print STUB "}\n";
 
-    print FUNC "EXTERN $func;\n";
+    print FUNC "extern \"C\" $func;\n";
     } 
 }

@@ -1,6 +1,6 @@
 # <std-header style='tcl' orig-src='shore'>
 #
-#  $Id: bt.insertremove.0,v 1.13 1999/06/07 19:05:11 kupsch Exp $
+#  $Id: bt.insertremove.0,v 1.13.4.1 2009/12/03 00:21:06 nhall Exp $
 #
 # SHORE -- Scalable Heterogeneous Object REpository
 #
@@ -28,7 +28,7 @@
 #   -- do not edit anything above this line --   </std-header>
 
 source $script_dir/vol.init
-source $script_dir/bt.lib
+source $script_dir/bt.tcl
 
 set keylist { 118 1493 1663 1797 235 2487 \
 	2786 2927 \

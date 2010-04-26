@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: w_bitmap.cpp,v 1.16 2007/05/18 21:38:24 nhall Exp $
+ $Id: w_bitmap.cpp,v 1.16.2.4 2010/03/19 22:17:19 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -96,19 +96,19 @@ w_bitmap_t::clr(uint4_t offset)
 w_base_t::int4_t
 w_bitmap_t::first_set(uint4_t start) const
 {
-    w_assert3(start < sz);
+    w_assert9(start < sz);
     register uint1_t* p = ptr + div8(start);
     register uint4_t mask = 1 << mod8(start);
     register uint4_t size = sz;
     for (size -= start; size; start++, size--)  {
-	if (*p & mask)  {
-	    w_assert3(is_set(start));
-	    return start;
-	}
-	if ((mask <<= 1) == 0x100)  {
-	    mask = 1;
-	    p++;
-	}
+    if (*p & mask)  {
+        w_assert9(is_set(start));
+        return start;
+    }
+    if ((mask <<= 1) == 0x100)  {
+        mask = 1;
+        p++;
+    }
     }
     
     return -1;
@@ -117,18 +117,18 @@ w_bitmap_t::first_set(uint4_t start) const
 w_base_t::int4_t
 w_bitmap_t::first_clr(uint4_t start) const
 {
-    w_assert3(start < sz);
+    w_assert9(start < sz);
     register uint1_t* p = ptr + div8(start);
     register uint4_t mask = 1 << mod8(start);
     register uint4_t size = sz;
     for (size -= start; size; start++, size--) {
-	if ((*p & mask) == 0)	{
-	    return start;
-	}
-	if ((mask <<= 1) == 0x100)  {
-	    mask = 1;
-	    p++;
-	}
+    if ((*p & mask) == 0)    {
+        return start;
+    }
+    if ((mask <<= 1) == 0x100)  {
+        mask = 1;
+        p++;
+    }
     }
     
     return -1;
@@ -142,11 +142,11 @@ w_bitmap_t::num_set() const
     int count;
     int mask;
     for (count = 0, mask = 1; size; size--)  {
-	if (*p & mask)	count++;
-	if ((mask <<= 1) == 0x100)  {
-	    mask = 1;
-	    p++;
-	}
+    if (*p & mask)    count++;
+    if ((mask <<= 1) == 0x100)  {
+        mask = 1;
+        p++;
+    }
     }
     return count;
 }
@@ -154,7 +154,7 @@ w_bitmap_t::num_set() const
 ostream& operator<<(ostream& o, const w_bitmap_t& obj)
 {
     for (register unsigned i = 0; i < obj.sz; i++)  {
-	o << (obj.is_set(i) != 0);
+    o << (obj.is_set(i) != 0);
     }
     return o;
 }

@@ -1,6 +1,6 @@
 # <std-header style='tcl' orig-src='shore'>
 #
-#  $Id: file.activity,v 1.13 2007/08/21 19:43:59 nhall Exp $
+#  $Id: file.activity,v 1.12.2.2 2009/10/13 22:10:47 nhall Exp $
 #
 # SHORE -- Scalable Heterogeneous Object REpository
 #
@@ -103,7 +103,9 @@ verbose
 verbose ********************************
 verbose STAT NUMBERS ARE FOR $numTests RUNS.
 verbose ********************************
-verbose [sm gather_stats]
+set n [sm gather_stats]
+verbose [pnzstats $n]
+unset n
 verbose
 verbose
 

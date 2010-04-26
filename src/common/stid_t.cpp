@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: stid_t.cpp,v 1.13 2007/05/18 21:33:42 nhall Exp $
+ $Id: stid_t.cpp,v 1.13.2.3 2010/01/28 04:53:23 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -42,7 +42,6 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #include <w_base.h>
 #include <w_minmax.h>
 #include "basics.h"
-#include "dual_assert.h"
 #include "stid_t.h"
 
 const stid_t stid_t::null;
@@ -58,20 +57,20 @@ istream& operator>>(istream& i, stid_t& stid)
     memset(c, '\0', sizeof(c));
     i >> c[0];
     if(i.good()) 
-	i >> c[1];
+        i >> c[1];
     if(i.good()) 
-	i >> stid.vol;
+        i >> stid.vol;
     if(i.good()) 
-	i >> c[2];
+        i >> c[2];
     if(i.good()) 
-	i >> stid.store;
+        i >> stid.store;
     if(i.good()) 
-	i >> c[3];
+        i >> c[3];
     c[4] = '\0';
     if (i) {
         if (strcmp(c, "s(.)")) {
-	    i.clear(ios::badbit|i.rdstate());  // error
-	}
+            i.clear(ios::badbit|i.rdstate());  // error
+        }
     }
     return i;
 }

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: pmap.cpp,v 1.9 1999/06/07 19:04:20 kupsch Exp $
+ $Id: pmap.cpp,v 1.9.2.4 2010/01/28 04:54:09 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -38,17 +38,17 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #endif
 #include "sm_int_0.h"
 
-ostream	&Pmap::print(ostream &s) const
+ostream    &Pmap::print(ostream &s) const
 {
-	for (unsigned i = 0; i < sizeof(bits); i++)
-	{
-	    W_FORM(s)("%02x", bits[i]);
-	}
-	return s;
+    for (unsigned i = 0; i < sizeof(bits); i++)
+    {
+        W_FORM(s)("%02x", bits[i]);
+    }
+    return s;
 }
 
-ostream	&operator<<(ostream &s, const Pmap &pmap)
+ostream    &operator<<(ostream &s, const Pmap &pmap)
 {
-	return pmap.print(s);
+    return pmap.print(s);
 }
 

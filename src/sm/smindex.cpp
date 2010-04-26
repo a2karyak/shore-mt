@@ -1,6 +1,29 @@
+/* -*- mode:C++; c-basic-offset:4 -*-
+     Shore-MT -- Multi-threaded port of the SHORE storage manager
+   
+                       Copyright (c) 2007-2009
+      Data Intensive Applications and Systems Labaratory (DIAS)
+               Ecole Polytechnique Federale de Lausanne
+   
+                         All Rights Reserved.
+   
+   Permission to use, copy, modify and distribute this software and
+   its documentation is hereby granted, provided that both the
+   copyright notice and this permission notice appear in all copies of
+   the software, derivative works or modified versions, and any
+   portions thereof, and that both notices appear in supporting
+   documentation.
+   
+   This code is distributed in the hope that it will be useful, but
+   WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. THE AUTHORS
+   DISCLAIM ANY LIABILITY OF ANY KIND FOR ANY DAMAGES WHATSOEVER
+   RESULTING FROM THE USE OF THIS SOFTWARE.
+*/
+
 /*<std-header orig-src='shore'>
 
- $Id: smindex.cpp,v 1.101 2007/08/21 19:50:43 nhall Exp $
+ $Id: smindex.cpp,v 1.100.2.8 2010/03/19 22:20:27 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -38,86 +61,70 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #include "sm.h"
 
 /*==============================================================*
- *  Physical ID version of all the index operations		*
+ *  Physical ID version of all the index operations                *
  *==============================================================*/
 
 /*********************************************************************
  *
- *  ss_m::create_index(vid, ntype, property, key_desc, stid, serial)
- *  ss_m::create_index(vid, ntype, property, key_desc, cc, stid, serial)
+ *  ss_m::create_index(vid, ntype, property, key_desc, stid)
+ *  ss_m::create_index(vid, ntype, property, key_desc, cc, stid)
  *
  *********************************************************************/
-#if 0
 rc_t
 ss_m::create_index(
-    vid_t 		vid, 
-    ndx_t 		ntype, 
-    store_property_t 	property,
-    const char* 	key_desc,
-    stid_t& 		stid
+    vid_t                   vid, 
+    ndx_t                   ntype, 
+    store_property_t        property,
+    const char*             key_desc,
+    stid_t&                 stid
     )
 {
     return 
-    create_index(vid, ntype, property, key_desc, t_cc_kvl, stid
-	    );
+    create_index(vid, ntype, property, key_desc, t_cc_kvl, stid);
 }
-#endif
 
 rc_t
 ss_m::create_index(
-    vid_t 		vid, 
-    ndx_t 		ntype, 
-    store_property_t 	property,
-    const char* 	key_desc,
-    concurrency_t 	cc, 
-    stid_t& 		stid
+    vid_t                 vid, 
+    ndx_t                 ntype, 
+    store_property_t         property,
+    const char*         key_desc,
+    concurrency_t         cc, 
+    stid_t&                 stid
     )
 {
     SM_PROLOGUE_RC(ss_m::create_index, in_xct, 0);
-    SMSCRIPT(<<"create_index " 
-	<<vid<<" " <<ntype<<" " <<property<<" " <<key_desc<<" "
-	<<stid<<" " <<serial);
-    stpgid_t stpgid;
     if(property == t_temporary) {
-	return RC(eBADSTOREFLAGS);
+                return RC(eBADSTOREFLAGS);
     }
-    W_DO(_create_index(vid, ntype, property, key_desc, cc,
-		       false, stpgid
-		       ));
-    stid = stpgid;
+    W_DO(_create_index(vid, ntype, property, key_desc, cc, stid));
 
     return RCOK;
 }
 
 rc_t
 ss_m::create_md_index(
-    vid_t 		vid, 
-    ndx_t 		ntype, 
-    store_property_t 	property,
-    stid_t& 		stid, 
-    int2_t 		dim
+    vid_t                 vid, 
+    ndx_t                 ntype, 
+    store_property_t         property,
+    stid_t&                 stid, 
+    int2_t                 dim
     )
 {
     SM_PROLOGUE_RC(ss_m::create_md_index, in_xct, 0);
-    SMSCRIPT(<<"create_index " 
-	<<vid<<" " <<ntype<<" " <<property<<" " <<stid<<" "
-	<<dim 
-	);
     W_DO(_create_md_index(vid, ntype, property,
-			  stid, dim
-			  ));
+                          stid, dim));
     return RCOK;
 }
 
 
 /*--------------------------------------------------------------*
- *  ss_m::destroy_index()					*
+ *  ss_m::destroy_index()                                        *
  *--------------------------------------------------------------*/
 rc_t
 ss_m::destroy_index(const stid_t& iid)
 {
     SM_PROLOGUE_RC(ss_m::destroy_index, in_xct, 0);
-    SMSCRIPT(<<"destroy_index " <<iid);
     W_DO( _destroy_index(iid) );
     return RCOK;
 }
@@ -126,109 +133,102 @@ rc_t
 ss_m::destroy_md_index(const stid_t& iid)
 {
     SM_PROLOGUE_RC(ss_m::destroy_md_index, in_xct, 0);
-    SMSCRIPT(<<"destroy_md_index " <<iid);
     W_DO( _destroy_md_index(iid) );
     return RCOK;
 }
 
 
 /*--------------------------------------------------------------*
- *  ss_m::bulkld_index()					*
+ *  ss_m::bulkld_index()                                        *
  *--------------------------------------------------------------*/
 rc_t
 ss_m::bulkld_index(
-    const stid_t& 	stid, 
-    int			nsrcs,
-    const stid_t* 	source,
-    sm_du_stats_t& 	stats,
-    bool		sort_duplicates, // = true
-    bool		lexify_keys // = true
+    const stid_t&         stid, 
+    int                        nsrcs,
+    const stid_t*         source,
+    sm_du_stats_t&         _stats,
+    bool                sort_duplicates, // = true
+    bool                lexify_keys // = true
     )
 {
     SM_PROLOGUE_RC(ss_m::bulkld_index, in_xct, 0);
-    SMSCRIPT(<<"bulkld_index " <<stid<<" "<<source<<" "<<stats);
-    W_DO(_bulkld_index(stid, nsrcs, source, stats, sort_duplicates, lexify_keys) );
+    W_DO(_bulkld_index(stid, nsrcs, source, _stats, sort_duplicates, lexify_keys) );
     return RCOK;
 }
 
-w_rc_t	ss_m::bulkld_index(
-	const	stid_t	&stid,
-	const	stid_t	&source,
-	sm_du_stats_t	&stats,
-	bool		sort_duplicates,
-	bool		lexify_keys
-	)
+w_rc_t        ss_m::bulkld_index(
+    const        stid_t        &stid,
+    const        stid_t        &source,
+    sm_du_stats_t        &_stats,
+    bool                sort_duplicates,
+    bool                lexify_keys
+    )
 {
-	return bulkld_index(stid, 1, &source, stats,
-			    sort_duplicates, lexify_keys);
+    return bulkld_index(stid, 1, &source, _stats,
+                        sort_duplicates, lexify_keys);
 }
 
 rc_t
 ss_m::bulkld_md_index(
-    const stid_t& 	stid, 
-    int			nsrcs,
-    const stid_t* 	source,
-    sm_du_stats_t& 	stats,
-    int2_t 		hff, 
-    int2_t 		hef, 
-    nbox_t* 		universe)
+    const stid_t&         stid, 
+    int                        nsrcs,
+    const stid_t*         source,
+    sm_du_stats_t&         _stats,
+    int2_t                 hff, 
+    int2_t                 hef, 
+    nbox_t*                 universe)
 {
     SM_PROLOGUE_RC(ss_m::bulkld_md_index, in_xct, 0);
-    SMSCRIPT(<<"bulkld_md_index " <<stid<<" "<<source<<" "<<stats
-	 << " " <<hff<<" "<<hef<<" "<<universe);
-    W_DO(_bulkld_md_index(stid, nsrcs, source, stats, hff, hef, universe));
+    W_DO(_bulkld_md_index(stid, nsrcs, source, _stats, hff, hef, universe));
     return RCOK;
 }
 
-w_rc_t	ss_m::bulkld_md_index(
-	const stid_t	&stid,
-	const stid_t	&source,
-	sm_du_stats_t	&stats,
-	int2_t		hff,
-	int2_t		hef,
-	nbox_t		*universe
-	)
+w_rc_t        
+ss_m::bulkld_md_index(
+    const stid_t        &stid,
+    const stid_t        &source,
+    sm_du_stats_t        &_stats,
+    int2_t                hff,
+    int2_t                hef,
+    nbox_t                *universe
+)
 {
-	return bulkld_md_index(stid, 1, &source, stats, hff, hef, universe);
+    return bulkld_md_index(stid, 1, &source, _stats, hff, hef, universe);
 }
 
 rc_t
 ss_m::bulkld_index(
-    const stid_t& 	stid, 
-    sort_stream_i& 	sorted_stream,
-    sm_du_stats_t& 	stats)
+    const stid_t&         stid, 
+    sort_stream_i&         sorted_stream,
+    sm_du_stats_t&         _stats)
 {
     SM_PROLOGUE_RC(ss_m::bulkld_index, in_xct, 0);
-    SMSCRIPT(<<"bulkld_index " <<stid<<" " << "{NOT IMPL:sorted_stream}"<<" " << stats);
-    W_DO(_bulkld_index(stid, sorted_stream, stats) );
+    W_DO(_bulkld_index(stid, sorted_stream, _stats) );
     DBG(<<"bulkld_index " <<stid<<" returning RCOK");
     return RCOK;
 }
 
 rc_t
 ss_m::bulkld_md_index(
-    const stid_t& 	stid, 
-    sort_stream_i& 	sorted_stream,
-    sm_du_stats_t& 	stats,
-    int2_t 		hff, 
-    int2_t 		hef, 
-    nbox_t* 		universe)
+    const stid_t&         stid, 
+    sort_stream_i&         sorted_stream,
+    sm_du_stats_t&         _stats,
+    int2_t                 hff, 
+    int2_t                 hef, 
+    nbox_t*                 universe)
 {
     SM_PROLOGUE_RC(ss_m::bulkld_md_index, in_xct, 0);
-    SMSCRIPT(<<"bulkld_md_index " <<stid<<" "<<"{NOT IMPL: sorted_stream}"<<" " << stats
-	 << " " <<hff<<" "<<hef<<" "<<universe);
-    W_DO(_bulkld_md_index(stid, sorted_stream, stats, hff, hef, universe));
+    W_DO(_bulkld_md_index(stid, sorted_stream, _stats, hff, hef, universe));
     return RCOK;
 }
     
 /*--------------------------------------------------------------*
- *  ss_m::print_index()						*
+ *  ss_m::print_index()                                                *
  *--------------------------------------------------------------*/
 rc_t
 ss_m::print_index(stid_t stid)
 {
     SM_PROLOGUE_RC(ss_m::print_index, in_xct, 0);
-    SMSCRIPT(<<"print_index " <<stid);
     W_DO(_print_index(stid));
     return RCOK;
 }
@@ -237,33 +237,30 @@ rc_t
 ss_m::print_md_index(stid_t stid)
 {
     SM_PROLOGUE_RC(ss_m::print_index, in_xct, 0);
-    SMSCRIPT(<<"print_md_index " <<stid);
     W_DO(_print_md_index(stid));
     return RCOK;
 }
 
 /*--------------------------------------------------------------*
- *  ss_m::create_assoc()					*
+ *  ss_m::create_assoc()                                        *
  *--------------------------------------------------------------*/
 rc_t
 ss_m::create_assoc(stid_t stid, const vec_t& key, const vec_t& el
-	)
+        )
 {
     SM_PROLOGUE_RC(ss_m::create_assoc, in_xct, 0);
-    SMSCRIPT(<<"create_assoc " <<stid <<" " << key <<" "<<el);
     W_DO(_create_assoc(stid, key, el));
     return RCOK;
 }
 
 /*--------------------------------------------------------------*
- *  ss_m::destroy_assoc()					*
+ *  ss_m::destroy_assoc()                                        *
  *--------------------------------------------------------------*/
 rc_t
 ss_m::destroy_assoc(stid_t stid, const vec_t& key, const vec_t& el
 )
 {
     SM_PROLOGUE_RC(ss_m::destroy_assoc, in_xct, 0);
-    SMSCRIPT(<<"destroy_assoc " <<stid << " " <<key << " "<<el);
     W_DO(_destroy_assoc(stid, key, el));
     return RCOK;
 }
@@ -271,33 +268,31 @@ ss_m::destroy_assoc(stid_t stid, const vec_t& key, const vec_t& el
 
 
 /*--------------------------------------------------------------*
- *  ss_m::destroy_all_assoc()					*
+ *  ss_m::destroy_all_assoc()                                        *
  *--------------------------------------------------------------*/
 rc_t
 ss_m::destroy_all_assoc(stid_t stid, const vec_t& key, int& num)
 {
     SM_PROLOGUE_RC(ss_m::destroy_assoc, in_xct, 0);
-    RES_SMSCRIPT(<<"destroy_all_assoc " <<stid <<" "<< key );
     W_DO(_destroy_all_assoc(stid, key, num));
     return RCOK;
 }
 
 /*--------------------------------------------------------------*
- *  ss_m::find_assoc()						*
+ *  ss_m::find_assoc()                                                *
  *--------------------------------------------------------------*/
 rc_t
 ss_m::find_assoc(stid_t stid, const vec_t& key, 
-	    	void* el, smsize_t& elen, bool& found
-	      )
+                    void* el, smsize_t& elen, bool& found
+              )
 {
     SM_PROLOGUE_RC(ss_m::find_assoc, in_xct, 0);
-    RES_SMSCRIPT(<<"find_assoc " <<stid <<" " << key << " " << el );
     W_DO(_find_assoc(stid, key, el, elen, found));
     return RCOK;
 }
 
 /*--------------------------------------------------------------*
- *  ss_m::create_md_assoc()					*
+ *  ss_m::create_md_assoc()                                        *
  *--------------------------------------------------------------*/
 rc_t
 ss_m::create_md_assoc(stid_t stid, const nbox_t& key, const vec_t& el)
@@ -309,7 +304,7 @@ ss_m::create_md_assoc(stid_t stid, const nbox_t& key, const vec_t& el)
 
 
 /*--------------------------------------------------------------*
- *  ss_m::find_md_assoc()					*
+ *  ss_m::find_md_assoc()                                        *
  *--------------------------------------------------------------*/
 rc_t
 ss_m::find_md_assoc(stid_t stid, const nbox_t& key,
@@ -334,7 +329,7 @@ ss_m::destroy_md_assoc(stid_t stid, const nbox_t& key, const vec_t& el)
 
 
 /*--------------------------------------------------------------*
- *  ss_m::draw_rtree()						*
+ *  ss_m::draw_rtree()                                                *
  *--------------------------------------------------------------*/
 rc_t
 ss_m::draw_rtree(const stid_t& stid, ostream &s)
@@ -345,55 +340,43 @@ ss_m::draw_rtree(const stid_t& stid, ostream &s)
 }
 
 /*--------------------------------------------------------------*
- *  ss_m::rtree_stats()						*
+ *  ss_m::rtree_stats()                                                *
  *--------------------------------------------------------------*/
 rc_t
 ss_m::rtree_stats(const stid_t& stid, rtree_stats_t& stat, 
-		uint2_t size, uint2_t* ovp, bool audit)
+                uint2_t size, uint2_t* ovp, bool audit)
 {
     SM_PROLOGUE_RC(ss_m::rtree_stats, in_xct, 0);
     W_DO(_rtree_stats(stid, stat, size, ovp, audit));
     return RCOK;
 }
 
-/*==============================================================*
- * Internal versions of index ops
- *==============================================================*/
+
 /*--------------------------------------------------------------*
- *  ss_m::_create_index()					*
+ *  ss_m::_create_index()                                        *
  *--------------------------------------------------------------*/
 rc_t
 ss_m::_create_index(
-    vid_t 		vid, 
-    ndx_t 		ntype, 
-    store_property_t 	property,
-    const char* 	key_desc,
-    concurrency_t       cc, // = t_cc_kvl
-    bool 		use_1page_store,
-    stpgid_t& 		stpgid
+    vid_t                   vid, 
+    ndx_t                   ntype, 
+    store_property_t        property,
+    const char*             key_desc,
+    concurrency_t           cc, // = t_cc_kvl
+    stid_t&                 stid
     )
 {
     FUNC(ss_m::_create_index);
+
+    DBG(<<" vid " << vid);
     uint4_t count = max_keycomp;
     key_type_s kcomp[max_keycomp];
     lpid_t root;
 
     W_DO( key_type_s::parse_key_type(key_desc, count, kcomp) );
-
-
-    if (use_1page_store) {
-	DBG(<< "creating a 1-page btree");
-	W_DO(io->alloc_pages(stid_t(vid, store_id_1page), 
-			     lpid_t::null, // near hint
-			     1, &root, // npages, array for output pids
-			     true, 	// may_realloc
-			     NL,
-			     true));
-	stpgid = stpgid_t(root);
-    } else {
-	stid_t stid;
-	W_DO( io->create_store(vid, 100/*unused*/, _make_store_flag(property), stid) );
-	stpgid = stpgid_t(stid);
+    {
+        DBG(<<"vid " << vid);
+        W_DO( io->create_store(vid, 100/*unused*/, _make_store_flag(property), stid) );
+    DBG(<<" stid " << stid);
     }
 
     // Note: theoretically, some other thread could destroy
@@ -402,48 +385,47 @@ ss_m::_create_index(
     //       happen would be due to a bug in a vas causing
     //       it to destroy the wrong store.  We make no attempt
     //       to prevent this.
-    W_DO(lm->lock(stpgid, EX, t_long, WAIT_SPECIFIED_BY_XCT));
+    W_DO(lm->lock(stid, EX, t_long, WAIT_SPECIFIED_BY_XCT));
 
     if( (cc != t_cc_none) && (cc != t_cc_file) &&
-	(cc != t_cc_kvl) && (cc != t_cc_modkvl) &&
-	(cc != t_cc_im)
-	) return RC(eBADCCLEVEL);
+        (cc != t_cc_kvl) && (cc != t_cc_modkvl) &&
+        (cc != t_cc_im)
+        ) return RC(eBADCCLEVEL);
 
     switch (ntype)  {
     case t_btree:
     case t_uni_btree:
-	// compress prefixes only if the first part is compressed
-	W_DO( bt->create(stpgid, root, kcomp[0].compressed != 0) );
+        // compress prefixes only if the first part is compressed
+        W_DO( bt->create(stid, root, kcomp[0].compressed != 0) );
 
-	break;
+        break;
     default:
-	return RC(eBADNDXTYPE);
+        return RC(eBADNDXTYPE);
     }
-    sinfo_s sinfo(stpgid.store(), t_index, 100/*unused*/, 
-		  ntype,
-		  cc,
-		  root.page, 
-		  count, kcomp);
-    W_DO( dir->insert(stpgid, sinfo) );
+    sinfo_s sinfo(stid.store, t_index, 100/*unused*/, 
+                  ntype,
+                  cc,
+                  root.page, 
+                  count, kcomp);
+    W_DO( dir->insert(stid, sinfo) );
 
     return RCOK;
 }
 
-
 /*--------------------------------------------------------------*
- *  ss_m::_create_md_index()					*
+ *  ss_m::_create_md_index()                                    *
  *--------------------------------------------------------------*/
 rc_t
 ss_m::_create_md_index(
-    vid_t 		vid, 
-    ndx_t 		ntype, 
-    store_property_t 	property,
-    stid_t& 		stid, 
-    int2_t 		dim
+    vid_t                 vid, 
+    ndx_t                 ntype, 
+    store_property_t         property,
+    stid_t&                 stid, 
+    int2_t                 dim
     )
 {
     W_DO( io->create_store(vid, 100/*unused*/, 
-			   _make_store_flag(property), stid) );
+                           _make_store_flag(property), stid) );
 
     lpid_t root;
 
@@ -457,26 +439,26 @@ ss_m::_create_md_index(
 
     switch (ntype)  {
     case t_rtree:
-	W_DO( rt->create(stid, root, dim) );
-	break;
+        W_DO( rt->create(stid, root, dim) );
+        break;
     default:
-	return RC(eBADNDXTYPE);
+        return RC(eBADNDXTYPE);
     }
 
     sinfo_s sinfo(stid.store, t_index, 100/*unused*/, 
-	  	  ntype, t_cc_none, // cc not used for md indexes
-		  root.page, 
-		  0, 0);
-    W_DO( dir->insert(stpgid_t(stid), sinfo) );
+                    ntype, t_cc_none, // cc not used for md indexes
+                  root.page,
+                  0, 0);
+    W_DO( dir->insert(stid, sinfo) );
 
     return RCOK;
 }
 
 /*--------------------------------------------------------------*
- *  ss_m::_destroy_index()					*
+ *  ss_m::_destroy_index()                                        *
  *--------------------------------------------------------------*/
 rc_t
-ss_m::_destroy_index(const stpgid_t& iid)
+ss_m::_destroy_index(const stid_t& iid)
 {
     sdesc_t* sd;
     W_DO( dir->access(iid, sd, EX) );
@@ -485,14 +467,10 @@ ss_m::_destroy_index(const stpgid_t& iid)
     switch (sd->sinfo().ntype)  {
     case t_btree:
     case t_uni_btree:
-	if (iid.is_stid()) {
-	    W_DO( io->destroy_store(iid) );
-	} else {
-	    W_DO( io->free_page(iid.lpid));
-	}
-	break;
+        W_DO( io->destroy_store(iid) );
+        break;
     default:
-	return RC(eBADNDXTYPE);
+        return RC(eBADNDXTYPE);
     }
     
     W_DO( dir->remove(iid) );
@@ -508,10 +486,10 @@ ss_m::_destroy_md_index(const stid_t& iid)
     if (sd->sinfo().stype != t_index)   return RC(eBADSTORETYPE);
     switch (sd->sinfo().ntype)  {
     case t_rtree:
-	W_DO( io->destroy_store(iid) );
-	break;
+        W_DO( io->destroy_store(iid) );
+        break;
     default:
-	return RC(eBADNDXTYPE);
+        return RC(eBADNDXTYPE);
     }
     
     W_DO( dir->remove(iid) );
@@ -519,17 +497,17 @@ ss_m::_destroy_md_index(const stid_t& iid)
 }
 
 /*--------------------------------------------------------------*
- *  ss_m::_bulkld_index()					*
+ *  ss_m::_bulkld_index()                                        *
  *--------------------------------------------------------------*/
 
 rc_t
 ss_m::_bulkld_index(
-    const stid_t& 	stid,
-    int			nsrcs,
-    const stid_t*	source,
-    sm_du_stats_t& 	stats,
-    bool		 sort_duplicates, //  = true
-    bool		 lexify_keys //  = true
+    const stid_t&         stid,
+    int                        nsrcs,
+    const stid_t*        source,
+    sm_du_stats_t&         _stats,
+    bool                 sort_duplicates, //  = true
+    bool                 lexify_keys //  = true
     )
 {
     sdesc_t* sd;
@@ -540,47 +518,46 @@ ss_m::_bulkld_index(
     case t_btree:
     case t_uni_btree:
         DBG(<<"bulk loading root " << sd->root());
-	W_DO( bt->bulk_load(sd->root(), 
-	    nsrcs,
-	    source,
-	    sd->sinfo().nkc, sd->sinfo().kc,
-	    sd->sinfo().ntype == t_uni_btree, 
-	    (concurrency_t)sd->sinfo().cc,
-	    stats.btree,
-	    sort_duplicates,
-	    lexify_keys
-	    ) );
-	break;
+        W_DO( bt->bulk_load(sd->root(), 
+            nsrcs,
+            source,
+            sd->sinfo().nkc, sd->sinfo().kc,
+            sd->sinfo().ntype == t_uni_btree, 
+            (concurrency_t)sd->sinfo().cc,
+            _stats.btree,
+            sort_duplicates,
+            lexify_keys
+            ) );
+        break;
     default:
-	return RC(eBADNDXTYPE);
+        return RC(eBADNDXTYPE);
     }
     {
-	store_flag_t st;
-	W_DO( io->get_store_flags(stid, st) );
-	w_assert3(st != st_bad);
-	if(st & (st_tmp|st_insert_file|st_load_file)) {
-	    DBG(<<"converting stid " << stid <<
-		" from " << st << " to st_regular " );
-	    // After bulk load, it MUST be re-converted
-	    // to regular to prevent unlogged arbitrary inserts
-	    // Invalidate the pages so the store flags get reset
-	    // when the pages are read back in
-	    W_DO( io->set_store_flags(stid, st_regular) );
-	    W_DO( bf->force_store(stid, true /*invalidate*/) );
-	}
+        store_flag_t st;
+        W_DO( io->get_store_flags(stid, st) );
+        w_assert3(st != st_bad);
+        if(st & (st_tmp|st_insert_file|st_load_file)) {
+            DBG(<<"converting stid " << stid <<
+                " from " << st << " to st_regular " );
+            // After bulk load, it MUST be re-converted
+            // to regular to prevent unlogged arbitrary inserts
+            // Invalidate the pages so the store flags get reset
+            // when the pages are read back in
+            W_DO( io->set_store_flags(stid, st_regular) );
+        }
     }
     return RCOK;
 }
 
 rc_t
 ss_m::_bulkld_md_index(
-    const stid_t& 	stid, 
-    int			nsrcs,
-    const stid_t* 	source, 
-    sm_du_stats_t& 	stats,
-    int2_t 		hff, 
-    int2_t 		hef, 
-    nbox_t* 		universe)
+    const stid_t&         stid, 
+    int                        nsrcs,
+    const stid_t*         source, 
+    sm_du_stats_t&         _stats,
+    int2_t                 hff, 
+    int2_t                 hef, 
+    nbox_t*                 universe)
 {
     sdesc_t* sd;
     W_DO( dir->access(stid, sd, EX) );
@@ -588,27 +565,24 @@ ss_m::_bulkld_md_index(
     if (sd->sinfo().stype != t_index)   return RC(eBADSTORETYPE);
     switch (sd->sinfo().ntype) {
     case t_rtree:
-	{
-	    rtld_desc_t desc(universe,hff,hef);
-	    W_DO( rt->bulk_load(sd->root(), nsrcs, source, desc, stats.rtree) ); 
-	}
-	break;
-    case t_rdtree:
-	return RC(eNOTIMPLEMENTED);
+        {
+            rtld_desc_t desc(universe,hff,hef);
+            W_DO( rt->bulk_load(sd->root(), nsrcs, source, desc, _stats.rtree) ); 
+        }
+        break;
     default:
-	return RC(eBADNDXTYPE);
+        return RC(eBADNDXTYPE);
     }
     {
-	store_flag_t st;
-	W_DO( io->get_store_flags(stid, st) );
-	if(st & (st_tmp|st_insert_file|st_load_file)) {
-	    // After bulk load, it MUST be re-converted
-	    // to regular to prevent unlogged arbitrary inserts
-	    // Invalidate the pages so the store flags get reset
-	    // when the pages are read back in
-	    W_DO( io->set_store_flags(stid, st_regular) );
-	    W_DO( bf->force_store(stid, true /*invalidate*/) );
-	}
+        store_flag_t st;
+        W_DO( io->get_store_flags(stid, st) );
+        if(st & (st_tmp|st_insert_file|st_load_file)) {
+            // After bulk load, it MUST be re-converted
+            // to regular to prevent unlogged arbitrary inserts
+            // Invalidate the pages so the store flags get reset
+            // when the pages are read back in
+            W_DO( io->set_store_flags(stid, st_regular) );
+        }
     }
 
     return RCOK;
@@ -616,9 +590,9 @@ ss_m::_bulkld_md_index(
 
 rc_t
 ss_m::_bulkld_index(
-    const stid_t& 	stid, 
-    sort_stream_i& 	sorted_stream, 
-    sm_du_stats_t& 	stats
+    const stid_t&         stid, 
+    sort_stream_i&         sorted_stream, 
+    sm_du_stats_t&         _stats
     )
 {
     sdesc_t* sd;
@@ -628,13 +602,13 @@ ss_m::_bulkld_index(
     switch (sd->sinfo().ntype) {
     case t_btree:
     case t_uni_btree:
-	W_DO( bt->bulk_load(sd->root(), sorted_stream,
-			    sd->sinfo().nkc, sd->sinfo().kc,
-			    sd->sinfo().ntype == t_uni_btree, 
-			    (concurrency_t)sd->sinfo().cc, stats.btree) );
-	break;
+        W_DO( bt->bulk_load(sd->root(), sorted_stream,
+                            sd->sinfo().nkc, sd->sinfo().kc,
+                            sd->sinfo().ntype == t_uni_btree, 
+                            (concurrency_t)sd->sinfo().cc, _stats.btree) );
+        break;
     default:
-	return RC(eBADNDXTYPE);
+        return RC(eBADNDXTYPE);
     }
 
     return RCOK;
@@ -642,12 +616,12 @@ ss_m::_bulkld_index(
 
 rc_t
 ss_m::_bulkld_md_index(
-    const stid_t& 	stid, 
-    sort_stream_i& 	sorted_stream, 
-    sm_du_stats_t&	stats,
-    int2_t 		hff, 
-    int2_t 		hef, 
-    nbox_t* 		universe)
+    const stid_t&         stid, 
+    sort_stream_i&         sorted_stream, 
+    sm_du_stats_t&        _stats,
+    int2_t                 hff, 
+    int2_t                 hef, 
+    nbox_t*                 universe)
 {
     sdesc_t* sd;
     W_DO( dir->access(stid, sd, EX) );
@@ -655,44 +629,41 @@ ss_m::_bulkld_md_index(
     if (sd->sinfo().stype != t_index)   return RC(eBADSTORETYPE);
     switch (sd->sinfo().ntype) {
     case t_rtree:
-	{
-	    rtld_desc_t desc(universe,hff,hef);
-	    W_DO( rt->bulk_load(sd->root(), sorted_stream, desc, stats.rtree) );
-	}
-	break;
-    case t_rdtree:
-	return RC(eNOTIMPLEMENTED);
+        {
+            rtld_desc_t desc(universe,hff,hef);
+            W_DO( rt->bulk_load(sd->root(), sorted_stream, desc, _stats.rtree) );
+        }
+        break;
     default:
-	return RC(eBADNDXTYPE);
+        return RC(eBADNDXTYPE);
     }
 
     return RCOK;
 }
 
 /*--------------------------------------------------------------*
- *  ss_m::_print_index()					*
+ *  ss_m::_print_index()                                        *
  *--------------------------------------------------------------*/
 rc_t
-ss_m::_print_index(stpgid_t stpgid)
+ss_m::_print_index(const stid_t& stid)
 {
     sdesc_t* sd;
-    W_DO( dir->access(stpgid, sd, IS) );
+    W_DO( dir->access(stid, sd, IS) );
 
     if (sd->sinfo().stype != t_index)   return RC(eBADSTORETYPE);
     if (sd->sinfo().nkc > 1) {
-	//can't handle multi-part keys
-	return RC(eNOTIMPLEMENTED);
+        //can't handle multi-part keys
+        fprintf(stderr, "multi-part keys are not supported");
+        return RC(eNOTIMPLEMENTED);
     }
     sortorder::keytype k = sortorder::convert(sd->sinfo().kc);
     switch (sd->sinfo().ntype) {
     case t_btree:
     case t_uni_btree:
-	bt->print(sd->root(), k);
-	break;
-    case t_lhash:
-	return RC(eNOTIMPLEMENTED);
+        bt->print(sd->root(), k);
+        break;
     default:
-	return RC(eBADNDXTYPE);
+        return RC(eBADNDXTYPE);
     }
 
     return RCOK;
@@ -707,106 +678,106 @@ ss_m::_print_md_index(stid_t stid)
     if (sd->sinfo().stype != t_index)   return RC(eBADSTORETYPE);
     switch (sd->sinfo().ntype) {
     case t_rtree:
-	W_DO( rt->print(sd->root()) );
-	break;
+        W_DO( rt->print(sd->root()) );
+        break;
     default:
-	return RC(eBADNDXTYPE);
+        return RC(eBADNDXTYPE);
     }
 
     return RCOK;
 }
 
 /*--------------------------------------------------------------*
- *  ss_m::_create_assoc()					*
+ *  ss_m::_create_assoc()                                        *
  *--------------------------------------------------------------*/
 rc_t
 ss_m::_create_assoc(
-    const stpgid_t& 	stpgid, 
-    const vec_t& 	key, 
-    const vec_t& 	el
+    const stid_t&        stid, 
+    const vec_t&         key, 
+    const vec_t&         el
 )
 {
     // usually we will do kvl locking and already have an IX lock
     // on the index
-    lock_mode_t		index_mode = NL;// lock mode needed on index
+    lock_mode_t                index_mode = NL;// lock mode needed on index
 
     // determine if we need to change the settins of cc and index_mode
     concurrency_t cc = t_cc_bad;
     xct_t* xd = xct();
     if (xd)  {
-	lock_mode_t lock_mode;
-	W_DO( lm->query(stpgid, lock_mode, xd->tid(), true) );
-	// cc is off if file is EX/SH/UD/SIX locked
-	if (lock_mode == EX) {
-	    cc = t_cc_none;
-	} else if (lock_mode == IX || lock_mode >= SIX) {
-	    // no changes needed
-	} else {
-	    index_mode = IX;
-	}
+        lock_mode_t lock_mode;
+        W_DO( lm->query(stid, lock_mode, xd->tid(), true) );
+        // cc is off if file is EX/SH/UD/SIX locked
+        if (lock_mode == EX) {
+            cc = t_cc_none;
+        } else if (lock_mode == IX || lock_mode >= SIX) {
+            // no changes needed
+        } else {
+            index_mode = IX;
+        }
     }
 
     sdesc_t* sd;
-    W_DO( dir->access(stpgid, sd, index_mode) );
+    W_DO( dir->access(stid, sd, index_mode) );
 
     if (sd->sinfo().stype != t_index)   return RC(eBADSTORETYPE);
     if (cc == t_cc_bad ) cc = (concurrency_t)sd->sinfo().cc;
 
     switch (sd->sinfo().ntype) {
     case t_bad_ndx_t:
-	return RC(eBADNDXTYPE);
+        return RC(eBADNDXTYPE);
     case t_btree:
     case t_uni_btree:
-	W_DO( bt->insert(sd->root(), 
-		     sd->sinfo().nkc, sd->sinfo().kc,
-		     sd->sinfo().ntype == t_uni_btree, 
-		     cc,
-		     key, el, 50) );
-	break;
+        W_DO( bt->insert(sd->root(), 
+                     sd->sinfo().nkc, sd->sinfo().kc,
+                     sd->sinfo().ntype == t_uni_btree, 
+                     cc,
+                     key, el, 50) );
+        break;
     case t_rtree:
-    case t_rdtree:
-    case t_lhash:
-	return RC(eNOTIMPLEMENTED);
+        fprintf(stderr, 
+        "rtrees indexes do not support this function");
+        return RC(eNOTIMPLEMENTED);
     default:
-	W_FATAL(eINTERNAL);
+        W_FATAL_MSG(eINTERNAL, << "bad index type " << sd->sinfo().ntype );
     }
 
     return RCOK;
 }
 
 /*--------------------------------------------------------------*
- *  ss_m::_destroy_assoc()					*
+ *  ss_m::_destroy_assoc()                                        *
  *--------------------------------------------------------------*/
 rc_t
 ss_m::_destroy_assoc(
-    const stpgid_t& 	stpgid, 
-    const vec_t& 	key, 
-    const vec_t& 	el
+    const stid_t  &      stid, 
+    const vec_t&         key, 
+    const vec_t&         el
     )
 {
     concurrency_t cc = t_cc_bad;
     // usually we will to kvl locking and already have an IX lock
     // on the index
-    lock_mode_t		index_mode = NL;// lock mode needed on index
+    lock_mode_t                index_mode = NL;// lock mode needed on index
 
     // determine if we need to change the settins of cc and index_mode
     xct_t* xd = xct();
     if (xd)  {
-	lock_mode_t lock_mode;
-	W_DO( lm->query(stpgid, lock_mode, xd->tid(), true) );
-	// cc is off if file is EX/SH/UD/SIX locked
-	if (lock_mode == EX) {
-	    cc = t_cc_none;
-	} else if (lock_mode == IX || lock_mode >= SIX) {
-	    // no changes needed
-	} else {
-	    index_mode = IX;
-	}
+        lock_mode_t lock_mode;
+        W_DO( lm->query(stid, lock_mode, xd->tid(), true) );
+        // cc is off if file is EX/SH/UD/SIX locked
+        if (lock_mode == EX) {
+            cc = t_cc_none;
+        } else if (lock_mode == IX || lock_mode >= SIX) {
+            // no changes needed
+        } else {
+            index_mode = IX;
+        }
     }
     DBG(<<"");
 
     sdesc_t* sd;
-    W_DO( dir->access(stpgid, sd, index_mode) );
+    W_DO( dir->access(stid, sd, index_mode) );
     DBG(<<"");
 
     if (sd->sinfo().stype != t_index)   return RC(eBADSTORETYPE);
@@ -814,32 +785,139 @@ ss_m::_destroy_assoc(
 
     switch (sd->sinfo().ntype) {
     case t_bad_ndx_t:
-	return RC(eBADNDXTYPE);
+        return RC(eBADNDXTYPE);
     case t_btree:
     case t_uni_btree:
-	W_DO( bt->remove(sd->root(), 
-		 sd->sinfo().nkc, sd->sinfo().kc,
-		 sd->sinfo().ntype == t_uni_btree,
-		 cc, key, el) );
-	break;
+        W_DO( bt->remove(sd->root(), 
+                 sd->sinfo().nkc, sd->sinfo().kc,
+                 sd->sinfo().ntype == t_uni_btree,
+                 cc, key, el) );
+        break;
     case t_rtree:
-    case t_rdtree:
-    case t_lhash:
-	return RC(eNOTIMPLEMENTED);
+        fprintf(stderr, 
+        "rtree indexes do not support this function");
+        return RC(eNOTIMPLEMENTED);
     default:
-	W_FATAL(eINTERNAL);
+        W_FATAL_MSG(eINTERNAL, << "bad index type " << sd->sinfo().ntype );
     }
     DBG(<<"");
     return RCOK;
 }
+
 /*--------------------------------------------------------------*
- *  ss_m::_destroy_md_assoc()					*
+ *  ss_m::_destroy_all_assoc()                                        *
+ *--------------------------------------------------------------*/
+rc_t
+ss_m::_destroy_all_assoc(const stid_t& stid, const vec_t& key, 
+        int& num
+        )
+{
+    sdesc_t* sd;
+    W_DO( dir->access(stid, sd, IX) );
+
+    if (sd->sinfo().stype != t_index)   return RC(eBADSTORETYPE);
+    concurrency_t cc = (concurrency_t)sd->sinfo().cc;
+
+    xct_t* xd = xct();
+    if (xd)  {
+        lock_mode_t lock_mode;
+        W_DO( lm->query(stid, lock_mode, xd->tid(), true) );
+        // cc is off if file is EX locked
+        if (lock_mode == EX) cc = t_cc_none;
+    }
+    switch (sd->sinfo().ntype) {
+    case t_bad_ndx_t:
+        return RC(eBADNDXTYPE);
+    case t_btree:
+    case t_uni_btree:
+        W_DO( bt->remove_key(sd->root(), 
+                     sd->sinfo().nkc, sd->sinfo().kc,
+                     sd->sinfo().ntype == t_uni_btree,
+                     cc, key, num) );
+        break;
+    case t_rtree:
+        fprintf(stderr, 
+        "rtree indexes do not support this function");
+        return RC(eNOTIMPLEMENTED);
+    default:
+        W_FATAL_MSG(eINTERNAL, << "bad index type " << sd->sinfo().ntype );
+    }
+
+    return RCOK;
+}
+
+/*--------------------------------------------------------------*
+ *  ss_m::_find_assoc()                                                *
+ *--------------------------------------------------------------*/
+rc_t
+ss_m::_find_assoc(
+    const stid_t&         stid, 
+    const vec_t&          key, 
+    void*                 el, 
+    smsize_t&             elen, 
+    bool&                 found
+    )
+{
+    concurrency_t cc = t_cc_bad;
+    // usually we will to kvl locking and already have an IS lock
+    // on the index
+    lock_mode_t                index_mode = NL;// lock mode needed on index
+
+    // determine if we need to change the settins of cc and index_mode
+    xct_t* xd = xct();
+    if (xd)  {
+        lock_mode_t lock_mode;
+        W_DO( lm->query(stid, lock_mode, xd->tid(), true, true) );
+        // cc is off if file is EX/SH/UD/SIX locked
+        if (lock_mode >= SH) {
+            cc = t_cc_none;
+        } else if (lock_mode >= IS) {
+            // no changes needed
+        } else {
+            // Index isn't already locked; have to grab IS lock
+            // on it below, via access()
+            index_mode = IS;
+        }
+    }
+
+    sdesc_t* sd;
+    W_DO( dir->access(stid, sd, index_mode) );
+    if (sd->sinfo().stype != t_index)   return RC(eBADSTORETYPE);
+    if (cc == t_cc_bad ) cc = (concurrency_t)sd->sinfo().cc;
+
+    switch (sd->sinfo().ntype) {
+    case t_bad_ndx_t:
+        return RC(eBADNDXTYPE);
+    case t_uni_btree:
+    case t_btree:
+        W_DO( bt->lookup(sd->root(), 
+             sd->sinfo().nkc, sd->sinfo().kc,
+             sd->sinfo().ntype == t_uni_btree,
+             cc,
+             key, el, elen, found) );
+        break;
+
+    case t_rtree:
+        fprintf(stderr, 
+        "rtree indexes do not support this function");
+        return RC(eNOTIMPLEMENTED);
+    default:
+        W_FATAL_MSG(eINTERNAL, << "bad index type " << sd->sinfo().ntype );
+    }
+    
+    return RCOK;
+}
+
+
+
+/*--------------------------------------------------------------*
+ *  ss_m::destroy_md_assoc()                                    *
  *--------------------------------------------------------------*/
 rc_t
 ss_m::_destroy_md_assoc(stid_t stid, const nbox_t& key, const vec_t& el)
 {
     sdesc_t* sd;
-    W_DO( dir->access(lpid_t(stid,0), sd, IX) );
+    W_DO( dir->access(stid, sd, IX) );
 
     if (sd->sinfo().stype != t_index)   return RC(eBADSTORETYPE);
     switch (sd->sinfo().ntype) {
@@ -848,125 +926,20 @@ ss_m::_destroy_md_assoc(stid_t stid, const nbox_t& key, const vec_t& el)
       case t_rtree:
         W_DO( rt->remove(sd->root(), key, el) );
         break;
-      case t_rdtree:
       case t_btree:
       case t_uni_btree:
-      case t_lhash:
         return RC(eBADNDXTYPE);
       default:
-        W_FATAL(eINTERNAL);
+        W_FATAL_MSG(eINTERNAL, << "bad index type " << sd->sinfo().ntype );
     }
 
     return RCOK;
 }
 
-/*--------------------------------------------------------------*
- *  ss_m::_destroy_all_assoc()					*
- *--------------------------------------------------------------*/
-rc_t
-ss_m::_destroy_all_assoc(const stpgid_t& stpgid, const vec_t& key, 
-	int& num
-	)
-{
-    sdesc_t* sd;
-    W_DO( dir->access(stpgid, sd, IX) );
-
-    if (sd->sinfo().stype != t_index)   return RC(eBADSTORETYPE);
-    concurrency_t cc = (concurrency_t)sd->sinfo().cc;
-
-    xct_t* xd = xct();
-    if (xd)  {
-	lock_mode_t lock_mode;
-	W_DO( lm->query(stpgid, lock_mode, xd->tid(), true) );
-	// cc is off if file is EX locked
-	if (lock_mode == EX) cc = t_cc_none;
-    }
-    switch (sd->sinfo().ntype) {
-    case t_bad_ndx_t:
-	return RC(eBADNDXTYPE);
-    case t_btree:
-    case t_uni_btree:
-	W_DO( bt->remove_key(sd->root(), 
-		     sd->sinfo().nkc, sd->sinfo().kc,
-		     sd->sinfo().ntype == t_uni_btree,
-		     cc, key, num) );
-	break;
-    case t_rtree:
-    case t_rdtree:
-    case t_lhash:
-	return RC(eNOTIMPLEMENTED);
-    default:
-	W_FATAL(eINTERNAL);
-    }
-
-    return RCOK;
-}
-
-/*--------------------------------------------------------------*
- *  ss_m::_find_assoc()						*
- *--------------------------------------------------------------*/
-rc_t
-ss_m::_find_assoc(
-    const stpgid_t& 	stpgid, 
-    const vec_t& 	key, 
-    void* 		el, 
-    smsize_t& 		elen, 
-    bool& 		found
-    )
-{
-    concurrency_t cc = t_cc_bad;
-    // usually we will to kvl locking and already have an IS lock
-    // on the index
-    lock_mode_t		index_mode = NL;// lock mode needed on index
-
-    // determine if we need to change the settins of cc and index_mode
-    xct_t* xd = xct();
-    if (xd)  {
-	lock_mode_t lock_mode;
-	W_DO( lm->query(stpgid, lock_mode, xd->tid(), true) );
-	// cc is off if file is EX/SH/UD/SIX locked
-	if (lock_mode >= SH) {
-	    cc = t_cc_none;
-	} else if (lock_mode >= IS) {
-	    // no changes needed
-	} else {
-	    // Index isn't already locked; have to grab IS lock
-	    // on it below, via access()
-	    index_mode = IS;
-	}
-    }
-
-    sdesc_t* sd;
-    W_DO( dir->access(stpgid, sd, index_mode) );
-    if (sd->sinfo().stype != t_index)   return RC(eBADSTORETYPE);
-    if (cc == t_cc_bad ) cc = (concurrency_t)sd->sinfo().cc;
-
-    switch (sd->sinfo().ntype) {
-    case t_bad_ndx_t:
-	return RC(eBADNDXTYPE);
-    case t_uni_btree:
-    case t_btree:
-	W_DO( bt->lookup(sd->root(), 
-	     sd->sinfo().nkc, sd->sinfo().kc,
-	     sd->sinfo().ntype == t_uni_btree,
-	     cc,
-	     key, el, elen, found) );
-	break;
-
-    case t_rtree:
-    case t_rdtree:
-    case t_lhash:
-	return RC(eNOTIMPLEMENTED);
-    default:
-	W_FATAL(eINTERNAL);
-    }
-    
-    return RCOK;
-}
 
 
 /*--------------------------------------------------------------*
- *  ss_m::_create_md_assoc()					*
+ *  ss_m::_create_md_assoc()                                        *
  *--------------------------------------------------------------*/
 rc_t
 ss_m::_create_md_assoc(stid_t stid, const nbox_t& key, const vec_t& el)
@@ -979,30 +952,28 @@ ss_m::_create_md_assoc(stid_t stid, const nbox_t& key, const vec_t& el)
     case t_bad_ndx_t:
       return RC(eBADNDXTYPE);
     case t_rtree:
-	W_DO( rt->insert(sd->root(), key, el) );
+        W_DO( rt->insert(sd->root(), key, el) );
         break;
-    case t_rdtree:
     case t_btree:
     case t_uni_btree:
-    case t_lhash:
-      return RC(eWRONGKEYTYPE);
+        return RC(eWRONGKEYTYPE);
     default:
-      W_FATAL(eINTERNAL);
+        W_FATAL_MSG(eINTERNAL, << "bad index type " << sd->sinfo().ntype );
     }
 
     return RCOK;
 }
 
 /*--------------------------------------------------------------*
- *  ss_m::_find_md_assoc()					*
+ *  ss_m::_find_md_assoc()                                        *
  *--------------------------------------------------------------*/
 rc_t
 ss_m::_find_md_assoc(
-    stid_t 		stid, 
-    const nbox_t& 	key,
-    void* 		el, 
-    smsize_t& 		elen,
-    bool& 		found)
+    stid_t                 stid, 
+    const nbox_t&         key,
+    void*                 el, 
+    smsize_t&                 elen,
+    bool&                 found)
 {
     sdesc_t* sd;
     W_DO( dir->access(stid, sd, IS) );
@@ -1012,24 +983,22 @@ ss_m::_find_md_assoc(
     case t_bad_ndx_t:
       return RC(eBADNDXTYPE);
     case t_rtree:
-	// exact match
-	W_DO( rt->lookup(sd->root(), key, el, elen, found) );
+        // exact match
+        W_DO( rt->lookup(sd->root(), key, el, elen, found) );
         break;
-    case t_rdtree:
     case t_btree:
     case t_uni_btree:
-    case t_lhash:
-      return RC(eWRONGKEYTYPE);
+        return RC(eWRONGKEYTYPE);
 
     default:
-      W_FATAL(eINTERNAL);
+        W_FATAL_MSG(eINTERNAL, << "bad index type " << sd->sinfo().ntype );
     }
 
     return RCOK;
 }
 
 /*--------------------------------------------------------------*
- *  ss_m::_draw_rtree()						*
+ *  ss_m::_draw_rtree()                                                *
  *--------------------------------------------------------------*/
 rc_t
 ss_m::_draw_rtree(const stid_t& stid, ostream &s)
@@ -1040,18 +1009,18 @@ ss_m::_draw_rtree(const stid_t& stid, ostream &s)
     if (sd->sinfo().stype != t_index)   return RC(eBADSTORETYPE);
     switch (sd->sinfo().ntype) {
     case t_bad_ndx_t:
-      return RC(eBADNDXTYPE);
+        return RC(eBADNDXTYPE);
     case t_rtree:
-      W_DO( rt->draw(sd->root(), s) );
-      break;
-    case t_rdtree:
-    case t_lhash:
+        W_DO( rt->draw(sd->root(), s) );
+        break;
     case t_btree:
     case t_uni_btree:
-      return RC(eNOTIMPLEMENTED);
+        fprintf(stderr, 
+        "linear-hash, btrees, rd-trees indexes do not support this function");
+        return RC(eNOTIMPLEMENTED);
 
     default:
-      W_FATAL(eINTERNAL);
+        W_FATAL_MSG(eINTERNAL, << "bad index type " << sd->sinfo().ntype );
     }
 
     return RCOK;
@@ -1059,7 +1028,7 @@ ss_m::_draw_rtree(const stid_t& stid, ostream &s)
 
 rc_t
 ss_m::_rtree_stats(const stid_t& stid, rtree_stats_t& stat,
-		 uint2_t size, uint2_t* ovp, bool audit)
+                 uint2_t size, uint2_t* ovp, bool audit)
 {
     sdesc_t* sd;
     W_DO( dir->access(stid, sd, IS) );
@@ -1067,18 +1036,18 @@ ss_m::_rtree_stats(const stid_t& stid, rtree_stats_t& stat,
     if (sd->sinfo().stype != t_index)   return RC(eBADSTORETYPE);
     switch (sd->sinfo().ntype) {
     case t_bad_ndx_t:
-      return RC(eBADNDXTYPE);
+        return RC(eBADNDXTYPE);
     case t_rtree:
-      W_DO( rt->stats(sd->root(), stat, size, ovp, audit) );
-      break;
-    case t_rdtree:
-    case t_lhash:
+        W_DO( rt->stats(sd->root(), stat, size, ovp, audit) );
+        break;
     case t_btree:
     case t_uni_btree:
-      return RC(eNOTIMPLEMENTED);
+        fprintf(stderr, 
+        "linear-hash, btrees, rd-trees indexes do not support this function");
+        return RC(eNOTIMPLEMENTED);
 
     default:
-      W_FATAL(eINTERNAL);
+        W_FATAL_MSG(eINTERNAL, << "bad index type " << sd->sinfo().ntype );
     }
 
     return RCOK;
@@ -1086,16 +1055,16 @@ ss_m::_rtree_stats(const stid_t& stid, rtree_stats_t& stat,
 
 
 /*--------------------------------------------------------------*
- *  ss_m::_get_store_info()					*
+ *  ss_m::_get_store_info()                                        *
  *--------------------------------------------------------------*/
 rc_t
 ss_m::_get_store_info(
-    const stpgid_t& 	stpgid, 
-    sm_store_info_t&	info
+    const stid_t&         stid, 
+    sm_store_info_t&        info
 )
 {
     sdesc_t* sd;
-    W_DO( dir->access(stpgid, sd, NL) );
+    W_DO( dir->access(stid, sd, NL) );
 
     const sinfo_s& s= sd->sinfo();
 
@@ -1111,12 +1080,12 @@ ss_m::_get_store_info(
     switch (sd->sinfo().ntype) {
     case t_btree:
     case t_uni_btree:
-	W_DO( key_type_s::get_key_type(info.keydescr, 
-		info.keydescrlen,
-		sd->sinfo().nkc, sd->sinfo().kc ));
-	break;
+        W_DO( key_type_s::get_key_type(info.keydescr, 
+                info.keydescrlen,
+                sd->sinfo().nkc, sd->sinfo().kc ));
+        break;
     default:
-	break;
+        break;
     }
     return RCOK;
 }

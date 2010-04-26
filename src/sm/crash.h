@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='CRASH_H'>
 
- $Id: crash.h,v 1.19 1999/06/07 19:04:00 kupsch Exp $
+ $Id: crash.h,v 1.19.2.7 2010/03/19 22:20:23 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -34,12 +34,34 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 
 /*  -- do not edit anything above this line --   </std-header>*/
 
+extern bool logtrace;
+#if W_DEBUG_LEVEL >= 0
+#define LOGTRACE(arg) \
+if(logtrace) {\
+    w_ostrstream s; \
+    s <<" th."<<me()->id << " " << "tid." << xct()->tid() << " "  arg ; \
+    fprintf(stderr, "%s\n", s.c_str()); \
+}
+
+#define LOGTRACE1(arg) \
+if(logtrace) {\
+    w_ostrstream s; \
+    s <<" th."<<me()->id << " "  arg ; \
+    fprintf(stderr, "%s\n", s.c_str()); \
+}
+
+#else
+#define LOGTRACE(arg) 
+#define LOGTRACE1(arg) 
+#endif
+
+
 enum debuginfo_enum { debug_none, debug_delay, debug_crash, debug_abort, debug_yield };
 
 extern w_rc_t ssmtest(log_m *, const char *c, const char *file, int line) ;
 extern void setdebuginfo(debuginfo_enum, const char *, int );
 
-#if defined(W_DEBUG) || defined(USE_SSMTEST)
+#if defined(USE_SSMTEST)
 
 #   define SSMTEST(x) W_DO(ssmtest(smlevel_0::log,x,__FILE__,__LINE__))
 #   define VOIDSSMTEST(x) W_IGNORE(ssmtest(smlevel_0::log,x,__FILE__,__LINE__))
@@ -49,7 +71,7 @@ extern void setdebuginfo(debuginfo_enum, const char *, int );
 #   define SSMTEST(x) 
 #   define VOIDSSMTEST(x)
 
-#endif /* W_DEBUG */
+#endif 
 
 /*<std-footer incl-file-exclusion='CRASH_H'>  -- do not edit anything below this line -- */
 

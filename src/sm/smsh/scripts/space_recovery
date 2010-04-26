@@ -1,6 +1,6 @@
 # <std-header style='tcl' orig-src='shore'>
 #
-#  $Id: space_recovery,v 1.18 1999/06/07 19:05:46 kupsch Exp $
+#  $Id: space_recovery,v 1.18.4.1 2010/01/12 02:02:04 nhall Exp $
 #
 # SHORE -- Scalable Heterogeneous Object REpository
 #
@@ -33,7 +33,6 @@
 # creating a different store type (file/index) to reuse the space.
 #
 source $script_dir/vol.init
-
 
 verbose LOGGING = $logging
 if { $logging == 1 } {
@@ -90,8 +89,9 @@ sm commit_xct
 verbose forcing buffers...
 sm force_buffers
 
+
 #sm dismount_dev /local.caseus/zwilling/shore_vol/dev1
-verbose restarting
+verbose restarting "--------------------------------------------------------"
 restart
 
 sm begin_xct
@@ -141,6 +141,7 @@ sm commit_xct
 sm force_buffers
 
 #sm dismount_dev /local.caseus/zwilling/shore_vol/dev1
+verbose restarting "--------------------------------------------------------"
 restart
 
 verbose recovering

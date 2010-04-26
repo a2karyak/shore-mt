@@ -1,6 +1,6 @@
 # <std-header style='tcl' orig-src='shore'>
 #
-#  $Id: recovery.4,v 1.1 2006/06/01 17:09:53 nhall Exp $
+#  $Id: recovery.4,v 1.1.2.1 2009/12/21 18:45:18 nhall Exp $
 #
 # SHORE -- Scalable Heterogeneous Object REpository
 #
@@ -68,5 +68,9 @@ verbose  created $rid($i) hdr.len=[string length $hdr] data.len=[string length $
 }
 verbose  aborting...
 sm abort_xct
+
+sm begin_xct
+sm destroy_file $fid
+sm commit_xct
 
 unset hdr rid i data fid num_rec id_width

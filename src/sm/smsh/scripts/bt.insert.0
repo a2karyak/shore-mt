@@ -1,6 +1,6 @@
 # <std-header style='tcl' orig-src='shore'>
 #
-#  $Id: bt.insert.0,v 1.17 1999/06/07 19:05:10 kupsch Exp $
+#  $Id: bt.insert.0,v 1.17.4.2 2010/01/12 02:01:58 nhall Exp $
 #
 # SHORE -- Scalable Heterogeneous Object REpository
 #
@@ -48,7 +48,8 @@ set elemlength 4044
 #
 #
 sm begin_xct
-set ndx [sm create_index $volid $unique regular b*1000 t_cc_kvl small]
+verbose tid [sm xct_to_tid [sm xct]]
+set ndx [sm create_index $volid $unique regular b*1000 t_cc_kvl]
 verbose created index $ndx
 sm commit_xct
 
@@ -73,6 +74,7 @@ proc runtest { term unique ndx nrec logging keylist } {
     set key 1
     set value 1
     sm begin_xct
+verbose tid [sm xct_to_tid [sm xct]]
     for {set i 0} {$i < $nrec} {incr i} {
 	verbose inserting $i
 	set key [lindex $keylist $i] 
@@ -136,6 +138,7 @@ pstats
 # in the expected order
 #
 sm begin_xct
+verbose tid [sm xct_to_tid [sm xct]]
 set sorted [lsort $keylist]
 set len [llength $keylist]
 set res [test_scan $ndx $len]
@@ -155,6 +158,7 @@ unset res resi sorti sorted len i
 sm commit_xct
 
 sm begin_xct
+verbose tid [sm xct_to_tid [sm xct]]
 verbose sm destroy_index $ndx
 sm destroy_index $ndx
 verbose destroyed index

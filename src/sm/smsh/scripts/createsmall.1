@@ -1,6 +1,6 @@
 # <std-header style='tcl' orig-src='shore'>
 #
-#  $Id: createsmall.1,v 1.13 1999/06/07 19:05:24 kupsch Exp $
+#  $Id: createsmall.1,v 1.13.4.1 2010/01/12 02:02:00 nhall Exp $
 #
 # SHORE -- Scalable Heterogeneous Object REpository
 #
@@ -83,9 +83,13 @@ for {set i 1} {$i <= $num_rec} {incr i} {
 
 sm commit_xct
 
+dstats $volid
+
 sm begin_xct
 sm destroy_file $fid
 sm commit_xct
+
+dstats $volid
 
 unset id fid hdr num_rec
 unset rid i body r s id_width

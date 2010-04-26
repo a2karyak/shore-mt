@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: smsh.cpp,v 1.1 2007/05/18 21:50:59 nhall Exp $
+ $Id: smsh.cpp,v 1.1.2.15 2010/03/19 22:20:31 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -34,7 +34,7 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 /* 
  * tclTest.c --
  *
- *	Test driver for TCL.
+ *        Test driver for TCL.
  *
  * Copyright 1987-1991 Regents of the University of California
  * All rights reserved.
@@ -51,9 +51,6 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #include <cstdlib>
 #include <climits>
 #include "w_stream.h"
-#ifdef _WINDOWS
-#include <io.h>
-#endif
 #include <cstring>
 #include "w_debug.h"
 #include "shell.h"
@@ -61,9 +58,8 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #ifndef __GNU_LIBRARY__
 #define __GNU_LIBRARY__
 #endif
-#include "getopt.h"
-
-#include <unix_stats.h>
+#include "w_getopt.h"
+// DEAD #include <unix_stats.h>
 
 /* tcl */
 #ifdef EXTERN
@@ -75,36 +71,30 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #include "smsh.h"
 #include <sthread_stats.h>
 
+const char* tcl_init_cmd = 0; // DEAD?
 
-#ifdef NOTDEF
-const char* tcl_init_cmd = "if [info library] then { if [file exists [info library]/init.tcl] then { source [info library]/init.tcl }}";
-#else
-const char* tcl_init_cmd = 0;
-#endif
-
-const char* Logical_id_flag_tcl = "Use_logical_id";
-
-
-Tcl_Interp* global_ip = 0;
 bool instrument = true;
 bool verbose = false;
 bool verbose2 = false;
 bool force_compress = false;
 bool log_warn_callback = false;
-bool start_client_support = false;
+const char* f_arg = NULL;
+const char *argv0 = NULL;
+bool interactive = false;
+
+// NOTE: NOT TLS but these are read-only 
+struct linked_vars linked;
 
 // Error codes for smsh
-enum {	SSH_MIN_ERROR = 50000,
-	SSH_SCOMM,
-	SSH_OS,
-	SSH_FAILURE,
-	SSH_COMMAND_LINE,
-	SSH_MAX_ERROR};
+enum {        SSH_MIN_ERROR = 50000,
+        SSH_OS,
+        SSH_FAILURE,
+        SSH_COMMAND_LINE,
+        SSH_MAX_ERROR};
 
-static w_error_info_t smsh_error_list[]=
+static const w_error_info_t smsh_error_list[]=
 {
-    {SSH_SCOMM,	"communication system error"},
-    {SSH_OS,	"operating system error"},
+    {SSH_OS,        "operating system error"},
     {SSH_FAILURE,"general smsh program failure"},
     {SSH_COMMAND_LINE,"problem with command line"},
 };
@@ -117,51 +107,42 @@ static w_error_info_t smsh_error_list[]=
  * by smsh and the layers is calls.
  */
 void print_usage(ostream& err_stream, const char* prog_name,
-		 bool long_form, option_group_t& options)
+                 bool long_form, option_group_t& options)
 {
     if (!long_form) {
-	err_stream << "usage: " << prog_name
-	     << " [-h] [-l] [-v] [-c] [-f script_file]" 
-	     << " [-t assignment]"
-	     << endl;
-	options.print_usage(long_form, err_stream);
+        err_stream << "usage: " << prog_name
+             << " [-h] [-v] [-O] [-C] [-s] [-L] [-V] [-f script_file]" 
+             << " [-t assignment]"
+             << endl;
+        options.print_usage(long_form, err_stream);
     } else {
-	err_stream << "usage: " << prog_name << endl;
-	err_stream << "switches:\n"
+        err_stream << "usage: " << prog_name << endl;
+        err_stream << "switches:\n"
             << "\t-h: print help message and exit\n"
-	    << "\t-l: use logical oid\n"
-	    << "\t-v: verbose printing of all option values\n"
-	    << "\t-V: verbose printing of test results\n"
-	    << "\t-c: allow clients to connect\n"
-	    << "\t-f script_file: specify script to run\n"
-	    << "\t-t assignment is of the form variablename=value\n"
-	<< "options:" << endl;
-	options.print_usage(true, err_stream);
+            << "\t-v: verbose printing of all option values\n"
+            << "\t-V: verbose printing of test results\n"
+            << "\t-O: use old sort implementation\n"
+            << "\t-C: compress btrees\n"
+            << "\t-s: print stats at exit\n"
+            << "\t-L: test log warning callback\n"
+            << "\t-f script_file: specify script to run\n"
+        << "options:" << endl;
+        options.print_usage(true, err_stream);
     }
     return;
 }
 
-struct linked_vars linked;
 
-/* An smthread is needed to create a storage manager */
-class smsh_smthread_t : public smthread_t {
-private:
-	char	*f_arg;
-
-public:
-	smsh_smthread_t(char *f_arg);
-	~smsh_smthread_t() { }
-	void	run();
-};
-
-unix_stats U;
+// DEAD unix_stats U;
 #ifndef SOLARIS2
-unix_stats C(RUSAGE_CHILDREN);
+// DEAD unix_stats C(RUSAGE_CHILDREN);
 #endif
 
 int main(int argc, const char** argv)
 {
-#if 0	/* Can't use with tools that want smsh output */
+    argv0 = argv[0];
+
+#if 0        /* Can't use with tools that want smsh output */
 #if defined(W_TRACE)
     char *c = getenv("DEBUG_FLAGS");
     if(c!=NULL) cout << "DEBUG_FLAGS =|" << c << "|" << endl;
@@ -181,48 +162,40 @@ int main(int argc, const char** argv)
     bool print_stats = false;
 
 
-    U.start();
+    // DEAD U.start();
 #ifndef SOLARIS2
-    C.start();
+    // DEAD C.start();
 #endif
 
     // Set up smsh related error codes
     if (! (w_error_t::insert(
-		"ss_m shell",
-		smsh_error_list, SSH_MAX_ERROR - SSH_MIN_ERROR - 1))) {
-	abort();
+                "ss_m shell",
+                smsh_error_list, SSH_MAX_ERROR - SSH_MIN_ERROR - 1))) {
+        abort();
     }
 
-    // Create tcl interpreter
-    global_ip = Tcl_CreateInterp();
-    if (!global_ip)
-	    W_FATAL(fcOUTOFMEMORY);
-
-    // default is to not use logical IDs
-    Tcl_SetVar(global_ip, TCL_CVBUG Logical_id_flag_tcl, 
-	TCL_CVBUG tcl_form_flag(0), TCL_GLOBAL_ONLY);
 
     /*
      * The following section of code sets up all the various options
      * for the program.  The following steps are performed:
-	- determine the name of the program
-	- setup an option group for the program
-	- initialize the ssm options
-	- scan default option configuration files ($HOME/.shoreconfig .shoreconfig)
-	- process any options found on the command line
-	- use getopt() to process smsh specific flags on the command line
-	- check that all required options are set before initializing sm
-     */	 
+        - determine the name of the program
+        - setup an option group for the program
+        - initialize the ssm options
+        - scan default option configuration files ($HOME/.shoreconfig .shoreconfig)
+        - process any options found on the command line
+        - use getopt() to process smsh specific flags on the command line
+        - check that all required options are set before initializing sm
+     */         
 
     // set prog_name to the file name of the program
     const char* prog_name = strrchr(argv[0], '/');
     if (prog_name == NULL) {
-	    prog_name = argv[0];
+            prog_name = argv[0];
     } else {
-	    prog_name += 1; /* skip the '/' */
-	    if (prog_name[0] == '\0')  {
-		    prog_name = argv[0];
-	    }
+            prog_name += 1; /* skip the '/' */
+            if (prog_name[0] == '\0')  {
+                    prog_name = argv[0];
+            }
     }
 
     /*
@@ -244,16 +217,12 @@ int main(int argc, const char** argv)
      */
     option_t* smsh_libdir;
     option_t* smsh_smshrc;
-    option_t* smsh_auditing;
     W_COERCE(options.add_option("smsh_libdir", "directory name", NULL,
-		"directory for smsh tcl libraries",
-		true, option_t::set_value_charstr, smsh_libdir));
+                "directory for smsh tcl libraries",
+                true, option_t::set_value_charstr, smsh_libdir));
     W_COERCE(options.add_option("smsh_smshrc", "rc file name", ".smshrc",
-		"full path name of the .smshrc file",
-		false, option_t::set_value_charstr, smsh_smshrc));
-    W_COERCE(options.add_option("smsh_auditing", "yes/no", "yes",
-		"turn on/off auditing of operations using gdbm",
-		false, option_t::set_value_bool, smsh_auditing));
+                "full path name of the .smshrc file",
+                false, option_t::set_value_charstr, smsh_smshrc));
 
     // have the sm add its options to the group
     W_COERCE(ss_m::setup_options(&options));
@@ -264,50 +233,50 @@ int main(int argc, const char** argv)
      * That OS errors are ignored since it is not an error
      * for this file to not be found.
      */
-    rc_t	rc;
+    rc_t        rc;
     {
-    char		opt_file[ss_m::max_devname+1];
+    char                opt_file[ss_m::max_devname+1];
     for(int file_num = 0; file_num < 2 && !rc.is_error(); file_num++) {
-	// scan default option files
-	w_ostrstream	err_stream;
-	const char*	config = ".shoreconfig";
-	if (file_num == 0) {
-	    if (!getenv("HOME")) {
-		// ignore it ...
-		// cerr << "Error: environment variable $HOME is not set" << endl;
-		// rc = RC(SSH_FAILURE);
-		break;
-	    }
-	    if (sizeof(opt_file) <= strlen(getenv("HOME")) + strlen("/") + strlen(config) + 1) {
-		cerr << "Error: environment variable $HOME is too long" << endl;
-		rc = RC(SSH_FAILURE);
-		break;
-	    }
-	    strcpy(opt_file, getenv("HOME"));
-	    strcat(opt_file, "/");
-	    strcat(opt_file, config);
-	} else {
-	    w_assert3(file_num == 1);
-	    strcpy(opt_file, "./");
-	    strcat(opt_file, config);
-	}
-	{
-	    option_file_scan_t opt_scan(opt_file, &options);
-	    rc = opt_scan.scan(true, err_stream);
-	    err_stream << ends;
-	    if (rc) {
-		// ignore OS error messages
-		if (rc.err_num() == fcOS) {
-		    rc = RCOK;
-		} else {
-		    // this error message is kind of gross but is
-		    // sufficient for now
-		    cerr << "Error in reading option file: " << opt_file << endl;
-		    //cerr << "\t" << w_error_t::error_string(rc.err_num()) << endl;
-		    cerr << "\t" << err_stream.c_str() << endl;
-		}
-	    }
-	}
+        // scan default option files
+        w_ostrstream        err_stream;
+        const char*        config = ".shoreconfig";
+        if (file_num == 0) {
+            if (!getenv("HOME")) {
+                // ignore it ...
+                // cerr << "Error: environment variable $HOME is not set" << endl;
+                // rc = RC(SSH_FAILURE);
+                break;
+            }
+            if (sizeof(opt_file) <= strlen(getenv("HOME")) + strlen("/") + strlen(config) + 1) {
+                cerr << "Error: environment variable $HOME is too long" << endl;
+                rc = RC(SSH_FAILURE);
+                break;
+            }
+            strcpy(opt_file, getenv("HOME"));
+            strcat(opt_file, "/");
+            strcat(opt_file, config);
+        } else {
+            w_assert3(file_num == 1);
+            strcpy(opt_file, "./");
+            strcat(opt_file, config);
+        }
+        {
+            option_file_scan_t opt_scan(opt_file, &options);
+            rc = opt_scan.scan(true, err_stream);
+            err_stream << ends;
+            if (rc.is_error()) {
+                // ignore OS error messages
+                if (rc.err_num() == fcOS) {
+                    rc = RCOK;
+                } else {
+                    // this error message is kind of gross but is
+                    // sufficient for now
+                    cerr << "Error in reading option file: " << opt_file << endl;
+                    //cerr << "\t" << w_error_t::error_string(rc.err_num()) << endl;
+                    cerr << "\t" << err_stream.c_str() << endl;
+                }
+            }
+        }
     }
     }
 
@@ -315,17 +284,17 @@ int main(int argc, const char** argv)
      * Assuming there has been no error so far, the command line
      * is processed for any options in the option group "options".
      */
-    if (!rc) {
-	// parse command line
-	w_ostrstream	err_stream;
-	rc = options.parse_command_line(argv, argc, 2, &err_stream);
-	err_stream << ends;
-	if (rc) {
-	    cerr << "Error on command line " << endl;
-	    cerr << "\t" << w_error_t::error_string(rc.err_num()) << endl;
-	    cerr << "\t" << err_stream.c_str() << endl;
-	    print_usage(cerr, prog_name, false, options);
-	}
+    if (!rc.is_error()) {
+        // parse command line
+        w_ostrstream        err_stream;
+        rc = options.parse_command_line(argv, argc, 2, &err_stream);
+        err_stream << ends;
+        if (rc.is_error()) {
+            cerr << "Error on command line " << endl;
+            cerr << "\t" << w_error_t::error_string(rc.err_num()) << endl;
+            cerr << "\t" << err_stream.c_str() << endl;
+            print_usage(cerr, prog_name, false, options);
+        }
     } 
 
     /* 
@@ -333,125 +302,87 @@ int main(int argc, const char** argv)
      * is processed for any smsh specific flags.
      */
     int option;
-    char* f_arg = 0;
     //if (!rc) 
     {  // do even if error so that smsh -h can be recognized
-	bool verbose_opt = false; // print verbose option values
-	while ((option = getopt(argc, (char * const*) argv, "nhlLOvsVcyCf:t:")) != -1) {
-	    switch (option) {
-	    case 'n':
-		// null - nothing 
-		break;
+        bool verbose_opt = false; // print verbose option values
+        while ((option = getopt(argc, (char * const*) argv, "Cf:hLOsTvV")) != -1) {
+            switch (option) {
+            case 'T':
+                extern bool logtrace;
+                logtrace = true;
+                break;
+            case 'O':
+                    // Force use of old sort
+                cout << "Force use of old sort implementation." <<endl;
+                newsort = false;
+                break;
 
-	    case 'O':
-	    	// Force use of old sort
-		cout << "Force use of old sort implementation." <<endl;
-		newsort = false;
-		break;
+            case 'C':
+                // force compression of btrees
+                force_compress = true;
+                break;
 
-	    case 'C':
-		// force compression of btrees
-		force_compress = true;
-		break;
+            case 's':
+                print_stats = true;
+                break;
 
-	    case 'y':
-		// turn yield on
-#ifdef USE_SSMTEST
-		simulate_preemption(true);
-		cout 
-		    << "Simulate preemption (USE_SSMTEST) turned ON " 
-		    << endl;
-#else /* USE_SSMTEST*/
-		cerr 
-		    << "Simulate preemption (USE_SSMTEST) not configured " 
-		    << endl;
-		    exit(1);
-#endif /*USE_SSMTEST*/
-		break;
+            case 'f':
+                f_arg = optarg;
+                break;
 
-	    case 't':
-		// tcl argument
-		// form is variablename=value
-		{
-		    /* XXX not reentrant */
-		    char *var = strtok(optarg, "=");
-		    char *val = strtok(0, "=");
-		    if(!var || !val) {
-			// error
-			cerr << "bad assignment to tcl var"  << endl;
-			print_usage(cerr, prog_name, true, options);
-			return 0;
-		    }
-		    Tcl_SetVar(global_ip, var, val , TCL_GLOBAL_ONLY);
-	        }
+            case 'L':
+                // use log warning callback
+                log_warn_callback = true;
+                break;
 
-		break;
-	    case 's':
-		print_stats = true;
-		break;
-	    case 'f':
-		f_arg = optarg;
-		break;
-	    case 'L':
-		// use log warning callback
-		log_warn_callback = true;
-		break;
-	    case 'l':
-		// use logical IDs
-		Tcl_SetVar(global_ip, TCL_CVBUG Logical_id_flag_tcl, 
-			TCL_CVBUG tcl_form_flag(1), TCL_GLOBAL_ONLY);
-		break;
-	    case 'h':
-		// print a help message describing options and flags
-		print_usage(cerr, prog_name, true, options);
-		// free rc structure to avoid complaints on exit
-		W_IGNORE(rc);
-		return 0;
-		break;
-	    case 'v':
-		verbose_opt = true;
-		break;
-	    case 'V':
-		verbose = true;
-		break;
-	    case 'c':
-		start_client_support = true;
-		break;
-	    default:
-		cerr << "unknown flag: " << option << endl;
-		rc = RC(SSH_COMMAND_LINE);
-	    }
-	}
+            case 'h':
+                // print a help message describing options and flags
+                print_usage(cerr, prog_name, true, options);
+                // free rc structure to avoid complaints on exit
+                W_IGNORE(rc);
+                goto done;
+                break;
+            case 'v':
+                verbose_opt = true;
+                break;
+            case 'V':
+                verbose = true;
+                break;
+            default:
+                cerr << "unknown flag: " << option << endl;
+                rc = RC(SSH_COMMAND_LINE);
+            }
+        }
 
-	if (verbose_opt) {
-	    options.print_values(false, cerr);
-	}
+        if (verbose_opt) {
+            options.print_values(false, cerr);
+        }
     }
 
     /*
      * Assuming no error so far, check that all required options
      * in option_group_t options are set.  
      */
-    if (!rc) {
-	// check required options
-	w_ostrstream	err_stream;
-	rc = options.check_required(&err_stream);
-	err_stream << ends;
-	if (rc) {
-	    cerr << "These required options are not set:" << endl;
-	    cerr << err_stream.c_str() << endl;
-	    print_usage(cerr, prog_name, false, options);
-	}
+    if (!rc.is_error()) {
+        // check required options
+        w_ostrstream        err_stream;
+        rc = options.check_required(&err_stream);
+        err_stream << ends;
+        if (rc.is_error()) {
+            cerr << "These required options are not set:" << endl;
+            cerr << err_stream.c_str() << endl;
+            print_usage(cerr, prog_name, false, options);
+        }
     } 
+
 
     /* 
      * If there have been any problems so far, then exit
      */
-    if (rc) {
-	// free the rc error structure to avoid complaints on exit
-	W_IGNORE(rc);
-	Tcl_DeleteInterp(global_ip);
-	return 1;
+    if (rc.is_error()) {
+        // free the rc error structure to avoid complaints on exit
+        W_IGNORE(rc);
+        goto errordone;
     }
 
     /*
@@ -460,75 +391,22 @@ int main(int argc, const char** argv)
      * the program.  The ssm will be started by a tcl_thread.
      */
 
-
-    // start remote_listen thread (if start_client_support == true)
-    if (start_client_support) {
-		rc = start_comm();
-	if (rc) {
-	    cerr << "error in smsh start_comm" << endl << rc << endl;
-	    return 1;
-	}
+#if 0
+    char* merged_args = Tcl_Merge(argc, (char **) argv);
+    if(!merged_args) {
+        cerr << "Tcl_Merge failed." <<endl; exit(1); 
+        goto errordone;
     }
+#endif
 
-    tcl_thread_t::initialize(global_ip, smsh_libdir->value());
-
-    // read .smshrc
-    Tcl_DString buf;
-    char* rcfilename = Tcl_TildeSubst(global_ip,
-		(char*)(smsh_smshrc->value()), &buf);
-    if (rcfilename)  {
-	FILE* f;
-	f = fopen(rcfilename, "r");
-	if (f) {
-	    if (Tcl_EvalFile(global_ip, rcfilename) != TCL_OK) {
-		cerr << Tcl_GetStringResult(global_ip)<< endl;
-		return 1;
-	    }
-	    fclose(f);
-	} else {
-	    cerr << "WARNING: could not open rc file: " << rcfilename << endl;
-	}
-    }
-    Tcl_DStringFree(&buf);
-
-    // setup table of sm commands
+    // setup table of sm commands - doesn't involve the Tcl_Interp
     dispatch_init();
 
-    Tcl_SetVar(global_ip, TCL_CVBUG "log_warn_callback_flag",
-		TCL_SETV2 tcl_form_flag(log_warn_callback), TCL_GLOBAL_ONLY);
-
-    Tcl_SetVar(global_ip, TCL_CVBUG "compress_flag",
-		TCL_SETV2 tcl_form_flag(force_compress), TCL_GLOBAL_ONLY);
-
-    Tcl_SetVar(global_ip, TCL_CVBUG "instrument_flag",
-	       TCL_SETV2 tcl_form_flag(instrument), TCL_GLOBAL_ONLY);
-
-    Tcl_SetVar(global_ip, TCL_CVBUG "verbose_flag",
-	       TCL_SETV2 tcl_form_flag(verbose), TCL_GLOBAL_ONLY);
-    Tcl_SetVar(global_ip, TCL_CVBUG "verbose2_flag",
-	       TCL_SETV2 tcl_form_flag(verbose2), TCL_GLOBAL_ONLY);
-
-    char* args = Tcl_Merge(argc, (char **) argv);
-    if(args) {
-	Tcl_SetVar(global_ip, TCL_CVBUG "argv", args, TCL_GLOBAL_ONLY);
-	w_ostrstream s1(args, strlen(args)+1);
-	s1 << argc-1;
-	Tcl_SetVar(global_ip, TCL_CVBUG "argc", args, TCL_GLOBAL_ONLY);
-	Tcl_SetVar(global_ip, TCL_CVBUG "argv0", TCL_CVBUG (f_arg ? f_arg : argv[0]),
-	   TCL_GLOBAL_ONLY);
-	ckfree(args);
-    } else {
-	cerr << "Tcl_Merge failed." <<endl; exit(1); 
-    }
-
-#ifdef _WINDOWS
-    int tty = _isatty(_fileno(stdin));
-#else
-    int tty = isatty(0);
-#endif
-    Tcl_SetVar(global_ip, TCL_CVBUG "tcl_interactive",
-	       TCL_CVBUG (tcl_form_flag(f_arg && tty)), TCL_GLOBAL_ONLY);
-
+    // set up the linked variables
+    // either these should be read-only or
+    // they need to be made thread-safe.  We can assume for smsh they
+    // are for all purposes read-only, since only the mama thread sets
+    // them in the scripts.
     linked.sm_page_sz = ss_m::page_sz;
     linked.sm_max_exts = ss_m::max_exts;
     linked.sm_max_vols = ss_m::max_vols;
@@ -543,132 +421,98 @@ int main(int argc, const char** argv)
     linked.compress_flag = force_compress?1:0;
     linked.log_warn_callback_flag = log_warn_callback?1:0;
 
-    (void) Tcl_LinkVar(global_ip, TCL_CVBUG "sm_page_sz", (char*)&linked.sm_page_sz, TCL_LINK_INT);
-    (void) Tcl_LinkVar(global_ip, TCL_CVBUG "sm_max_exts", (char*)&linked.sm_max_exts, TCL_LINK_INT);
-    (void) Tcl_LinkVar(global_ip, TCL_CVBUG "sm_max_vols", (char*)&linked.sm_max_vols, TCL_LINK_INT);
-    (void) Tcl_LinkVar(global_ip, TCL_CVBUG "sm_max_servers", (char*)&linked.sm_max_servers, TCL_LINK_INT);
-    (void) Tcl_LinkVar(global_ip, TCL_CVBUG "sm_max_keycomp", (char*)&linked.sm_max_keycomp, TCL_LINK_INT);
-    (void) Tcl_LinkVar(global_ip, TCL_CVBUG "sm_max_dir_cache", (char*)&linked.sm_max_dir_cache, TCL_LINK_INT);
-    (void) Tcl_LinkVar(global_ip, TCL_CVBUG "sm_max_rec_len", (char*)&linked.sm_max_rec_len, TCL_LINK_INT);
-    (void) Tcl_LinkVar(global_ip, TCL_CVBUG "sm_srvid_map_sz", (char*)&linked.sm_srvid_map_sz, TCL_LINK_INT);
-
-    (void) Tcl_LinkVar(global_ip, TCL_CVBUG "instrument_flag", (char*)&linked.instrument_flag, TCL_LINK_INT);
-    (void) Tcl_LinkVar(global_ip, TCL_CVBUG "verbose_flag", (char*)&linked.verbose_flag, TCL_LINK_INT);
-    (void) Tcl_LinkVar(global_ip, TCL_CVBUG "verbose2_flag", (char*)&linked.verbose2_flag, TCL_LINK_INT);
-    (void) Tcl_LinkVar(global_ip, TCL_CVBUG "compress_flag", (char*)&linked.compress_flag, TCL_LINK_INT);
-    /*
-    if (Tcl_AppInit(global_ip) != TCL_OK)  {
-	cerr << "Tcl_AppInit failed: " << Tcl_GetStringResult(global_ip)
-	     << endl;
+    {
+        int tty = isatty(0);
+        interactive = tty && f_arg;
     }
-    */
 
-    /* We need a storage manager thread to CREATE a storage manager. */
-    smthread_t *doit = new smsh_smthread_t(f_arg);
-    if (!doit)
-	W_FATAL(fcOUTOFMEMORY);
-    W_COERCE(doit->fork());
-    W_COERCE(doit->wait());
-    delete doit;
+    // Create the main tcl_thread
+    {
+        tcl_thread_t* tcl_thread = NULL;
+        bool ok = true;
 
-    Tcl_DeleteInterp(global_ip);
+        if(ok) {
+            if (f_arg) {
+                TCL_AV char* av[2];
+                av[0] = TCL_AV1 "source";
+                av[1] = f_arg;
+                // smsh -f <file>
+#if 0
+            cerr << __func__ << " " << __LINE__ << " " << __FILE__
+                << " libdir " << smsh_libdir->value()
+                << " msshrc " << smsh_smshrc->value()
+                << endl;
+#endif
+                tcl_thread = new tcl_thread_t(2, av, 
+                                smsh_libdir->value(),
+                                smsh_smshrc->value()
+                                );
+            } else {
+                // interactive
+                /*
+                cerr << __func__ << " " << __LINE__ << " " << __FILE__
+                << " INTERACTIVE libdir " << smsh_libdir->value()
+                << " msshrc " << smsh_smshrc->value()
+                << endl;
+                */
+                tcl_thread = new tcl_thread_t(0, 0,
+                                smsh_libdir->value(),
+                                smsh_smshrc->value()
+                                );
+            }
+            assert(tcl_thread);
+#if 0
+            fprintf(stderr, 
+                "Forking main (interactive=%s) tcl thread @ 0x%p id %d ... \n",
+                (const char *)(f_arg ? "false" : "true"),
+                ((void*)tcl_thread), tcl_thread->id);
+#endif
+
+            W_COERCE( tcl_thread->fork() );
+            W_COERCE( tcl_thread->join() );
+#if 0
+            fprintf(stderr, 
+                "Joined main (interactive=%s) tcl thread @ 0x%p id %d ... \n",
+                (const char *)(f_arg ? "false" : "true"),
+                ((void*)tcl_thread), tcl_thread->id);
+#endif
+
+            delete tcl_thread;
+        }
+    }
+
 
     // Shutdown TCL and have it deallocate resources still held!
     Tcl_Finalize();
 
-    // stop remote_listen thread
-    if (start_client_support) {
-		rc = stop_comm();
-	if (rc) {
-	    cerr << "error in smsh stop_comm" << endl << rc << endl;
-	    W_COERCE(rc);
-	}
-    }
-
-    U.stop(1); // 1 iteration
+    // DEAD U.stop(1); // 1 iteration
 #ifndef SOLARIS2
-    C.stop(1); // 1 iteration
+    // DEAD C.stop(1); // 1 iteration
 #endif
 
-    if(print_stats) {
-	cout << "Thread stats" <<endl;
-	sthread_t::dump_stats(cout);
-	cout << endl;
+    if(print_stats) 
+    {
+        cout << "Thread stats" <<endl;
+        sthread_t::dump_stats(cout);
+        cout << endl;
 
-	cout << "Unix stats for parent:" <<endl;
-	cout << U << endl << endl;
+        // DEAD cout << "Unix stats for parent:" <<endl;
+        // DEAD cout << U << endl << endl;
 
 #ifndef SOLARIS2
-	cout << "Unix stats for children:" <<endl;
-	cout << C << endl << endl;
+        // DEAD cout << "Unix stats for children:" <<endl;
+        // DEAD cout << C << endl << endl;
 #endif
     }
     cout << flush;
 
+done:
+    clean_up_shell();
+    fprintf(stderr, "%d tcl threads ran\n", num_tcl_threads_ttl);
     return 0;
-}
 
-
-smsh_smthread_t::smsh_smthread_t(char *arg)
-: smthread_t(t_regular, "smsh_smthread", WAIT_FOREVER, 2*default_stack ),
-  f_arg(arg)
-{
-}
-
-
-void smsh_smthread_t::run()
-{
-    tcl_thread_t* tcl_thread;
-
-    if (f_arg) {
-	TCL_AV char* av[2];
-	av[0] = TCL_AV1 "source";
-	av[1] = f_arg;
-	tcl_thread = new tcl_thread_t(2, av, global_ip);
-    } else {
-	tcl_thread = new tcl_thread_t(0, 0, global_ip);
-    }
-    assert(tcl_thread);
-    W_COERCE( tcl_thread->fork() );
-    W_COERCE( tcl_thread->wait() );
-    delete tcl_thread;
-}
-
-
-rc_t start_comm()
-{
-    FUNC(start_comm);
-
-    return RCOK;
-}
-
-rc_t stop_comm()
-{
-    FUNC(stop_comm);
-
-    DBG( << "remote_listen thread has been stopped" );
-
-    return RCOK;
-}
-
-
-extern "C" void ip_eval(void *ip, char *c, char *const&, int, int&);
-void
-ip_eval(void *vp, char *c, char *const&buf, int buflen, int &error)
-{
-    Tcl_Interp *ip = (Tcl_Interp *)vp;
-    (void) Tcl_Eval(ip, c);
-    error = 0;
-    TCL_GETX char *result = Tcl_GetStringResult(ip);
-    int resultlen = strlen(result) + 1;
-
-    if(resultlen > buflen) {
-	error = fcFULL;
-	resultlen = buflen-1;
-    }
-    // GROT too many memory copies!
-    memcpy(buf, result, resultlen);
-    buf[resultlen] = '\0';
-    return;
+errordone:
+    clean_up_shell();
+    return 1;
 }
 

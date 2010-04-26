@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: heap.cpp,v 1.10 2006/01/29 17:32:47 bolo Exp $
+ $Id: heap.cpp,v 1.10.2.3 2009/10/30 23:49:03 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -39,16 +39,16 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 template<class T> class CmpLessFunction
 {
     public:
-	bool		gt(const T& x, const T& y) const;
-	bool		cmp(const T& x, const T& y) const;
+        bool                gt(const T& x, const T& y) const;
+        bool                cmp(const T& x, const T& y) const;
 };
 
 
 template<class T> class CmpGreaterFunction
 {
     public:
-	bool		gt(const T& x, const T& y) const;
-	bool		cmp(const T& x, const T& y) const;
+        bool                gt(const T& x, const T& y) const;
+        bool                cmp(const T& x, const T& y) const;
 };
 
 
@@ -97,17 +97,17 @@ void ReplaceAllHeadsWithLargest(CharHeap& heap)
 {
     char second = 0;
     for (int i = 0; i < heap.NumElements(); ++i)  {
-	if (i > 1)  {
-	    second = heap.Second();
-	}
-	heap.First() = '|';
-	heap.ReplacedFirst();
-	if (i > 1)  {
-	    w_assert1(second == heap.First());
-	}
-	heap.CheckHeap();
-	cout << "\n\n-------------------\n\n";
-	heap.Print(cout);
+        if (i > 1)  {
+            second = heap.Second();
+        }
+        heap.First() = '|';
+        heap.ReplacedFirst();
+        if (i > 1)  {
+            w_assert1(second == heap.First());
+        }
+        heap.CheckHeap();
+        cout << "\n\n-------------------\n\n";
+        heap.Print(cout);
     }
 }
 
@@ -116,17 +116,17 @@ void ReplaceAllHeadsWithSmallest(CharHeap& heap)
 {
     char second = 0;
     for (int i = 0; i < heap.NumElements(); ++i)  {
-	if (i > 1)  {
-	    second = heap.Second();
-	}
-	heap.First() = '!';
-	heap.ReplacedFirst();
-	if (i > 1)  {
-	    w_assert1(second == heap.First());
-	}
-	heap.CheckHeap();
-	cout << "\n\n-------------------\n\n";
-	heap.Print(cout);
+        if (i > 1)  {
+            second = heap.Second();
+        }
+        heap.First() = '!';
+        heap.ReplacedFirst();
+        if (i > 1)  {
+            w_assert1(second == heap.First());
+        }
+        heap.CheckHeap();
+        cout << "\n\n-------------------\n\n";
+        heap.Print(cout);
     }
 }
 
@@ -141,77 +141,77 @@ int main()
 
     // test building, second and replace for a variable number of elements
     for (int arraySize = 0; arraySize < maxArraySize; ++arraySize)  {
-	CharHeap heap(cmp);
+        CharHeap heap(cmp);
 
-	cout << "\n\n ========== TEST # " << arraySize << " =========== \n\n";
-	array = new char[arraySize + 1];
-	strncpy(array, sentence, arraySize);
-	array[arraySize] = 0;
-	for (int i = 0; i < arraySize; i++)  {
-	    if (array[i] == ' ')  {
-		array[i] = '_';
-	    }
-	    heap.AddElementDontHeapify(array[i]);
-	}
-	cout << "\n\n ========== TEST # P1." << arraySize << " =========== \n\n";
-	heap.Print(cout);
-	heap.Heapify();
-	cout << "\n\n ========== TEST # P2." << arraySize << " =========== \n\n";
-	heap.Print(cout);
+        cout << "\n\n ========== TEST # " << arraySize << " =========== \n\n";
+        array = new char[arraySize + 1];
+        strncpy(array, sentence, arraySize);
+        array[arraySize] = 0;
+        for (int i = 0; i < arraySize; i++)  {
+            if (array[i] == ' ')  {
+                array[i] = '_';
+            }
+            heap.AddElementDontHeapify(array[i]);
+        }
+        cout << "\n\n ========== TEST # P1." << arraySize << " =========== \n\n";
+        heap.Print(cout);
+        heap.Heapify();
+        cout << "\n\n ========== TEST # P2." << arraySize << " =========== \n\n";
+        heap.Print(cout);
 #ifdef BY_SMALLEST_HEAP_ORDER
-	ReplaceAllHeadsWithLargest(heap);
+        ReplaceAllHeadsWithLargest(heap);
 #else
-	ReplaceAllHeadsWithSmallest(heap);
+        ReplaceAllHeadsWithSmallest(heap);
 #endif
-	cout << "\n\n ========== TEST # P3." << arraySize << " =========== \n\n";
-	heap.Print(cout);
-	delete[] array;
+        cout << "\n\n ========== TEST # P3." << arraySize << " =========== \n\n";
+        heap.Print(cout);
+        delete[] array;
     }
 
     // test building, second, and replace when all are equal
     {
-	CharHeap heap(cmp);
-	char array2[] = "AAAAAAAAAAAAAAAAAAAAAAA";
-	for (unsigned int i = 0; i < strlen(array2); ++i)  {
-	    heap.AddElementDontHeapify(array2[i]);
-	}
-	cout << "\n\n ========== TEST # P4. =========== \n\n";
-	heap.Print(cout);
-	heap.Heapify();
-	heap.CheckHeap();
-	cout << "\n\n ========== TEST # P5. =========== \n\n";
-	heap.Print(cout);
+        CharHeap heap(cmp);
+        char array2[] = "AAAAAAAAAAAAAAAAAAAAAAA";
+        for (unsigned int i = 0; i < strlen(array2); ++i)  {
+            heap.AddElementDontHeapify(array2[i]);
+        }
+        cout << "\n\n ========== TEST # P4. =========== \n\n";
+        heap.Print(cout);
+        heap.Heapify();
+        heap.CheckHeap();
+        cout << "\n\n ========== TEST # P5. =========== \n\n";
+        heap.Print(cout);
 #ifdef BY_SMALLEST_HEAP_ORDER
-	ReplaceAllHeadsWithLargest(heap);
+        ReplaceAllHeadsWithLargest(heap);
 #else
-	ReplaceAllHeadsWithSmallest(heap);
+        ReplaceAllHeadsWithSmallest(heap);
 #endif
     }
 
     // test removing from a heap
     {
-	int i;
-	CharHeap heap(cmp);
-	for (i = 0; i < maxArraySize; ++i)  {
-	    heap.AddElementDontHeapify(sentence[i]);
-	}
-	heap.Heapify();
-	cout << "\n\n*******************\n\n";
-	for (i = 0; i < maxArraySize; ++i)  {
-	    cout << heap.RemoveFirst();
-	}
-	cout << endl;
-	w_assert1(heap.NumElements() == 0);
+        int i;
+        CharHeap heap(cmp);
+        for (i = 0; i < maxArraySize; ++i)  {
+            heap.AddElementDontHeapify(sentence[i]);
+        }
+        heap.Heapify();
+        cout << "\n\n*******************\n\n";
+        for (i = 0; i < maxArraySize; ++i)  {
+            cout << heap.RemoveFirst();
+        }
+        cout << endl;
+        w_assert1(heap.NumElements() == 0);
 
-	for (i = 0; i < maxArraySize; ++i)  {
-	    heap.AddElement(sentence[i]);
-	    heap.CheckHeap();
-	}
-	cout << "\n\n*******************\n\n";
-	for (i = 0; i < maxArraySize; ++i)  {
-	    cout << heap.RemoveFirst();
-	}
-	cout << endl;
+        for (i = 0; i < maxArraySize; ++i)  {
+            heap.AddElement(sentence[i]);
+            heap.CheckHeap();
+        }
+        cout << "\n\n*******************\n\n";
+        for (i = 0; i < maxArraySize; ++i)  {
+            cout << heap.RemoveFirst();
+        }
+        cout << endl;
     }
     return 0;
 }

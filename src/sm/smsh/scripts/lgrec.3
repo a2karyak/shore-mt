@@ -1,6 +1,6 @@
 # <std-header style='tcl' orig-src='shore'>
 #
-#  $Id: lgrec.3,v 1.23 1999/06/07 19:05:31 kupsch Exp $
+#  $Id: lgrec.3,v 1.23.4.3 2010/01/28 04:54:34 nhall Exp $
 #
 # SHORE -- Scalable Heterogeneous Object REpository
 #
@@ -28,13 +28,9 @@
 #   -- do not edit anything above this line --   </std-header>
 
 #
-#	Test Create, Destroy of Large Records
+#    Test Create, Destroy of Large Records
 #
 # Fills the volume and then aborts last operation. 
-#
-# If you look at the pages this allocates, you'll see that
-# it demonstrates the fact that the pages aren't allocated from
-# the large-object store as we'd like or expect.
 #
 #  This demonstrates the horrible linear-in-#extents algorithm for finding
 # unallocated in extents.
@@ -45,9 +41,8 @@
 
 source $script_dir/vol.init
 
-if { $logging == 0 } {
-    echo "Logging off: script not run. "
-} else {
+set store_properties {insert_file regular}
+foreach property $store_properties {
 echo WARNING: this script takes a long time on a large volume
 set_config_info
 
@@ -70,82 +65,178 @@ sm begin_xct
 set fid [sm create_file $volid regular]
 sm commit_xct
 
+# you pretty-much MUST set both to 1 or you will just create/delete
+# the same record over & over when do_destroy is 1.
+set both 1
+set do_destroy 1
+# chose do_bail or do_abort or neither
+# do_abort: when we run out of space, we abort
+# do_bail: abort on 1st pass even though we don't run out of space
+# neither: when we run out of space, we commit
+set do_abort 0
+set do_bail 0
+
 set errorno 0
 set i 0
-while {1} {
-    set tm [time {
-	sm begin_xct
-	    sm set_store_property $fid insert_file
-	    set caught [
-		catch  {
-		    set r [
-			sm create_rec $fid $i 10 $long_body 
-		    ]
+while {[expr { $i < 5000}]} {
+    verbose loop $i 
+    # set tm [time {
+    sm begin_xct
+        # sm set_store_property $fid insert_file
+        set r "none"
+        set s "none"
+        set caught [
+            catch  {
+                set r [
+                sm create_rec $fid $i 10 $long_body 
+                ]
 
-		} errorno
-	    ]
-	    if {$caught} {
-		verbose EXPECTED error EOUTOFSPACE during create: $errorno
-		    verbose aborting...
-		sm abort_xct
-		break
-	    }
-	    set caught [
-		catch  {
-		    set s [
-			sm create_rec $fid $i 10 $long_body 
-		    ]
+            } errorno
+        ]
+        if {$caught} {
+            verbose create_rec: EXPECTED error EOUTOFSPACE during create: $errorno
+			verbose SPACE at CAUGHT - NOAUDIT
+			dstatsnoaudit $volid
+			# echo SPACE at CAUGHT - WITH AUDIT
+			# dstats $volid
+			verbose CHECK check_volume_page_types $volid
+			sm check_volume_page_types $volid
 
-		} errorno
-	    ]
-	    if {$caught} {
-		verbose EXPECTED error EOUTOFSPACE during create: $errorno
-		    verbose aborting...
-		sm abort_xct
-		break
-	    }
-	    set stats [pxstats false]
-	sm commit_xct
-    } 1]
-    verbose loop $i: $tm
-    verbose $stats
-    verbose
+
+            if {$do_abort} {
+                verbose  aborting at 1...
+                sm abort_xct
+            } else {
+                verbose  commit_xct at 1...
+                sm commit_xct
+            }
+			verbose SPACE after commit/abort - WITH AUDIT
+
+			dstats $volid
+			#
+			# Now while we'd like to see what happens 
+			# if we destroy this record after
+			# running out of space, we cannot since we did not
+			# get a record id from the create_rec
+            break
+        } else {
+            verbose 1 $r $fid $i 10 long
+			verbose CHECK check_volume_page_types $volid
+			sm check_volume_page_types $volid
+        }
+        if {$both} {
+	    verbose SPACE AFTER ROUND $i FIRST CREATE, BEFORE 2nd
+	    dstats $volid
+
+            set caught [
+                catch  {
+                    set s [
+                    sm create_rec $fid $i 10 $long_body 
+                    ]
+                } errorno
+            ]
+            if {$caught} {
+                verbose  EXPECTED error EOUTOFSPACE during create: $errorno
+
+				verbose SPACE at CAUGHT - NOAUDIT
+				dstatsnoaudit $volid
+				# echo SPACE at CAUGHT - WITH AUDIT
+				# dstats $volid
+				verbose CHECK check_volume_page_types $volid
+				sm check_volume_page_types $volid
+
+                if {$do_abort} {
+                    verbose  aborting at 2...
+                    sm abort_xct
+                } else {
+                    verbose  committing at 2...
+                    sm commit_xct
+                }
+				verbose SPACE after commit/abort - WITH AUDIT
+				dstats $volid
+				#
+				# Now, while we'd like to see what happens 
+				# if we destroy this record after
+				# running out of space, we can't because we never
+				# got a record-id from the create_rec.
+				break
+            } else {
+                verbose 2 $s $fid $i 10 long
+				verbose CHECK check_volume_page_types $volid
+				sm check_volume_page_types $volid
+                if {$do_bail} {
+                    verbose  aborting at 2-bail...
+                    verbose SPACE BEFORE BAIL/ABORT $i
+                    dstats $volid
+                    sm abort_xct
+                    verbose SPACE AFTER BAIL/ABORT $i
+                    dstats $volid
+                    break
+                }
+            }
+        }
+        # set stats [pxstats false]
+	verbose  commit_xct at 3...
+        sm commit_xct
+        verbose committed
+    # } 1]
+    # echo loop $i: $tm
+    # 
+    # verbose $stats
+    # verbose
 
     sm begin_xct
-	verbose pinning $r
-	set p [sm pin_create]
-	sm pin_pin $p $r 0
-	set pid [sm pin_page_containing $p $last_pg_offset]
-	sm pin_unpin $p 
-	sm pin_destroy $p
-	verbose destroying $r, starts at $pid
-	sm destroy_rec $r
+    verbose pinning $r
+    set p [sm pin_create]
+    sm pin_pin $p $r 0
+    set pid [sm pin_page_containing $p $last_pg_offset]
+    sm pin_unpin $p 
+    sm pin_destroy $p
+    if {$do_destroy} {
+        verbose SPACE BEFORE DESTROY $i
+        dstats $volid
+        verbose DESTROYING $r, starts at $pid
+        sm destroy_rec $r
+    }
 
-	verbose pinning $s
-	set p [sm pin_create]
-	sm pin_pin $p $s 0
-	set pid [sm pin_page_containing $p $last_pg_offset]
-	sm pin_unpin $p 
-	sm pin_destroy $p
-	verbose NOT destroying $s, starts at $pid
+    if {$both} {
+        verbose pinning $s
+        set p [sm pin_create]
+        sm pin_pin $p $s 0
+        set pid [sm pin_page_containing $p $last_pg_offset]
+        sm pin_unpin $p 
+        sm pin_destroy $p
+        verbose NOT destroying $s, starts at $pid
+    }
+    unset pid
+    unset p
 
     sm commit_xct
+    verbose SPACE AFTER ROUND $i 
+    dstats $volid
     incr i
+
 }
 
-verbose SPACE BEFORE DESTROY
-dstats $volid
+verbose SPACE BEFORE DESTROY - NOAUDIT
+dstatsnoaudit $volid
+
+# echo SPACE BEFORE DESTROY
+# dstats $volid
 
 sm begin_xct
 sm destroy_file $fid
 
 verbose volume_quota [sm get_volume_quota $volid]
-verbose sm_stats [sm gather_stats]
+# verbose sm_stats [sm gather_stats]
 sm commit_xct
 
-verbose SPACE AFTER DESTROY
+verbose  SPACE AFTER DESTROY
 dstats $volid
 
 unset r long_body long_len caught fid i errorno
+unset llong last_pg_offset s
+unset both
+# unset stats
 }
 

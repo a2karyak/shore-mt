@@ -1,6 +1,29 @@
+/* -*- mode:C++; c-basic-offset:4 -*-
+     Shore-MT -- Multi-threaded port of the SHORE storage manager
+   
+                       Copyright (c) 2007-2009
+      Data Intensive Applications and Systems Labaratory (DIAS)
+               Ecole Polytechnique Federale de Lausanne
+   
+                         All Rights Reserved.
+   
+   Permission to use, copy, modify and distribute this software and
+   its documentation is hereby granted, provided that both the
+   copyright notice and this permission notice appear in all copies of
+   the software, derivative works or modified versions, and any
+   portions thereof, and that both notices appear in supporting
+   documentation.
+   
+   This code is distributed in the hope that it will be useful, but
+   WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. THE AUTHORS
+   DISCLAIM ANY LIABILITY OF ANY KIND FOR ANY DAMAGES WHATSOEVER
+   RESULTING FROM THE USE OF THIS SOFTWARE.
+*/
+
 /*<std-header orig-src='shore' incl-file-exclusion='W_SHORE_ALLOC_H'>
 
- $Id: w_shore_alloc.h,v 1.7 1999/06/07 19:02:56 kupsch Exp $
+ $Id: w_shore_alloc.h,v 1.7.2.4 2010/03/19 22:17:20 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -34,13 +57,24 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 
 /*  -- do not edit anything above this line --   </std-header>*/
 
+// TODO NANCY can I get rid of all or most of this?
+
 typedef void * w_heapid_t;
 
-extern w_heapid_t w_shore_thread_alloc(size_t amt, bool is_free);
-extern void w_shore_thread_dealloc(size_t amt, w_heapid_t);
-void 	w_shore_alloc_stats( size_t& amt, size_t& allocations, size_t& hiwat);
+extern w_heapid_t w_shore_count_alloc(size_t amt, bool is_free);
+
+inline void w_shore_count_dealloc( size_t amt, w_heapid_t)
+    { (void) w_shore_count_alloc(amt, false); }
+
+void               w_shore_alloc_stats( size_t& amt, 
+                     size_t& allocations, size_t& hiwat);
 extern w_heapid_t w_no_shore_thread_id;
-extern w_base_t::uint4_t w_id2int(w_heapid_t);
+
+// Unsigned integer form of thread id;  not written to disk;
+// size can depend on data model in use.
+typedef unsigned int w_thread_id_t; 
+
+extern w_thread_id_t  w_id2int(w_heapid_t);
 
 /*<std-footer incl-file-exclusion='W_SHORE_ALLOC_H'>  -- do not edit anything below this line -- */
 

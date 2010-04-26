@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: thread2.cpp,v 1.59 2007/05/18 21:52:31 nhall Exp $
+ $Id: thread2.cpp,v 1.59.2.11 2010/03/19 22:20:03 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -31,33 +31,16 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 
 /*  -- do not edit anything above this line --   </std-header>*/
 
+#include <w.h>
 #include <os_types.h>
 #include <os_fcntl.h>
-#ifdef _WIN32
-#include <io.h>
-#include <process.h>
-#else
-#include <unistd.h>
-#endif
-#include <os_memory.h>
 
-#include <w.h>
-#include <w_statistics.h>
 #include <sthread.h>
 #include <sthread_stats.h>
-
-#include <vtable_info.h>
 #include <sthread_vtable_enum.h>
-
-#include <getopt.h>
-
+#include <w_getopt.h>
 #include <iostream>
 #include <w_strstream.h>
-
-#ifdef _WIN32
-#define	IO_DIR	"."
-#define getpid() _getpid()
-#endif
 
 #ifndef IO_DIR
 #define	IO_DIR	"/var/tmp"
@@ -97,9 +80,6 @@ int	NumIOs = 100;
 int	NumThreads = 5;
 int	BufSize = 1024;
 int	vec_size = 0;		// i/o vector slots for an i/o operation
-bool	local_io = false;
-bool	keepopen_io = false;
-bool	fastpath_io = false;
 bool	raw_io = false;
 bool	sync_io = true;
 bool	histograms = false;
@@ -162,12 +142,6 @@ void io_thread_t::run()
 	int fd;
 	w_rc_t rc;
 	int flags = OPEN_RDWR | OPEN_CREATE;
-	if (local_io)
-		flags |= OPEN_LOCAL;
-	else if (fastpath_io)
-		flags |= OPEN_FAST;
-	else if (keepopen_io)
-		flags |= OPEN_KEEP;
 	
 	if (raw_io)
 		flags |= OPEN_RAW;
@@ -175,7 +149,7 @@ void io_thread_t::run()
 		flags |= OPEN_SYNC;
 
 	rc = sthread_t::open(fname, flags, 0666, fd);
-	if (rc) {
+	if (rc.is_error()) {
 	    cerr << "open " << fname << ":" << endl << rc << endl;
 	    W_COERCE(rc);
 	}
@@ -191,7 +165,7 @@ void io_thread_t::run()
 
 		// cout  << name() << endl ;
 		rc = sthread_t::writev(fd, vec, cnt);
-		if (rc) {
+		if (rc.is_error()) {
 			cerr << "write:" << endl << rc << endl;
 			W_COERCE(rc);
 		}
@@ -200,7 +174,7 @@ void io_thread_t::run()
 	// cout << name() << ": finished writing" << endl;
 
 	rc = sthread_t::lseek(fd, 0, SEEK_AT_SET);
-	if (rc)  {
+	if (rc.is_error())  {
 		cerr << "lseek:" << endl << rc << endl;
 		W_COERCE(rc);
 	}
@@ -208,7 +182,7 @@ void io_thread_t::run()
 	// cout << name() << ": finished seeking" << endl;
 	for (i = 0; i < NumIOs; i++) {
 		rc = sthread_t::read(fd, buf, BufSize);
-		if (rc)  {
+		if (rc.is_error())  {
 			cerr << "read:" << endl << rc << endl;
 			W_COERCE(rc);
 		}
@@ -221,7 +195,7 @@ void io_thread_t::run()
 			}
 		}
 	}
-	// cout << name() << ": finished reading" << endl;
+	// cout << "'" << name() << "': finished reading" << endl;
 	
 	W_COERCE( sthread_t::fsync(fd) );
 
@@ -233,30 +207,16 @@ void io_thread_t::run()
 
 void print_histograms(ostream &o)
 {
-	vtable_info_array_t  t;
-	if (sthread_t::collect(t)<0)
+	static vtable_t  t;
+	if (sthread_t::collect(t, true)<0)
 		o << "THREADS: error" << endl;
 	else {
-
-		o << "THREADS" <<endl;
+		o << "THREAD " <<endl;
 		t.operator<<(o);
 	}
 
-	vtable_info_array_t  f;
-	if (w_factory_t::collect(f)<0)
-		o << "FACTORIES: error" << endl;
-	else {
-		o << "FACTORIES" <<endl;
-		f.operator<<(o);
-	}
+	o << "-----------------" << endl;
 
-	vtable_info_array_t  h;
-	if (w_factory_t::collect_histogram(h)<0)
-		o << "FACTORIES:THREAD HISTOGRAM: error" << endl;
-	else {
-		o << "FACTORY:THREAD HISTOGRAM" <<endl;
-		h.operator<<(o);
-	}
 }
 
 
@@ -265,19 +225,12 @@ int main(int argc, char **argv)
     int c;
     int errors = 0;
     const	char *s;
-    const	char *diskrw = "./diskrw";	/* don't need "." in path. */ 
 
-#ifdef _WIN32
-    /* Don't know /tmp on Win32 until runtime */
-    s = getenv("TEMP");
-    if (s && *s)
-    	io_dir = s;
-#endif
     s = getenv("TMPDIR");
     if (s && *s)
     	io_dir = s;
 
-    while ((c = getopt(argc, argv, "i:n:b:t:d:klfvV:hRD:S")) != EOF) {
+    while ((c = getopt(argc, argv, "i:n:b:t:d:klvV:hRS")) != EOF) {
 	   switch (c) {
 	   case 'i':
 	   case 'n':
@@ -291,15 +244,6 @@ int main(int argc, char **argv)
 		   break;
 	   case 'd':
 		   io_dir = optarg;
-		   break;
-	   case 'k':
-		   keepopen_io = true;
-		   break;
-	   case 'l':
-		   local_io = true;
-		   break;
-	   case 'f':
-		   fastpath_io = true;
 		   break;
 	   case 'R':
 	   	   raw_io = true;
@@ -316,9 +260,6 @@ int main(int argc, char **argv)
 	   case	'h':
 		    histograms = true;
 		    break;
-	   case 'D':
-		   diskrw = optarg;
-		   break;
 	   default:
 		   errors++;
 		   break;
@@ -332,29 +273,27 @@ int main(int argc, char **argv)
 		   << " [-t num_threads]"
 		   << " [-d directory]"
 		   << " [-v vectors]"
-		   << " [-l]"
 		   << " [-h]"
 		   << endl;
 
 	   return 1;
     }
 
-    sthread_t::set_diskrw_name(diskrw);
-
     w_rc_t	e;
+#ifdef HAVE_HUGETLBFS
+    e = sthread_t::set_hugetlbfs_path(HUGETLBFS_PATH);
+    if (e.is_error()) W_COERCE(e);
+#endif
     char	*buf;
     e = sthread_t::set_bufsize(BufSize * NumThreads, buf);
     W_COERCE(e);
+    w_assert1(buf != 0);
 
     cout << "Num Threads = " << NumThreads << endl;
 
     ioThread = new io_thread_t *[NumThreads];
     if (!ioThread)
 	W_FATAL(fcOUTOFMEMORY);
-
-    cout << "Using "
-	    << (local_io ? "local" : (fastpath_io ? "fastpath" : "diskrw"))
-	    << " io." << endl;
 
     int i;
     for (i = 0; i < NumThreads; i++)  {
@@ -367,24 +306,18 @@ int main(int argc, char **argv)
     for (i = 0; i < NumThreads; i++)
 	W_COERCE(ioThread[i]->fork());
 
-    for (i = 0; i < NumThreads; i++)
-	W_COERCE( ioThread[i]->wait() );
-
+	// Do this while some threads are around.
     if (histograms)
     	print_histograms(cout);
 
     for (i = 0; i < NumThreads; i++)
-	delete ioThread[i];
+	W_COERCE( ioThread[i]->join() );
 
+
+    for (i = 0; i < NumThreads; i++) delete ioThread[i];
     delete [] ioThread;
-    
     sthread_t::dump_stats(cout);
-    
-    if (verbose)
-	sthread_t::dump_event(cout);
-
     W_COERCE(sthread_t::set_bufsize(0, buf));
-    
     return 0;
 }
 

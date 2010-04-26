@@ -1,6 +1,29 @@
+/* -*- mode:C++; c-basic-offset:4 -*-
+     Shore-MT -- Multi-threaded port of the SHORE storage manager
+   
+                       Copyright (c) 2007-2009
+      Data Intensive Applications and Systems Labaratory (DIAS)
+               Ecole Polytechnique Federale de Lausanne
+   
+                         All Rights Reserved.
+   
+   Permission to use, copy, modify and distribute this software and
+   its documentation is hereby granted, provided that both the
+   copyright notice and this permission notice appear in all copies of
+   the software, derivative works or modified versions, and any
+   portions thereof, and that both notices appear in supporting
+   documentation.
+   
+   This code is distributed in the hope that it will be useful, but
+   WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. THE AUTHORS
+   DISCLAIM ANY LIABILITY OF ANY KIND FOR ANY DAMAGES WHATSOEVER
+   RESULTING FROM THE USE OF THIS SOFTWARE.
+*/
+
 /*<std-header orig-src='shore' incl-file-exclusion='UNIX_LOG_H'>
 
- $Id: unix_log.h,v 1.19 2007/05/18 21:43:29 nhall Exp $
+ $Id: unix_log.h,v 1.19.2.4 2010/01/28 04:54:20 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -41,97 +64,85 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 
 class unix_partition : public partition_t {
 public:
-	unix_partition();
+    unix_partition();
 
-	// these are abstract in the parent class
-	void			_clear();
-	void			_init(srv_log *o);
-	int			fhdl_rd() const;
-	int			fhdl_app() const;
-	int			seekend_app();
-	void			open_for_append(partition_number_t n);
-	void			open_for_read(partition_number_t n, bool err=true);
-	int			seeklsn_rd(w_base_t::uint4_t offset);
-#ifdef OLD
-	w_rc_t                  write(const logrec_t &r, const lsn_t &ll);
-	void			flush(bool force = false);
-#endif
-	// w_rc_t                  read(logrec_t *&r, lsn_t &ll);
-	void			close(bool both);
-#ifdef OLD
-	bool			exists() const;
-	bool			is_open_for_read() const;
-	bool			is_open_for_append() const;
-	bool			flushed() const;
-	bool			is_current() const; 
-#endif
-	void			peek(partition_number_t n, 
-					const lsn_t& end_hint, 
-					bool, int *fd = 0);
-	void			destroy();
-	void			sanity_check() const;
-	void			set_fhdl_app(int fd);
-	void			_flush(int fd);
+    // these are abstract in the parent class
+    void            _clear();
+    void            _init(srv_log *o);
+    int                fhdl_rd() const;
+    int                fhdl_app() const;
+    int                seekend_app();
+    void            open_for_append(partition_number_t n);
+    void            open_for_read(partition_number_t n, bool err=true);
+    int                seeklsn_rd(w_base_t::uint4_t offset);
+    void            close_for_append();
+    void            close_for_read();
+    void            close(bool both);
+    void            peek(partition_number_t n, 
+                    const lsn_t& end_hint, 
+                    bool, int *fd = 0);
+    void            destroy();
+    void            sanity_check() const;
+    void            set_fhdl_app(int fd);
+    void            _flush(int fd);
 
 private:
-	int			_fhdl_rd;
-	int			_fhdl_app;
+    int            _fhdl_rd;
+    int            _fhdl_app;
 };
 
 class unix_log : public srv_log {
     friend class unix_partition;
-
-    NORET			unix_log(const char* logdir,
-				    int rdbufsize, 
-				    int wrbufsize, 
-				    char *shmbase,
-				    bool reformat);
+public:
+    NORET            unix_log(const char* logdir,
+                    int wrbufsize, 
+                    char *shmbase,
+                    bool reformat);
 
 public:
-    static rc_t			new_unix_log(unix_log *&the_log,
-					     const char *logdir,
-					     int	rdbufsize,
-					     int	wrbufsize,
-					     char	*shmbase,
-					     bool	reformat);
-    NORET			~unix_log();
+    static rc_t            new_unix_log(unix_log *&the_log,
+                         const char *logdir,
+                         int    wrbufsize,
+                         char    *shmbase,
+                         bool    reformat);
+    NORET            ~unix_log();
 
-    void			_write_master(const lsn_t& l, const lsn_t& min);
+    virtual void            _write_master(lsn_t l, lsn_t min);
     w_rc_t                      _read_master( 
-				    const char *fname,
-				    int prefix_len,
-				    lsn_t &tmp,
-				    lsn_t& tmp1,
-				    lsn_t* lsnlist,
-				    int&   listlength,
-				    bool&  old_style
-				    );
-    partition_t *		i_partition(partition_index_t i) const;
+                    const char *fname,
+                    int prefix_len,
+                    lsn_t &tmp,
+                    lsn_t& tmp1,
+                    lsn_t* lsnlist,
+                    int&   listlength,
+                    bool&  old_style
+                    );
+    partition_t *        i_partition(partition_index_t i) const;
 
-    static void			_make_log_name(
-	partition_number_t	    idx,
-	char*			    buf,
-	int			    bufsz);
+    static void            _make_log_name(
+    partition_number_t        idx,
+    char*                buf,
+    int                bufsz);
 
-				// bool e==true-->msg if can't be unlinked
-    static void			destroy_file(partition_number_t n, bool e);
+                // bool e==true-->msg if can't be unlinked
+    static void            destroy_file(partition_number_t n, bool e);
 
 private:
-    unix_partition 	_part[max_open_log];
+    unix_partition     _part[PARTITION_COUNT];
 
     ////////////////////////////////////////////////
     // just for unix files:
     ///////////////////////////////////////////////
 
-    void			_make_master_name(
-	const lsn_t&		    master_lsn, 
-	const lsn_t&		    min_chkpt_rec_lsn,
-	char*			    buf,
-	int 			    bufsz,
-	bool			    old_style = false);
+    void            _make_master_name(
+    const lsn_t&            master_lsn, 
+    const lsn_t&            min_chkpt_rec_lsn,
+    char*                buf,
+    int                 bufsz,
+    bool                old_style = false);
 
-    static const char 		master_prefix[];
-    static const char 		log_prefix[];
+    static const char         master_prefix[];
+    static const char         log_prefix[];
 
 };
 

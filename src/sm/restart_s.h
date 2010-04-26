@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='RESTART_S_H'>
 
- $Id: restart_s.h,v 1.12 1999/06/07 19:04:25 kupsch Exp $
+ $Id: restart_s.h,v 1.12.2.3 2010/01/12 02:01:33 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 

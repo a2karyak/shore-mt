@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='PAGE_ALIAS_H'>
 
- $Id: page_alias.h,v 1.2 2002/01/28 06:54:50 bolo Exp $
+ $Id: page_alias.h,v 1.2.2.3 2010/01/12 02:01:31 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -43,13 +43,14 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 /* All the aliases are the same size for now, could change in future */
 
 #if defined(ARCH_LP64)
-#define	PAGE_ALIAS	40
+#define    PAGE_ALIAS    40
 #else
-#define	PAGE_ALIAS	24
+#define    PAGE_ALIAS    24
 #endif
 
-#define	PAGE_ALIAS_FILE		(PAGE_ALIAS)
-#define	PAGE_ALIAS_LGDATA	(PAGE_ALIAS)
+#define    PAGE_ALIAS_FILE        (PAGE_ALIAS)
+#define    PAGE_ALIAS_LGDATA    (PAGE_ALIAS)
+
 
 /*<std-footer incl-file-exclusion='PAGE_ALIAS_H'>  -- do not edit anything below this line -- */
 

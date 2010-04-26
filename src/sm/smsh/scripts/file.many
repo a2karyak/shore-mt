@@ -1,6 +1,6 @@
 # <std-header style='tcl' orig-src='shore'>
 #
-#  $Id: file.many,v 1.15 2007/08/21 19:44:00 nhall Exp $
+#  $Id: file.many,v 1.14.4.2 2009/10/27 16:44:48 nhall Exp $
 #
 # SHORE -- Scalable Heterogeneous Object REpository
 #
@@ -47,6 +47,7 @@ set body [format $id_body_width $objsize]
 sm begin_xct
 verbose tid [sm xct_to_tid [sm xct]]
 verbose create phase 1 1-> $nfiles1
+
 for {set i 1} {$i <= $nfiles1} {incr i} {
 	set f($i) [sm create_file $volid regular]
 	verbose created file $i: $f($i)

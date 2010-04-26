@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='VID_T_H'>
 
- $Id: vid_t.h,v 1.26 2008/05/07 23:26:52 nhall Exp $
+ $Id: vid_t.h,v 1.25.2.4 2010/03/19 22:19:19 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -38,27 +38,50 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 // implementation is in lid_t.cpp
 #pragma interface
 #endif
+
+/**\brief Volume ID. See \ref IDs.
+ *\ingroup IDs
+ * \details
+ * This class represents a volume identifier, the id that is persistent
+ * in the database. It is usually a short integer. 
+ * Its size is two bytes.
+ *
+ * A volume id is part of record identifiers and store identifiers,
+ * as well as part of "long" page identifiers.
+ *
+ * See \ref IDs.
+ */
 struct vid_t {
 
-    vid_t() : vol(0) {}
-    vid_t(uint2_t v) : vol(v) {}
+    enum {
+          first_local = 1
+         };
+
+                    vid_t() : vol(0) {}
+                    vid_t(uint2_t v) : vol(v) {}
+    void        init_local()        {vol = first_local;}
+
+    void        incr_local()        {
+                                    vol++;
+                                }
+
+    // This function casts a vid_t to a uint2_t.  It is needed
+    // in lid_t.h where there is a hack to use vid_t to
+    // create a logical volume ID.
+                    operator uint2_t () const {return vol;}
 
     // Data Members
-    uint2_t	vol;
+    uint2_t        vol;
 
     static const vid_t null;
     friend inline ostream& operator<<(ostream&, const vid_t& v);
     friend inline istream& operator>>(istream&, vid_t& v);
     friend bool operator==(const vid_t& v1, const vid_t& v2)  {
-	return v1.vol == v2.vol;
+        return v1.vol == v2.vol;
     }
     friend bool operator!=(const vid_t& v1, const vid_t& v2)  {
-	return v1.vol != v2.vol;
+        return v1.vol != v2.vol;
     }
-    operator uint2_t () const {return vol;}
-    void      incr_local()    { vol++; }
-
-
 };
 
 inline ostream& operator<<(ostream& o, const vid_t& v)

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: stats.cpp,v 1.16 2006/01/29 18:51:10 bolo Exp $
+ $Id: stats.cpp,v 1.16.2.5 2010/03/19 22:17:53 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -31,40 +31,29 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 
 /*  -- do not edit anything above this line --   </std-header>*/
 
-#ifdef _WINDOWS
-#include <ctime>
-#endif
-
 #include <w.h>
-#include <unix_stats.h>
-
 
 int
 main()
 {
-    unix_stats U;
-    U.start();
 
     double f= 3.14159;
 
     int i;
     for(i=0; i < 10000000; i++) {
 #ifdef Alpha
-	f *= 3.0/2.9999;
+    f *= 3.0/2.9999;
 #else
-	f *= 3.0/2.8;
+    f *= 3.0/2.8;
 #endif
     }
 
-    U.stop(1); // 1 iteration
 
-    cout << "Unix stats :" <<endl;
 #ifdef Alpha
     cout << "float f=" << f << endl;
 #else
     cout << "float f=" << float(f) << endl;
 #endif
-    cout << U << endl << endl;
     cout << flush;
 
     return 0;

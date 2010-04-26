@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='APP_SUPPORT_H'>
 
- $Id: app_support.h,v 1.12 1999/06/07 19:03:46 kupsch Exp $
+ $Id: app_support.h,v 1.12.2.5 2010/01/28 04:53:55 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -51,9 +51,9 @@ public:
     int slot_count() const { return nslots; }
 
     record_t* rec_addr(int idx) const {
-	return ((idx > 0 && idx < nslots && slot[-idx].offset >=0) ? 
-	        (record_t*) (data + slot[-idx].offset) : 
-		0);
+    return ((idx > 0 && idx < nslots && slot[-idx].offset >=0) ? 
+            (record_t*) (data + slot[-idx].offset) : 
+        0);
     }
 };
 
@@ -65,9 +65,12 @@ public:
 class ssm_constants {
 public: 
     enum {
-	max_small_rec = page_s::data_sz - sizeof(file_p_hdr_t) -
-			sizeof(page_s::slot_t) - sizeof(rectag_t),
-	lg_rec_page_space = page_s::data_sz
+    // See comments in sm.cpp where we compute max_small_rec for
+    // the config_info.
+    max_small_rec = align(page_s::data_sz - sizeof(file_p_hdr_t) -
+            sizeof(page_s::slot_t) - sizeof(rectag_t))
+                - align(1),
+    lg_rec_page_space = page_s::data_sz
     };
 };
 

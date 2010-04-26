@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: list1.cpp,v 1.24 2006/01/29 18:09:01 bolo Exp $
+ $Id: list1.cpp,v 1.24.2.5 2010/03/19 22:17:53 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -38,8 +38,8 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #include <w.h>
 
 struct elem1_t {
-    int 	i;
-    w_link_t	link;
+    int         i;
+    w_link_t        link;
 };
 
 ostream& operator<<(ostream& o, const elem1_t& e)
@@ -49,44 +49,45 @@ ostream& operator<<(ostream& o, const elem1_t& e)
 
 int main()
 {
-    w_list_t<elem1_t> l(W_LIST_ARG(elem1_t, link));
+    w_list_t<elem1_t, unsafe_list_dummy_lock_t> l(W_LIST_ARG(elem1_t, link),
+			unsafe_nolock);
 
     elem1_t array[10];
     
     int i;
     for (i = 0; i < 10; i++)  {
-	array[i].i = i;
-	l.push(&array[i]);
+        array[i].i = i;
+        l.push(&array[i]);
     }
 
     cout << l << endl;
 
     for (i = 0; i < 10; i++)  {
-#ifdef W_DEBUG
-	elem1_t* p = l.pop();
-	w_assert3(p);
-	w_assert3(p->i == 9 - i);
+#if W_DEBUG_LEVEL>0
+        elem1_t* p = l.pop();
+        w_assert1(p);
+        w_assert1(p->i == 9 - i);
 #else
-	(void) l.pop();
+        (void) l.pop();
 #endif
     }
 
-    w_assert3(l.pop() == 0);
+    w_assert1(l.pop() == 0);
 
     for (i = 0; i < 10; i++)  {
-	l.append(&array[i]);
+        l.append(&array[i]);
     }
 
     for (i = 0; i < 10; i++)  {
-#ifdef W_DEBUG
-	elem1_t* p = l.chop();
+#if W_DEBUG_LEVEL>0
+        elem1_t* p = l.chop();
+        w_assert1(p);
+        w_assert1(p->i == 9 - i);
 #else
-	(void) l.chop();
+        (void) l.chop();
 #endif
-	w_assert3(p);
-	w_assert3(p->i == 9 - i);
     }
-    w_assert3(l.chop() == 0);
+    w_assert1(l.chop() == 0);
 
     return 0;
 }
@@ -94,17 +95,17 @@ int main()
 #ifdef __BORLANDC__
 #pragma option -Jgd
 #include <w_list.cpp>
-typedef w_list_t<elem1_t> w_list_t_elem1_t_dummy;
+typedef w_list_t<elem1_t, unsafe_list_dummy_lock_t> w_list_t_elem1_t_dummy;
 #endif /*__BORLANDC__*/
 
 
 #ifdef __GNUG__
 // force instatiation of this function.
-template ostream& operator<<(ostream& o, const w_list_t<elem1_t>& l);
+template ostream& operator<<(ostream& o, const w_list_t<elem1_t, unsafe_list_dummy_lock_t>& l);
 #endif
 
 #ifdef EXPLICIT_TEMPLATE
-template class w_list_t<elem1_t>;
-template class w_list_i<elem1_t>;
+template class w_list_t<elem1_t, unsafe_list_dummy_lock_t>;
+template class w_list_i<elem1_t, unsafe_list_dummy_lock_t>;
 #endif
 

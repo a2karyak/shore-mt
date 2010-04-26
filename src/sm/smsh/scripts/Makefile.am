@@ -3,14 +3,14 @@ include $(top_srcdir)/Makefile.generic
 check_PROGRAMS     =
 EXTRA_DIST =  \
 	README \
-	all all.perf all_nortree \
-	alloc.1 alloc.10 alloc.2 alloc.3 alloc.4 alloc.5 alloc.6 \
-	alloc.7 alloc.8 alloc.9 alloc.all \
+	all all.individually all.perf all_nortree \
+	alloc.1 alloc.2 alloc.3 alloc.4 alloc.5 alloc.6 \
+	alloc.7 alloc.8 alloc.9 alloc.10 alloc.11 alloc.all \
 	bng.1 bng.init \
-	bt.1  \
+	bt.tcl bt.1  \
 	bt.insert.0 bt.insert.1 bt.insert.2 bt.insert.3 \
-       	bt.insert.4 bt.insert.5 \
-	bt.insertremove.0 bt.lib \
+	bt.insert.4 bt.insert.5 \
+	bt.insertremove.0 \
 	bt.remove.0 bt.remove.1 bt.remove.2 bt.remove.3 bt.remove.4 \
 	btree.1 btree.10 btree.11 btree.2 btree.20 btree.21 \
 	btree.2all btree.2all.print btree.3 btree.30 btree.31 btree.32 \
@@ -24,10 +24,9 @@ EXTRA_DIST =  \
 	cd.perf.4 cd.perf.5 cd.perf.6 cd.perf.7 cd.perf.8 \
 	cleanup.all \
 	confidence \
-	coord.0 coord.lib coord.start \
-	coordonly.3  \
 	create.perf createsmall.1 \
-	deadlock.1 deadlock.2 deadlock.3 deadlock.4 destroy.perf \
+	deadlock.1 deadlock.2 deadlock.3 deadlock.4 deadlock.5 deadlock.6 \
+	destroy.perf \
 	empty \
 	file.1 file.2 file.3 file.4 file.5 file.5a file.6 \
 	file.7 file.8 file.activity file.activity2 \
@@ -42,13 +41,12 @@ EXTRA_DIST =  \
 	lock.1 lock.all lock.hier lock.hier_sm \
 	lock.perf lock.upgrade lockfile_sm lockrec_pin lockrec_sm \
 	long.all \
-	mpw mpw.old \
-	multi.1 multi.2 multi.3 multi.3.save multi.all \
+	mpw mpw.sub mpw.sub2 \
+	multi.1 multi.2 multi.3 multi.all \
 	pin.1 pin.2 pin.3 pin.4 pin.5 pin.all pin.long.all \
-	quark.1 quark.all \
-	random.all random.perf random.perf.lib \
-	rdtree.1 rdtree.2 rdtree.all \
-	read2.perf rec.all record_create_abort.1 \
+	quark.1 quark.1.sub.reader quark.1.sub.writer quark.all \
+	random.all random.perf random.perf.tcl \
+	read2.perf record_create_abort.1 \
 	recovery.1 recovery.2 recovery.3 recovery.4 recovery.5 recovery.all \
 	rtree.1 rtree.2 rtree.3 rtree.4 rtree.all \
 	scan.all \
@@ -57,9 +55,9 @@ EXTRA_DIST =  \
 	sort.all sort.long.all sort.mkey.1 \
 	space_recovery \
 	subonly.3 subord.start \
-	thread.1 thread_fork_example \
+	thread_fork_example \
 	tmpfile.1 tmpfile.2 tmpfile.3 trans.1 \
-	trans.2 trans.3 trans.4 trans.all trans.lib \
+	trans.2 trans.3 trans.4 trans.all trans.tcl \
 	vol.1 vol.3 vol.all vol.init \
 	write.perf write.perf.restart
 

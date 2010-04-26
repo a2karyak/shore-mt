@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='STID_T_H'>
 
- $Id: stid_t.h,v 1.12 2001/06/26 16:48:35 bolo Exp $
+ $Id: stid_t.h,v 1.12.2.4 2010/03/19 22:19:19 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -38,7 +38,15 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #pragma implementation 
 #endif
 
-typedef uint4_t	snum_t;
+/**\brief Store Number
+ *\ingroup IDs
+ * \details
+ * This type represents a store number, 
+ * used when the volume id is implied somehow.
+ *
+ * See \ref IDs.
+ */
+typedef uint4_t    snum_t;
 
 #ifndef VID_T_H
 #include <vid_t.h>
@@ -48,10 +56,30 @@ typedef uint4_t	snum_t;
 #endif
 
 #define STID_T
+/**\brief A class that performs comparisons of snum_t for use with std::map */ 
+struct compare_snum_t 
+{
+    bool operator() (snum_t const &a, snum_t const &b) const
+    {
+        return a < b;
+    }
+};
+
+/**\brief Store ID.  See \ref IDs.
+ *\ingroup IDs
+ * \details
+ * This class represents a store identifier. 
+ * A store id is part of record identifiers, and by itself, it
+ * identifies files and indexes.
+ * It contains a volume identifier, vid_t.
+ * 
+ *
+ * See \ref IDs.
+ */
 struct stid_t {
-    vid_t	vol;
-    fill2	filler; // vol is 2 bytes, store is now 4
-    snum_t	store;
+    vid_t    vol;
+    fill2    filler; // vol is 2 bytes, store is now 4
+    snum_t    store;
     
     stid_t();
     stid_t(const stid_t& s);

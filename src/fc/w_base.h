@@ -1,6 +1,29 @@
+/* -*- mode:C++; c-basic-offset:4 -*-
+     Shore-MT -- Multi-threaded port of the SHORE storage manager
+   
+                       Copyright (c) 2007-2009
+      Data Intensive Applications and Systems Labaratory (DIAS)
+               Ecole Polytechnique Federale de Lausanne
+   
+                         All Rights Reserved.
+   
+   Permission to use, copy, modify and distribute this software and
+   its documentation is hereby granted, provided that both the
+   copyright notice and this permission notice appear in all copies of
+   the software, derivative works or modified versions, and any
+   portions thereof, and that both notices appear in supporting
+   documentation.
+   
+   This code is distributed in the hope that it will be useful, but
+   WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. THE AUTHORS
+   DISCLAIM ANY LIABILITY OF ANY KIND FOR ANY DAMAGES WHATSOEVER
+   RESULTING FROM THE USE OF THIS SOFTWARE.
+*/
+
 /*<std-header orig-src='shore' incl-file-exclusion='W_BASE_H'>
 
- $Id: w_base.h,v 1.78 2008/05/31 05:03:26 nhall Exp $
+ $Id: w_base.h,v 1.77.2.13 2010/03/19 22:17:19 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -34,10 +57,14 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 
 /*  -- do not edit anything above this line --   </std-header>*/
 
+/**\file w_base.h
+ *
+ *\ingroup Macros
+ * Basic types.
+ */
+
 /*******************************************************/
 /* get configuration definitions from config/shore.def */
-/* (in w_defines.h above).                             */
-#include <w_windows.h>
 /*
  * WARNING: if ON and OFF are defined, we must turn them off asap
  * because ON and OFF are re-definedelsewhere as enums
@@ -53,137 +80,220 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 /*******************************************************/
 
 
-#if !defined(W_OS2) && !defined(_WINDOWS)
 #define W_UNIX
-#endif
 
 #ifdef __GNUG__
 #pragma interface
 #endif
 
-#include <cstddef>
-#include <cstdlib>
 #include <w_stream.h>
-
-#include <climits>
-
-#if defined(HAVE_UNISTD_H)
-#include <unistd.h>
-#endif
-
-#if defined(_MSC_VER) && defined(small)
-/* XXX namespace corruption in MSC header files */
-#undef small
-#endif
 
 #ifndef W_WORKAROUND_H
 #include "w_workaround.h"
 #endif
 
-#if defined(DEBUG) && !defined(W_DEBUG)
-#define W_DEBUG
-#endif
+#define NORET        /**/
+#define CAST(t,o) ((t)(o))
+#define    W_UNUSED(x)    /**/
 
-#define NORET		/**/
-#define CAST(t,o)	((t)(o))
-#define SIZEOF(t)	(sizeof(t))
 
-#define	W_UNUSED(x)	/**/
-
-#ifdef W_DEBUG
-#define W_IFDEBUG(x)	x
-#define W_IFNDEBUG(x)	/**/
+#if W_DEBUG_LEVEL>0
+#define W_IFDEBUG1(x)    x
+#define W_IFNDEBUG1(x)    /**/
 #else
-#define W_IFDEBUG(x)	/**/
-#define W_IFNDEBUG(x)	x
+#define W_IFDEBUG1(x)    /**/
+#define W_IFNDEBUG1(x)    x
 #endif
+
+#if W_DEBUG_LEVEL>1
+#define W_IFDEBUG2(x)    x
+#define W_IFNDEBUG2(x)    /**/
+#else
+#define W_IFDEBUG2(x)    /**/
+#define W_IFNDEBUG2(x)    x
+#endif
+
+#if W_DEBUG_LEVEL>2
+#define W_IFDEBUG3(x)    x
+#define W_IFNDEBUG3(x)    /**/
+#else
+#define W_IFDEBUG3(x)    /**/
+#define W_IFNDEBUG3(x)    x
+#endif
+
+#if W_DEBUG_LEVEL>3
+#define W_IFDEBUG4(x)    x
+#define W_IFNDEBUG4(x)    /**/
+#else
+#define W_IFDEBUG4(x)    /**/
+#define W_IFNDEBUG4(x)    x
+#endif
+
+#define W_IFDEBUG9(x)    /**/
+#define W_IFNDEBUG9(x)    x
+
+//////////////////////////////////////////////////////////
+#undef  W_IFDEBUG
+#undef  W_IFNDEBUG
+#if W_DEBUG_LEVEL==1
+#define W_IFDEBUG(x)    W_IFDEBUG1(x)
+#define W_IFNDEBUG(x)    W_IFNDEBUG1(x)
+#endif
+
+#if W_DEBUG_LEVEL==2
+#define W_IFDEBUG(x)    W_IFDEBUG2(x)
+#define W_IFNDEBUG(x)    W_IFNDEBUG2(x)
+#endif
+
+#if W_DEBUG_LEVEL==3
+#define W_IFDEBUG(x)    W_IFDEBUG3(x)
+#define W_IFNDEBUG(x)    W_IFNDEBUG3(x)
+#endif
+
+#if W_DEBUG_LEVEL==4
+#define W_IFDEBUG(x)    W_IFDEBUG4(x)
+#define W_IFNDEBUG(x)    W_IFNDEBUG4(x)
+#endif
+
+#ifndef W_IFDEBUG
+#define W_IFDEBUG(x) /**/
+#endif
+#ifndef W_IFNDEBUG
+#define W_IFNDEBUG(x) x
+#endif
+
+//////////////////////////////////////////////////////////
 
 #ifdef W_TRACE
-#define	W_IFTRACE(x)	x
-#define	W_IFNTRACE(x)	/**/
+#define    W_IFTRACE(x)    x
+#define    W_IFNTRACE(x)    /**/
 #else
-#define	W_IFTRACE(x)	/**/
-#define	W_IFNTRACE(x)	x
+#define    W_IFTRACE(x)    /**/
+#define    W_IFNTRACE(x)    x
 #endif
 
 #if defined(W_DEBUG_SPACE)
-void 	w_space(int line, const char *file);
+void     w_space(int line, const char *file);
 #define W_SPACE w_space(__LINE__,__FILE__)
 #else
 #define W_SPACE
 #endif
 
-
-#define w_assert1(x)    do {						\
-	if (!(x)) w_base_t::assert_failed(#x, __FILE__, __LINE__);	\
-	W_SPACE;							\
+/// Default assert/debug level is 0.
+#define w_assert0(x)    do {                        \
+    if (!(x)) w_base_t::assert_failed(#x, __FILE__, __LINE__);    \
+    W_SPACE;                            \
 } while(0)
 
-#ifdef W_DEBUG
-#define w_assert3(x)	w_assert1(x)
+#ifndef W_DEBUG_LEVEL
+#define W_DEBUG_LEVEL 0
+#endif
+
+/// Level 1 should not add significant extra time.
+#if W_DEBUG_LEVEL>=1
+#define w_assert1(x)    w_assert0(x)
 #else
-#define w_assert3(x)	/**/
+#define w_assert1(x)    /**/
+#endif
+
+/// Level 2 adds some time.
+#if W_DEBUG_LEVEL>=2
+#define w_assert2(x)    w_assert1(x)
+#else
+#define w_assert2(x)    /**/
+#endif
+
+/// Level 3 definitely adds significant time.
+#if W_DEBUG_LEVEL>=3
+#define w_assert3(x)    w_assert1(x)
+#else
+#define w_assert3(x)    /**/
+#endif
+
+/// Level 4 can be a hog.
+#if W_DEBUG_LEVEL>=4
+#define w_assert4    w_assert1(x)
+#else
+#define w_assert4(x)    /**/
+#endif
+
+/// Level 5 is not yet used.
+#if W_DEBUG_LEVEL>=5
+#define w_assert5    w_assert1(x)
+#else
+#define w_assert5(x)    /**/
 #endif
 
 /*
- * Cast to treat an enum as in integer value.  This is used when
+ * The whole idea here is to gradually move assert3's, which have
+ * not been established to be useful in an mt-environment, to anoter
+ * assert level. 
+ * First: make them 9. Then gradually move them to level 2->5, based
+ * on the cost and frequency of usefulness.
+ * Make them 2 if you want them for a 'normal' debug system.
+*/
+/// changing an assert to an assert9 turns it off. 
+#define w_assert9(x)    /**/
+
+/**\brief  Cast to treat an enum as integer value.  
+ *
+ * This is used when
  * a operator<< doesn't exist for the enum.  The use of the macro
  * indicates that this enum would be printed if it had a printer,
  * rather than wanting the integer value of the enum
  */
-#define	W_ENUM(x)	((int)(x))
+#define    W_ENUM(x)    ((int)(x))
 
-/*
- * Cast to treat a pointer as a non-(char *) value.  This is used when
+/**\brief  Cast to treat a pointer as a non-(char *) value.  
+ *
+ * This is used when
  * a operator<< is used on a pointer.   Without this cast, some values
  * would bind to 'char *' and attempt  to print a string, rather than
  * printing the desired pointer value.
  */
-#define	W_ADDR(x)	((void *)(x))
+#define    W_ADDR(x)    ((void *)(x))
 
 class w_rc_t;
 
-/*--------------------------------------------------------------*
- *  w_base_t							*
- *--------------------------------------------------------------*/
+/**\brief The mother base class for most types.
+ *
+ * \attention These basic 1,2,4, and 8-byte types predate the
+ * now-standard "u8", etc.
+ * When these were developed, we used the count to
+ * refer to bytes, not bits.  So for new users, 
+ * this might take a bit of getting-used-to.
+ */
 class w_base_t {
 public:
     /*
      *  shorthands
      */
-    typedef unsigned char	u_char;
-    typedef unsigned short	u_short;
+    typedef unsigned char    u_char;
+    typedef unsigned short    u_short;
 #ifdef FC_COMPAT_32BIT_ULONG
     /* keep u_long 32 bits on a 64 bit platform; see shore.def */
-    typedef unsigned		u_long;
+    typedef unsigned        u_long;
 #else
-    typedef unsigned long	u_long;
+    typedef unsigned long    u_long;
 #endif
-    // typedef w_rc_t		rc_t;
+    // typedef w_rc_t        rc_t;
 
     /*
      *  basic types
      */
-    typedef char		int1_t;
-    typedef u_char		uint1_t;
-    typedef short		int2_t;
-    typedef u_short		uint2_t;
-    typedef int			int4_t;
-    typedef u_int		uint4_t;
+    typedef char        int1_t;
+    typedef u_char        uint1_t;
+    typedef short        int2_t;
+    typedef u_short        uint2_t;
+    typedef int            int4_t;
+    typedef u_int        uint4_t;
 
-#ifdef _MSC_VER
-#    if defined(_INTEGRAL_MAX_BITS) && (_INTEGRAL_MAX_BITS >= 64)
-    	typedef __int64 		int8_t;
-    	typedef unsigned __int64 	uint8_t;
-#    else
-#	error Compiler does not support int8_t (__int64).
-#    endif
-#elif defined(ARCH_LP64)
-	typedef	long			int8_t;
-	typedef unsigned long		uint8_t;
+#if defined(ARCH_LP64)
+    typedef    long            int8_t;
+    typedef unsigned long        uint8_t;
 #elif defined(__GNUG__)
-    	typedef long long               int8_t;
-    	typedef unsigned long long      uint8_t;
+        typedef long long               int8_t;
+        typedef unsigned long long      uint8_t;
 #else
 #error int8_t Not supported for this compiler.
 #endif
@@ -191,83 +301,94 @@ public:
     /* 
      * For statistics that are always 64-bit numbers
      */
-    typedef uint8_t 		large_stat_t; 
+    typedef uint8_t         large_stat_t; 
 
     /* 
      * For statistics that are 64-bit numbers 
      * only when #defined LARGEFILE_AWARE
      */
-#ifdef LARGEFILE_AWARE
-    typedef uint8_t     	base_stat_t;
+#if defined(LARGEFILE_AWARE) || defined(ARCH_LP64)
+    typedef uint8_t         base_stat_t;
+    typedef double          base_float_t;
 #else
-    typedef uint4_t     	base_stat_t;
+    typedef uint4_t         base_stat_t;
+    typedef float           base_float_t;
 #endif
 
-    typedef float		f4_t;
-    typedef double		f8_t;
+    typedef float        f4_t;
+    typedef double        f8_t;
 
-    static const int1_t		int1_max, int1_min;
-    static const int2_t		int2_max, int2_min;
-    static const int4_t		int4_max, int4_min;
-    static const int8_t		int8_max, int8_min;
+    static const int1_t        int1_max, int1_min;
+    static const int2_t        int2_max, int2_min;
+    static const int4_t        int4_max, int4_min;
+    static const int8_t        int8_max, int8_min;
 
-    static const uint1_t	uint1_max, uint1_min;
-    static const uint2_t	uint2_max, uint2_min;
-    static const uint4_t	uint4_max, uint4_min;
-    static const uint8_t	uint8_max, uint8_min;
+    static const uint1_t    uint1_max, uint1_min;
+    static const uint2_t    uint2_max, uint2_min;
+    static const uint4_t    uint4_max, uint4_min;
+    static const uint8_t    uint8_max, uint8_min;
 
     /*
      *  miscellaneous
      */
     enum { align_on = 0x8, align_mod = align_on - 1 };
 
-	/*
-	// NEH: turned into a macro for the purpose of folding
-    // static uint4_t		align(uint4_t sz);
-	*/
+    /*
+    // NEH: turned into a macro for the purpose of folding
+    // static uint4_t        align(uint4_t sz);
+    */
 #ifndef align
-#define alignonarg(a) (((ptrdiff_t)a)-1)
-#define alignon(p,a) (((ptrdiff_t)((char *)p + alignonarg(a))) & ~alignonarg(a))
+/// helper for alignon
+#define alignonarg(a) (((ptrdiff_t)(a))-1)
+/// aligns a pointer p on a size a
+#define alignon(p,a) (((ptrdiff_t)((char *)(p) + alignonarg(a))) & ~alignonarg(a))
 
-    /* XXX record alignment shouldn't be tied to allocator and natural
-       alignment properties.   However, that is how this has all been
-       setup to work ... which was wrong from the beginning.   I'm slowly
-       fixing alignment so that several alignments (record, allocator,
-       max natural) can exist in the system.   At least this allows
-       switching between alignments with relative ease. */
 
-#if defined(SM_RECORD_ALIGN_8) || defined(ARCH_LP64) || defined(LARGE_PID) || defined(LARGE_PAGE)
+///  We now support only 8-byte alignment of records
 #define ALIGNON 0x8
-#else
-#define ALIGNON 0x4
-#endif
 
+/// helper for align(sz)
 #define ALIGNON1 (ALIGNON-1)
+/// align to 8-byte boundary
 #define align(sz) ((size_t)((sz + ALIGNON1) & ~ALIGNON1))
 #endif /* align */
 
-    static bool		is_aligned(size_t sz);
-    static bool		is_aligned(const void* s);
+    static bool        is_aligned(size_t sz);
+    static bool        is_aligned(const void* s);
 
-    static bool		is_big_endian();
-    static bool		is_little_endian();
+    static bool        is_big_endian();
+    static bool        is_little_endian();
 
-    /*  strtoi8 and strtou8 act like strto[u]ll with the following
+    /*!
+     * strtoi8 and strtou8 act like strto[u]ll with the following
      *  two exceptions: the only bases supported are 0, 8, 10, 16;
      *  ::errno is not set
      */
-    static int8_t	strtoi8(const char *, char ** end=0 , int base=0);
-    static uint8_t	strtou8(const char *, char ** end=0, int base=0);
+    /**\brief Convert string to 8-byte integer  
+     *
+     * strtoi8 acts like strto[u]ll with the following
+     *  two exceptions: the only bases supported are 0, 8, 10, 16;
+     *  ::errno is not set
+     */
+    static int8_t    strtoi8(const char *, char ** end=0 , int base=0);
+    /**\brief Convert string to 8-byte unsigned integer.  
+     *
+     * strtou8 acts like strto[u]ll with the following
+     *  two exceptions: the only bases supported are 0, 8, 10, 16;
+     *  ::errno is not set
+     */
+    static uint8_t    strtou8(const char *, char ** end=0, int base=0);
 
-    static istream&	_scan_uint8(istream& i, uint8_t &, 
-				bool chew_white,
-				bool is_signed,
-				bool& rangerr);
+    // Input to an instream
+    static istream&    _scan_uint8(istream& i, uint8_t &, 
+                bool chew_white,
+                bool is_signed,
+                bool& rangerr);
 
-    static bool		is_finite(const f8_t x);
-    static bool		is_infinite(const f8_t x);
-    static bool		is_nan(const f8_t x);
-    static bool		is_infinite_or_nan(const f8_t x);
+    static bool        is_finite(const f8_t x);
+    static bool        is_infinite(const f8_t x);
+    static bool        is_nan(const f8_t x);
+    static bool        is_infinite_or_nan(const f8_t x);
 
     /*
      * Endian conversions that don't require any non-shore headers.
@@ -275,38 +396,33 @@ public:
      * w_ prefix due to typical macro problems with the names.
      * Why not use overloaded args?   Great idea, but unintentional
      * conversions could be a big problem with this stuff.
+     * Used by w_opaque.
      */
-    static uint2_t	w_ntohs(uint2_t);
-    static uint2_t	w_htons(uint2_t);
-    static uint4_t	w_ntohl(uint4_t);
-    static uint4_t	w_htonl(uint4_t);
+    static uint2_t    w_ntohs(uint2_t);
+    static uint2_t    w_htons(uint2_t);
+    static uint4_t    w_ntohl(uint4_t);
+    static uint4_t    w_htonl(uint4_t);
 
-    /*
-     *  standard streams
-     */
-    friend ostream&		operator<<(
-	ostream&		    o,
-	const w_base_t&		    obj);
+    ///  standard streams
+    friend ostream&        operator<<(
+        ostream&            o,
+        const w_base_t&            obj);
 
-    static void			assert_failed(
-    	const char*		    desc,
-	const char*		    file,
-	uint4_t 		    line);
+    /// print a message and abort
+    static void            assert_failed(
+        const char*            desc,
+        const char*            file,
+        uint4_t             line);
 
-    static	void		abort();
+    /// dump core
+    static    void        abort();
 };
 
 /* XXX compilers+environment that need this operator defined */
-#if defined(_MSC_VER)  
-extern ostream &operator<<(ostream &o, const w_base_t::int8_t &t);
-extern ostream &operator<<(ostream &o, const w_base_t::uint8_t &t);
-extern istream &operator>>(istream &i, w_base_t::int8_t &t);
-extern istream &operator>>(istream &i, w_base_t::uint8_t &t);
-#endif
 
-/* Allow a ostrstream to be reused.  Some, once a pointer is
-   made available through ::str(), don't allow changes until
-   the streem is unfrozen. */
+/**\def w_reset_strstream(s)
+ *\brief Allow a ostrstream to be reused.  
+ */
 
 /* This works for the shore w_strstream.   But, wait, why
    is it different for visual c++?  It doesn't need to be?
@@ -314,35 +430,23 @@ extern istream &operator>>(istream &i, w_base_t::uint8_t &t);
    with it also.    A better solution for w_strstreams and
    strstreams would be something overloaded instead of a macro. */
 
-#ifdef _MSC_VER
-#define	w_reset_strstream(s)		\
-	do {				\
-		s.rdbuf()->freeze(0);	\
-		s.seekp(ios::beg);	\
-	} while (0)
+#if defined (__SUNPRO_CC)
+#define w_reset_strstream(s) \
+  do { \
+    s.clear();                \
+    s.seekp(0); \
+  } while(0)
 #else
-#define	w_reset_strstream(s)		\
-	do {				\
-		s.freeze(0);		\
-		s.seekp(ios::beg);	\
-	} while (0)
+#define    w_reset_strstream(s)        \
+    do {                \
+        s.clear();        \
+        s.seekp(ios::beg);    \
+    } while (0)
 #endif
 
 
 /*--------------------------------------------------------------*
- *  w_base_t::align()						*
- *--------------------------------------------------------------*/
-#if 0	/* NEH: turned into a macro */
-inline w_base_t::uint4_t
-w_base_t::align(uint4_t sz)
-{
-    return (sz + ((sz & align_mod) ? 
-		  (align_on - (sz & align_mod)) : 0));
-}
-#endif
-
-/*--------------------------------------------------------------*
- *  w_base_t::is_aligned()					*
+ *  w_base_t::is_aligned()                    *
  *--------------------------------------------------------------*/
 inline bool
 w_base_t::is_aligned(size_t sz)
@@ -355,29 +459,23 @@ w_base_t::is_aligned(const void* s)
 {
     /* XXX works OK if there is a size mismatch because we are looking
        at the *low* bits */
-    return is_aligned(CAST(ptrdiff_t, s));
+    return is_aligned((ptrdiff_t)(s));
 }
 
 /*--------------------------------------------------------------*
- *  w_base_t::is_big_endian()					*
+ *  w_base_t::is_big_endian()                    *
  *--------------------------------------------------------------*/
 inline bool w_base_t::is_big_endian()
 {
-	/* Provide fast results on known architectures, slower
-	   but correct results on unknown architectures.
-	 */
-#if defined(Sparc)
-	return true;
-#elif defined(I386)
-	return false;
+#ifdef WORDS_BIGENDIAN
+    return true;
 #else
-	int i = 1;
-	return ((char*)&i)[3] == i;
+    return false;
 #endif
 }
 
 /*--------------------------------------------------------------*
- *  w_base_t::is_little_endian()				*
+ *  w_base_t::is_little_endian()                *
  *--------------------------------------------------------------*/
 inline bool
 w_base_t::is_little_endian()
@@ -385,82 +483,93 @@ w_base_t::is_little_endian()
     return ! is_big_endian();
 }
 
-/*--------------------------------------------------------------*
- *  w_vbase_t							*
- *--------------------------------------------------------------*/
+/**\brief Class that adds virtual destructor to w_base_t. 
+ */
 class w_vbase_t : public w_base_t {
 public:
-    NORET			w_vbase_t()	{};
-    virtual NORET		~w_vbase_t()	{};
+    NORET                w_vbase_t()    {};
+    virtual NORET        ~w_vbase_t()    {};
 };
-
-class w_msec_t {
-public:
-    enum special_t { 
-	t_infinity = -1,
-	t_forever = t_infinity,
-	t_immediate = 0
-    };
-
-    NORET			w_msec_t();
-    NORET			w_msec_t(w_base_t::uint4_t ms);
-    NORET			w_msec_t(special_t s);
-    
-    bool			is_forever();
-    w_base_t::uint4_t		value();
-private:
-    w_base_t::int4_t		ms;
-};
-
-inline w_base_t::uint4_t
-w_msec_t::value()
-{
-    return CAST(w_base_t::uint4_t, ms);
-}
-
-inline bool
-w_msec_t::is_forever()
-{
-    return ms == t_forever;
-}
 
 /*
- * These types are auto initialized filler space for alignment
+ * These types are auto-initialized filler space for alignment
  * in structures.  The auto init helps with purify.
  *
  * XXX Some of the users of these structures DEPEND on zero
  * fill (sm keys, etc). Eventually this will be seperated into
- * zero fill and plain fill (zeroed with PURIFY_ZERO).  Until then
+ * zero fill and plain fill (zeroed with ZERO_INIT).  Until then
  * these must always be initialized to 0.
  */
+/**\brief Auto-initialized 1-byte filler for alignment of structures*/
 struct fill1 {
-	w_base_t::uint1_t u1;
-	fill1() : u1(0) {}
+    w_base_t::uint1_t u1;
+    fill1() : u1(0) {}
 };
 
+/**\brief Auto-initialized 2-byte filler for alignment of structures*/
 struct fill2 {
-	w_base_t::uint2_t u2;
-	fill2() : u2(0) {}
+    w_base_t::uint2_t u2;
+    fill2() : u2(0) {}
 };
 
+/**\brief Auto-initialized 3-byte filler for alignment of structures*/
 struct fill3 {
-	w_base_t::uint1_t	u1[3];
-	fill3() { u1[0] = u1[1] = u1[2] = 0; }
+    w_base_t::uint1_t    u1[3];
+    fill3() { u1[0] = u1[1] = u1[2] = 0; }
 };
 
+/**\brief Auto-initialized 4-byte filler for alignment of structures*/
 struct fill4 {
-	w_base_t::uint4_t u4;
-	fill4() : u4(0) {}
+    w_base_t::uint4_t u4;
+    fill4() : u4(0) {}
 };
 
 
 #include <w_autodel.h>
-#include <w_factory.h>
-#include <w_factory_fast.h>
-#include <w_factory_thread.h>
 #include <w_error.h>
 #include <w_rc.h>
 
+template<bool B> struct CompileTimeAssertion;
+/** \brief Compile-time assertion trick. 
+ * See compile_time_assert.
+ */
+template<> struct CompileTimeAssertion<true> { void reference() {} };
+
+/** \brief Compile-time assertion trick. 
+ * If the assertion fails 
+ * you will get a compile error.
+ * The problem is that you will also get an unused variable
+ * complaint if warnings are turned on, so we make a bogus
+ * reference to the named structure.
+ *
+ * This is used by macros 
+ * - ASSERT_FITS_IN_LONGLONG 
+ * - ASSERT_FITS_IN_POINTER 
+ *   which are enabled only if built with some
+ *   debug level 1 or above (e.g., configure --with-debug-level1)
+ */
+template<typename T> struct compile_time_assert 
+{
+    compile_time_assert() {
+        CompileTimeAssertion<sizeof(long) == 8> assert_8byte_long;
+        CompileTimeAssertion<sizeof(long) >= sizeof(T)> assert_long_holds_T;
+    }
+};
+
+#if W_DEBUG_LEVEL > 0
+#define ASSERT_FITS_IN_LONGLONG(T) {                \
+    CompileTimeAssertion<sizeof(long long) >= sizeof(T)> assert__##T##__fits_in_longlong; \
+    assert__##T##__fits_in_longlong.reference(); \
+    }                    
+#define ASSERT_FITS_IN_POINTER(T) {                \
+    CompileTimeAssertion<sizeof(void*) >= sizeof(T)> assert__##T##__fits_in_pointer; \
+    assert__##T##__fits_in_pointer.reference(); \
+    }                    
+#else
+
+#define ASSERT_FITS_IN_POINTER(T) 
+#define ASSERT_FITS_IN_LONGLONG(T) 
+#endif
 /*<std-footer incl-file-exclusion='W_BASE_H'>  -- do not edit anything below this line -- */
 
 #endif          /*</std-footer>*/

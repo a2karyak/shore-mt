@@ -1,6 +1,29 @@
+/* -*- mode:C++; c-basic-offset:4 -*-
+     Shore-MT -- Multi-threaded port of the SHORE storage manager
+   
+                       Copyright (c) 2007-2009
+      Data Intensive Applications and Systems Labaratory (DIAS)
+               Ecole Polytechnique Federale de Lausanne
+   
+                         All Rights Reserved.
+   
+   Permission to use, copy, modify and distribute this software and
+   its documentation is hereby granted, provided that both the
+   copyright notice and this permission notice appear in all copies of
+   the software, derivative works or modified versions, and any
+   portions thereof, and that both notices appear in supporting
+   documentation.
+   
+   This code is distributed in the hope that it will be useful, but
+   WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. THE AUTHORS
+   DISCLAIM ANY LIABILITY OF ANY KIND FOR ANY DAMAGES WHATSOEVER
+   RESULTING FROM THE USE OF THIS SOFTWARE.
+*/
+
 /*<std-header orig-src='shore'>
 
- $Id: sdisk.cpp,v 1.8 2000/04/12 17:05:54 bolo Exp $
+ $Id: sdisk.cpp,v 1.8.2.7 2010/03/25 18:04:40 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -31,11 +54,12 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 
 /*  -- do not edit anything above this line --   </std-header>*/
 
+/**\cond skip */
 
 /*
  *   NewThreads I/O is Copyright 1995, 1996, 1997, 1998 by:
  *
- *	Josef Burger	<bolo@cs.wisc.edu>
+ *    Josef Burger    <bolo@cs.wisc.edu>
  *
  *   All Rights Reserved.
  *
@@ -46,85 +70,41 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #include <w.h>
 #include <sdisk.h>
 
-#include <sthread.h>	/* XXX for error codes */
+#include <sthread.h>    /* XXX for error codes */
 
 
-#if defined(_WIN32)
-const sdisk_base_t::fileoff_t	sdisk_base_t::fileoff_max = w_base_t::int4_max;
-#else
-const sdisk_base_t::fileoff_t	sdisk_base_t::fileoff_max = w_base_t::int8_max;
-#endif
-
-const	int	stSHORTSEEK = sthread_base_t::stSHORTSEEK;
+const    int    stSHORTSEEK = sthread_base_t::stSHORTSEEK;
 
 
-int	sdisk_base_t::vsize(const iovec_t *iov, int iovcnt)
+int    sdisk_base_t::vsize(const iovec_t *iov, int iovcnt)
 {
-	int	total = 0;
+    int    total = 0;
 
-	for (int i = 0; i < iovcnt; i++)
-		total += iov[i].iov_len;
+    for (int i = 0; i < iovcnt; i++)
+        total += iov[i].iov_len;
 
-	return total;
+    return total;
 }
 
-// XXX Assumes newVec is iovcnt long, since it might not compress
-int	sdisk_base_t::vcoalesce(const iovec_t *iov, int iovcnt,
-				iovec_t *newVec, int &newcnt)
+
+int    sdisk_t::modeBits(int mode)
 {
-	char		*tail;
-	const iovec_t	*lastVec = iov + iovcnt;
-	iovec_t		*newFirst = newVec;
-	int		totalSize = 0;
-
-	/* prime it with the first chunk */
-	*newVec = *iov++;
-	tail = (char *) newVec->iov_base  + newVec->iov_len;
-	totalSize += newVec->iov_len;
-
-	for (; iov < lastVec; iov++) {
-		if (tail == (char *)iov->iov_base) {
-			newVec->iov_len += iov->iov_len;
-			tail += iov->iov_len;
-		}
-		else {
-			*++newVec = *iov;
-			tail = (char *) newVec->iov_base + newVec->iov_len;
-		}
-		totalSize += iov->iov_len;
-	}
-	newVec++;
-
-#if 0
-	int	newCount = newVec - newFirst;
-	if (newCount < iovcnt)
-		cout << "Coalesce " << iovcnt << " to " << newCount << endl;
-#endif
-
-	/* If it can't be coalesced, who cares, else the count */
-	newcnt = (newVec - newFirst == iovcnt) ? 0 : newVec - newFirst;
-
-	return totalSize;
-}
-
-int	sdisk_t::modeBits(int mode)
-{
-	return mode & MODE_FLAGS;
+    return mode & MODE_FLAGS;
 }
 
 
 /* open mode is a 1-of-n choice */
-bool	sdisk_t::hasMode(int mode, int wanted)
+bool    sdisk_t::hasMode(int mode, int wanted)
 {
-	mode = modeBits(mode);
-	return mode == wanted;
+    mode = modeBits(mode);
+    return mode == wanted;
 }
 
 /* options are one-of-many; true if all wanted are found */
-bool	sdisk_t::hasOption(int mode, int wanted)
+bool    sdisk_t::hasOption(int mode, int wanted)
 {
-	mode &= OPTION_FLAGS;
-	return (mode & wanted) == wanted;
+    mode &= OPTION_FLAGS;
+    return (mode & wanted) == wanted;
 }
 
 
@@ -132,53 +112,53 @@ bool	sdisk_t::hasOption(int mode, int wanted)
    support it. Either an error or a short transfer will
    abort the I/O and return the transfer count. */
 
-w_rc_t	sdisk_t::readv(const iovec_t *iov, int iovcnt, int &transfered)
+w_rc_t    sdisk_t::readv(const iovec_t *iov, int iovcnt, int &transfered)
 {
-	int	total = 0;
-	int	done = 0;
-	int	n;
-	int	i;
-	w_rc_t	e;
+    int    total = 0;
+    int    done = 0;
+    int    n;
+    int    i;
+    w_rc_t    e;
 
-	total = vsize(iov, iovcnt);
+    total = vsize(iov, iovcnt);
 
-	for (i = 0; i < iovcnt; i++) {
-		e = read(iov[i].iov_base, iov[i].iov_len, n);
-		if (e)
-			break;
-		done += n;
-		if (n != iov[i].iov_len)
-			break;
-	}
+    for (i = 0; i < iovcnt; i++) {
+        e = read(iov[i].iov_base, iov[i].iov_len, n);
+        if (e.is_error())
+            break;
+        done += n;
+        if (size_t(n) != iov[i].iov_len)
+            break;
+    }
 
-	transfered = done;
+    transfered = done;
 
-	return e;
+    return e;
 }
 
 
-w_rc_t	sdisk_t::writev(const iovec_t *iov, int iovcnt, int &transfered)
+w_rc_t    sdisk_t::writev(const iovec_t *iov, int iovcnt, int &transfered)
 {
-	int	total = 0;
-	int	done = 0;
-	int	n;
-	int	i;
-	w_rc_t	e;
+    int    total = 0;
+    int    done = 0;
+    int    n;
+    int    i;
+    w_rc_t    e;
 
-	total = vsize(iov, iovcnt);
+    total = vsize(iov, iovcnt);
 
-	for (i = 0; i < iovcnt; i++) {
-		e = write(iov[i].iov_base, iov[i].iov_len, n);
-		if (e)
-			break;
-		done += n;
-		if (n != iov[i].iov_len)
-			break;
-	}
+    for (i = 0; i < iovcnt; i++) {
+        e = write(iov[i].iov_base, iov[i].iov_len, n);
+        if (e.is_error())
+            break;
+        done += n;
+        if (size_t(n) != iov[i].iov_len)
+            break;
+    }
 
-	transfered = done;
+    transfered = done;
 
-	return e;
+    return e;
 }
 
 /* Emulate positioned I/O operations on thos boxes which don't
@@ -188,91 +168,92 @@ w_rc_t	sdisk_t::writev(const iovec_t *iov, int iovcnt, int &transfered)
    seek to where the I/O is supposed to be, execute it, and
    then restore the old position.  */
 
-w_rc_t	sdisk_t::pread(void *buf, int size, fileoff_t pos,
-		       int &transfered)
+w_rc_t    sdisk_t::pread(void *buf, int size, fileoff_t pos,
+               int &transfered)
 {
-	fileoff_t	was;
-	fileoff_t	newpos;
-	int		n;
-	w_rc_t		e;
-	w_rc_t		es;
+  // make it safe or don't do it at all.
+  return RC(fcNOTIMPLEMENTED);
+  
+    fileoff_t    was;
+    fileoff_t    newpos;
+    int        n;
+    w_rc_t        e;
+    w_rc_t        es;
 
-	W_DO(seek(0, SEEK_AT_CUR, was));
-	/* Only move if it needs to */
-	if (pos != was) {
-		W_DO(seek(pos, SEEK_AT_SET, newpos));
-		if (newpos != pos) {
-			es = seek(was, SEEK_AT_SET, newpos);
-			if (es != RCOK)
-				cerr << "Warning: pread reposition failed!"
-					<< endl << e << endl;
-			return RC(stSHORTSEEK);
-		}
-	}
+    W_DO(seek(0, SEEK_AT_CUR, was));
+    /* Only move if it needs to */
+    if (pos != was) {
+        W_DO(seek(pos, SEEK_AT_SET, newpos));
+        if (newpos != pos) {
+            es = seek(was, SEEK_AT_SET, newpos);
+            if (es.is_error())
+                cerr << "Warning: pread reposition failed!"
+                    << endl << e << endl;
+            return RC(stSHORTSEEK);
+        }
+    }
 
-	e = read(buf, size, n);
+    e = read(buf, size, n);
 
-	es = seek(was, SEEK_AT_SET, newpos);
-	/* XXX should a reposition error make the I/O fail? */
-	if (es != RCOK || newpos != was)
-		cerr << "Warning: pread reposition failed!"
-			<< endl << e << endl;
+    es = seek(was, SEEK_AT_SET, newpos);
+    /* XXX should a reposition error make the I/O fail? */
+    if (es.is_error() || newpos != was)
+        cerr << "Warning: pread reposition failed!"
+            << endl << e << endl;
 
-	transfered = n;
+    transfered = n;
 
-	return e;
+    return e;
 }
 
-w_rc_t	sdisk_t::pwrite(const void *buf, int size, fileoff_t pos,
-		       int &transfered)
+w_rc_t    sdisk_t::pwrite(const void *buf, int size, fileoff_t pos,
+               int &transfered)
 {
-	fileoff_t	was;
-	fileoff_t	newpos;
-	int		n;
-	w_rc_t		e;
-	w_rc_t		es;
+  // make it safe or don't do it at all.
+  return RC(fcNOTIMPLEMENTED);
+  
+    fileoff_t    was;
+    fileoff_t    newpos;
+    int        n;
+    w_rc_t        e;
+    w_rc_t        es;
 
-	W_DO(seek(0, SEEK_AT_CUR, was));
-	/* Only move if it needs to */
-	if (pos != was) {
-		W_DO(seek(pos, SEEK_AT_SET, newpos));
-		if (newpos != pos) {
-			es = seek(was, SEEK_AT_SET, newpos);
-			if (es != RCOK)
-				cerr << "Warning: pwrite reposition failed!"
-					<< endl << e << endl;
-			return RC(stSHORTSEEK);
-		}
-	}
+    W_DO(seek(0, SEEK_AT_CUR, was));
+    /* Only move if it needs to */
+    if (pos != was) {
+        W_DO(seek(pos, SEEK_AT_SET, newpos));
+        if (newpos != pos) {
+            es = seek(was, SEEK_AT_SET, newpos);
+            if (es.is_error())
+                cerr << "Warning: pwrite reposition failed!"
+                    << endl << e << endl;
+            return RC(stSHORTSEEK);
+        }
+    }
 
-	e = write(buf, size, n);
+    e = write(buf, size, n);
 
-	es = seek(was, SEEK_AT_SET, newpos);
-	/* XXX should a reposition error make the I/O fail? */
-	if (es != RCOK || newpos != was)
-		cerr << "Warning: pwrite reposition failed!"
-			<< endl << e << endl;
+    es = seek(was, SEEK_AT_SET, newpos);
+    /* XXX should a reposition error make the I/O fail? */
+    if (es.is_error() || newpos != was)
+        cerr << "Warning: pwrite reposition failed!"
+            << endl << e << endl;
 
-	transfered = n;
+    transfered = n;
 
-	return e;
+    return e;
 }
 
 
 /* a no-op file-sync if the underlying implementation doesn't support it. */
-w_rc_t	sdisk_t::sync()
+w_rc_t    sdisk_t::sync()
 {
-	return RCOK;
+    return RCOK;
 }
 
 
-w_rc_t	sdisk_t::stat(filestat_t &)
+w_rc_t    sdisk_t::stat(filestat_t &)
 {
-	return RC(fcNOTIMPLEMENTED);
+    return RC(fcNOTIMPLEMENTED);
 }
-
-
-w_rc_t	sdisk_t::getGeometry(disk_geometry_t &)
-{
-	return RC(fcNOTIMPLEMENTED);
-}
+/**\endcond skip */

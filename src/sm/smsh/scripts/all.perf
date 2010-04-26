@@ -1,6 +1,6 @@
 # <std-header style='tcl' orig-src='shore'>
 #
-#  $Id: all.perf,v 1.11 2006/06/01 17:09:29 nhall Exp $
+#  $Id: all.perf,v 1.11.2.1 2009/10/08 20:52:28 nhall Exp $
 #
 # SHORE -- Scalable Heterogeneous Object REpository
 #
@@ -84,6 +84,11 @@ source $script_dir/alloc.perf
 echo RUNNING alloc.perf.2
 source $script_dir/alloc.perf.2
 
+echo RUNNING read2.perf
+source $script_dir/read2.perf
+
+echo RUNNING file.many.perf
+source $script_dir/file.many.perf
 
 echo DONE
 

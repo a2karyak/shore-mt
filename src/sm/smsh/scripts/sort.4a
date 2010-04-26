@@ -1,6 +1,6 @@
 # <std-header style='tcl' orig-src='shore'>
 #
-#  $Id: sort.4a,v 1.9 1999/06/07 19:05:45 kupsch Exp $
+#  $Id: sort.4a,v 1.9.4.1 2009/12/03 04:03:49 nhall Exp $
 #
 # SHORE -- Scalable Heterogeneous Object REpository
 #
@@ -101,11 +101,11 @@ proc do_sort_and_display { f1 volid ktype hdrtype bodytype dups destruct where u
 
 	set f3 [sm sort_file $f1 $volid $runsize $ktype $where $dups $destruct regular $universe]
 
-	set save_verbose_flag $verbose_flag
-	set verbose_flag 1
+	# set save_verbose_flag $verbose_flag
+	# set verbose_flag 1
 	verbose ktype, distinct, destruct = $ktype, $dups, $destruct
 	# pxstats reset
-	set verbose_flag $save_verbose_flag
+	# set verbose_flag $save_verbose_flag
 
 	verbose output file = f3 = $f3
 	verbose scans on f3 ...

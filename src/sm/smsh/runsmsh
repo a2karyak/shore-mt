@@ -2,7 +2,7 @@
 
 # <std-header style='shell' orig-src='shore'>
 #
-#  $Id: runsmsh,v 1.1 2007/05/18 21:50:58 nhall Exp $
+#  $Id: runsmsh,v 1.1.2.3 2010/01/12 02:01:53 nhall Exp $
 #
 # SHORE -- Scalable Heterogeneous Object REpository
 #
@@ -42,8 +42,8 @@ v=0
 scriptname=${1:-random.all}
 echo $scriptname
 
-SIGUSR1=30
-SIGUSR2=31
+SIGUSR1=10
+SIGUSR2=12
 
 TIMEOUT=$SIGUSR1
 GOAWAY=$SIGUSR2
@@ -60,6 +60,10 @@ iteration=0
 
 trap  "if test $iteration -ne 0; then echo done with iteration $iteration; fi" $TIMEOUT;
 
+# random_kick: av[1] is sig 
+# random_kick: av[2] is pid 
+# random_kick: av[3,4,5] max0,1,2 timeouts; each of the three
+# timeouts is randomly chosen
 random_kick $TIMEOUT 0 30 120 1800 &
 kicker=$!
 
@@ -74,8 +78,8 @@ if test -x ./smsh ;  then
 	trap  "if test $first -ne 1; then echo ignored TIMEOUT; fi" $TIMEOUT
 	first=2
 
-	echo ./smsh -t volid=1 -f scripts/$scriptname
-	./smsh -t volid=1 -f scripts/$scriptname
+	echo ./smsh -f scripts/$scriptname
+	./smsh -f scripts/$scriptname
 	status=$?
 
 	if test $status -ne 0; then

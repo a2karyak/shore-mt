@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: list2.cpp,v 1.24 2006/01/29 18:09:01 bolo Exp $
+ $Id: list2.cpp,v 1.24.2.5 2010/03/19 22:17:53 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -37,87 +37,88 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #include <w.h>
 
 struct elem2_t {
-    int 	i;
-    w_link_t	link;
+    int         i;
+    w_link_t        link;
 };
 
 int main()
 {
-    w_list_t<elem2_t> l(W_LIST_ARG(elem2_t, link));
+    w_list_t<elem2_t, unsafe_list_dummy_lock_t> l(W_LIST_ARG(elem2_t, link),
+			unsafe_nolock);
 
     elem2_t array[10];
 
     int i;
     for (i = 0; i < 10; i++)  {
-	array[i].i = i;
-	l.push(&array[i]);
+        array[i].i = i;
+        l.push(&array[i]);
     }
 
     {
-	w_list_i<elem2_t> iter(l);
-	for (i = 0; i < 10; i++)  {
-#ifdef W_DEBUG
-	    elem2_t* p = iter.next();
+        w_list_i<elem2_t, unsafe_list_dummy_lock_t> iter(l);
+        for (i = 0; i < 10; i++)  {
+#if W_DEBUG_LEVEL>0
+            elem2_t* p = iter.next();
+            w_assert1(p);
+            w_assert1(p->i == 9 - i);
 #else
-	    (void) iter.next();
+            (void) iter.next();
 #endif
-	    w_assert3(p);
-	    w_assert3(p->i == 9 - i);
-	}
-	w_assert3(iter.next() == 0);
+        }
+        w_assert1(iter.next() == 0);
 
-	w_list_const_i<elem2_t> const_iter(l);
-	for (i = 0; i < 10; i++)  {
-#ifdef W_DEBUG
-	    const elem2_t* p = const_iter.next();
+        w_list_const_i<elem2_t, unsafe_list_dummy_lock_t> const_iter(l);
+        for (i = 0; i < 10; i++)  {
+#if W_DEBUG_LEVEL>0
+            const elem2_t* p = const_iter.next();
+            w_assert1(p);
+            w_assert1(p->i == 9 - i);
 #else
-	    (void) const_iter.next();
+            (void) const_iter.next();
 #endif
-	    w_assert3(p);
-	    w_assert3(p->i == 9 - i);
-	}
-	w_assert3(const_iter.next() == 0);
+        }
+        w_assert1(const_iter.next() == 0);
     }
 
     for (i = 0; i < 10; i++)  {
-#ifdef W_DEBUG
-	elem2_t* p = l.pop();
+#if W_DEBUG_LEVEL>0
+        elem2_t* p = l.pop();
+        w_assert1(p);
+        w_assert1(p->i == 9 - i);
 #else
-	(void) l.pop();
+        (void) l.pop();
 #endif
-	w_assert3(p);
-	w_assert3(p->i == 9 - i);
     }
 
-    w_assert3(l.pop() == 0);
+    w_assert1(l.pop() == 0);
 
     for (i = 0; i < 10; i++)  {
-	l.append(&array[i]);
+        l.append(&array[i]);
     }
 
     {
-	w_list_i<elem2_t> iter(l);
-	for (i = 0; i < 10; i++)  {
-#ifdef W_DEBUG
-	    elem2_t* p = iter.next();
+        w_list_i<elem2_t, unsafe_list_dummy_lock_t> iter(l);
+        for (i = 0; i < 10; i++)  {
+#if W_DEBUG_LEVEL>0
+            elem2_t* p = iter.next();
+            w_assert1(p);
+            w_assert1(p->i == i);
 #else
-	    (void) iter.next();
+            (void) iter.next();
 #endif
-	    w_assert3(p);
-	    w_assert3(p->i == i);
-	}
+        }
     }
 
     for (i = 0; i < 10; i++)  {
-#ifdef W_DEBUG
-	elem2_t* p = l.chop();
+#if W_DEBUG_LEVEL>0
+        elem2_t* p = l.chop();
+        w_assert1(p);
+        w_assert1(p->i == 9 - i);
 #else
-	(void) l.chop();
+        (void) l.chop();
 #endif
-	w_assert3(p);
-	w_assert3(p->i == 9 - i);
     }
-    w_assert3(l.chop() == 0);
+    w_assert1(l.chop() == 0);
 
     return 0;
 }
@@ -125,12 +126,12 @@ int main()
 #ifdef __BORLANDC__
 #pragma option -Jgd
 #include <w_list.cpp>
-typedef w_list_t<elem2_t> w_list_t_elem2_t_dummy;
+typedef w_list_t<elem2_t, unsafe_list_dummy_lock_t> w_list_t_elem2_t_dummy;
 #endif /*__BORLANDC__*/
 
 #ifdef EXPLICIT_TEMPLATE
-template class w_list_t<elem2_t>;
-template class w_list_i<elem2_t>;
-template class w_list_const_i<elem2_t>;
+template class w_list_t<elem2_t, unsafe_list_dummy_lock_t>;
+template class w_list_i<elem2_t, unsafe_list_dummy_lock_t>;
+template class w_list_const_i<elem2_t, unsafe_list_dummy_lock_t>;
 #endif
 

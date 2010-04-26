@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: kvl.cpp,v 1.15 2006/03/14 05:31:23 bolo Exp $
+ $Id: kvl.cpp,v 1.15.2.4 2010/03/19 22:19:21 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -35,7 +35,6 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #include <basics.h>
 #include <vec_t.h>
 #include <kvl_t.h>
-#include <zvec_t.h>
 
 #include <iostream>
 #include <w_strstream.h>
@@ -43,58 +42,58 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 int main(int argc, const char *argv[])
 {
     if(argc != 3 && argc != 4) {
-	cerr << "Usage: " << argv[0]
-		<< " <store-id: x.y> <key: string> [<elem: string >]"
-		<< endl;
-	return 1;
+    cerr << "Usage: " << argv[0]
+        << " <store-id: x.y> <key: string> [<elem: string >]"
+        << endl;
+    return 1;
     }
     else {
-	int v;
-	int st;
-	{
-	    w_istrstream anon(argv[1]);
-	    char dot;
-	    anon >> v;
-	    anon >> dot;
-	    anon >> st;
-	}
-	stid_t s(v,st);
-	cvec_t key(argv[2], strlen(argv[2]));
+    int v;
+    int st;
+    {
+        w_istrstream anon(argv[1]);
+        char dot;
+        anon >> v;
+        anon >> dot;
+        anon >> st;
+    }
+    stid_t s(v,st);
+    cvec_t key(argv[2], strlen(argv[2]));
 
-	cvec_t elem;
-	if(argc > 3) {
-	    elem.put(argv[3], strlen(argv[3]));
-	}
-	kvl_t  kvl(s, key, elem);
+    cvec_t elem;
+    if(argc > 3) {
+        elem.put(argv[3], strlen(argv[3]));
+    }
+    kvl_t  kvl(s, key, elem);
 
-	cout 
-	    << "kvl(store= " << s 
-	    << " key= " << key 
-	    << " elem= " << elem 
-	    << ")= " << kvl << endl;
+    cout 
+        << "kvl(store= " << s 
+        << " key= " << key 
+        << " elem= " << elem 
+        << ")= " << kvl << endl;
 
-	// calclulate kvl for null vector
-	vec_t nul;
-	kvl_t kvl1(s, nul, elem);
-	cout 
-	    << "kvl(store= " << s 
-	    << " key= " << nul 
-	    << " elem= " << elem 
-	    << ")= " << kvl1 << endl;
+    // calclulate kvl for null vector
+    vec_t nul;
+    kvl_t kvl1(s, nul, elem);
+    cout 
+        << "kvl(store= " << s 
+        << " key= " << nul 
+        << " elem= " << elem 
+        << ")= " << kvl1 << endl;
 
-	kvl_t kvl3(s, key, nul);
-	cout 
-	    << "kvl(store= " << s 
-	    << " key= " << key 
-	    << " elem= " << nul 
-	    << ")= " << kvl3 << endl;
+    kvl_t kvl3(s, key, nul);
+    cout 
+        << "kvl(store= " << s 
+        << " key= " << key 
+        << " elem= " << nul 
+        << ")= " << kvl3 << endl;
 
-	kvl_t kvl2(s, nul, nul);
-	cout 
-	    << "kvl(store= " << s 
-	    << " key= " << nul 
-	    << " elem= " << nul 
-	    << ")= " << kvl2 << endl;
+    kvl_t kvl2(s, nul, nul);
+    cout 
+        << "kvl(store= " << s 
+        << " key= " << nul 
+        << " elem= " << nul 
+        << ")= " << kvl2 << endl;
     }
     return 0;
 }

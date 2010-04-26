@@ -1,7 +1,31 @@
+#if DEAD
+/* -*- mode:C++; c-basic-offset:4 -*-
+     Shore-MT -- Multi-threaded port of the SHORE storage manager
+   
+                       Copyright (c) 2007-2009
+      Data Intensive Applications and Systems Labaratory (DIAS)
+               Ecole Polytechnique Federale de Lausanne
+   
+                         All Rights Reserved.
+   
+   Permission to use, copy, modify and distribute this software and
+   its documentation is hereby granted, provided that both the
+   copyright notice and this permission notice appear in all copies of
+   the software, derivative works or modified versions, and any
+   portions thereof, and that both notices appear in supporting
+   documentation.
+   
+   This code is distributed in the hope that it will be useful, but
+   WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. THE AUTHORS
+   DISCLAIM ANY LIABILITY OF ANY KIND FOR ANY DAMAGES WHATSOEVER
+   RESULTING FROM THE USE OF THIS SOFTWARE.
+*/
+
 
 /*<std-header orig-src='shore'>
 
- $Id: alloc_sthread.cpp,v 1.6 2007/05/18 21:53:42 nhall Exp $
+ $Id: alloc_sthread.cpp,v 1.6.2.4 2009/10/30 15:01:59 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -34,11 +58,8 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 
 
 #include <cstdlib>
-
 #include <w.h>
-
 #include <sthread.h>
-
 #include <w_debug.h>
 
 /* 
@@ -80,7 +101,14 @@ sthread_t::per_thread_alloc(
 	    _allocations++;
 	}
     }
-    return (w_heapid_t) this;
+    union {
+	w_heapid_t ret;
+        sthread_t *ptr;
+    } u;
+    u.ptr = this;
+    w_assert1(sizeof(u.ret)==sizeof(u.ptr));
+    return u.ret;
+    // return (w_heapid_t) this;
 }
 
 /* XXX race condition */
@@ -113,45 +141,6 @@ w_shore_thread_alloc(
     return w_no_shore_thread_id;
 }
 
-sthread_t *
-sthread_t::id2thread(w_heapid_t id)
-{
-#ifndef NOTDEF
-    // if a w_heapid_t is the thread id, use this:
-    w_list_i<sthread_t> i(*_class_list);
-
-    while (i.next())  {
-	if(i.curr()->id == (w_base_t::uint4_t)id) {
-		DBG(<<"id2thread maps " << (unsigned int) id 
-		    << " --> " << (sthread_t *)i.curr());
-		return (sthread_t *) i.curr();
-	}
-    }
-    DBG(<<"id2thread maps " << (unsigned int) id 
-	<< " --> NULL" );
-    return (sthread_t *)0;
-#else
-    DBG(<<"id2thread maps " << (unsigned int) id 
-	<< " --> " << (sthread_t *)id);
-    return (sthread_t *)id;
-#endif
-
-}
-
-void
-w_shore_thread_dealloc(
-    size_t amt, 
-    w_heapid_t id
-) 
-{
-    DBGTHRD(<<"id" << (unsigned int)id);
-    sthread_t* t = sthread_t::id2thread(id);
-    DBGTHRD(<<"t" << (unsigned int)t);
-
-    if(t) t->per_thread_alloc(amt, true);
-}
-
-
 void 	
 w_shore_alloc_stats( size_t& amt, size_t& allocs, size_t& hiwat)
 {
@@ -160,10 +149,12 @@ w_shore_alloc_stats( size_t& amt, size_t& allocs, size_t& hiwat)
     hiwat = high_water_mark;
 }
 
-w_base_t::uint4_t 
+sthread_t::id_t
 w_id2int(w_heapid_t i)
 {
     sthread_t *t = (sthread_t *)i;
-    if(t) return (w_base_t::uint4_t) t->id+1;
-    else return (w_base_t::uint4_t) 0;
+    if(t) return (sthread_t::id_t) t->id+1;
+    else return  (sthread_t::id_t) 0;
 }
+
+#endif /*DEAD*/

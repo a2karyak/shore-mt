@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: tcl_thread.cpp,v 1.139 2007/05/18 21:51:00 nhall Exp $
+ $Id: tcl_thread.cpp,v 1.139.2.25 2010/03/19 22:20:31 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -40,71 +40,61 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 
 extern "C" void dumpthreads();
 
-#ifdef _WIN32
-#    undef EXTERN
-#include <io.h>
-#ifdef _MT
-#include <process.h>
-#endif
-#endif
 
+#include <strings.h>
 #include "shell.h"
-
-#if defined(_WIN32) && defined(NEW_IO)
-#include <win32_events.h>
-#elif !defined(_WIN32)
-#include <sfile_handler.h>
-#endif
-
-
 #include <crash.h>
 
-#ifdef USE_COORD
-#include <sm_global_deadlock.h>
-extern CentralizedGlobalDeadlockServer* globalDeadlockServer;
-#endif
-
+bool debug(false);
 
 #ifdef EXPLICIT_TEMPLATE
-template class w_list_i<tcl_thread_t>;
-template class w_list_t<tcl_thread_t>;
+template class w_list_i<tcl_thread_t, queue_based_block_lock_t>;
+template class w_list_t<tcl_thread_t, queue_based_block_lock_t>;
 #endif
 
 // an unlikely naturally occuring error string which causes the interpreter loop to
 // exit cleanly.
 static const char *TCL_EXIT_ERROR_STRING = "!@#EXIT#@!";
 
+const char* Logical_id_flag_tcl = "Use_logical_id";
+Tcl_Interp* global_ip (NULL); // for debugging
 
-bool tcl_thread_t::allow_remote_command = false;
-int tcl_thread_t::count = 0;
+int tcl_thread_t::thread_count = 0;
+int tcl_thread_t::thread_forked = 0;
+int tcl_thread_t::thread_joined = 0;
 char* tcl_thread_t::inter_thread_comm_buffer = 0;
 
 ss_m* sm = 0;
 
-extern int vtable_dispatch(ClientData, Tcl_Interp* ip, int ac, TCL_AV char* av[]);
-extern int sm_dispatch(ClientData, Tcl_Interp* ip, int ac, TCL_AV char* av[]);
-#ifdef USE_COORD
-extern int co_dispatch(ClientData, Tcl_Interp* ip, int ac, TCL_AV char* av[]);
-#endif
-extern int st_dispatch(ClientData, Tcl_Interp *, int, TCL_AV char **);
+extern "C" int vtable_dispatch(ClientData, Tcl_Interp* ip, int ac, TCL_AV char* av[]);
+extern "C" int sm_dispatch(ClientData, Tcl_Interp* ip, int ac, TCL_AV char* av[]);
+extern "C" int st_dispatch(ClientData, Tcl_Interp *, int, TCL_AV char **);
 
 extern const char* tcl_init_cmd;
+static int    num_tcl_threads(0);
+/*static*/ int    num_tcl_threads_ttl(0); // now  extern
+extern "C" int num_tcl_threads_running() { return num_tcl_threads; }
 
-w_list_t<tcl_thread_t> tcl_thread_t::list(W_LIST_ARG(tcl_thread_t, link));
+// protects threadslist
+queue_based_block_lock_t tcl_thread_t::thread_mutex;
+
+w_list_t<tcl_thread_t, queue_based_block_lock_t> 
+    tcl_thread_t::threadslist(W_LIST_ARG(tcl_thread_t, link), &tcl_thread_t::thread_mutex);
+
 class xct_i;
 extern w_rc_t out_of_log_space (xct_i*, xct_t *&,
-	smlevel_0::fileoff_t, smlevel_0::fileoff_t);
+    smlevel_0::fileoff_t, smlevel_0::fileoff_t);
 
 // For debugging
 extern "C" void tcl_assert_failed();
 void tcl_assert_failed() {}
 
-static int
+extern "C" int
 t_debugflags(ClientData, Tcl_Interp* ip, int ac, TCL_AV char** W_IFTRACE(av))
 {
     if (ac != 2 && ac != 1) {
-	Tcl_AppendResult(ip, "usage: debugflags [arg]", 0);
-	return TCL_ERROR;
+    Tcl_AppendResult(ip, "usage: debugflags [arg]", 0);
+    return TCL_ERROR;
     }
 #ifdef W_TRACE
     char *f;
@@ -118,24 +108,24 @@ t_debugflags(ClientData, Tcl_Interp* ip, int ac, TCL_AV char** W_IFTRACE(av))
         Tcl_AppendResult(ip,  _w_debug.flags(), 0);
     }
     if(f) {
-	Tcl_AppendResult(ip,  "NB: written to file: ",f,".", 0);
+        Tcl_AppendResult(ip,  "NB: written to file: ",f,".", 0);
     }
 #endif
     return TCL_OK;
 }
-static int
+extern "C" int
 t_assert(ClientData, Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (ac != 2) {
-	Tcl_AppendResult(ip, "usage: assert [arg]", 0);
-	return TCL_ERROR;
+        Tcl_AppendResult(ip, "usage: assert [arg]", 0);
+        return TCL_ERROR;
     }
     int boo = 0;
-    int	res = Tcl_ExprBoolean(ip, av[1], &boo);
+    int    res = Tcl_ExprBoolean(ip, av[1], &boo);
     if(res == TCL_OK && boo==0) {
-	// assertion failure
-	// A place to put a gdb breakpoint!!!
-	tcl_assert_failed();
+        // assertion failure
+        // A place to put a gdb breakpoint!!!
+        tcl_assert_failed();
     }
     Tcl_AppendResult(ip, tcl_form_flag(boo), 0);
     cout << flush;
@@ -143,17 +133,17 @@ t_assert(ClientData, Tcl_Interp* ip, int ac, TCL_AV char* av[])
 }
 
 
-static int
+extern "C" int
 t_timeofday(ClientData, Tcl_Interp* ip, int ac, TCL_AV char* /*av*/[])
 {
     if (ac > 1) {
-	Tcl_AppendResult(ip, "usage: timeofday", 0);
-	return TCL_ERROR;
+        Tcl_AppendResult(ip, "usage: timeofday", 0);
+        return TCL_ERROR;
     }
 
     stime_t now = stime_t::now();
 
-    w_ostrstream_buf otmp(100);		// XXX magic number
+    w_ostrstream_buf otmp(100);        // XXX magic number
     /* XXX should use stime_t operator<<, but format differs */
     W_FORM2(otmp, ("%d %d", now.secs(), now.usecs()));
     otmp << ends;
@@ -162,40 +152,19 @@ t_timeofday(ClientData, Tcl_Interp* ip, int ac, TCL_AV char* /*av*/[])
     return TCL_OK;
 }
 
-static int
-t_allow_remote_command(ClientData, Tcl_Interp* ip, int ac, TCL_AV char* av[])
-{
-    if (ac != 2) {
-	Tcl_AppendResult(ip, "usage: allow_remote_command [off|no|false|on|yes|true]", 
-		0);
-	return TCL_ERROR;
-    }
-
-    bool	flag;
-
-    if (tcl_scan_flag(av[1], flag) != TCL_OK) {
-    	if (tcl_scan_bool(av[1], flag) != TCL_OK)
-	    Tcl_AppendResult(ip, "usage: flag: off|no|false|on|yes|true", 0);
-	    return TCL_ERROR;
-    }
-
-    tcl_thread_t::allow_remote_command = flag;
-
-    return TCL_OK;
-}
 
 #if !defined(USE_SSMTEST) 
 #define av
 #endif
-static int
+extern "C" int
 t_debuginfo(ClientData, Tcl_Interp* ip, int ac, TCL_AV char* av[])
 #if !defined(USE_SSMTEST) 
 #undef av
 #endif
 {
     if (ac != 4) {
-	Tcl_AppendResult(ip, "usage: debuginfo category v1 v2", 0);
-	return TCL_ERROR;
+        Tcl_AppendResult(ip, "usage: debuginfo category v1 v2", 0);
+        return TCL_ERROR;
     }
 #if defined(USE_SSMTEST) 
     const char *v1 = av[2];
@@ -207,194 +176,390 @@ t_debuginfo(ClientData, Tcl_Interp* ip, int ac, TCL_AV char* av[])
      * v2  is int
      *
      * Same effect as setting environment variables 
-     * (e.g.)CRASHTEST CRASHTESTVAL
+     * (e.g.)
+     * CRASHTEST <-- v1
+     * CRASHTESTVAL <-- v2
      */
     if(strcmp(av[1], "delay")==0) {
-	// v1: where, v2: time
-	d = debug_delay;
-    } else
-    if(strcmp(av[1], "crash")==0) {
-	if(! tcl_thread_t::allow_remote_command) return TCL_OK;
-
-	// v1: where, v2: nth-time-through
-	d = debug_crash;
-    } else
-    if(strcmp(av[1], "none")==0) {
-	v1 = "none";
-	v2 = 0;
-	setdebuginfo(debug_delay, v1, v2);
-	d = debug_crash;
+        // v1: where, v2: time
+        d = debug_delay;
+    } else if(strcmp(av[1], "crash")==0) {
+        // v1: where, v2: nth-time-through
+        d = debug_crash;
+    } else if(strcmp(av[1], "none")==0) {
+        v1 = "none";
+        v2 = 0;
+        setdebuginfo(debug_delay, v1, v2);
+        d = debug_crash;
     }
     setdebuginfo(d, v1, v2);
     return TCL_OK;
 #else
-    Tcl_AppendResult(ip, "simulate_preemption (USE_SSMTEST) not configured", 0);
+    Tcl_AppendResult(ip, "USE_SSMTEST not configured", 0);
     return TCL_ERROR;
 #endif
 }
 
-static int
+extern "C" int
 t_write_random(ClientData, Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
+    rand48&  generator(get_generator());
     if (ac != 2) {
-	Tcl_AppendResult(ip, "usage: write_random filename", 0);
-	return TCL_ERROR;
+        Tcl_AppendResult(ip, "usage: write_random filename", 0);
+        return TCL_ERROR;
     }
     if(ac == 2) {
-    	random_generator::generator.write(av[1]);
+        ofstream f(av[1], ios::out);
+        if(!f) {
+            cerr << "Cannot write to file " << av[1] << endl;
+        }
+        else
+        {
+            unsigned48_t  seed = generator._state;
+            out(f,seed);
+        }
+        f.close();
     }
     return TCL_OK;
 }
 
-static int
+extern "C" int
 t_read_random(ClientData, Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (ac != 2) {
-	Tcl_AppendResult(ip, "usage: read_random filename", 0);
-	return TCL_ERROR;
+        Tcl_AppendResult(ip, "usage: read_random filename", 0);
+        return TCL_ERROR;
     }
     if(ac == 2) {
-    	random_generator::generator.read(av[1]);
+        rand48&  generator(get_generator());
+        ifstream f(av[1]);
+        if(!f) {
+            cerr << "Cannot read file " << av[1] << endl;
+        }
+        else 
+        {
+            in(f,generator._state);
+        }
+        f.close();
     }
     return TCL_OK;
 }
 
-static int
+extern "C" int
 t_random(ClientData, Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (ac > 2) {
-	Tcl_AppendResult(ip, "usage: random [modulus]", 0);
-	return TCL_ERROR;
+        Tcl_AppendResult(ip, "usage: random [modulus]", 0);
+        return TCL_ERROR;
     }
-    int mod;
+    int mod=0;
     if(ac == 2) {
-	mod = atoi(av[1]);
+        mod = atoi(av[1]);
     } else {
-	mod = -1;
+        mod = -1;
     }
-    // long res = random_generator::generator.mrand();
-    unsigned int res = random_generator::generator.lrand(); // return only unsigned
+    rand48&  generator(get_generator());
+    unsigned int res = generator.rand(); // return only unsigned
     if(mod==0) {
-	/* initialize to a given, known, state */
-	random_generator::generator.srand(0);
+        /* initialize to a given, known, state */
+        generator.seed(0);
     } else if(mod>0) {
-	res %= mod;
+        res %= mod;
     }
     {
-	w_ostrstream_buf otmp(40);		// XXX magic number
-	W_FORM2(otmp, ("%#d",res));
-	otmp << ends;
-	Tcl_AppendResult(ip, otmp.c_str(), 0);
+        w_ostrstream_buf otmp(40);        // XXX magic number
+        W_FORM2(otmp, ("%#d",res));
+        otmp << ends;
+        Tcl_AppendResult(ip, otmp.c_str(), 0);
     }
 
     return TCL_OK;
 }
 
-static int
+extern "C" int
 t_fork_thread(ClientData, Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
+
     if (ac < 3)  {
-	Tcl_AppendResult(ip, "usage: ", av[0], " proc args", 0);
-	return TCL_ERROR;
+        Tcl_AppendResult(ip, "usage: ", av[0], " proc args", 0);
+        return TCL_ERROR;
     }
 
     char* old_result = strdup(Tcl_GetStringResult(ip));
     w_assert1(old_result);
 
     tcl_thread_t* p = 0;
-    p = new tcl_thread_t(ac - 1, av + 1, ip);
+    // 
+    // When we create a thread from a script (t_fork_thread),
+    // we MUST have at least argument.
+    //
+
+    w_assert1(ac - 1 > 0);
+    {
+        Tcl_DString* procs = new Tcl_DString;
+        Tcl_DString* vars = new Tcl_DString;
+        grab_procs(ip, procs);
+        grab_vars(ip,  vars);
+        p = new tcl_thread_t(ac - 1, av + 1, vars, procs);
+    }
+
+    // NOTE: new thread deletes the NS
+
     if (!p) {
-	Tcl_AppendResult(ip, "cannot create thread", 0);
-	return TCL_ERROR;
+        Tcl_AppendResult(ip, "cannot create thread", 0);
+        return TCL_ERROR;
     }
 
     rc_t e = p->fork();
-    if (e != RCOK) {
-	    delete p;
-	    Tcl_AppendResult(ip, "cannnot start thread", 0);
-	    return TCL_ERROR;
+    if (e.is_error()) {
+        delete p;
+        Tcl_AppendResult(ip, "cannnot start thread", 0);
+        return TCL_ERROR;
     }
-    
+    {
+        CRITICAL_SECTION(cs, tcl_thread_t::thread_mutex);
+        tcl_thread_t::thread_forked++;
+    }
+
     /* XXX ownership of old_result relinquished, but should really
        allocate old_result with Tcl_Alloc() to be exacting. */
-    Tcl_SetResult(ip, old_result, TCL_DYNAMIC);
+    // Tcl_SetResult(ip, old_result, TCL_DYNAMIC);
+    Tcl_SetResult(ip, old_result, TCL_VOLATILE);
+    free (old_result);
 
-    w_ostrstream_buf s(20);		// XXX magic number
+    w_ostrstream_buf s(20);        // XXX magic number
     s << p->id << ends;
     Tcl_AppendResult(ip, s.c_str(), 0);
     
     return TCL_OK;
 }
 
-static int
+/*
+ * Named barriers: these allow us to have N threads, N>2
+ * synchronize. Unnamed ones are necessarily for 2 threads.
+ * Unnamed barriers have the same syntax as the original
+ * sync/sync_thread commands.
+ * Named barriers require:
+ * define_named_sync <name> N
+ * named_sync <name>
+ * undef_named_sync <name> [silent]
+ *
+ * When the main tcl thread goes away, it removes all 
+ * named barriers, so the undef isn't required, but it can be
+ * used before operations like define_named_sync for idempotence.
+ */
+
+class barrier_t {
+private: 
+    pthread_barrier_t *_bar;
+    char *_name;
+public:
+    w_link_t _link;
+    bool  has_name(const char *nm) const  
+    {
+        return strcmp(nm, _name) == 0;
+    }
+    void wait();
+    void detach() { 
+        //fprintf(stderr, "removing barrier %s\n", _name);
+        _link.detach(); 
+    } // used inside a crit sect
+    NORET barrier_t(const char *nm, int n) ;
+    NORET ~barrier_t() ;
+};
+queue_based_lock_t barrier_mutex;
+w_list_t<barrier_t, queue_based_lock_t> barriers(
+            W_LIST_ARG(barrier_t, _link), &barrier_mutex);
+
+NORET barrier_t::barrier_t(const char *nm, int n) : 
+    _bar(NULL), _name(NULL)
+{ 
+    _name = strdup(nm);
+    _bar = new pthread_barrier_t;
+    DO_PTHREAD(pthread_barrier_init(_bar, 0, n));
+    CRITICAL_SECTION(cs, &barrier_mutex);
+    barriers.push(this);
+    //fprintf(stderr, "created barrier %s\n", _name);
+}
+NORET barrier_t::~barrier_t() 
+{ 
+    ::free(_name);
+    _name = NULL;
+    {
+        CRITICAL_SECTION(cs, &barrier_mutex);
+        detach();
+    }
+    DO_PTHREAD(pthread_barrier_destroy(_bar));
+    delete _bar;
+    _bar = NULL;
+}
+void barrier_t::wait() 
+{
+    DO_PTHREAD_BARRIER(pthread_barrier_wait(_bar));
+}
+
+void remove_all_barriers() {
+    w_list_i<barrier_t, queue_based_lock_t> iter(barriers);
+    barrier_t *b = NULL;
+    CRITICAL_SECTION(cs, &barrier_mutex);
+    while( (b = iter.next() ) ) {
+        b->detach();
+    }
+}
+
+barrier_t *find_barrier(const char *name)
+{
+    CRITICAL_SECTION(cs, &barrier_mutex);
+    w_list_i<barrier_t, queue_based_lock_t> iter(barriers);
+    barrier_t *b = NULL;
+    while( (b = iter.next() ) ) {
+        if(b->has_name(name)) return b;
+    }
+    return NULL;
+}
+
+extern "C" int
+t_define_named_sync(ClientData, Tcl_Interp* ip, int ac, TCL_AV char* av[])
+{
+    if (check(ip, "name number-of-threads", ac, 3, 3))
+        return TCL_ERROR;
+
+    int n = atoi(av[2]);
+    barrier_t *b = NULL;
+    if(n > 0) {
+        b = new barrier_t(av[1], n);
+    }
+    if(!b) {
+        Tcl_AppendResult(ip, "Could not created barrier ", av[1],
+                " for ", av[2], " threads.", 0);
+        return TCL_ERROR;
+    }
+    return TCL_OK;
+}
+
+extern "C" int
+t_undef_named_sync(ClientData, Tcl_Interp* ip, int ac, TCL_AV char* av[])
+{
+    if (check(ip, "name [silent] ", ac, 2, 3))
+        return TCL_ERROR;
+
+    bool silent = false;
+    if(ac > 2) {
+        if(strcmp(av[2], "silent")==0) silent=true;
+    }
+    barrier_t *b = find_barrier(av[1]);
+    if(!b && !silent) {
+        Tcl_AppendResult(ip, "Could not find barrier ", av[1], 0);
+        return TCL_ERROR;
+    }
+    if(b) {
+        delete b;
+    }
+    return TCL_OK;
+}
+
+extern "C" int
+t_named_sync(ClientData, Tcl_Interp* ip, int ac, TCL_AV char* av[])
+{
+    if (check(ip, "name [comment for debugging]", ac, 2, 3))
+        return TCL_ERROR;
+
+    const char *comment = "";
+    if (ac > 2)  {
+        comment = av[2];
+    }
+    // to shut the compiler up:
+    if(comment) ;
+
+    barrier_t *b = find_barrier(av[1]);
+    if(!b) {
+        Tcl_AppendResult(ip, "Could not find barrier ", av[1], 0);
+        return TCL_ERROR;
+    }
+
+    // ((tcl_thread_t *)sthread_t::me())->named_sync(b);
+    b->wait();
+
+    return TCL_OK;
+}
+
+extern "C" int
 t_sync(ClientData, Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
-    if (ac != 1) {
-	Tcl_AppendResult(ip, "usage: ", av[0], 0);
-	return TCL_ERROR;
+    if (check(ip, "[comment for debugging]", ac, 1, 2))
+        return TCL_ERROR;
+
+    const char *comment = "";
+    if (ac > 1)  {
+        comment = av[1];
     }
+    // to shut the compiler up:
+    if(comment) ;
 
     ((tcl_thread_t *)sthread_t::me())->sync();
 
     return TCL_OK;
 }
 
-static int
+extern "C" int
 t_sync_thread(ClientData, Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (ac == 1)  {
-	Tcl_AppendResult(ip, "usage: ", av[0],
-			 " thread_id1 thread_id2 ...", 0);
-	return TCL_ERROR;
+        Tcl_AppendResult(ip, "usage: ", av[0],
+             " thread_id1 thread_id2 ...", 0);
+        return TCL_ERROR;
     }
 
+    u_long *ids = new u_long[ac-1];
     for (int i = 1; i < ac; i++)  {
-	tcl_thread_t::sync_other(strtol(av[i], 0, 10));
+        ids[i-1] = strtol(av[i], 0, 10);
     }
+    tcl_thread_t::sync_others(ac-1, ids);
+    delete [] ids;
 
     return TCL_OK;
 }
 
-static int
+extern "C" int
 t_join_thread(ClientData, Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (ac == 1)  {
-	Tcl_AppendResult(ip, "usage: ", av[0],
-			 " thread_id1 thread_id2 ...", 0);
-	return TCL_ERROR;
+        Tcl_AppendResult(ip, "usage: ", av[0],
+             " thread_id1 thread_id2 ...", 0);
+        return TCL_ERROR;
     }
 
     for (int i = 1; i < ac; i++)  {
-	tcl_thread_t::join(strtol(av[i], 0, 10));
+        tcl_thread_t::join(strtol(av[i], 0, 10));
+        {
+            CRITICAL_SECTION(cs, tcl_thread_t::thread_mutex);
+            tcl_thread_t::thread_joined++;
+        }
     }
 
     return TCL_OK;
 }
 
-static int
+extern "C" int
 t_yield(ClientData, Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     if (ac != 1)  {
-	Tcl_AppendResult(ip, "usage: ", av[0], 0);
-	return TCL_ERROR;
+        Tcl_AppendResult(ip, "usage: ", av[0], 0);
+        return TCL_ERROR;
     }
 
-#ifdef STHREAD_YIELD_STATIC
-    sthread_t::yield();
-#else
     me()->yield();
-#endif
 
     return TCL_OK;
 }
 
-static int
+extern "C" int
 t_link_to_inter_thread_comm_buffer(ClientData, Tcl_Interp* ip,
-				   int ac, TCL_AV char* av[])
+                   int ac, TCL_AV char* av[])
 {
     if (ac != 2)  {
-	Tcl_AppendResult(ip, "usage: ", av[0], "variable", 0);
-	return TCL_ERROR;
+        Tcl_AppendResult(ip, "usage: ", av[0], "variable", 0);
+        return TCL_ERROR;
     }
 
     return Tcl_LinkVar(ip, av[1], (char*)&tcl_thread_t::inter_thread_comm_buffer, TCL_LINK_STRING);
@@ -402,16 +567,25 @@ t_link_to_inter_thread_comm_buffer(ClientData, Tcl_Interp* ip,
     //return TCL_OK;
 }
 
-static int
+extern "C" int
 t_exit(ClientData, Tcl_Interp *ip, int ac, TCL_AV char* av[])
 {
     int e = (ac == 2 ? atoi(av[1]) : 0);
     cout << flush;
+
+    fprintf(stderr, 
+        "********************************************************\n");
+    fprintf(stderr, 
+        "Exiting with %d via smsh exit command! Expect assertion failure.\n",
+        e);
+    fprintf(stderr, 
+        "********************************************************\n");
+
     if (e == 0)  {
-	Tcl_SetResult(ip, TCL_SETRES TCL_EXIT_ERROR_STRING, TCL_STATIC);
-	return TCL_ERROR;  // interpreter loop will catch this and exit
+        Tcl_SetResult(ip, TCL_SETRES TCL_EXIT_ERROR_STRING, TCL_STATIC);
+        return TCL_ERROR;  // interpreter loop will catch this and exit
     }  else  {
-	_exit(e);
+        _exit(e);
     }
     return TCL_ERROR;
 }
@@ -424,63 +598,63 @@ t_exit(ClientData, Tcl_Interp *ip, int ac, TCL_AV char* av[])
  *      16636737373 microseconds per iteration
  */
 
-static int 
+extern "C" int 
 t_time(ClientData, Tcl_Interp *interp,int argc, TCL_AV char **argv)
 {
     int count, i, result;
     stime_t start, stop;
 
     if (argc == 2) {
-	count = 1;
+        count = 1;
     } else if (argc == 3) {
-	if (Tcl_GetInt(interp, argv[2], &count) != TCL_OK) {
-	    return TCL_ERROR;
-	}
+        if (Tcl_GetInt(interp, argv[2], &count) != TCL_OK) {
+            return TCL_ERROR;
+        }
     } else {
-	Tcl_AppendResult(interp, "wrong # args: should be \"", argv[0],
-		" command ?count?\"", (char *) NULL);
-	return TCL_ERROR;
+        Tcl_AppendResult(interp, "wrong # args: should be \"", argv[0],
+        " command ?count?\"", (char *) NULL);
+        return TCL_ERROR;
     }
     start = stime_t::now();
 
     for (i = count ; i > 0; i--) {
-	result = Tcl_Eval(interp, TCL_CVBUG argv[1]);
-	if (result != TCL_OK) {
-	    if (result == TCL_ERROR) {
-		    w_ostrstream_buf msgstr(60);	// XXX magic number
-		    W_FORM2(msgstr, ("\n    (\"time\" body line %d)",
-				     interp->errorLine));
-		    msgstr << ends;
-		    Tcl_AddErrorInfo(interp, TCL_CVBUG msgstr.c_str());
-	    }
-	    return result;
-	}
+        result = Tcl_Eval(interp, TCL_CVBUG argv[1]);
+        if (result != TCL_OK) {
+            if (result == TCL_ERROR) {
+                w_ostrstream_buf msgstr(60);    // XXX magic number
+                W_FORM2(msgstr, ("\n    (\"time\" body line %d)",
+                         interp->errorLine));
+                msgstr << ends;
+                Tcl_AddErrorInfo(interp, TCL_CVBUG msgstr.c_str());
+            }
+            return result;
+        }
     }
 
     stop = stime_t::now();
 
-    Tcl_ResetResult(interp);	/* The tcl version does this. ??? */
+    Tcl_ResetResult(interp);    /* The tcl version does this. ??? */
 
-    w_ostrstream_buf s(128);		// XXX magic number
+    w_ostrstream_buf s(128);        // XXX magic number
 
     if (count > 0) {
-	sinterval_t timePer(stop - start);
-	s << timePer << " seconds";
+        sinterval_t timePer(stop - start);
+        s << timePer << " seconds";
 
-	if (count > 1) {
-	    sinterval_t timeEach(timePer / count);;
-	    s << " (" << timeEach << " seconds per iteration)";
-	}
-    }
-    else
-	    s << "0 iterations";
+        if (count > 1) {
+            sinterval_t timeEach(timePer / count);;
+            s << " (" << timeEach << " seconds per iteration)";
+        }
+    } else
+        s << "0 iterations";
     s << ends;
 
     Tcl_AppendResult(interp, s.c_str(), 0);
 
     return TCL_OK;
 }
-static int
+
+extern "C" int
 t_pecho(ClientData, Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     for (int i = 1; i < ac; i++) {
@@ -502,35 +676,18 @@ t_pecho(ClientData, Tcl_Interp* ip, int ac, TCL_AV char* av[])
 }
 
 
-static int
+extern "C" int
 t_echo(ClientData, Tcl_Interp* ip, int ac, TCL_AV char* av[])
 {
     for (int i = 1; i < ac; i++) {
-	cout << ((i > 1) ? " " : "") << av[i];
-	Tcl_AppendResult(ip, (i > 1) ? " " : "", av[i], 0);
+        cout << ((i > 1) ? " " : "") << av[i];
+        Tcl_AppendResult(ip, (i > 1) ? " " : "", av[i], 0);
     }
     cout << endl << flush;
 
     return TCL_OK;
 }
 
-#ifdef UNDEF
-static int
-t_verbose(ClientData, Tcl_Interp* ip, int ac, TCL_AV char* av[])
-{
-    extern int verbose;
-    
-    if (!verbose)
-	return TCL_OK;
-    for (int i = 1; i < ac; i++) {
-	cout << ((i > 1) ? " " : "") << av[i];
-	Tcl_AppendResult(ip, (i > 1) ? " " : "", av[i], 0);
-    }
-    cout << endl << flush;
-
-    return TCL_OK;
-}
-#endif /*UNDEF*/
 
 
 /*
@@ -553,163 +710,208 @@ t_verbose(ClientData, Tcl_Interp* ip, int ac, TCL_AV char* av[])
 
 static char *safe_strtok(char *s, const char *delim, char *&scanpoint)
 {
-	char *scan;
-	char *tok;
-	const char *dscan;
+    char *scan;
+    char *tok;
+    const char *dscan;
 
-	if (s == NULL && scanpoint == NULL)
-		return(NULL);
-	if (s != NULL)
-		scan = s;
-	else
-		scan = scanpoint;
+    if (s == NULL && scanpoint == NULL)
+        return(NULL);
+    if (s != NULL)
+        scan = s;
+    else
+        scan = scanpoint;
 
-	/*
-	 * Scan leading delimiters.
-	 */
-	for (; *scan != '\0'; scan++) {
-		for (dscan = delim; *dscan != '\0'; dscan++)
-			if (*scan == *dscan)
-				break;
-		if (*dscan == '\0')
-			break;
-	}
-	if (*scan == '\0') {
-		scanpoint = NULL;
-		return(NULL);
-	}
+    /*
+     * Scan leading delimiters.
+     */
+    for (; *scan != '\0'; scan++) {
+        for (dscan = delim; *dscan != '\0'; dscan++)
+            if (*scan == *dscan)
+                break;
+        if (*dscan == '\0')
+            break;
+    }
+    if (*scan == '\0') {
+        scanpoint = NULL;
+        return(NULL);
+    }
 
-	tok = scan;
+    tok = scan;
 
-	/*
-	 * Scan token.
-	 */
-	for (; *scan != '\0'; scan++) {
-		for (dscan = delim; *dscan != '\0';)	/* ++ moved down. */
-			if (*scan == *dscan++) {
-				scanpoint = scan+1;
-				*scan = '\0';
-				return(tok);
-			}
-	}
+    /*
+     * Scan token.
+     */
+    for (; *scan != '\0'; scan++) {
+        for (dscan = delim; *dscan != '\0';)    /* ++ moved down. */
+            if (*scan == *dscan++) {
+                scanpoint = scan+1;
+                *scan = '\0';
+                return(tok);
+            }
+    }
 
-	/*
-	 * Reached end of string.
-	 */
-	scanpoint = NULL;
-	return(tok);
+    /*
+     * Reached end of string.
+     */
+    scanpoint = NULL;
+    return(tok);
 }
 
 
-static void grab_vars(Tcl_Interp* ip, Tcl_Interp* pip)
+void grab_vars(Tcl_Interp* pip, Tcl_DString *vars)
 {
-    Tcl_Eval(pip, TCL_CVBUG "info globals");
+    // assertions: will call stackoverflowed() if !ok and will return false
+    w_assert1(sthread_t::me()->isStackFrameOK(0));
+    int err = Tcl_Eval(pip, TCL_CVBUG "info vars");
+    if (err != TCL_OK)  {
+        w_assert1(0);
+    } else {
+        if(debug) {
+            cerr 
+            << __LINE__
+            << "{ info vars returns " <<  Tcl_GetStringResult(pip) 
+            << "}" << endl << endl;
+        }
+    }
 
-    char	*result = strdup(Tcl_GetStringResult(pip));
+    char    *result = strdup(Tcl_GetStringResult(pip));
     w_assert1(result);
+    if(debug) { cerr <<  __LINE__ << "{ grab_vars  returns " << result 
+        << " }" << endl << endl; }
 
-    char	*last = result + strlen(result);
-    char	*context = 0;
-    char	*p = safe_strtok(result, " ", context);
+    Tcl_DStringInit(vars);
+
+    // char    *last = result + strlen(result);
+    char    *context = 0;
+    char    *p = safe_strtok(result, " ", context);
+
+    static const char *array_set_cmd = "array set ";
+    static const char *set_cmd = "set ";
+    static const char *blank = " ";
+    static const char *empty = "\"\"";
+    static const char *startlist = "{";
+    static const char *endlist = "}";
+    static const char *nl = "\n";
 
     while (p)  {
-	TCL_GETX char* v = Tcl_GetVar(pip, p, TCL_GLOBAL_ONLY);
-	if (v)  {
-	    Tcl_SetVar(ip, p, v, TCL_GLOBAL_ONLY);
-	    p = safe_strtok(0, " ", context);
-	} else {
-	    Tcl_VarEval(pip, "array names ", p, 0);
-	    /* XXX const issues with return, want better? */
-	    char *sr = strdup(Tcl_GetStringResult(pip));
-	    char* s = safe_strtok(sr, " ", context);
-	    while (s)  {
-		v = Tcl_GetVar2(pip, p, s, TCL_GLOBAL_ONLY);
-		if (v)  {
-		    Tcl_SetVar2(ip, p, s, v, TCL_GLOBAL_ONLY);
-		}
-		s = safe_strtok(0, " ", context);
-		if (s > sr)  *(s-1) = ' ';
-	    }
-	    free(sr);
-	    p[strlen(p)] = ' ';
-	    *last = '\0';
-	    p = safe_strtok(p, " ", context);
-	    if (p != result) *(p-1) = ' ';
-	    p = safe_strtok(0, " ", context);
-	}
-	if (p) {
-	    assert(*(p-1) == '\0');
-	    *(p-1) = ' ';
-	}
+        TCL_GETX char* v = Tcl_GetVar(pip, p, TCL_GLOBAL_ONLY);
+
+        if (v)  {
+            Tcl_DStringAppend(vars, set_cmd, strlen(set_cmd));
+            Tcl_DStringAppend(vars, p, strlen(p));
+            Tcl_DStringAppend(vars, blank, 1);
+            Tcl_DStringAppend(vars, startlist, 1);
+            Tcl_DStringAppend(vars, blank, 1);
+
+            if(debug) {
+                cerr << __LINE__ 
+                << " p " << p
+                << " v " << v
+                << endl
+                << " v len " << strlen(v) << endl;
+            }
+
+            if(strlen(v) == 0) {
+                Tcl_DStringAppend(vars, empty, strlen(empty));
+            }
+            else {
+                Tcl_DStringAppend(vars, v, strlen(v));
+            }
+            Tcl_DStringAppend(vars, blank, 1);
+            Tcl_DStringAppend(vars, endlist, 1);
+            Tcl_DStringAppend(vars, nl, 1);
+
+            // Tcl_SetVar(ip, p, v, TCL_GLOBAL_ONLY);
+        } else 
+        if (strcmp(p,"env")) {
+            // skip the environment b/c this could be problematic
+            // for non-main threads -- I seem to choke here.
+
+            Tcl_VarEval(pip, "array get ", p, 0);
+            char *sr = strdup(Tcl_GetStringResult(pip));
+            Tcl_DStringAppend(vars, array_set_cmd, strlen(array_set_cmd));
+            Tcl_DStringAppend(vars, blank, 1);
+            Tcl_DStringAppend(vars, p, strlen(p));
+            Tcl_DStringAppend(vars, blank, 1);
+            Tcl_DStringAppend(vars, startlist, 1);
+            Tcl_DStringAppend(vars, blank, 1);
+            if(debug) {
+                cerr << __LINE__ 
+                << " p " << p
+                << " sr " << sr
+                << endl
+                << " sr len " 
+                << strlen(sr) 
+                << endl;
+            }
+            Tcl_DStringAppend(vars, sr, strlen(sr));
+            Tcl_DStringAppend(vars, blank, 1);
+            Tcl_DStringAppend(vars, endlist, 1);
+            Tcl_DStringAppend(vars, nl, 1);
+            free(sr);
+        }
+        p = safe_strtok(0, " ", context);
     }
+
+    if(debug) { cerr <<  __LINE__ << " { grab_vars returns " 
+        << Tcl_DStringValue(vars) << "}" << endl << endl; }
     free(result);
+    // assertions: will call stackoverflowed() if !ok and will return false
+    w_assert1(sthread_t::me()->isStackFrameOK(0));
 }
 
-static void grab_procs(Tcl_Interp* ip, Tcl_Interp* pip)
+void grab_procs(Tcl_Interp* pip, Tcl_DString *buf)
 {
-    Tcl_DString buf;
-    Tcl_DStringInit(&buf);
+    // assertions: will call stackoverflowed() if !ok and will return false
+    w_assert1(sthread_t::me()->isStackFrameOK(0));
+    Tcl_DStringInit(buf);
     
-    Tcl_Eval(pip, TCL_CVBUG "info procs");
-#if 0
-	/* XX does nothing? */
-    Tcl_Eval(ip, TCL_CVBUG "info procs");
-#endif
+    int err = Tcl_Eval(pip, TCL_CVBUG "info procs");
+    if (err != TCL_OK)  {
+        w_assert1(0);
+    }
+
     char* procs = strdup(Tcl_GetStringResult(pip));
+
+    if(debug) { cerr << "{grab_procs " << procs  << "}" << endl << endl; }
     if (*procs)  {
         char *context = 0;
-	w_assert1(procs);
+        w_assert1(procs);
 
-	for (char* p = safe_strtok(procs, " ", context);
-	     p;   p = safe_strtok(0, " ", context))  {
-	    char line[1000];
-	    {
-		w_ostrstream s(line, sizeof(line));
-		s << "info proc " << p << ends;
-		Tcl_Eval(ip, TCL_CVBUG s.c_str());
-		TCL_GETX char *r = Tcl_GetStringResult(ip);
-		if (!r || strcmp(r, p) == 0)  {
-		    // already have this proc
-		    continue;
-		}
-	    }
+        for (char* p = safe_strtok(procs, " ", context);
+                 p;   p = safe_strtok(0, " ", context))  
+        {
+            char line[1000];
 
-	    Tcl_DStringAppend(&buf, "proc ", -1);
-	    Tcl_DStringAppend(&buf, p, -1);
-	    {
-		w_ostrstream s(line, sizeof(line));
-		s << "info args " << p << ends;
-		Tcl_Eval(pip, TCL_CVBUG s.c_str());
-		Tcl_DStringAppend(&buf, " { ", -1);
-		Tcl_DStringAppend(&buf, Tcl_GetStringResult(pip), -1);
-		Tcl_DStringAppend(&buf, " } ", -1);
-	    }
-	    {
-		w_ostrstream s(line, sizeof(line));
-		s << "info body " << p << ends;
-		Tcl_Eval(pip, TCL_CVBUG s.c_str());
-		Tcl_DStringAppend(&buf, " { ", -1);
-		Tcl_DStringAppend(&buf, Tcl_GetStringResult(pip), -1);
-		p = Tcl_DStringAppend(&buf, " } \n", -1);
-		assert(p);
-		assert(Tcl_CommandComplete(p));
-		
-		int result = Tcl_RecordAndEval(ip, p, 0);
-		if (result != TCL_OK)  {
-		    cerr << "grab_procs(): Error" ;
-		    if (result != TCL_ERROR) cerr << " " << result;
-		    if (Tcl_GetStringResult(ip)[0]) 
-			cerr << ": " <<Tcl_GetStringResult( ip);
-		    cerr << endl;
-		}
-
-		assert(result == TCL_OK);
-	    }
+            Tcl_DStringAppend(buf, "proc ", -1);
+            Tcl_DStringAppend(buf, p, -1);
+            {
+                w_ostrstream s(line, sizeof(line));
+                s << "info args " << p << ends;
+                Tcl_Eval(pip, TCL_CVBUG s.c_str());
+                Tcl_DStringAppend(buf, " { ", -1);
+                Tcl_DStringAppend(buf, Tcl_GetStringResult(pip), -1);
+                Tcl_DStringAppend(buf, " } ", -1);
+            }
+            {
+                w_ostrstream s(line, sizeof(line));
+                s << "info body " << p << ends;
+                Tcl_Eval(pip, TCL_CVBUG s.c_str());
+                Tcl_DStringAppend(buf, " { ", -1);
+                Tcl_DStringAppend(buf, Tcl_GetStringResult(pip), -1);
+                p = Tcl_DStringAppend(buf, " } \n", -1);
+                assert(p);
+                assert(Tcl_CommandComplete(p));
+                
+                assert(err == TCL_OK);
+            }
         }
     }
     free(procs);
+    if(debug) { cerr << "grab_procs returns " << Tcl_DStringValue(buf) << endl << endl; }
     Tcl_ResetResult(pip);
-    Tcl_DStringFree(&buf);
+    // assertions: will call stackoverflowed() if !ok and will return false
+    w_assert1(sthread_t::me()->isStackFrameOK(0));
 }
 
 static void create_stdcmd(Tcl_Interp* ip)
@@ -721,12 +923,20 @@ static void create_stdcmd(Tcl_Interp* ip)
     Tcl_CreateCommand(ip, TCL_CVBUG "read_random", t_read_random, 0, 0);
     Tcl_CreateCommand(ip, TCL_CVBUG "write_random", t_write_random, 0, 0);
     Tcl_CreateCommand(ip, TCL_CVBUG "debuginfo", t_debuginfo, 0, 0);
-    Tcl_CreateCommand(ip, TCL_CVBUG "allow_remote_command", t_allow_remote_command, 0, 0);
+    // TODO: NANCY : remove or document: note, used only in coord scripts
 
     Tcl_CreateCommand(ip, TCL_CVBUG "fork_thread", t_fork_thread, 0, 0);
     Tcl_CreateCommand(ip, TCL_CVBUG "join_thread", t_join_thread, 0, 0);
+    // original sync points: unnamed. Now these are 2-thread barriers
     Tcl_CreateCommand(ip, TCL_CVBUG "sync", t_sync, 0, 0);
     Tcl_CreateCommand(ip, TCL_CVBUG "sync_thread", t_sync_thread, 0, 0);
+    // New sync points: named. Now these are N-thread barriers and have to be declared
+    // and given the number N.
+    Tcl_CreateCommand(ip, TCL_CVBUG "define_named_sync", t_define_named_sync, 0, 0);
+    Tcl_CreateCommand(ip, TCL_CVBUG "undef_named_sync", t_undef_named_sync, 0, 0);
+    Tcl_CreateCommand(ip, TCL_CVBUG "named_sync", t_named_sync, 0, 0);
+    Tcl_CreateCommand(ip, TCL_CVBUG "named_sync_thread", t_named_sync, 0, 0);
+
     Tcl_CreateCommand(ip, TCL_CVBUG "yield", t_yield, 0, 0);
 
     Tcl_CreateCommand(ip, TCL_CVBUG "link_to_inter_thread_comm_buffer", t_link_to_inter_thread_comm_buffer, 0, 0);
@@ -740,545 +950,791 @@ static void create_stdcmd(Tcl_Interp* ip)
 
 class  __shared {
 public:
-	char		line[1000];
-#if defined(_WIN32) && defined(NEW_IO)
-	win32_compat_event_t	stdin_hdl;
-#elif defined(_WIN32)
-	sevsem_t	stdin_hdl;
-#else
-	sfile_read_hdl_t	stdin_hdl;
-#endif
+    char                line[1000];
+    int                 stdin_hdl;
 
-#if defined(_WIN32) && !defined(NEW_IO)
-	HANDLE		thread;
-	HANDLE		thwack;
-	bool		done;
-#ifdef _MT
-	unsigned	threadId;
-#else
-	DWORD		threadId;
-#endif
-	static unsigned
-#ifndef _MT
-	long
-#endif
-	__stdcall	StdinThreadFunc(void *s);
-	w_rc_t		run();
-#endif
+    __shared( int fd) : stdin_hdl(fd)
+    { line[0] = '\0'; };
 
-	__shared(
-#if defined(_WIN32) && defined(NEW_IO)
-		HANDLE fd
-#else
-		int fd
-#endif
-		) :
-#if defined(_WIN32) && !defined(NEW_IO)
-		stdin_hdl(fd, "stdin_hdl"),
-		thread(INVALID_HANDLE_VALUE),
-		thwack(INVALID_HANDLE_VALUE),
-		done(false),
-		threadId(0)
-#else
-		stdin_hdl(fd)
-#endif
-	{ line[0] = '\0'; };
-
-	w_rc_t	start();
-	w_rc_t	stop();
-	w_rc_t	read();
+    w_rc_t    read();
 };
 
-
-#if defined(_WIN32) && !defined(NEW_IO)
-unsigned
-#ifndef _MT
-long
-#endif
-__stdcall __shared::StdinThreadFunc(void *s)
+w_rc_t    __shared::read()
 {
-	DBGTHRD(<<"StdinThreadFunc " );
-
-	__shared *shared = (__shared *)s;
-
-	W_IGNORE(shared->run());
-	
-	DBGTHRD(<<"StdinThreadFunc finished" );
-	return 0;
+    cin.getline(line, sizeof(line) - 2);
+    return RCOK;
 }
-
-w_rc_t	__shared::run()
-{
-	DWORD	what;
-	while (!done) {
-		what = WaitForSingleObject(thwack, INFINITE);
-		if (done)
-			break;
-		if (what != WAIT_OBJECT_0) {
-			w_rc_t	e = RC(fcWIN32);
-			cerr << "WaitForSingleObject:" << endl << e << endl;
-			W_COERCE(e);
-		}
-		DBGTHRD("StdinThreadFunc: getline");
-		cin.getline(line, sizeof(line) - 2);
-		DBGTHRD("StdinThreadFunc: line is " << line);
-		DBGTHRD("StdinThreadFunc: post");
-		W_IGNORE(stdin_hdl.post());
-	}
-
-	return RCOK;
-}
-#endif
-
-w_rc_t	__shared::start()
-{
-#if defined(_WIN32) && !defined(NEW_IO)
-	thwack = CreateEvent(NULL, FALSE, FALSE, NULL);
-	if (thwack == INVALID_HANDLE_VALUE) {
-		w_rc_t e = RC(fcWIN32);
-		cerr << "CreateEvent():" << endl << e << endl;
-		return e;
-	}
-
-#ifdef _MT
-	thread = (HANDLE) _beginthreadex(0, 0,
-	    StdinThreadFunc, (void*) this, 
-	    THREAD_TERMINATE | THREAD_SUSPEND_RESUME | THREAD_QUERY_INFORMATION,
-	    &threadId); 
-#else
-	thread = CreateThread(0, 0,
-	    StdinThreadFunc, (void*) this, 
-	    THREAD_TERMINATE | THREAD_SUSPEND_RESUME | THREAD_QUERY_INFORMATION,
-	    &threadId); 
-#endif
-	DBGTHRD(<< "Forked StdinThreadFunc");
-	if (thread == INVALID_HANDLE_VALUE) {
-		w_rc_t e = RC(fcWIN32);
-		cerr << "Cannot create stdin thread:" << endl << e << endl;
-		CloseHandle(thwack);
-		thwack = INVALID_HANDLE_VALUE;
-		return e;
-	}
-#endif
-	return  RCOK;
-}
-
-
-rc_t	__shared::stop()
-{
-#if defined(_WIN32) && !defined(NEW_IO)
-	BOOL	ok;
-	DWORD	what;
-
-	done = true;
-	ok = SetEvent(thwack);
-	if (!ok) {
-		w_rc_t e = RC(fcWIN32);
-		cerr << "SetEvent:" << endl << e << endl;
-		W_COERCE(e);
-	}
-	what = WaitForSingleObject(thread, INFINITE);
-	if (what != WAIT_OBJECT_0) {
-		w_rc_t e = RC(fcWIN32);
-		cerr << "WaitForSingleObject:" << endl << e << endl;
-		W_COERCE(e);
-	}
-	CloseHandle(thwack);
-	CloseHandle(thread);
-#endif
-	return RCOK;
-}
-
-w_rc_t	__shared::read()
-{
-#if defined(_WIN32) && !defined(NEW_IO)
-	DBGTHRD("StdinThreadFunc: wait");
-	BOOL ok;
-	ok = SetEvent(thwack);
-	if (!ok) {
-		w_rc_t e = RC(fcWIN32);
-		cerr << "SetEvent:" << endl << e << endl;
-		W_COERCE(e);
-	}
-#endif
-	W_IGNORE(stdin_hdl.wait(-1));
-#if !defined(_WIN32) || (defined(_WIN32) && defined(NEW_IO))
-	cin.getline(line, sizeof(line) - 2);
-#endif
-	return RCOK;
-}
-
 
 static void process_stdin(Tcl_Interp* ip)
 {
     FUNC(process_stdin);
+
     int partial = 0;
     Tcl_DString buf;
     Tcl_DStringInit(&buf);
-#ifdef _WIN32
-    const int tty = _isatty(_fileno(stdin));
-#else
     const int tty = isatty(0);
-#endif
-#if defined(_WIN32) && defined(NEW_IO)
-	HANDLE	stdin_hdl;
-	stdin_hdl = GetStdHandle(STD_INPUT_HANDLE);
-	if (stdin_hdl == INVALID_HANDLE_VALUE) {
-		w_rc_t	e = RC(fcWIN32);
-		cerr << "tcl thread lacks std input: GetStdHandle(STDIN):"
-			<< endl << e << endl;
-		return;
-	}
-	__shared	shared(stdin_hdl);
-#else
     __shared shared(0);
-#endif
-
-    if (tty)
-        W_COERCE(shared.start());
 
     while (1) {
-	cin.clear();
-	if (tty) {
-	    TCL_GETX char* prompt = Tcl_GetVar(ip, TCL_CVBUG (partial ? "tcl_prompt2" :
-					   "tcl_prompt1"), TCL_GLOBAL_ONLY);
-	    if (! prompt) {
-		if (! partial)  cout << "% " << flush;
-	    } else {
-		if (Tcl_Eval(ip, TCL_CVBUG prompt) != TCL_OK)  {
-		    cerr << Tcl_GetStringResult(ip) << endl;
-		    Tcl_AddErrorInfo(ip,
-			 TCL_CVBUG "\n    (script that generates prompt)");
-		    if (! partial) cout << "% " << flush;
-		} else {
-		    ::fflush(stdout);
-		}
-	    }
+        cin.clear();
+        if (tty) {
+            TCL_GETX char* prompt = 
+                Tcl_GetVar(ip, TCL_CVBUG (partial ? "tcl_prompt2" :
+                           "tcl_prompt1"), TCL_GLOBAL_ONLY);
+            if (! prompt) {
+                if (! partial)  cout << "% " << flush;
+            } else {
+            if (Tcl_Eval(ip, TCL_CVBUG prompt) != TCL_OK)  {
+                cerr << Tcl_GetStringResult(ip) << endl;
+                Tcl_AddErrorInfo(ip,
+                 TCL_CVBUG "\n    (script that generates prompt)");
+                if (! partial) cout << "% " << flush;
+            } else {
+                ::fflush(stdout);
+            }
+            }
 
-	    // wait for stdin to have data
-	    W_COERCE(shared.read());
-	    DBG(<< "stdin is ready");
-	}
-	else
-		cin.getline(shared.line, sizeof(shared.line) - 2);
+            // wait for stdin to have data
+            W_COERCE(shared.read());
+            DBG(<< "stdin is ready");
+        }
+        else {
+            cin.getline(shared.line, sizeof(shared.line) - 2);
+        }
 
-	DBGTHRD("StdinThreadFunc: line is " << shared.line);
-	shared.line[sizeof(shared.line)-2] = '\0';
-	strcat(shared.line, "\n");
-	if ( !cin) {
-	    if (! partial)  {
-		DBGTHRD("break: !cin && !partial" << shared.line);
-		break;
-	    }
-	    shared.line[0] = '\0';
-	}
-	char* cmd = Tcl_DStringAppend(&buf, shared.line, -1);
-	DBGTHRD("StdinThreadFunc: line is " << shared.line
-		<< "calling CommandComplete for " << cmd);
-	if (shared.line[0] && ! Tcl_CommandComplete(cmd))  {
-	    DBG(<< "is partial");
-	    partial = 1;
-	    continue;
-	}
-	DBGTHRD("StdinThreadFunc:  complete: record and eval:" << cmd);
-	partial = 0;
-	int result = Tcl_RecordAndEval(ip, cmd, 0);
-	DBGTHRD("Tcl_RecordAndEval returns:" << result);
-	Tcl_DStringFree(&buf);
-	if (result == TCL_OK)  {
-	    DBGTHRD("TCL_OK:" << Tcl_GetStringResult(ip));
-	    TCL_GETX char *r = Tcl_GetStringResult(ip);
-	    if (*r) {
-		cout << r<< endl;
-	    }
-	} else {
-	    TCL_GETX char *r = Tcl_GetStringResult(ip);
-	    if (result == TCL_ERROR && !strcmp(r, TCL_EXIT_ERROR_STRING))  {
-		DBGTHRD("TCL_ERROR:" << r);
-		break;
-	    }  else  {
-	        cerr << "process_stdin(): Error";
-	        if (result != TCL_ERROR) cerr << " " << result;
-	        if (*r) { cerr << ": " << r; }
-	        cerr << endl;
-	    }
-	}
+        shared.line[sizeof(shared.line)-2] = '\0';
+        strcat(shared.line, "\n");
+        if ( !cin) {
+            if (! partial)  {
+                DBGTHRD("break: !cin && !partial" << shared.line);
+                break;
+            }
+            shared.line[0] = '\0';
+        }
+        char* cmd = Tcl_DStringAppend(&buf, shared.line, -1);
+        DBGTHRD("process_stdin: line is " << shared.line
+            << "calling CommandComplete for " << cmd);
+        if (shared.line[0] && ! Tcl_CommandComplete(cmd))  {
+            DBG(<< "is partial");
+            partial = 1;
+            continue;
+        }
+
+        DBGTHRD("process_stdin:  complete: record and eval:" << cmd);
+        partial = 0;
+        int result = Tcl_RecordAndEval(ip, cmd, 0);
+        DBGTHRD("Tcl_RecordAndEval returns:" << result);
+        Tcl_DStringFree(&buf);
+        if (result == TCL_OK)  {
+            DBGTHRD("TCL_OK:" << Tcl_GetStringResult(ip));
+            TCL_GETX char *r = Tcl_GetStringResult(ip);
+            if (*r) {
+            cout << r<< endl;
+            }
+        } else {
+            TCL_GETX char *r = Tcl_GetStringResult(ip);
+            if (result == TCL_ERROR && !strcmp(r, TCL_EXIT_ERROR_STRING))  {
+            DBGTHRD("TCL_ERROR:" << r);
+            break;
+            }  else  {
+                cerr << "process_stdin(): Error";
+                if (result != TCL_ERROR) cerr << " " << result;
+                if (*r) { cerr << ": " << r; }
+                cerr << endl;
+            }
+        }
     }
-    if (tty)
-        W_COERCE(shared.stop());
-}
-
-void tcl_thread_t::run()
-{
-    W_COERCE( thread_mutex.acquire() );
-    if (args) {
-	int result = Tcl_Eval(ip, args);
-	if (result != TCL_OK)  {
-	    cerr << "Error in tcl thread at line " <<  __LINE__  
-		<< " file " << __FILE__
-	        << ": " << Tcl_GetStringResult(ip) << endl;
-	    cerr << "Command is " << args <<endl;
-	}
-    } else {
-	process_stdin(ip);
-    }
-    if (xct() != NULL) {
-	cerr << "Dying thread is running a transaction: aborting ..." << endl;
-	w_rc_t rc = sm->abort_xct();
-	if(rc) {
-	    cerr << "Cannot abort tx : " << rc << endl;
-	    if(rc.err_num() == ss_m::eTWOTRANS)  {
-		me()->detach_xct(xct());
-	    }
-	} else {
-	    cerr << "Transaction abort complete" << endl;
-	}
-    }
-    thread_mutex.release();
-    
-    // post this in case someone is waiting for us when we die.  That will
-    // unblock them, and we will be dead if they wait for us again.
-
-    // cout << "exiting tcl_thread " << id << " nudging waiters" << endl;
-
-#ifdef SSH_SYNC_OLD
-    W_IGNORE(sync_point.post());
-#else
-    W_COERCE(lock.acquire());
-    hasExited = true;
-    quiesced.signal();
-    lock.release();
-#endif
-}
-
-void tcl_thread_t::join(unsigned long id)
-{
-    tcl_thread_t *r = find(id);
-    if (r)  {
-	W_COERCE( r->wait() );
-	delete r;
-    }
-}
-
-void tcl_thread_t::sync_other(unsigned long id)
-{
-    tcl_thread_t *r = find(id);
-    if (r && r->status() != r->t_defunct)  {
-	    
-	    // cout << "thread " << me()->id << " waiting for " << id << endl;
-	    
-#ifdef SSH_SYNC_OLD
-	    W_COERCE( r->sync_point.wait() );
-	    W_IGNORE( r->sync_point.reset(0) );
-#else
-	    W_COERCE(r->lock.acquire());
-	    while (!(r->isWaiting || r->hasExited))
-	    	W_COERCE(r->quiesced.wait(r->lock));
-	    r->isWaiting = false;
-#endif
-		
-	    // cout << "thread " << me()->id << " awake " << id << endl;
-	    
-	    assert(r->proceed.is_hot());
-
-#ifdef SSH_SYNC_OLD
-	    W_COERCE( r->lock.acquire() );
-#else
-	    r->canProceed = true;
-#endif
-	    r->proceed.signal();
-	    r->lock.release();
-
-	    assert(!r->proceed.is_hot());
-	    smthread_t::yield();
-    }
-}
-
-void tcl_thread_t::sync()
-{
-	// cout << "thread " << me()->id << " wait" << endl;
-
-#ifdef SSH_SYNC_OLD
-	W_IGNORE(sync_point.post());
-	W_COERCE( lock.acquire() );
-	W_COERCE( proceed.wait(lock) );
-	lock.release();
-#else
-	W_COERCE(lock.acquire());
-	isWaiting = true;
-	quiesced.signal();
-	while (!canProceed)
-		W_COERCE(proceed.wait(lock));
-	canProceed = false;
-	lock.release();
-#endif
-    
-	// cout << "thread " << me()->id << " woke" << endl;
 }
 
 void
-copy_interp(Tcl_Interp *ip, Tcl_Interp *pip)
+copy_interp(Tcl_Interp *ip, Tcl_DString *vars, Tcl_DString *procs)
 {
     if(tcl_init_cmd) {
-	int result = Tcl_Eval(ip, TCL_CVBUG tcl_init_cmd);
+        int result = Tcl_Eval(ip, TCL_CVBUG tcl_init_cmd);
 
-	if (result != TCL_OK)  {
-	    cerr << "tcl_thread_t(): Error evaluating command:"
-		    << tcl_init_cmd <<endl ;
-	    if (result != TCL_ERROR) cerr << "     " << result;
-	    TCL_GETX char *r = Tcl_GetStringResult(ip);
-	    if (*r)  cerr << ": " << r;
-	    cerr << endl;
-	    w_assert3(0);;
-	}
+        if (result != TCL_OK)  {
+            cerr << "tcl_thread_t(): Error evaluating command:"
+                << tcl_init_cmd <<endl ;
+            if (result != TCL_ERROR) cerr << "     " << result;
+            TCL_GETX char *r = Tcl_GetStringResult(ip);
+            if (*r)  cerr << ": " << r;
+            cerr << endl;
+            w_assert3(0);;
+        }
     }
 
+    
     /* These three are done separately because 
      * they are done at a different time from create_stdcmd() 
      * in the initial (main() ) case
      */
     Tcl_CreateCommand(ip, TCL_CVBUG "vtable", vtable_dispatch, 0, 0);
     Tcl_CreateCommand(ip, TCL_CVBUG "sm", sm_dispatch, 0, 0);
-#ifdef USE_COORD
-    Tcl_CreateCommand(ip, TCL_CVBUG "co", co_dispatch, 0, 0);
-#endif
     Tcl_CreateCommand(ip, TCL_CVBUG "st", st_dispatch, 0, 0);
 
     create_stdcmd(ip); // creates more commands
 
-    grab_vars(ip, pip);
-    grab_procs(ip, pip);
+    if(vars) {
+        // add the variables
+        int err = Tcl_Eval(ip, Tcl_DStringValue(vars));
+        if (err != TCL_OK)  {
+            cerr << __LINE__
+                << " { set vars returns " <<  Tcl_GetStringResult(ip) 
+                << "}" << endl << endl;
+        }
+    }
+    if(procs) {
+        // add the procs
+        int err = Tcl_Eval(ip, Tcl_DStringValue(procs));
+        if (err != TCL_OK)  {
+            cerr << __LINE__
+                << " { set vars returns " <<  Tcl_GetStringResult(ip) 
+                << "}" << endl << endl;
+        }
+    }
     Tcl_ResetResult(ip);
-    Tcl_ResetResult(pip);
+
+    if(debug) {
+        int err = Tcl_Eval(ip, TCL_CVBUG "info vars");
+        if (err != TCL_OK)  {
+            w_assert1(0);
+        } else {
+            cerr 
+                << __LINE__
+                << " { info vars returns " <<  Tcl_GetStringResult(ip) 
+                << "}" << endl << endl;
+        }
+    }
 }
 
-/* The increased stack size is because TCL is stack hungry */
-tcl_thread_t::tcl_thread_t(int ac, TCL_AV char* av[],
-			   Tcl_Interp* pip)
-: smthread_t(t_regular, "tcl_thread", WAIT_FOREVER, sthread_t::default_stack * 2),
-#ifdef SSH_SYNC_OLD
-  sync_point(0,"tcl_th.sync"),
-#else
-  isWaiting(false),
-  canProceed(false),
-  hasExited(false),
-  quiesced("tcl_th.sync"),
-#endif
-  proceed("tcl_th.go"),
-  args(0),
-  ip(Tcl_CreateInterp()),
-  thread_mutex("tcl_th") // m:tcl_th
+void tcl_thread_t::run()
 {
-    /* give thread & mutex a unique name, not just "tcl_thread" */
     {
-	w_ostrstream_buf	o(40);		// XXX magic number
-	W_FORM2(o,("tcl_thread(%d)", id));
-	o << ends;
-	rename(o.c_str());
+    CRITICAL_SECTION(cs, thread_mutex);
 
-	w_reset_strstream(o);
-	W_FORM2(o,("tcl_thread_mutex(%d)", id));
-	o << ends;
-	thread_mutex.rename(o.c_str());
+    initialize();
+    copy_interp(ip, parent_vars, parent_procs);
+    if(debug) {
+        int err = Tcl_Eval(ip, TCL_CVBUG "info vars");
+        if (err != TCL_OK)  {
+            w_assert1(0);
+        } else {
+            if(debug) {
+                cerr << __LINE__ <<  " thread: " << name()
+                << "{ info vars returns " <<  Tcl_GetStringResult(ip) 
+                << "}" << endl << endl;
+            }
+        }
+    }
+    if(is_main_thread) 
+    {
+        w_assert1(parent_vars ==NULL);
+        w_assert1(parent_procs ==NULL);
+        // Only the main thread can start an sm and it
+        // must be the first and last tcl_thread around.
+        // So hanging onto this thread mutex should
+        // not be an issue; there should be no
+        // other tcl threads around until we are procesing
+        // stdin (process_stdin(), below).
+        w_assert0(thread_count == 1);
+        if (thread_count == 1)  
+        {
+            assert(sm == 0);
+            // Try without callback function.
+            if(log_warn_callback) {
+               sm = new ss_m(out_of_log_space);
+            } else {
+               sm = new ss_m();
+            }
+            if (! sm)  {
+                cerr << __FILE__ << ':' << __LINE__
+                 << " out of memory" << endl;
+                cs.exit();
+                W_FATAL(fcOUTOFMEMORY);
+            }
+            W_COERCE( sm->config_info(global_sm_config_info));
+        } else { 
+            // There should be exactly ONE tcl_thread_t constructed this way
+            w_assert1(0); 
+        }
+    } 
+    else 
+    {
+        w_assert1(parent_vars != NULL);
+        w_assert1(parent_procs != NULL);
+        // copy vars and procs from parent to ip.  Now, we can't do this by 
+        // invoking anything on the parent ip, so we had to
+        // carry all this info around until now.
+        Tcl_DStringFree(parent_vars);
+        Tcl_DStringFree(parent_procs);
+        delete parent_vars;
+        delete parent_procs;
+    }
+    } // end critical section
+
+    if (args) 
+    {
+        // This could be the main thread, in the case
+        // of smsh -f <file>, in which case the main thread
+        // has the args "source <file>..."
+        // OR
+        // this could be a thread created by t_fork_thread,
+        // in which case it MUST have a procedure for its first argument
+
+
+        int result = Tcl_Eval(ip, args);
+        if (result != TCL_OK)  {
+            cerr << "Error in tcl thread at " <<  __LINE__  
+            << " in " << __FILE__
+            << "\n args: " << args
+            << "\n result: " << Tcl_GetStringResult(ip) << endl;
+            cerr << "command: " << args <<endl;
+
+            SSH_CHECK_STACK;
+
+            if(debug) {
+                int err = Tcl_Eval(ip, TCL_CVBUG "info vars");
+                if (err != TCL_OK)  {
+                    w_assert1(0);
+                } else {
+                    if(debug) {
+                        cerr << __LINE__
+                        << "{ info vars returns " <<  Tcl_GetStringResult(ip) 
+                        << "}" << endl << endl;
+                    }
+                }
+            }
+        }
+    } 
+    else 
+    {
+        // Only the main thread can read from stdin
+        w_assert1(is_main_thread);
+        process_stdin(ip);
     }
 
-    w_assert1(ip);
-
-    W_COERCE( thread_mutex.acquire() );
-
-    if (++count == 1)  {
-	assert(sm == 0);
-	// Try without callback function.
-	if(log_warn_callback) {
-	   sm = new ss_m(out_of_log_space);
-	} else {
-	   sm = new ss_m();
-	}
-	if (! sm)  {
-	    cerr << __FILE__ << ':' << __LINE__
-		 << " out of memory" << endl;
-	    thread_mutex.release();;
-	    W_FATAL(fcOUTOFMEMORY);
-	}
-	W_COERCE( sm->config_info(global_sm_config_info));
+    if (xct() != NULL) 
+    {
+        cerr << "Dying thread is running a transaction: aborting ..." << endl;
+        w_rc_t rc = sm->abort_xct();
+        if(rc.is_error()) {
+            cerr << "Cannot abort tx : " << rc << endl;
+            if(rc.err_num() == ss_m::eTWOTHREAD)  {
+                me()->detach_xct(xct());
+            }
+        } else {
+            cerr << "Transaction abort complete" << endl;
+        }
     }
+    
+#if USE_BARRIER
+#else
+    {
+    // post this in case someone is waiting for us when we die.  That will
+    // unblock them, and we will be dead if they wait for us again.
+        CRITICAL_SECTION(cslock, lock);
+        hasExited = true;
+        DO_PTHREAD(pthread_cond_signal(&quiesced));
+    }
+#endif
+
+    if(is_main_thread) {
+        CRITICAL_SECTION(cs, thread_mutex);
+        // We can't get more than one main thread.
+        // But a main thread can get here while others
+        // are running if we didn't wait/join all the
+        // forked threads.
+        if (thread_count == 1)  {
+            //COERCE(sm->dismount_all());
+            delete sm;
+            sm = 0;
+        } else {
+            fprintf(stderr, " AAAK thread count %d forked %d joined %d\n", 
+                    thread_count, thread_forked, thread_joined);
+            w_assert1(thread_count == 1);
+            w_assert1(thread_forked == thread_joined);
+        }
+    }
+    if(is_main_thread) {
+        remove_all_barriers();
+    }
+
+    // Now, delete the interpreter here, since we cannot
+    // do so in the calling thread ; we must do it in the
+    // thread that created the ip.
+    uninitialize();
+}
+
+void tcl_thread_t::join(unsigned long id)
+{
+    tcl_thread_t *r = find(id);
+    if (r)  {
+        w_rc_t rc = r->join();
+        if(rc.is_error()) {
+            w_reset_strstream(tclout); 
+            tclout << rc << endl;
+            fprintf(stderr, "\nJoin not allowed because: %s\nFix the script!\n", 
+                    tclout.c_str());
+         }
+        delete r;
+    }
+}
+
+void tcl_thread_t::sync_others(int n, unsigned long id[])
+{
+    tcl_thread_t **others = new tcl_thread_t *[n];
+    for(int i=0; i < n; i++) {
+        others[i] = find(id[i]);
+    }
+    sync_threads(n, others);
+    delete[] others;
+}
+
+void tcl_thread_t::sync_threads(int n, tcl_thread_t *t[])
+{
+#if USE_BARRIER
+#else
+    bool *acquired = new bool[n];
+#endif
+
+    for(int i=0; i < n; i++) {
+        tcl_thread_t *r = t[i];
+#if USE_BARRIER
+#else
+        acquired[i] = false;
+#endif
+        if(r) {
+#if USE_BARRIER
+            DO_PTHREAD_BARRIER(pthread_barrier_wait(&r->mybarrier));
+#else
+            CRITICAL_SECTION(cslock, r->lock);
+            if (r->status() != r->t_defunct)  {
+                acquired[i]=true;
+                while (!(r->isWaiting || r->hasExited)) {
+                    DO_PTHREAD(pthread_cond_wait(&r->quiesced, &r->lock));
+                }
+                r->isWaiting = false;
+            }
+#endif
+        }
+    }
+#if USE_BARRIER
+#else
+    for(int i=0; i < n; i++) {
+        tcl_thread_t *r = t[i];
+        if(r) {
+            CRITICAL_SECTION(cslock, r->lock);
+            if (r->status() != r->t_defunct)  {
+                r->canProceed = true;
+                int res = pthread_cond_signal(&r->proceed);
+                if(res) {
+                    W_FATAL_MSG(fcINTERNAL,  
+                            << "Unexpected result from pthread_cond_signal "
+                            << res);
+                }
+                DO_PTHREAD(pthread_mutex_unlock(&r->lock));
+            } else if(acquired[i]) {
+            }
+            DO_PTHREAD( pthread_mutex_unlock(&r->lock) );
+        }
+    }
+#endif
+    for(int i=0; i < n; i++) t[i] = NULL;
+}
+
+void tcl_thread_t::sync_other(unsigned long id)
+{
+    tcl_thread_t *r = find(id);
+    if(r) {
+#if USE_BARRIER
+        DO_PTHREAD_BARRIER(pthread_barrier_wait(&r->mybarrier));
+#else
+        CRITICAL_SECTION(cs, r->lock);
+        if (r->status() != r->t_defunct)  {
+            while (!(r->isWaiting || r->hasExited)) {
+                DO_PTHREAD(pthread_cond_wait(&r->quiesced, &r->lock));
+            }
+            r->isWaiting = false;
+            r->canProceed = true;
+            DO_PTHREAD(pthread_cond_signal(&r->proceed));
+        }
+#endif
+    }
+}
+
+void tcl_thread_t::sync()
+{
+#if USE_BARRIER
+    DO_PTHREAD_BARRIER(pthread_barrier_wait(&mybarrier));
+#else
+    CRITICAL_SECTION(cs, lock);
+    isWaiting = true;
+    DO_PTHREAD( pthread_cond_signal(&quiesced) );
+    while (!canProceed) {
+        DO_PTHREAD(pthread_cond_wait(&proceed, &lock));
+    }
+    canProceed = false;
+#endif
+}
+
+void
+tcl_thread_t::set_args(
+   TCL_AV char*    av[]
+)
+{
+    // Find out how much space we need to allocate to hold the args
     unsigned int len;
     int i;
     for (i = 0, len = 0; i < ac; i++)
-	len += strlen(av[i]) + 1;
+        len += strlen(av[i]) + 1;
 
+
+
+    // args is thread datum holding the arguments to this
+    // thread's creating function (e.g. t_fork_thread cmd)
     if (len) {
-	args = new char[len];
-	w_assert1(args);
+        if(args) { ::free(args); args=NULL; }
+        // Must use malloc because we use strcat on this...
+        args = (char *)::malloc(len+10);
+        w_assert1(args);
 
-	args[0] = '\0';
-	for (i = 0; i < ac; i++) {
-		if (i)
-			strcat(args, " ");
-		strcat(args, av[i]);
-	}
-	w_assert1(strlen(args)+1 == len);
+        args[0] = '\0';
+        for (i = 0; i < ac; i++) {
+            strcat(args, av[i]);
+            strcat(args, " ");
+        }
+        /*
+        cerr << __LINE__ 
+            << " ac " << ac
+            << " len " << strlen(args) << " len  " << len 
+            << " args=" << args
+            << endl;
+        */
+        w_assert1(strlen(args) <= len);
+    }
+}
+
+// Constructor used in smsh.cpp
+tcl_thread_t::tcl_thread_t(
+       int             _ac, 
+       TCL_AV char*    av[],
+       const  char*    _libdir,
+       const  char*    _rcfile 
+) : smthread_t(t_regular, 
+    "main-tcl_thread", WAIT_FOREVER, sthread_t::default_stack * 2),
+#if USE_BARRIER
+#else
+      isWaiting(false),
+      canProceed(false),
+      hasExited(false),
+#endif
+      lib_dir(_libdir),
+      rcfile(_rcfile),
+      args(0), // set by set_args
+      ac(_ac),
+      ip(0),
+      // This is a hack, but it says that if we are creating this
+      // thread from smsh.cpp, we are creating the "main tcl thread",
+      // the one that reads from stdin.
+      // All other tcl threads are created by the main thread (they cannot
+      // themselves fork threads, although this might be permitted later)
+      // via the fork_thread command (t_fork_thread)
+      is_main_thread(true),
+      parent_vars(0),
+      parent_procs(0)
+{
+    atomic_add(num_tcl_threads, 1);
+    atomic_add(num_tcl_threads_ttl, 1);
+
+/*
+cerr << __func__ << " " << __LINE__ << " " << __FILE__
+                << " lib_dir " << (char *)(lib_dir ? lib_dir : "NULL")
+                << " rcfile " << (char *)(rcfile ? rcfile : "NULL")
+                << endl << flushl;
+*/
+    /* give thread a unique name, not just "tcl_thread" */
+    {
+        w_ostrstream_buf    o(40);        // XXX magic number
+        W_FORM2(o,("tcl_thread(%d)-MAIN", id));
+        o << ends;
+        rename(o.c_str());
+    }
+    set_args(av);
+    w_assert1(ip==0); // can't create an interpreter until run() 
+    { 
+        CRITICAL_SECTION (cs, thread_mutex);
+        // This is a non-main thread.  One that does
+        // not read from stdin.
+        ++thread_count;
+        w_assert0(thread_count == 1);
+        threadslist.push(this);
     }
 
-    copy_interp(ip, pip);
+#if USE_BARRIER
+    DO_PTHREAD(pthread_barrier_init(&mybarrier, NULL, 2));
+#else
+    DO_PTHREAD(pthread_cond_init(&quiesced, NULL));
+    DO_PTHREAD(pthread_cond_init(&proceed, NULL));
+    DO_PTHREAD(pthread_mutex_init(&lock, NULL));
+#endif
+}
 
-    list.push(this);
+/* The increased stack size is because TCL is stack hungry */
+tcl_thread_t::tcl_thread_t(
+       int             _ac, 
+       TCL_AV char*    av[],
+       Tcl_DString*    _parent_vars, // procs
+       Tcl_DString*    _parent_procs // procs
+) : smthread_t(t_regular, 
+    "tcl_thread", WAIT_FOREVER, sthread_t::default_stack * 2),
+#if USE_BARRIER
+#else
+      isWaiting(false),
+      canProceed(false),
+      hasExited(false),
+#endif
+      lib_dir(0),
+      rcfile(0),
+      args(0), // set by set_args
+      ac(_ac),
+      ip(0),
+      // This is a hack, but it says that if we are creating this
+      // thread from smsh.cpp, we are creating the "main tcl thread",
+      // the one that reads from stdin.
+      // All other threads are created by the main thread (they cannot
+      // themselves fork threads, although this might be permitted later)
+      // via the fork_thread command (t_fork_thread)
+      is_main_thread(false),
+      parent_vars(_parent_vars),
+      parent_procs(_parent_procs)
+{
+    atomic_add(num_tcl_threads, 1);
+    atomic_add(num_tcl_threads_ttl, 1);
+    /* give thread a unique name, not just "tcl_thread" */
+    {
+        w_ostrstream_buf    o(40);        // XXX magic number
+        W_FORM2(o,("tcl_thread(%d)-forked", id));
+        o << ends;
+        rename(o.c_str());
+    }
+    set_args(av);
+    w_assert1(ip==0);
 
-    thread_mutex.release();
+    { 
+        CRITICAL_SECTION (cs, thread_mutex);
+        // This is a non-main thread.  One that does
+        // not read from stdin.
+        ++thread_count;
+        w_assert0(thread_count > 1);
+        threadslist.push(this);
+    }
+
+
+#if USE_BARRIER
+    DO_PTHREAD(pthread_barrier_init(&mybarrier, NULL, 2));
+#else
+    DO_PTHREAD(pthread_cond_init(&quiesced, NULL));
+    DO_PTHREAD(pthread_cond_init(&proceed, NULL));
+    DO_PTHREAD(pthread_mutex_init(&lock, NULL));
+#endif
 }
 
 tcl_thread_t::~tcl_thread_t()
 {
-    W_COERCE( thread_mutex.acquire() );
-    if (--count == 0)  {
-	//COERCE(sm->dismount_all());
-	delete sm;
-	sm = 0;
-#ifdef USE_COORD
-	delete globalDeadlockServer;
-	globalDeadlockServer = 0;
+    atomic_add(num_tcl_threads, -1);
+
+    w_assert1(ip==NULL);
+
+    // arguments to the t_fork_thread that created this thread
+    if(args) {
+        ::free(args);
+        args=0;
+    }
+
+    { 
+        CRITICAL_SECTION (cs, thread_mutex);
+        --thread_count ;
+        w_assert0(thread_count >= 0);
+        if(is_main_thread)  w_assert0(thread_count == 0);
+        link.detach();
+    }
+#if USE_BARRIER
+    DO_PTHREAD(pthread_barrier_destroy(&mybarrier));
+#else
+    DO_PTHREAD(pthread_cond_destroy(&quiesced));
+    DO_PTHREAD(pthread_cond_destroy(&proceed));
+    DO_PTHREAD(pthread_mutex_destroy(&lock));
 #endif
-    }
-
-    if (ip) {
-	Tcl_DeleteInterp(ip);
-	ip = 0;
-    }
-    
-    delete [] args;
-
-    // cout << "thread " << id << " died" << endl;
-    
-    link.detach();
-
-    thread_mutex.release();
 }
 
-void tcl_thread_t::initialize(Tcl_Interp* ip, const char* lib_dir)
+extern bool instrument; // smsh.cpp
+extern bool verbose; // smsh.cpp
+extern bool verbose2; // smsh.cpp
+extern bool force_compress; // smsh.cpp
+extern bool log_warn_callback; // smsh.cpp 
+
+// Invoked for all threads, but it
+// continues ONLY for the main/global ip
+void tcl_thread_t::uninitialize()
 {
-    static int first_time = 1;
-    
-    if (first_time)  {
-	first_time = 0;
-	
-	w_ostrstream_buf s(ss_m::max_devname + 1);
-	s << lib_dir << "/smsh.tcl" << ends;
-	if (Tcl_EvalFile(ip, TCL_CVBUG s.c_str()) != TCL_OK)  {
-	    cerr << __FILE__ << ':' << __LINE__ << ':'
-		 << " error in \"" << s.c_str() << "\" script" << endl;
-	    cerr << Tcl_GetStringResult(ip) << endl;
-	    W_FATAL(fcINTERNAL);
-	}
+    if (ip) {
+        Tcl_DeleteInterp(ip);
+        ip = 0;
+    }
+    // In case Tcl has some cleaning up to do
+    // Is this part of my Tcl problem?  TODO NANCY Tcl_FinalizeThread();
+    clean_up_shell();
+}
+
+void tcl_thread_t::initialize(
+    // TCL_AV char* av[]
+)
+{
+
+    // Create tcl interpreter; assign to global_ip only 
+    // for debugger
+    global_ip = 
+        ip = Tcl_CreateInterp();
+
+    if (!ip)
+        W_FATAL(fcOUTOFMEMORY);
+
+    if(!lib_dir) return;
+    // Only main thread has a lib_dir
+
+    // default is to not use logical IDs
+    Tcl_SetVar(ip, TCL_CVBUG Logical_id_flag_tcl, 
+            TCL_CVBUG tcl_form_flag(0), TCL_GLOBAL_ONLY);
+
+    w_ostrstream_buf s(ss_m::max_devname + 1);
+    s << lib_dir << "/smsh.tcl" << ends;
+    if (Tcl_EvalFile(ip, TCL_CVBUG s.c_str()) != TCL_OK)  {
+        cerr << __FILE__ << ':' << __LINE__ << ':'
+         << " error in \"" << s.c_str() << "\" script" << endl;
+        cerr << Tcl_GetStringResult(ip) << endl;
+        W_FATAL(fcINTERNAL);
     }
 
     create_stdcmd(ip);
+
+    {
+        // read .smshrc
+        Tcl_DString buf;
+        char* rcfilename = Tcl_TildeSubst(ip, rcfile, &buf);
+        if (rcfilename)  {
+            FILE* f;
+            f = fopen(rcfilename, "r");
+            if (f) {
+                if (Tcl_EvalFile(ip, rcfilename) != TCL_OK) {
+                    cerr << Tcl_GetStringResult(ip)<< endl;
+                    w_assert1(0);
+                    return;
+                }
+                fclose(f);
+            } else {
+                cerr << "WARNING: could not open rc file: " 
+                    << rcfilename << endl;
+            }
+        }
+        Tcl_DStringFree(&buf);
+    }
+
+    Tcl_SetVar(ip, TCL_CVBUG "log_warn_callback_flag",
+        TCL_SETV2 tcl_form_flag(log_warn_callback), TCL_GLOBAL_ONLY);
+#if 1
+
+    Tcl_SetVar(ip, TCL_CVBUG "compress_flag",
+        TCL_SETV2 tcl_form_flag(force_compress), TCL_GLOBAL_ONLY);
+
+    Tcl_SetVar(ip, TCL_CVBUG "instrument_flag",
+           TCL_SETV2 tcl_form_flag(instrument), TCL_GLOBAL_ONLY);
+
+    Tcl_SetVar(ip, TCL_CVBUG "verbose_flag",
+           TCL_SETV2 tcl_form_flag(verbose), TCL_GLOBAL_ONLY);
+    Tcl_SetVar(ip, TCL_CVBUG "verbose2_flag",
+           TCL_SETV2 tcl_form_flag(verbose2), TCL_GLOBAL_ONLY);
+#endif
+
+
+    Tcl_SetVar(ip, TCL_CVBUG "argv", args, TCL_GLOBAL_ONLY);
+    {
+        w_ostrstream_buf otmp(100);        // XXX magic number
+        otmp << ac << ends;
+        Tcl_SetVar(ip, TCL_CVBUG "argc", otmp.c_str(), TCL_GLOBAL_ONLY);
+    }
+
+#if 0
+    {
+        const char *f_arg = (ac > 0)?  av[1] : argv0;
+        Tcl_SetVar(ip, TCL_CVBUG "argv0", TCL_CVBUG f_arg, TCL_GLOBAL_ONLY);
+    }
+#endif
+
+    Tcl_SetVar(ip, TCL_CVBUG "tcl_interactive",
+           TCL_CVBUG (tcl_form_flag(interactive)), TCL_GLOBAL_ONLY);
+
+#if 0
+    if(debug)
+    {
+        Tcl_DString* procs = new Tcl_DString;
+        Tcl_DString* vars = new Tcl_DString;
+        grab_vars(ip,  vars);
+        grab_procs(ip, procs);
+        Tcl_DStringFree(procs);
+        Tcl_DStringFree(vars);
+        delete procs;
+        delete vars;
+        std::cerr << "                INITIALIZE CHECK OK" << endl;
+        Tcl_Eval(ip, TCL_CVBUG "interp recursionlimit");
+        std::cerr << "                recursionlimit "
+                << Tcl_GetStringResult(ip)
+            << endl;
+    }
+#endif
+    {
+    (void) Tcl_LinkVar(ip, 
+            TCL_CVBUG "sm_page_sz", (char*)&linked.sm_page_sz, TCL_LINK_INT);
+    (void) Tcl_LinkVar(ip, 
+            TCL_CVBUG "sm_max_exts", (char*)&linked.sm_max_exts, TCL_LINK_INT);
+    (void) Tcl_LinkVar(ip, 
+            TCL_CVBUG "sm_max_vols", (char*)&linked.sm_max_vols, TCL_LINK_INT);
+    (void) Tcl_LinkVar(ip, 
+            TCL_CVBUG "sm_max_servers", (char*)&linked.sm_max_servers, TCL_LINK_INT);
+    (void) Tcl_LinkVar(ip, 
+            TCL_CVBUG "sm_max_keycomp", (char*)&linked.sm_max_keycomp, TCL_LINK_INT);
+    (void) Tcl_LinkVar(ip, 
+            TCL_CVBUG "sm_max_dir_cache", (char*)&linked.sm_max_dir_cache, TCL_LINK_INT);
+    (void) Tcl_LinkVar(ip, 
+            TCL_CVBUG "sm_max_rec_len", (char*)&linked.sm_max_rec_len, TCL_LINK_INT);
+    (void) Tcl_LinkVar(ip, 
+            TCL_CVBUG "sm_srvid_map_sz", (char*)&linked.sm_srvid_map_sz, TCL_LINK_INT);
+
+    (void) Tcl_LinkVar(ip, 
+            TCL_CVBUG "instrument_flag", (char*)&linked.instrument_flag, TCL_LINK_INT);
+    (void) Tcl_LinkVar(ip, 
+            TCL_CVBUG "verbose_flag", (char*)&linked.verbose_flag, TCL_LINK_INT);
+    (void) Tcl_LinkVar(ip, 
+            TCL_CVBUG "verbose2_flag", (char*)&linked.verbose2_flag, TCL_LINK_INT);
+    (void) Tcl_LinkVar(ip, 
+            TCL_CVBUG "compress_flag", (char*)&linked.compress_flag, TCL_LINK_INT);
+    (void) Tcl_LinkVar(ip, 
+            TCL_CVBUG "log_warn_callback_flag", 
+            (char*)&linked.log_warn_callback_flag, TCL_LINK_INT);
+    /*
+    if (Tcl_AppInit(ip) != TCL_OK)  {
+    cerr << "Tcl_AppInit failed: " << Tcl_GetStringResult(ip)
+         << endl;
+    }
+    */
+    }
 }
 
-tcl_thread_t	*tcl_thread_t::find(unsigned long id)
+tcl_thread_t    *tcl_thread_t::find(unsigned long id)
 {
-	w_list_i<tcl_thread_t>	i(list);
-	tcl_thread_t		*r;
-	while ((r = i.next()) && (r->id != id))
-		;
-	return r;
+    CRITICAL_SECTION(cs, thread_mutex);
+    w_list_i<tcl_thread_t, queue_based_block_lock_t>    i(threadslist);
+    tcl_thread_t        *r;
+    while ((r = i.next()) && (r->id != id))
+        ;
+    return r;
 }

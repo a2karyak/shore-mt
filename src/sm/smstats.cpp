@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: smstats.cpp,v 1.15 2003/08/24 23:51:32 bolo Exp $
+ $Id: smstats.cpp,v 1.15.2.8 2010/03/25 18:05:16 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -31,51 +31,102 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 
 /*  -- do not edit anything above this line --   </std-header>*/
 
-#include <w_statistics.h>
+#include "sm_int_0.h"
+#include "bf.h"
+// smstats_info_t is the collected stats from various
+// sm parts.  Each part is separately-generate from .dat files.
 #include "smstats.h"
 #include "sm_stats_t_inc_gen.cpp"
 #include "sm_stats_t_dec_gen.cpp"
 #include "sm_stats_t_out_gen.cpp"
+#include "bf_htab_stats_t_inc_gen.cpp"
+#include "bf_htab_stats_t_dec_gen.cpp"
+#include "bf_htab_stats_t_out_gen.cpp"
 
 // the strings:
 const char *sm_stats_t ::stat_names[] = {
+#include "bf_htab_stats_t_msg_gen.h"
 #include "sm_stats_t_msg_gen.h"
+   ""
 };
 
-// see sm.cpp for void sm_stats_t::compute()
-
-void 
-sm_stats_t::compute()
+void bf_htab_stats_t::compute()
 {
-#ifdef EXPENSIVE_LOCK_STATS
-    smlevel_0::lm->stats(
-		smlevel_0::stats.sm.lock_bucket_cnt,
-		smlevel_0::stats.sm.lock_max_bucket_len, 
-		smlevel_0::stats.sm.lock_min_bucket_len, 
-		smlevel_0::stats.sm.lock_mode_bucket_len, 
-		smlevel_0::stats.sm.lock_mean_bucket_len, 
-		smlevel_0::stats.sm.lock_var_bucket_len,
-		smlevel_0::stats.sm.lock_std_bucket_len
-    );
-#endif /* EXPENSIVE_LOCK_STATS */
+    // Because the hash table collects some of its own statistics,
+    // we have to gather them from the htab here.
+    smlevel_0::bf->htab_stats(*this);
+    {
+        w_base_t::base_float_t *avg = &bf_htab_insert_avg_tries;
+        u_long *a = &bf_htab_insertions;
+        u_long *b = &bf_htab_slots_tried;
+        if(*a > 0) {
+           *avg = *b /(w_base_t::base_float_t) (*a);
+        } else {
+           *avg = 0.0;
+        }
+    }
+    {
+        w_base_t::base_float_t *avg = &bf_htab_lookup_avg_probes;
+        u_long *a = &bf_htab_lookups;
+        u_long *b = &bf_htab_probes;
+        if(*a > 0) {
+           *avg = *b /(w_base_t::base_float_t) (*a);
+        } else {
+           *avg = 0.0;
+        }
+    }
+}
+
+void sm_stats_t::compute()
+{
+    if(need_vol_lock_r > 0) {
+        double x = double(await_vol_lock_r);
+        x *= 100;
+        x /= double(need_vol_lock_r);
+        await_vol_lock_r_pct = w_base_t::base_stat_t(x);
+    }
+
+    if(need_vol_lock_w > 0) {
+        double y = double(await_vol_lock_w);
+        y *= 100;
+        y /= double(need_vol_lock_w);
+        await_vol_lock_w_pct = w_base_t::base_stat_t(y);
+    } 
 
 }
 
 sm_stats_info_t &operator+=(sm_stats_info_t &s, const sm_stats_info_t &t)
 {
-	s.sm += t.sm;
-	s.summary_thread += t.summary_thread;
-	s.summary_2pc += t.summary_2pc;
-	return s;
+    s.sm += t.sm;
+    return s;
 }
 
 sm_stats_info_t &operator-=(sm_stats_info_t &s, const sm_stats_info_t &t)
 {
-	s.sm -= t.sm;
-	s.summary_thread -= t.summary_thread;
-	s.summary_2pc -= t.summary_2pc;
-	return s;
+    s.sm -= t.sm;
+    return s;
 }
 
 
 sm_stats_info_t &operator-=(sm_stats_info_t &s, const sm_stats_info_t &t);
+
+/*
+ * One static stats structure for collecting
+ * statistics that might otherwise be lost:
+ */
+namespace local_ns {
+    sm_stats_info_t _global_stats_;
+    static queue_based_block_lock_t _global_stats_mutex;
+};
+void
+smlevel_0::add_to_global_stats(const sm_stats_info_t &from)
+{
+    CRITICAL_SECTION(cs, local_ns::_global_stats_mutex);
+    local_ns::_global_stats_ += from;
+}
+void
+smlevel_0::add_from_global_stats(sm_stats_info_t &to)
+{
+    CRITICAL_SECTION(cs, local_ns::_global_stats_mutex);
+    to += local_ns::_global_stats_;
+}

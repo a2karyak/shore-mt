@@ -1,6 +1,6 @@
 # <std-header style='tcl' orig-src='shore'>
 #
-#  $Id: btree.load.multi,v 1.12 1999/06/07 19:05:22 kupsch Exp $
+#  $Id: btree.load.multi,v 1.12.4.1 2010/01/28 04:54:33 nhall Exp $
 #
 # SHORE -- Scalable Heterogeneous Object REpository
 #
@@ -43,7 +43,7 @@ if {$multi_threaded_xct == 0 } {
 }
 
 set nrec 500
-set nthreads 5
+set nthreads 2
 
 # for clean-up later
 set cmd 0
@@ -120,7 +120,7 @@ if {$multi_threaded_xct == 0 } {
 	verbose "verify successful"
     }
 
-    proc each_thread {tx j} {
+proc each_thread {tx j} {
 	global volid nrec f ndx
 	set f1 $f($j)
 	set k [expr { $j * 3 } ]
@@ -133,7 +133,11 @@ if {$multi_threaded_xct == 0 } {
 	set ndx($k) [sm create_index $volid uni_btree]
 	verbose $j index is $ndx($k)
 	verbose $j $k sm blkld_ndx $ndx($k) 1 $f1 b*1000
-	set stat [sm blkld_ndx $ndx($k) 1 $f1 b*1000]
+
+	# set stat [sm blkld_ndx $ndx($k) 1 $f1 b*1000]
+	set caught [catch {sm blkld_ndx $ndx($k) 1 $f1 b*1000} stat]
+	if {$caught==0} {
+	verbose A: $stat
 
 	# verbose $j doing dstats after bulk load
 	# dstats $volid
@@ -179,9 +183,18 @@ if {$multi_threaded_xct == 0 } {
 	set k [expr { $k - 1 }]
 	verbose destroying index $j: $ndx($k)
 	sm destroy_index $ndx($k)
+	} else {
+		echo $j caught $caught err $stat k $k ndx($k) $ndx($k)
+
+		verbose $j sync-B-alternate
+		sync
+
+		verbose destroying index $j: $ndx($k)
+		sm destroy_index $ndx($k)
+	}
 
 	sm detach_xct $tx
-    }
+}
 
     #
     # create files of <key, el> pair (to be sorted later in blkld)

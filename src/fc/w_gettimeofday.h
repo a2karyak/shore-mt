@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='W_GETTIMEOFDAY_H'>
 
- $Id: w_gettimeofday.h,v 1.11 2007/05/18 21:38:25 nhall Exp $
+ $Id: w_gettimeofday.h,v 1.11.2.3 2009/09/14 00:08:44 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -34,29 +34,7 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 
 /*  -- do not edit anything above this line --   </std-header>*/
 
-#ifdef _WINDOWS
-#include <ctime>
-#ifdef HAVE_SYS_TIME_B_H
-#include <sys/timeb.h>
-#endif
-#else
 #include <sys/time.h>
-#endif
-
-#ifdef _WINDOWS
-struct timezone {
-	int	tz_minuteswest;	/* minutes west of Greenwich */
-	int	tz_dsttime;	/* type of DST correction */
-};
-#endif /* _WINDOWS */
-
-#if !defined(SOLARIS2) && !defined(Irix) && !defined(AIX41)  && !defined(Linux) && !defined(HPUX8)
-#if defined(__GNUG__) || defined(_WINDOWS)
-extern "C" {
-    int gettimeofday(timeval*, struct timezone*);
-} 
-#endif
-#endif
 
 /*<std-footer incl-file-exclusion='W_GETTIMEOFDAY_H'>  -- do not edit anything below this line -- */
 

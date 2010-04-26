@@ -1,6 +1,6 @@
 # <std-header style='tcl' orig-src='shore'>
 #
-#  $Id: recovery.all,v 1.1 2006/06/01 17:09:56 nhall Exp $
+#  $Id: recovery.all,v 1.1.2.2 2010/01/12 02:02:03 nhall Exp $
 #
 # SHORE -- Scalable Heterogeneous Object REpository
 #
@@ -30,19 +30,19 @@
 source $script_dir/vol.init
 
 
-set scripts { }
+set recovery_scripts { }
 
 if { [is_set do_long_scripts] } {
-    lappend scripts recovery.long.all
+    lappend recovery_scripts recovery.long.all
 }
 
-# recovery.5 moved to recovery.long.all
-foreach i {1 2 3 4} {
-    lappend scripts recovery.$i
+# old recovery.5 moved to recovery.long.all
+foreach i {5 1 2 3 4} {
+    lappend recovery_scripts recovery.$i
 }
 
 unset i
-echo recovery.all ABOUT TO RUN $scripts
-runscripts $scripts
+echo recovery.all ABOUT TO RUN $recovery_scripts
+runscripts $recovery_scripts
 
-unset scripts
+unset recovery_scripts

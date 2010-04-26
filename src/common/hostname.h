@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='HOSTNAME_H'>
 
- $Id: hostname.h,v 1.11 1999/06/07 19:02:24 kupsch Exp $
+ $Id: hostname.h,v 1.11.2.5 2010/03/19 22:19:19 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -34,18 +34,9 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 
 /*  -- do not edit anything above this line --   </std-header>*/
 
-#ifdef __cplusplus
+#if defined(Sparc) 
 extern "C" {
-#endif
-
-#if defined(Sparc) || defined(Mips) || defined(I860)
-	extern int gethostname(char *, int);
-#endif
-#if defined(HPUX8) && !defined(_INCLUDE_HPUX_SOURCE)
-	extern int gethostname(char *, size_t);
-#endif
-
-#ifdef __cplusplus
+    extern int gethostname(char *, int);
 }
 #endif
 

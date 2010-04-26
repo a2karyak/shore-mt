@@ -1,6 +1,6 @@
 # <std-header style='tcl' orig-src='shore'>
 #
-#  $Id: file.perf,v 1.10 2006/06/01 17:09:44 nhall Exp $
+#  $Id: file.perf,v 1.10.2.2 2009/10/08 20:52:30 nhall Exp $
 #
 # SHORE -- Scalable Heterogeneous Object REpository
 #
@@ -39,16 +39,20 @@ set id_width %08d
 proc test {fileType}  {
 	global id_width volid buffer numObjPerFile numFiles
 
+	verbose test $numObjPerFile object per file for $numFiles files
+
 	sm begin_xct
 	for {set n 0} {$n < $numFiles} {incr n}  {
 		set fid [sm create_file $volid $fileType]
 		for {set i 0} {$i < $numObjPerFile} {incr i}  {
-			sm create_rec $fid [format $id_width $i] 30000 $buffer
+			set r [sm create_rec $fid [format $id_width $i] 30000 $buffer]
+			verbose sm create_rec $fid $i 30000  returns rid $r
 		}
+		verbose [sm get_du_statistics $volid ]
 	}
 	set n [sm gather_xct_stats reset]
 	sm commit_xct
-	echo [pnzstats $n]
+	verbose [pnzstats $n]
 }
 
 # make a 64K buffer
@@ -77,7 +81,7 @@ echo ********************************
 echo STAT NUMBERS ARE FOR $numFiles RUNS.
 echo ********************************
 # print bf stats
-echo [pnzstats [sm gather_stats]]
+verbose [pnzstats [sm gather_stats]]
 echo
 echo
 

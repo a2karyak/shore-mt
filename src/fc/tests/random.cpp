@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: random.cpp,v 1.10 1999/06/07 19:03:05 kupsch Exp $
+ $Id: random.cpp,v 1.10.2.5 2010/03/19 22:17:53 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -32,34 +32,36 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 /*  -- do not edit anything above this line --   </std-header>*/
 
 #include <w_stream.h>
-#include <w_random.h>
+#include <rand48.h>
+
+rand48 generator;
 
 int
 main(int argc, char *argv[])
 {
     if(argc > 1) {
-	int seed;
-	if( (seed = atoi(argv[1])) != 0) {
-	    random_generator::generator.srand(seed);
-	    cout << random_generator::generator.lrand() <<endl ;
-	    return 0;
-	}
+        int seed;
+        if( (seed = atoi(argv[1])) != 0) {
+            generator.seed(seed);
+            cout << generator.rand() <<endl ;
+            return 0;
+        }
     }
     int i;
     for(i=1; i<25; i++) {
-	cerr << "i= "<< i << " ";
-	cerr << random_generator::generator.lrand() ;
-	cerr <<endl;
+        cerr << "i= "<< i << " ";
+        cerr << generator.rand() ;
+        cerr <<endl;
     }
     for(i=1; i<25; i++) {
-	cerr << "i= "<< i << " ";
-	W_FORM2(cerr, ("%10.10f ",random_generator::generator.drand()) );
-	cerr <<endl;
+        cerr << "i= "<< i << " ";
+        W_FORM2(cerr, ("%10.10f ",generator.drand()) );
+        cerr <<endl;
     }
     for(i=1; i<25; i++) {
-	cerr << "i= "<< i << " ";
-	W_FORM2(cerr, ("%d (0->25) ",random_generator::generator.mrand_choice(0,25)) );
-	cerr <<endl;
+        cerr << "i= "<< i << " ";
+        W_FORM2(cerr, ("%d (0->25) ",generator.randn(25)) );
+        cerr <<endl;
     }
     cerr << "done." << endl;
 

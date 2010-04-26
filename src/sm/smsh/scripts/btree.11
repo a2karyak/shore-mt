@@ -1,6 +1,6 @@
 # <std-header style='tcl' orig-src='shore'>
 #
-#  $Id: btree.11,v 1.7 1999/06/07 19:05:12 kupsch Exp $
+#  $Id: btree.11,v 1.7.4.1 2010/02/05 20:39:32 nhall Exp $
 #
 # SHORE -- Scalable Heterogeneous Object REpository
 #
@@ -34,7 +34,7 @@ source $script_dir/vol.init
 if {$logging==0} {
     echo "Logging off: script not run. "
 } else {
-    set xlist { f8 f4 i1 u1 i2 u2 i4 u4 i8 u8 b1 }
+    set xlist { i4 u4 f8 f4 i8 u8 b1 i1 u1 i2 u2 }
     set xlistlen [llength $xlist]
     set x 0
     if {1} {

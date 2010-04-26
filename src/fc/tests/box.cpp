@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: box.cpp,v 1.7 2006/01/29 18:09:01 bolo Exp $
+ $Id: box.cpp,v 1.7.2.4 2009/10/30 23:49:02 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -40,10 +40,10 @@ int
 main(int argc, char *argv[])
 {
     if(argc < 3) {
-	cerr << "Usage: dim <box> <box> <box> ..." << endl;
-	cerr << "where <box> is <point>/<point>" <<endl;
-	cerr << "where <point> is num,num,num" <<endl;
-	exit(1);
+        cerr << "Usage: dim <box> <box> <box> ..." << endl;
+        cerr << "where <box> is <point>/<point>" <<endl;
+        cerr << "where <point> is num,num,num" <<endl;
+        exit(1);
     }
     int dim = atoi(argv[1]);
 
@@ -56,49 +56,51 @@ main(int argc, char *argv[])
     int*   values = new int[dim * 2];
 
     switch(dim) {
-	case 0:
-	    cout << "nothing" << endl;
-	    break;
-	case 1:
-	    cout << "intervals on a line"<<endl;
-	    break;
-	case 2:
-	    cout << "boxes in a plane"<<endl;
-	    break;
-	case 3:
-	    cout << "cubes in a solid"<<endl;
-	case 4:
-	    cout << "moving cubes in a <space,time> continuum"<<endl;
-	    break;
+        case 0:
+            cout << "nothing" << endl;
+            break;
+        case 1:
+            cout << "intervals on a line"<<endl;
+            break;
+        case 2:
+            cout << "boxes in a plane"<<endl;
+            break;
+        case 3:
+            cout << "cubes in a solid"<<endl;
+        case 4:
+            cout << "moving cubes in a <space,time> continuum"<<endl;
+            break;
     }
 
 
     for(int i=0; i < argc-2; i++) {
-	char *point = argv[i+2];
-	// get the box represented by the next argument:
-	//  x1,y1,z1/x2,y2,z2
+        char *point = argv[i+2];
+        // get the box represented by the next argument:
+        //  x1,y1,z1/x2,y2,z2
 
-	for(int pt = 0; pt < 2; pt++) {
-	    for(int d = 0; d < dim; d++) {
-		// get the d'th dimension of point pt
+        for(int pt = 0; pt < 2; pt++) {
+            for(int d = 0; d < dim; d++) {
+                // get the d'th dimension of point pt
 
-		char *p= point;
-		while(*p && *p != ',' && *p != '/') p++;
-		*p = '\0';
-		values[(pt*dim)+d] = atoi(point);
-		point = p+1;
-	    }
-	}
+                char *p= point;
+                while(*p && *p != ',' && *p != '/') p++;
+                *p = '\0';
+                values[(pt*dim)+d] = atoi(point);
+                point = p+1;
+            }
+        }
 
-	nbox_t box(dim, values);
-	cout << " box= " << box <<endl;
+        nbox_t box(dim, values);
+        cout << " box= " << box <<endl;
 
-	box.canonize();
-	cout << " canonical box= " << box <<endl;
+        box.canonize();
+        cout << " canonical box= " << box <<endl;
 
-	u += box;
-	cout << " universe= " << u <<endl;
+        u += box;
+        cout << " universe= " << u <<endl;
     }
+
+    delete[] values;
     return 0;
 }
 

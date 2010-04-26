@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: opaque.cpp,v 1.17 2006/01/29 22:27:32 bolo Exp $
+ $Id: opaque.cpp,v 1.17.2.5 2009/10/30 23:50:53 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -51,7 +51,7 @@ int main()
     char *d = &dummy[3];
     server_handle_t *s = 0;
 
-    int j;
+    int j(0);
     int &k = *((int *)&dummy[3]);
     char * junk = (char *)&k;
     // memcpy((char *)&k, &j, sizeof(j)); // dumps core
@@ -60,52 +60,60 @@ int main()
 
 
     {
-	s = (server_handle_t *)dummy; // aligned, if possible
-	*s = "COPY";
-	server_handle_t &th = *s;
-	server_handle_t ch = th;
-	cout << "value of ch = " << ch << endl;
-	cout << "length of ch = " << ch.length() << endl;
+        s = (server_handle_t *)dummy; // aligned, if possible
+        *s = "COPY";
+        server_handle_t &th = *s;
+        server_handle_t ch = th;
+        cout << "value of ch = " << ch << endl;
+        cout << "length of ch = " << ch.length() << endl;
     }
     {
-	s = (server_handle_t *)dummy; // aligned, if possible
-	*s = "ALIGNED";
-	// If we print the address to cout, we can't diff with a .out file
-	cerr << "(not an error: )address of s = " << W_ADDR(s) << endl;
-	cout << "value of s = " << *s << endl;
-	cout << "length of s = " << s->length() << endl;
-    }
-
-    {
-	s = (server_handle_t *)d; // unaligned, if possible
-	*s = "NOTALIGNED";
-	cerr << "(not an error: )address of s = " << W_ADDR(s) << endl;
-	cout << "value of s = " << *s << endl;
-	cout << "length of s = " << s->length() << endl;
+        s = (server_handle_t *)dummy; // aligned, if possible
+        *s = "ALIGNED";
+        // If we print the address to cout, we can't diff with a .out file
+        cerr << "(not an error: )address of s = " << W_ADDR(s) << endl;
+        cout << "value of s = " << *s << endl;
+        cout << "length of s = " << s->length() << endl;
     }
 
     {
-	s = (server_handle_t *)dummy; // aligned, if possible
-	*s = "BYTEORDER";
-	cout << "value of s = " << *s << endl;
-	cout << "length of s = " << s->length() << endl;
-	s->hton();
-	// net order value to cerror since it can change depending on platform
-	cerr << "hton length of s = " << hex << s->length() << endl;
-	// but the bytes should always be the same!
-	cout << "hton bytes of s = ";
-	// XXX magic types/numbers, but "well known"
-	union {
-		uint4_t	l;
-		uint1_t	c[4];
-	} un;
-	un.l = s->length();
-	for (unsigned i = 0; i < sizeof(un.c); i++)
-		cout << ' ' << hex << (unsigned) un.c[i];
-	cout << endl;
+        s = (server_handle_t *)d; // unaligned, if possible
+        *s = "NOTALIGNED";
+        cerr << "(not an error: )address of s = " << W_ADDR(s) << endl;
+        cout << "value of s = " << *s << endl;
+        cout << "length of s = " << s->length() << endl;
+    }
 
-	s->ntoh();
-	cout << "ntoh length of s = " << hex << s->length() << endl;
+    {
+        s = (server_handle_t *)dummy; // aligned, if possible
+        *s = "BYTEORDER";
+        cout << "value of s = " << *s << endl;
+        cout << "length of s = " << s->length() << endl;
+        s->hton();
+        // net order value to cerror since it can change depending on platform
+        cerr << "hton length of s = " << hex << s->length() << endl;
+        // but the bytes should always be the same!
+        cout << "hton bytes of s = ";
+        // XXX magic types/numbers, but "well known"
+        union {
+            uint4_t    l;
+            uint1_t    c[4];
+        } un;
+        un.l = s->length();
+        for (unsigned i = 0; i < sizeof(un.c); i++)
+            cout << ' ' << hex << (unsigned) un.c[i];
+        cout << endl;
+
+        s->ntoh();
+        cout << "ntoh length of s = " << hex << s->length() << endl;
+    }
+
+    {
+        tid_t uninit;
+        tid_t t1 = uninit;
+        tid_t t2 = tid_t();
+        tid_t t3 = t2;
+        t3 = t1;
     }
 
     return 0;

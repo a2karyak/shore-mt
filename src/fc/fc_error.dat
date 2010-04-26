@@ -1,6 +1,6 @@
 # <std-header style='data' orig-src='shore'>
 #
-#  $Id: fc_error.dat,v 1.18 2007/05/18 21:38:23 nhall Exp $
+#  $Id: fc_error.dat,v 1.18.2.2 2009/09/01 21:41:20 nhall Exp $
 #
 # SHORE -- Scalable Heterogeneous Object REpository
 #
@@ -33,14 +33,13 @@ OS 		Operating system error
 FULL		Container is full
 EMPTY		Container is empty
 OUTOFMEMORY	Malloc failed : out of memory 
+MMAPFAILED	Mmap could not map aligned memory
 NOTFOUND 	Item not found 
 NOTIMPLEMENTED	Feature is not implemented
 READONLY	Update operation on read-only object
 MIXED	Attempting to mix static and dynamic containers
 FOUND	Item already found
 NOSUCHERROR	unknown error code
-WIN32		Win32 error
 ASSERT		Assertion Failed
-JUNK		Junk test REMOVE THIS
 }
 

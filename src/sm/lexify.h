@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='LEXIFY_H'>
 
- $Id: lexify.h,v 1.15 1999/06/07 19:04:07 kupsch Exp $
+ $Id: lexify.h,v 1.15.2.4 2010/01/28 04:54:05 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -39,9 +39,9 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
  * comparison in an architecturally-neutral form.
  *
  * Original work for IEEE double-precision values by
- * 	Marvin Solomon (solomon@cs.wisc.edu) Feb, 1997.
+ *     Marvin Solomon (solomon@cs.wisc.edu) Feb, 1997.
  * Extended for integer and IEEE single-precision values by
- * 	Nancy Hall Feb, 1997.
+ *     Nancy Hall Feb, 1997.
  *
  */
 
@@ -51,73 +51,73 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 
 class sort_keys_t;
 class sortorder : private smlevel_0 {
-	friend class sort_keys_t;
-	typedef w_base_t::f4_t f4_t;
-	typedef w_base_t::f8_t f8_t;
+    friend class sort_keys_t;
+    typedef w_base_t::f4_t f4_t;
+    typedef w_base_t::f8_t f8_t;
 
-	typedef w_base_t::uint1_t uint1_t;
-	typedef w_base_t::uint2_t uint2_t;
-	typedef w_base_t::uint4_t uint4_t;
-	typedef w_base_t::uint8_t uint8_t;
+    typedef w_base_t::uint1_t uint1_t;
+    typedef w_base_t::uint2_t uint2_t;
+    typedef w_base_t::uint4_t uint4_t;
+    typedef w_base_t::uint8_t uint8_t;
 
-	typedef w_base_t::int1_t int1_t;
-	typedef w_base_t::int2_t int2_t;
-	typedef w_base_t::int4_t int4_t;
-	typedef w_base_t::int8_t int8_t;
+    typedef w_base_t::int1_t int1_t;
+    typedef w_base_t::int2_t int2_t;
+    typedef w_base_t::int4_t int4_t;
+    typedef w_base_t::int8_t int8_t;
 public:
-	enum keytype {
+    enum keytype {
             kt_nosuch,
-	    /* signed, unsigned 1-byte integer values */
-	    kt_i1, kt_u1, 
-	    /* signed, unsigned 2-byte integer values */
-	    kt_i2, kt_u2, 
-	    /* signed, unsigned 4-byte integer values */
-	    kt_i4, kt_u4, 
-	    /* signed, unsigned 64-bit integer values */
-	    kt_i8, kt_u8,
-	    /* IEEE single, double precision floating point values */
-	    kt_f4, 
-	    kt_f8, 
-	    /* unsigned byte string */
+        /* signed, unsigned 1-byte integer values */
+        kt_i1, kt_u1, 
+        /* signed, unsigned 2-byte integer values */
+        kt_i2, kt_u2, 
+        /* signed, unsigned 4-byte integer values */
+        kt_i4, kt_u4, 
+        /* signed, unsigned 64-bit integer values */
+        kt_i8, kt_u8,
+        /* IEEE single, double precision floating point values */
+        kt_f4, 
+        kt_f8, 
+        /* unsigned byte string */
             kt_b,
-	    /* not used here */
+        /* not used here */
             kt_spatial 
-	};
+    };
 
-	NORET sortorder();
-	NORET ~sortorder();
-	// returns true if it worked, false otherwise
-	bool lexify(const key_type_s *kp, const void *d, void *res); 
+    NORET sortorder();
+    NORET ~sortorder();
+    // returns true if it worked, false otherwise
+    bool lexify(const key_type_s *kp, const void *d, void *res); 
 
-	// returns true if it worked, false otherwise
-	bool unlexify(const key_type_s *kp, const void *str, void *res) ;
+    // returns true if it worked, false otherwise
+    bool unlexify(const key_type_s *kp, const void *str, void *res) ;
 
 private:
-	void int_lexify( const void *d, bool is_signed, int len, 
-		void *res, int perm[]);
-	void int_unlexify( const void *str, bool is_signed, int len, 
-		void *res, int perm[]);
+    void int_lexify( const void *d, bool is_signed, int len, 
+        void *res, int perm[]);
+    void int_unlexify( const void *str, bool is_signed, int len, 
+        void *res, int perm[]);
 
 public: // TODO: make private
-	void float_lexify(w_base_t::f4_t d, void *res, int perm[]) ;
-	void float_unlexify( const void *str, int perm[], w_base_t::f4_t *result); 
-	void dbl_lexify(w_base_t::f8_t d, void *res, int perm[]) ;
-	void dbl_unlexify( const void *str, int perm[], w_base_t::f8_t *result);
+    void float_lexify(w_base_t::f4_t d, void *res, int perm[]) ;
+    void float_unlexify( const void *str, int perm[], w_base_t::f4_t *result); 
+    void dbl_lexify(w_base_t::f8_t d, void *res, int perm[]) ;
+    void dbl_unlexify( const void *str, int perm[], w_base_t::f8_t *result);
 
-	void Ibyteorder(int permutation[8]) ;
-	void Ibyteorder(int *permutation, int size);
-	void Fbyteorder(int permutation[4]) ;
-	void Dbyteorder(int permutation[8]) ;
+    void Ibyteorder(int permutation[8]) ;
+    void Ibyteorder(int *permutation, int size);
+    void Fbyteorder(int permutation[4]) ;
+    void Dbyteorder(int permutation[8]) ;
 
-	static keytype convert(const key_type_s *k);
+    static keytype convert(const key_type_s *k);
 
 private:
-	int I1perm[1];
-	int I2perm[2];
-	int I4perm[4];
-	int I8perm[8];
-	int Fperm[4];
-	int Dperm[8];
+    int I1perm[1];
+    int I2perm[2];
+    int I4perm[4];
+    int I8perm[8];
+    int Fperm[4];
+    int Dperm[8];
 };
 
 extern class sortorder SortOrder;

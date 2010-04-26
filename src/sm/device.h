@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='DEVICE_H'>
 
- $Id: device.h,v 1.18 1999/06/07 19:04:01 kupsch Exp $
+ $Id: device.h,v 1.18.2.5 2010/03/19 22:20:23 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -39,24 +39,23 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #endif
 
 
-
 // must be outside of device_m due to HP CC limitation
 struct device_s {
-    char	name[smlevel_0::max_devname+1];
-    shpid_t	quota_pages;
-    devid_t	id;		// unique device id since name may
-				// not be unique
-    w_link_t	link;
+    char       name[smlevel_0::max_devname+1];
+    shpid_t    quota_pages;
+    devid_t    id;        // unique device id since name may
+                // not be unique
+    w_link_t    link;
 };
 
 struct device_hdr_s {
     device_hdr_s(uint4_t version, 
-		sm_diskaddr_t quota_in_KB, 
-		lvid_t v) :
-	format_version(version), quota_KB(quota_in_KB), lvid(v) {}
-    uint4_t		format_version;
-    sm_diskaddr_t	quota_KB;
-    lvid_t		lvid;
+        sm_diskaddr_t quota_in_KB, 
+        lvid_t v) :
+    format_version(version), quota_KB(quota_in_KB), lvid(v) {}
+    uint4_t        format_version;
+    sm_diskaddr_t    quota_KB;
+    lvid_t        lvid;
 };
 
 class device_m : public smlevel_0 {
@@ -74,11 +73,11 @@ public:
     void dump() const;
     
 private:
-    device_s*	_find(const char* dev_name);
-    device_s*	_find(const devid_t& devid);
+    device_s*    _find(const char* dev_name);
+    device_s*    _find(const devid_t& devid);
 
     // table of all devices currently mounted
-    w_list_t<device_s> _tab;
+    w_list_t<device_s,queue_based_lock_t> _tab;
 
     // disabled
     device_m(const device_m&);

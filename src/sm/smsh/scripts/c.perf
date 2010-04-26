@@ -1,6 +1,6 @@
 # <std-header style='tcl' orig-src='shore'>
 #
-#  $Id: c.perf,v 1.8 2006/06/01 17:09:39 nhall Exp $
+#  $Id: c.perf,v 1.8.2.2 2009/12/21 18:45:13 nhall Exp $
 #
 # SHORE -- Scalable Heterogeneous Object REpository
 #
@@ -50,8 +50,8 @@ set used [lindex [sm get_volume_quota $volid] 1]
 set volsize [expr {$volsize - $used} ]
 set objksize [expr {$objsize / 1024} ]
 
-echo volsize = $volsize   
-echo objksize = $objksize 
+verbose volsize = $volsize   
+verbose objksize = $objksize 
 
 # dstats $volid
 
@@ -64,11 +64,11 @@ set nobjs [expr {8192 * 6}]
 # round down to the nearest 100
 if { $nobjs > 100 } {
     set nobjs [expr {$nobjs / 100} ]
-    echo nobjs = $nobjs
+    verbose nobjs = $nobjs
     set nobjs [expr {$nobjs * 100} ]
 }
 set nobjs 5000
-echo nobjs = $nobjs
+verbose nobjs = $nobjs
 
 unset objksize
 
@@ -90,10 +90,10 @@ sm begin_xct
 
     # Now, start over and time it
     set fid [sm create_file $volid ]
-    echo fid=$fid
+    verbose fid=$fid
 sm commit_xct
 
-echo CREATING $nobjs RECS of size $objsize
+verbose CREATING $nobjs RECS of size $objsize
 
 set dummy [sm gather_stats reset]
 set wtime [ time {
@@ -105,20 +105,27 @@ set wtime [ time {
     sm commit_xct
 } 1 ]
 
-echo
-echo CREATED $nobjs RECS of size $objsize, forced buffers
+verbose
+verbose CREATED $nobjs RECS of size $objsize, forced buffers
 
 pstats
 set dummy [sm gather_stats reset]
-echo 
+verbose 
 echo total create time = $wtime
 set sec [lindex $wtime 0]
-set msec [expr {$msec * 1000000} ]
+set msec [expr {$sec * 1000000} ]
 set tbytes [expr $objsize * $nobjs]
 
 if {$sec > 0} {
-   echo [expr {$tbytes / $sec}] bytes per second
+   verbose [expr {$tbytes / $sec}] bytes per second
 }
 
+sm begin_xct
+sm destroy_file $fid
+sm commit_xct
+
 # dstats $volid
+#
+unset used config sec fid dummy wtime hdr
+unset i volsize body nobjs msec tbytes objsize
 

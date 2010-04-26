@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: debug.cpp,v 1.17 2007/05/18 21:38:23 nhall Exp $
+ $Id: debug.cpp,v 1.17.2.3 2009/09/01 21:41:19 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -62,15 +62,6 @@ w_debug _w_debug("debug", getenv("DEBUG_FILE"));
 #endif
 
 
-
-#ifdef IS_SPARC_SUNOS41
-extern "C" {
-	char *getenv(const char *);
-	char *mktemp(const char *);
-};
-#endif
-
-
 #ifdef USE_REGEX
 bool		_w_debug::re_ready = false;
 regex_t		_w_debug::re_posix_re;
@@ -81,6 +72,8 @@ w_debug::w_debug(const char *n, const char *f) :
 	ErrLog(n, log_to_unix_file, f?f:"-")
 {
 #ifdef FC_DEBUG_WIN32_LOCK
+	// TODO NANCY: if you choose to keep this w_debug  stuff,
+	// maybe put some syn primitives in here
     InitializeCriticalSection(&_crit);
 #endif
 #ifdef USE_REGEX
@@ -96,13 +89,6 @@ w_debug::w_debug(const char *n, const char *f) :
 	temp_flags = "";
 	mask = _none;
     }
-#ifdef _WINDOWS
-    if(_flags && *_flags == '\0') {
-	// Grot: _WINDOWS library or shell(?) has a problem
-	temp_flags = "";
-        mask = _none;
-    }
-#endif
 
     // make a copy of the flags so we can delete it later
     _flags = new char[strlen(temp_flags)+1];

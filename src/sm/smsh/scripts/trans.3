@@ -1,6 +1,6 @@
 # <std-header style='tcl' orig-src='shore'>
 #
-#  $Id: trans.3,v 1.9 1999/06/07 19:05:49 kupsch Exp $
+#  $Id: trans.3,v 1.9.4.4 2009/12/21 18:45:19 nhall Exp $
 #
 # SHORE -- Scalable Heterogeneous Object REpository
 #
@@ -33,7 +33,7 @@
 #
 
 set do_file_create 1
-source $script_dir/trans.lib
+source $script_dir/trans.tcl
 
 proc crashtrans { action finish c } {
 	set cmd "trans $action $finish"
@@ -54,9 +54,12 @@ set crashlist {
 	concurrent_prepare_log
     }
 
+set clean false
+set formsize [expr {$page_size - 100}]
+
 foreach a $actionlist {
     foreach f $finishlist {
-	rtrans $a $f
+	   rtrans $clean $a $f
     }
 }
 
@@ -64,3 +67,5 @@ sm begin_xct
 sm destroy_file $f0
 sm commit_xct
 
+unset clean crashlist finishlist actionlist
+unset a f formsize 

@@ -1,6 +1,6 @@
 # <std-header style='tcl' orig-src='shore'>
 #
-#  $Id: deadlock.2,v 1.19 1999/06/07 19:05:25 kupsch Exp $
+#  $Id: deadlock.2,v 1.19.4.3 2009/11/23 22:34:44 nhall Exp $
 #
 # SHORE -- Scalable Heterogeneous Object REpository
 #
@@ -29,79 +29,58 @@
 
 # Test Upgrade deadlock detection
 #
-#    {1SH, 2SH} <-- 1EX
-#    {1EX} <-- 2SH
+#    t1: {SH(A), EX(B)} --> EX(A)(upgrade)
+#    t2: {SH(A)} --> SH(B)
+#
+#    deadlock.5 does the same thing but with records and
+#    sm commands that would grab the locks to read/update the records.
 #
 
-set o1 "10"
-set o2 "20"
+set A "s(10.1)"
+set B "s(20.2)"
 
 proc t1 {} {
-    global o1 o2
+    global A B
     sm begin_xct
-    sm lock $o1 SH LONG
-    sm lock $o2 EX LONG
-    verbose "t1: acquired SH on o1, EX on o2"
+	# step 1: get SH lock on A, EX lock on B
+    sm lock $A SH LONG
+    sm lock $B EX LONG
+    verbose "t1: acquired SH on $A, EX on $B"
+    verbose "{ t1: sync B"
     sync
-    verbose "t1: attempting to acquire EX on o1"
-    sm lock $o1 EX LONG
-    sm commit_xct
+    verbose "t1: sync B }"
+	# step 2: try to upgrade to EX on A
+    verbose "t1: attempting to acquire EX on $A"
+    # catch deadlock
+    verbose catch deadlock:
+	if [catch {sm lock $A EX LONG} errorno] {
+		verbose "(EXPECTED E_DEADLOCK) error is $errorno"
+		assert {error_is $errorno E_DEADLOCK}
+	}
+	sm abort_xct
 }
 
 proc t2 {} {
-    global o1 o2
+    global A B
     sm begin_xct
-    verbose "t2: attempting to acquire SH on o1"
-    sm lock $o1 SH LONG
-    verbose "t2: acquired SH on o1"
+	# step 1:  get SH on A
+    sm lock $A SH LONG
+    verbose "t2: acquired SH on $A"
+    verbose "{ t2: sync B"
     sync
+    verbose "t2: sync  B}"
+    verbose "{ t2: sync C"
     sync
-    verbose "t2: attempting to acquire SH on o2"
+    verbose "t2: sync  C}"
 
+	# step 2:  try to get SH lock on B
+    verbose "t2: attempting to acquire SH on $B"
     # catch deadlock
     verbose catch deadlock:
-    catch {sm lock $o2 SH LONG} errorno
-    verbose "(EXPECTED E_DEADLOCK) error is $errorno"
-    assert {error_is $errorno E_DEADLOCK}
-
-    sm commit_xct
-}
-
-# same as t1, but use record stuff instead.
-proc tt1 {o1 o2} {
-    sm begin_xct
-
-# SH on o1
-    verbose [sm read_rec $o1 0 0]
-# EX on o2
-    sm append_rec $o2 zzz
-    verbose "t1: acquired SH on o1, EX on o2"
-    sync
-    verbose "t1: attempting to acquire EX on o1"
-# EX on o1
-    sm append_rec $o1 zzz
-    sm commit_xct
-}
-
-# same as t2, but use record stuff instead.
-proc tt2 {o1 o2} {
-    sm begin_xct
-    verbose "t2: attempting to acquire SH on o1"
-
-# SH on o1
-    verbose [sm read_rec $o1 0 0]
-    verbose "t2: acquired SH on o1"
-    sync
-    sync
-    verbose "t2: attempting to acquire SH on o2 with read"
-
-    # catch deadlock
-# SH on o2
-    set errorno 0
-    verbose catch deadlock:
-    catch {verbose [sm read_rec $o2 0 0]} errorno
-    verbose "(EXPECTED E_DEADLOCK) error is $errorno"
-    assert {error_is $errorno E_DEADLOCK}
+	if [catch {sm lock $B SH LONG} errorno] {
+		verbose "(EXPECTED E_DEADLOCK) error is $errorno"
+		assert {error_is $errorno E_DEADLOCK}
+	}
     sm commit_xct
 }
 
@@ -109,47 +88,23 @@ proc tt2 {o1 o2} {
 
 source $script_dir/vol.init
 
-verbose main
+set x1 [fork_thread t1 {}]
+verbose t1 $x1
+set x2 [fork_thread t2 {}]
+verbose x2 $x2
 
-set x [fork_thread t1 {}]
-verbose x $x
-set y [fork_thread t2 {}]
-verbose y $y
 
-verbose sync
-sync_thread $x $y
-verbose sync
-sync_thread $y
-verbose join
-join_thread $x $y
+verbose "{ sync_thread $x1 $x2 B "
+sync_thread $x1 $x2
+verbose "sync_thread $x1 $x2 }"
 
-verbose new tx
-sm begin_xct
-set f [ sm create_file $volid ]
-verbose $f
-set r1 [ sm create_rec $f hdr12345 11 abcdefghijklmnopqrstuvwxyz ]
-verbose $r1
-set r2 [ sm create_rec $f hdr 8 ABCDEF ]
-verbose $r2
-sm commit_xct
 
-set x [fork_thread tt1 $r1 $r2]
-verbose forked $x
-set y [fork_thread tt2 $r1 $r2]
-verbose forked $y
+verbose "{ sync_thread $x2  C"
+sync_thread $x2
+verbose "sync_thread $x2 }"
 
-verbose sync
-sync_thread $x $y
-verbose sync
-sync_thread $y
-verbose join
-join_thread $x $y
+verbose join_thread $x1 $x2
+join_thread $x1 $x2
 
-verbose end
-
-sm begin_xct
-sm destroy_file $f
-sm commit_xct
-
-unset o1 o2 f r1 r2 x y
+unset A B x1 x2
 

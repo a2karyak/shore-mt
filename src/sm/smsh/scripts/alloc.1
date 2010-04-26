@@ -1,6 +1,6 @@
 # <std-header style='tcl' orig-src='shore'>
 #
-#  $Id: alloc.1,v 1.17 2006/06/01 17:09:30 nhall Exp $
+#  $Id: alloc.1,v 1.17.2.5 2010/03/19 22:20:35 nhall Exp $
 #
 # SHORE -- Scalable Heterogeneous Object REpository
 #
@@ -31,12 +31,12 @@
 #	Test allocation & deallocation of pages
 #	T0:  create some recs in a file, commit
 #
-#		     SYNC                       SYNC
-#                    ____                       ____
+#		        SYNC                       SYNC
+#               ____                       ____
 #	T1:          *    create rec in file, 	*    commit
 #	T2:  destroy 
 #	     1st rec in file, 
-#                    *     abort,               *   
+#                *     abort,               *   
 #	T3:          *     destroy 1st rec 
 #                          in file, commit,     *
 #
@@ -45,6 +45,7 @@ source $script_dir/vol.init
 
 # format for body size -- >= one page
 set formsize [expr {${page_size} / 2} ]
+
 
 proc scanit { f } {
     verbose scanit $f
@@ -69,6 +70,7 @@ proc scanit { f } {
     verbose scan found $i records
 }
 proc destroyfirst { who f } {
+    verbose destroyfirst $who $f
     set scan [sm scan_file_create $f t_cc_record]
     set pin [sm scan_file_next $scan 0]
     set i 0
@@ -100,13 +102,13 @@ proc destroyall { f } {
 
 
 proc t1 {} {
-    global volid  f0 r0 formsize
+    global volid  f0 r0 formsize verbose_flag
     sm begin_xct
     verbose t1: xact [sm xct] 
-sync
+named_sync 4 1
     verbose t1: after sync1
 	
-sync
+named_sync 4 2
     verbose t1: after sync2
     verbose t1: creating...
     set j [sm create_rec $f0 hdr 1000 [formatlong 0 $formsize  %010d 10] ]
@@ -117,21 +119,21 @@ sync
 	sm pin_unpin $p 
 	sm pin_destroy $p
     verbose t1: created $j
-sync
+named_sync 4 3
     verbose t1: after sync3
     sm commit_xct
     verbose t1: committed
 }
 
 proc t2 {} {
-    global volid  f0 logging
+    global volid  f0 logging verbose_flag
     sm begin_xct
     verbose t2: xact [sm xct]
-sync
+named_sync 4 1
     verbose t2: after sync1
     verbose t2: destroy 1...
     destroyfirst t2 $f0
-sync
+named_sync 4 2
     verbose t2: after sync2
     if {$logging==0} {
 	verbose Logging off: substituting commit for abort
@@ -141,23 +143,24 @@ sync
 	sm abort_xct
 	verbose t2: aborted
     }
-sync
+named_sync 4 3
     verbose t2: after sync3
 }
 
 proc t3 {} {
-    global volid  f0
+    global volid  f0 verbose_flag
     sm begin_xct
     verbose t3: xact [sm xct]
-sync
+named_sync 4 1
     verbose t3: after sync1
-sync
+named_sync 4 2
     verbose t3: after sync2
     verbose t3: destroy 1...
+    verbose calling destroyfirst t3 $f0
     destroyfirst t3 $f0
     verbose t3: committing...
     sm commit_xct
-sync
+named_sync 4 3
     verbose t3: after sync3
 }
 
@@ -165,7 +168,7 @@ sync
 set numrecs 3
 
 sm begin_xct
-set f0 [sm create_file $volid]]
+set f0 [sm create_file $volid]
 verbose created file $f0
 for { set i 1} { $i <= $numrecs} { incr i} {
     set j [sm create_rec $f0 h$i 1000 [formatlong 0 $formsize %010d $i] ]
@@ -175,14 +178,14 @@ verbose created 3 recs file $f0
 scanit $f0
 sm commit_xct
 
+
 set y1 [fork_thread t1 {}]
 set y2 [fork_thread t2 {}]
 set y3 [fork_thread t3 {}]
 
-sync_thread $y1 $y2 $y3
-sync_thread $y1 $y2 $y3
-sync_thread $y1 $y2 $y3
-sync_thread $y1 $y2 $y3
+named_sync 4 1
+named_sync 4 2
+named_sync 4 3
 join_thread $y1 $y2 $y3
 
 sm begin_xct
@@ -197,10 +200,16 @@ sm begin_xct
 dstats $volid
 sm destroy_file $f0
 dstats $volid
+#
+#
+# set n [sm gather_stats]
+# echo PNZSTATS
+# echo [pnzstats $n]
+# unset n
+
 sm commit_xct
 
 unset formsize f0 numrecs i j
 unset y1 y2 y3
 
-pstats
 

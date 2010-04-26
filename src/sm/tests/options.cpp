@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: options.cpp,v 1.15 2007/05/18 21:39:18 nhall Exp $
+ $Id: options.cpp,v 1.15.2.3 2010/03/19 22:20:38 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -95,20 +95,20 @@ init_config_options(option_group_t& options,
 	// scan the file and override any current option settings
 	// options names must be spelled correctly
 	rc = opt_scan.scan(true /*override*/, err_stream, true);
-	if (rc) {
+	if (rc.is_error()) {
 	    cerr << "Error in reading option file: " << opt_file << endl;
 	    cerr << "\t" << err_stream.c_str() << endl;
 	    return rc;
 	}
     }
 
-    // parce argv for options
-    if (!rc) {
+    // parse argv for options
+    if (!rc.is_error()) {
         // parse command line
         w_ostrstream      err_stream;
         rc = options.parse_command_line((const char **)argv, argc, 2, &err_stream);
         err_stream << ends;
-        if (rc) {
+        if (rc.is_error()) {
             cerr << "Error on Command line " << endl;
             cerr << "\t" << w_error_t::error_string(rc.err_num()) << endl;
             cerr << "\t" << err_stream.c_str() << endl;
@@ -120,7 +120,7 @@ init_config_options(option_group_t& options,
     {
 	w_ostrstream      err_stream;
 	rc = options.check_required(&err_stream);
-        if (rc) {
+        if (rc.is_error()) {
             cerr << "These required options are not set:" << endl;
             cerr << err_stream.c_str() << endl;
 	    return rc;

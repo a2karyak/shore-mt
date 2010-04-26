@@ -2,7 +2,7 @@
 
 # <std-header style='shell' orig-src='shore'>
 #
-#  $Id: testall,v 1.1 2007/05/18 21:52:30 nhall Exp $
+#  $Id: testall,v 1.1.2.5 2010/03/19 22:20:03 nhall Exp $
 #
 # SHORE -- Scalable Heterogeneous Object REpository
 #
@@ -67,24 +67,21 @@ function execute  {
     fi
 }
 
-if [ -a ./diskrw ];  then
-   print "Using ./diskrw"
-else 
-   print "Copying ../diskrw to ./diskrw"
-   cp ../diskrw .
-fi
-if [ -a ./diskrw ];  then
-   outf=/tmp/all$$.out
-   rm -f /tmp/all*.out
-   execute thread1 $outf
-   execute thread2 $outf
-   execute run_thread3 $outf thread3.out
-   execute thread4 $outf
+#
+# Note: most of these issue numbers that are expected do
+# differ from run to run, like timing, so comparisons with
+# .out files won't work.
+#
+outf=/tmp/all$$.out
+rm -f /tmp/all*.out
+execute thread1 $outf
+execute thread2 $outf
+execute "thread2 -h" $outf 
+execute run_thread3 $outf thread3.out
+execute thread4 $outf
+execute pthread_test $outf
+execute mmap $outf
 
-   print
-   print "result in $outf"
+print
+print "result in $outf"
 
-else 
-   print "No diskrw found. "
-   print "Link ./diskrw to a built diskrw program; probably ../diskrw"
-fi

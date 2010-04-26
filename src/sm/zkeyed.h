@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='ZKEYED_H'>
 
- $Id: zkeyed.h,v 1.32 2007/05/18 21:43:30 nhall Exp $
+ $Id: zkeyed.h,v 1.32.2.5 2010/03/19 22:20:28 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -39,82 +39,82 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #endif
 
 /*--------------------------------------------------------------*
- *  class zkeyed_p					        *
+ *  class zkeyed_p                            *
  *--------------------------------------------------------------*/
 class zkeyed_p : public page_p {
 public:
     
-    rc_t 			link_up(
-	shpid_t 		    new_prev,
-	shpid_t 		    new_next);
+    rc_t             link_up(
+    shpid_t             new_prev,
+    shpid_t             new_next);
 
-    rc_t 			format(
-	const lpid_t& 		    pid,
-	tag_t 			    tag,
-	w_base_t::uint4_t			    flags,
-        store_flag_t  	            store_flags,
-	const cvec_t& 		    hdr);    
+    rc_t             format(
+    const lpid_t&             pid,
+    tag_t                 tag,
+    w_base_t::uint4_t                flags,
+        store_flag_t                  store_flags,
+    const cvec_t&             hdr);    
 
-    rc_t			insert(
-	const cvec_t& 		    key, 
-	const cvec_t& 		    aux, 
-	slotid_t 		    slot,
-	bool			    do_it=true,
-	bool			    compress=false
-	);
+    rc_t            insert(
+    const cvec_t&             key, 
+    const cvec_t&             aux, 
+    slotid_t             slot,
+    bool                do_it=true,
+    bool                compress=false
+    );
 
-    rc_t			rewrite(slotid_t slot, int pxl);
-    rc_t			remove(slotid_t slot, bool compress=false);
-    rc_t			shift(slotid_t snum, zkeyed_p* rsib, bool cmprs=false);
+    rc_t            rewrite(slotid_t slot, int pxl);
+    rc_t            remove(slotid_t slot, bool compress=false);
+    rc_t            shift(slotid_t snum, zkeyed_p* rsib, bool cmprs=false);
 
     /* gnu has a bug -- can't make this protected
      * TODO: see if this is still the case
      */
-    rc_t			rec(
-	slotid_t		    idx, 
-	cvec_t& 		    key,
-	const char*& 		    aux,
-	int& 			    auxlen) const;
-    rc_t			rec(
-	slotid_t		    idx, 
-	int& 		    	    prefix_len,
-	int& 		    	    prefix_parts,
-	cvec_t& 		    key,
-	const char*& 		    aux,
-	int& 			    auxlen) const;
+    rc_t            rec(
+    slotid_t            idx, 
+    cvec_t&             key,
+    const char*&             aux,
+    int&                 auxlen) const;
+    rc_t            rec(
+    slotid_t            idx, 
+    int&                     prefix_len,
+    int&                     prefix_parts,
+    cvec_t&             key,
+    const char*&             aux,
+    int&                 auxlen) const;
     
 protected:
     
     MAKEPAGE(zkeyed_p, page_p, 1);
 
-    int 			rec_size(slotid_t idx) const;
-    int 			rec_expanded_size(slotid_t idx) const;
-    int 			nrecs() const;
-    rc_t			set_hdr(const cvec_t& data);
-    const void* 		get_hdr() const {
-	w_assert3(store_flags() != st_tmp);
-	return page_p::tuple_addr(0);
+    int             rec_size(slotid_t idx) const;
+    int             rec_expanded_size(slotid_t idx) const;
+    int             nrecs() const;
+    rc_t            set_hdr(const cvec_t& data);
+    const void*         get_hdr() const {
+        w_assert3(get_store_flags() != st_tmp);
+        return page_p::tuple_addr(0);
     }
     
 private:
     // disabled
-    void* 			tuple_addr(int);
-    int 			tuple_size(int);
+    void*             tuple_addr(int);
+    int             tuple_size(int);
     friend class page_link_log;   // just to keep g++ happy
 
-    smsize_t			min_entry_size() const;
-    smsize_t			max_num_entries() const;
+    smsize_t            min_entry_size() const;
+    smsize_t            max_num_entries() const;
 
-    void			dump(slotid_t idx, 
-				    int line, 
-				    const char *string) const;
+    void            dump(slotid_t idx, 
+                    int line, 
+                    const char *string) const;
 };
 
 /*--------------------------------------------------------------*
- *  zkeyed_p::min_entry_size()					*
+ *  zkeyed_p::min_entry_size()                    *
  *--------------------------------------------------------------*/
 inline
-smsize_t			
+smsize_t            
 zkeyed_p::min_entry_size()const
 {
     /* 
@@ -130,17 +130,17 @@ zkeyed_p::min_entry_size()const
 }
 
 /*--------------------------------------------------------------*
- *  zkeyed_p::max_num_entries()					*
+ *  zkeyed_p::max_num_entries()                    *
  *--------------------------------------------------------------*/
 inline
-smsize_t			
+smsize_t            
 zkeyed_p::max_num_entries() const
 {
     return  (smsize_t)(data_sz/min_entry_size());
 }
 
 /*--------------------------------------------------------------*
- *  zkeyed_p::rec_size()					*
+ *  zkeyed_p::rec_size()                    *
  *--------------------------------------------------------------*/
 inline int zkeyed_p::rec_size(slotid_t idx) const
 {
@@ -149,7 +149,7 @@ inline int zkeyed_p::rec_size(slotid_t idx) const
 
 
 /*--------------------------------------------------------------*
- *    zkeyed_p::nrecs()						*
+ *    zkeyed_p::nrecs()                        *
  *--------------------------------------------------------------*/
 inline int zkeyed_p::nrecs() const
 {
@@ -157,7 +157,7 @@ inline int zkeyed_p::nrecs() const
 }
 
 /*--------------------------------------------------------------*
- *    zkeyed_p::link_up()					*
+ *    zkeyed_p::link_up()                    *
  *--------------------------------------------------------------*/
 inline rc_t
 zkeyed_p::link_up(shpid_t new_prev, shpid_t new_next)

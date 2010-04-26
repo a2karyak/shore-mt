@@ -1,6 +1,6 @@
 # <std-header style='tcl' orig-src='shore'>
 #
-#  $Id: lgrec.6,v 1.4 1999/06/07 19:05:31 kupsch Exp $
+#  $Id: lgrec.6,v 1.4.4.3 2010/01/12 02:02:02 nhall Exp $
 #
 # SHORE -- Scalable Heterogeneous Object REpository
 #
@@ -51,39 +51,49 @@ sm begin_xct
 
     set pin [sm pin_create]
     set toggle 0
-    for {set i 1} {$i > 0} {incr i} {
-        if [expr { ($i/100)*100 == $i}] {
-	    verbose $i
-	}
-	sm pin_pin $pin $r($toggle) 0
-	set impl($toggle) [sm pin_large_impl $pin]
-	if [catch {sm pin_append_rec $pin $buffer} err] {
-	    verbose expected ERROR: $err
-	    break;
-	}
-	set newimpl [sm pin_large_impl $pin]
-	if { $impl($toggle) != $newimpl } {
-	    verbose $r($toggle) switched implementations:
-	    verbose from $impl($toggle) to $newimpl
-	    set q [sm read_rec $r($toggle) 0 0]
-	    set sizes [lindex $q 1]
-	    set sizes [split $sizes .]
-	    set sizes [lindex $sizes 2]
-	    verbose size of record is $sizes
-	}
+	for {set i 1} {$i > 0} {incr i} {
+		if [expr { ($i/100)*100 == $i}] {
+			verbose $i
+		}
+		sm pin_pin $pin $r($toggle) 0
+		set impl($toggle) [sm pin_large_impl $pin]
+		if [catch {sm pin_append_rec $pin $buffer} err] {
+			verbose expected ERROR: $err
+			break
+		}
+		set newimpl [sm pin_large_impl $pin]
+		if { $impl($toggle) != $newimpl } {
+			verbose $r($toggle) switched implementations:
+			verbose from $impl($toggle) to $newimpl
+			set q [sm read_rec $r($toggle) 0 0]
+			set sizes [lindex $q 1]
+			set sizes [split $sizes .]
+			set sizes [lindex $sizes 2]
+			verbose size of record is $sizes
+		}
 
-	sm pin_unpin $pin
-	set toggle [expr {1 - $toggle}]
-    }
+		sm pin_unpin $pin
+		set toggle [expr {1 - $toggle}]
+	}
     verbose  appended $i (* 2) pages
     if [expr {[error_is $err E_OUTOFSPACE] == 0} ] {
-        echo ERROR: unexpected error  $err  expected E_OUTOFSPACE
+        echo ERROR: unexpected error  $err;  expected E_OUTOFSPACE
     }
     sm pin_destroy $pin
+	verbose SPACE BEFORE DESTROY
+	dstatsnoaudit $volid 
     sm destroy_file $f1
 
+# we should be able to commit this xct after getting the out-of-space
+# error ONLY because we destroyed the file.
 sm commit_xct
+
+
+verbose SPACE AFTER DESTROY
+dstats $volid
 
 unset pin i r q impl toggle
 unset buffer f1 err b1
+unset newimpl 
+if [is_set sizes] { unset sizes }
 

@@ -1,6 +1,6 @@
 # <std-header style='data' orig-src='shore'>
 #
-#  $Id: EXAMPLE_SHORECONFIG,v 1.1 2007/05/18 21:39:17 nhall Exp $
+#  $Id: EXAMPLE_SHORECONFIG,v 1.1.2.3 2009/08/26 23:02:19 nhall Exp $
 #
 # SHORE -- Scalable Heterogeneous Object REpository
 #
@@ -29,16 +29,17 @@
 
 # Options Settings for the Example VAS Programs
 
-# set the location of the diskrw program
-# NOTE: This must be changed to point to your installed bin directory
-?.server.*.sm_diskrw: ../../sthread/diskrw
 
 # set the buffer pool size and log directory for all example servers
 ?.server.*.sm_bufpoolsize: 1024
 ?.server.*.sm_logdir: ./log
+?.server.*.sm_num_page_writers: 1
+?.server.*.sm_logsize: 60000
 
 perf.server.*.device_name: ./volumes/dev1
-perf.server.*.device_quota: 6000
-perf.server.*.num_rec: 100
+# perf.server.*.device_quota: 6000
+perf.server.*.device_quota: 60000
+perf.server.*.num_rec: 1000
+# perf.server.*.num_rec: 1000
 perf.server.*.rec_size: 10000
 

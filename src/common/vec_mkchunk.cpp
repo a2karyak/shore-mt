@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: vec_mkchunk.cpp,v 1.14 2006/01/29 18:24:57 bolo Exp $
+ $Id: vec_mkchunk.cpp,v 1.14.2.4 2010/03/19 22:19:19 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -31,6 +31,7 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 
 /*  -- do not edit anything above this line --   </std-header>*/
 
+/**\cond skip */
 #ifdef __GNUC__
      #pragma implementation
 #endif
@@ -41,7 +42,6 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #include <w_base.h>
 #include <w_minmax.h>
 #include "basics.h"
-#include "dual_assert.h"
 #include "vec_t.h"
 #include "umemcmp.h"
 #include "w_debug.h"
@@ -63,68 +63,69 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 /////////////////////////////////////////////////////
 void
 vec_t::mkchunk(
-	int				maxsize,
-	int				offset, // # skipped
-	vec_t			&result // provided by the caller
+    int                maxsize,
+    int                offset, // # skipped
+    vec_t            &result // provided by the caller
 ) const
 {
-	int i;
+    int i;
 
-	dual_assert1( _base[0].ptr != zero_location );
+    w_assert1( _base[0].ptr != zero_location );
 
-	DBG(<<"offset " << offset << " in vector :");
-	result.reset();
+    DBG(<<"offset " << offset << " in vector :");
+    result.reset();
 
-	// return a vector representing the next
-	// maxsize bytes starting at the given offset
-	// from the data represented by the input vector
-	int		first_chunk=0, first_chunk_offset=0, first_chunk_len=0;
-	{
-		// find first_chunk
-		int skipped=0, skipping;
+    // return a vector representing the next
+    // maxsize bytes starting at the given offset
+    // from the data represented by the input vector
+    int        first_chunk=0, first_chunk_offset=0, first_chunk_len=0;
+    {
+        // find first_chunk
+        int skipped=0, skipping;
 
-		for(i=0; i<this->count(); i++) {
-			skipping = this->len(i);
-			if(skipped + skipping > offset) {
-				// found
-				first_chunk = i;
-				first_chunk_offset = offset - skipped;
-				first_chunk_len = skipping - first_chunk_offset;
-				if(first_chunk_len > maxsize) {
-					first_chunk_len = maxsize;
-				}
+        for(i=0; i<this->count(); i++) {
+            skipping = this->len(i);
+            if(skipped + skipping > offset) {
+                // found
+                first_chunk = i;
+                first_chunk_offset = offset - skipped;
+                first_chunk_len = skipping - first_chunk_offset;
+                if(first_chunk_len > maxsize) {
+                    first_chunk_len = maxsize;
+                }
 
-		DBG(<<"put " << W_ADDR(this->ptr(i)) << 
-			"+" << first_chunk_offset << ", " << first_chunk_len);
+        DBG(<<"put " << W_ADDR(this->ptr(i)) << 
+            "+" << first_chunk_offset << ", " << first_chunk_len);
 
-				result.put((char*)this->ptr(i)+first_chunk_offset,first_chunk_len);
-				break;
-			}
-			skipped += skipping;
-		}
-		if(first_chunk_len == 0) return;
-	}
+                result.put((char*)this->ptr(i)+first_chunk_offset,first_chunk_len);
+                break;
+            }
+            skipped += skipping;
+        }
+        if(first_chunk_len == 0) return;
+    }
 
-	if(first_chunk_len < maxsize) {
-		// find next chunks up to the last
-		int used, is_using ;
+    if(first_chunk_len < maxsize) {
+        // find next chunks up to the last
+        int used, is_using ;
 
-		used = first_chunk_len;
-		for(i=first_chunk+1; i<this->count(); i++) {
-			is_using = this->len(i);
-			if(used + is_using <= maxsize) {
-				// use the whole thing
-				used += is_using;
+        used = first_chunk_len;
+        for(i=first_chunk+1; i<this->count(); i++) {
+            is_using = this->len(i);
+            if(used + is_using <= maxsize) {
+                // use the whole thing
+                used += is_using;
 
-				DBG(<<"put " << W_ADDR(this->ptr(i)) << ", " << is_using);
-				result.put(this->ptr(i),is_using);
-			} else {
-				// gotta use part
-				result.put(this->ptr(i),maxsize-used);
-				used = maxsize;
-				break;
-			}
-		}
-	}
+                DBG(<<"put " << W_ADDR(this->ptr(i)) << ", " << is_using);
+                result.put(this->ptr(i),is_using);
+            } else {
+                // gotta use part
+                result.put(this->ptr(i),maxsize-used);
+                used = maxsize;
+                break;
+            }
+        }
+    }
 }
 
+/**\endcond skip */

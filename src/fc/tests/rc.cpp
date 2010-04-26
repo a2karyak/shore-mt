@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: rc.cpp,v 1.24 2006/01/29 18:09:01 bolo Exp $
+ $Id: rc.cpp,v 1.24.2.6 2009/12/21 18:39:55 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -35,19 +35,43 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #include <cstddef>
 #include <w.h>
 
+
+w_rc_t testing2()
+{
+
+    w_rc_t rc = RC(fcOS);
+    RC_AUGMENT(rc);
+    RC_AUGMENT(rc);
+    RC_AUGMENT(rc);
+    RC_AUGMENT(rc);
+    RC_AUGMENT(rc);
+
+    // This constitutes a check on THIS rc
+    if (rc.is_error())  {; } 
+
+    return rc;
+}
+w_rc_t testing1()
+{
+	return testing2();
+}
+
 w_rc_t testing()
 {
+
     w_rc_t rc = RC(fcOS);
-	RC_AUGMENT(rc);
-	RC_PUSH(rc, fcINTERNAL);
-	RC_AUGMENT(rc);
-	RC_PUSH(rc, fcFULL);
-	RC_AUGMENT(rc);
-	RC_PUSH(rc, fcEMPTY);
-	RC_AUGMENT(rc);
-	RC_PUSH(rc, fcNOTFOUND);
-	RC_AUGMENT(rc);
-    if (rc)  {; }
+    RC_AUGMENT(rc);
+    RC_PUSH(rc, fcINTERNAL);
+    RC_AUGMENT(rc);
+    RC_PUSH(rc, fcFULL);
+    RC_AUGMENT(rc);
+    RC_PUSH(rc, fcEMPTY);
+    RC_AUGMENT(rc);
+    RC_PUSH(rc, fcNOTFOUND);
+    RC_AUGMENT(rc);
+
+    // This constitutes a check on THIS rc
+    if (rc.is_error())  {; } 
 
     return rc;
 }
@@ -59,58 +83,74 @@ w_rc_t testing_ok()
 
 int main()
 {
-    cout << "Expect two 'error not checked' message" << endl;
+	// Turn on checking but turn off W_FATAL response.
+	w_rc_t::set_return_check(true, false);
+
+
+    cout << "Expect two 'error not checked' messages" << endl;
     {
-        w_rc_t rc = testing();
+        w_rc_t rc;
+		rc = testing();
     }
 
     {
-	testing_ok();
+        testing_ok();
     }
 
-    if(testing_ok() != RCOK) {
-	cout << "FAILURE: This should never happen!" << endl;
+    if(testing_ok().is_error()) {
+        cout << "FAILURE: This should never happen!" << endl;
     }
 
     cout << "Expect 3 forms of the string of errors" << endl;
-    {
-        w_rc_t rc = testing();
 	{
-	    //////////////////////////////////////////////////// 
-	    // this gets you to the integer values, one at a time
-	    //////////////////////////////////////////////////// 
-	    cout << "*************************************" << endl;
-	    w_rc_i iter(rc);
-	    cout << endl << "1 : List of error numbers:" << endl;
-	    for(w_base_t::int4_t e = iter.next_errnum();
-		    e!=0; e = iter.next_errnum()) {
-		cout << "error = " << e << endl;
-	    }
-	    cout << "End list of error numbers:" << endl;
+			w_rc_t rc = testing();
+		{
+			//////////////////////////////////////////////////// 
+			// this gets you to the integer values, one at a time
+			//////////////////////////////////////////////////// 
+			cout << "*************************************" << endl;
+			w_rc_i iter(rc);
+			cout << endl << "1 : List of error numbers:" << endl;
+			for(w_base_t::int4_t e = iter.next_errnum();
+				e!=0; e = iter.next_errnum()) {
+			cout << "error = " << e << endl;
+			}
+			cout << "End list of error numbers:" << endl;
+		}
+		{
+			//////////////////////////////////////////////////// 
+			// this gets you to the w_error_t structures, one
+			// at a time.  If you print each one, though, you
+			// get it PLUS everything attached to it
+			//////////////////////////////////////////////////// 
+			w_rc_i iter(rc);
+			cout << "*************************************" << endl;
+			cout << endl << "2 : List of w_error_t:" << endl;
+			for(const w_error_t *e = iter.next();
+				e; 
+				e = iter.next()) {
+			cout << "error = " << *e << endl;
+			}
+			cout << "End list of w_error_t:" << endl;
+		}
+		{
+			cout << "*************************************" << endl;
+			cout << endl << "3 : print the rc:" << endl;
+			cout << "error = " << rc << endl;
+			cout << "End print the rc:" << endl;
+		}
 	}
+
 	{
-	    //////////////////////////////////////////////////// 
-	    // this gets you to the w_error_t structures, one
-	    // at a time.  If you print each one, though, you
-	    // get it PLUS everything attached to it
-	    //////////////////////////////////////////////////// 
-	    w_rc_i iter(rc);
-	    cout << "*************************************" << endl;
-	    cout << endl << "2 : List of w_error_t:" << endl;
-	    for(w_error_t *e = iter.next();
-		    e; 
-		    e = iter.next()) {
-		cout << "error = " << *e << endl;
-	    }
-	    cout << "End list of w_error_t:" << endl;
+		w_rc_t rc = testing1();
+		w_assert1(rc.is_error());
+		cout << "NANCY " << __LINE__ << " " << rc << endl;
+
+		// NANCY TODO BUG BUG Loses its augmentation in copy operator
+        w_rc_t rc2 = rc;
+		w_assert1(rc2.is_error());
+		cout << "NANCY " << __LINE__ << " " << rc2 << endl;
 	}
-	{
-	    cout << "*************************************" << endl;
-	    cout << endl << "3 : print the rc:" << endl;
-	    cout << "error = " << rc << endl;
-	    cout << "End print the rc:" << endl;
-	}
-    }
     return 0;
 }
 

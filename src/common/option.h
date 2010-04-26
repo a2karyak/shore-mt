@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='OPTION_H'>
 
- $Id: option.h,v 1.30 2003/06/19 19:33:56 bolo Exp $
+ $Id: option.h,v 1.30.2.4 2010/03/25 18:04:28 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -40,15 +40,22 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #pragma interface
 #endif
 
-/*
-    Option Configuration Facility
-
-The configuration option facility consists of 3 classes: option_t,
-option_group_t, and option_file_scan_t.  Objects of type option_t
-contain information about options.  An option has a string
-name and value.  An option_group_t manages a related group
-of options.  An option_file_scan_t is used to parse a file
-containing option configuration information.
+/**\defgroup OPTIONS Options Configuration 
+ *
+ * The options configuration facility consists of 3 classes: option_t,
+ * option_group_t, and option_file_scan_t.  
+ *
+ * Objects of type option_t contain information about individual options.  
+ * An option has a string name and value.  
+ *
+ * An option_group_t manages a related group of options.  
+ *
+ * An option_file_scan_t is used to parse a file  containing option 
+ * configuration information.
+ * An option_stream_scan_t does the same for an input stream.
+ *
+ * \todo examples of options usage: show the code, show the file contents,
+ * using print_description and print_values
 */
 
 #ifndef __opt_error_def_gen_h__
@@ -57,55 +64,54 @@ containing option configuration information.
 
 class option_group_t;
 
-//
-// option_t Class:
-//
-// Description:
-//   Information about an option is stored in a option_t object.
-//   All options have a name stored in the _name field.
-//   The _possibleValue field is used to print example possible
-//   values for usage.  The _default_value field hold a default value
-//   if _required is false.  It is also used to initialize _value.
-//   Member _description is printed for long usage information.
-//   Member _required indicates that the option must be set.
-//   Member _set is set to true by set_value().
-//   Member _value holds the latest value from set_value().
-//   If the option is not required and _default_value is not NULL then
-//   valueM will be set to _default_value if set_value() is not called.
-//
+/**\brief  A single run-time option (e.g., from a .rc file). See \ref OPTIONS.
+ * \ingroup OPTIONS
+ *
+ *\details 
+ *   Information about an option is stored in a option_t object.
+ *   All options have:
+ *   - a string name, 
+ *   - a description of the purpose of this option,
+ *   - a string of possible values to print when giving for usage messages,
+ *   - a Boolean indicating if the user is required to give a value for this,
+ *   - a Boolean indicating whether this option was given a non-default value
+ *   - a default value, used if this is not a "required" option.
+ */
 class option_t : public w_base_t {
 friend class option_group_t;
 public:
 
-    // returns true if the option name matches matchName
-    bool	match(const char* matchName, bool exact=false);
+    /// Returns true if the option name matches matchName
+    bool        match(const char* matchName, bool exact=false);
 
-    // set the value of an option if it is not already set
-    // or if overRide is true.
-    // error messages will be "printed" to errstream if
-    // non-null;
-    // a value of 0 indicates un-set
-    w_rc_t	set_value(const char* value, bool overRide, ostream* err_stream);
+    /**\brief Set the value of an option if it is not already set or if overRide is true.
+     *
+     * Error messages will be "printed" to err_stream if 
+     * the given pointer to err_stream is non-null.
+     *
+     * A value of NULL indicates "please un-set the value".
+    */
+    w_rc_t        set_value(const char* value, bool overRide, ostream* err_stream);
 
-    // get information about an option
-    const char*	value() 	{ return _value;}
-    bool	is_set()	{ return _set; }
-    bool	is_required()	{ return _required; }
-    const char*	name()		{ return _name; }
-    const char*	possible_values(){ return _possible_values; }	
-    const char*	default_value()	{ return _default_value; }	
-    const char*	description()	{ return _description; }	
+    /// Get current assigned value.
+    const char*        value()         { return _value;}
+    /// Has this option been given a non-default value?
+    bool        is_set()        { return _set; }
+    /// Is this option required to be given a non-default value?
+    bool        is_required()        { return _required; }
+    /// Return the string name of the option.
+    const char*        name()                { return _name; }
+    /// Return a string of the permissible values, for printing usage info.
+    const char*        possible_values(){ return _possible_values; }        
+    /// Return a string of the default value.
+    const char*        default_value()        { return _default_value; }        
+    /// Return a string describing the meaning of the option.
+    const char*        description()        { return _description; }        
 
-    // These functions are used to write "call-back" functions
-    // that are called when a value is set.  See code
-    // for set_value_bool() for examples of how to use them.
-    void	markSet(bool s)	{ _set = s; }
-    w_rc_t	copyValue(const char* value);
-    w_rc_t	concatValue(const char* value);
+    w_rc_t        copyValue(const char* value);
+    // Append to the value.
+    w_rc_t        concatValue(const char* value);
 
-    // Type for "call back" functions called when a value is set
-    typedef w_rc_t (*OptionSetFunc)(option_t*, const char * value,
-    		    ostream* err_stream);
 
     // Standard call back functions for basic types
     static w_rc_t set_value_bool(option_t* opt, const char* value, ostream* err_stream);
@@ -122,27 +128,30 @@ public:
     // and f,F,n,N for false.
     // bad_str is set to true if none of these match (and 
     // false will be returned)
-    static bool	str_to_bool(const char* str, bool& bad_str);
+    static bool        str_to_bool(const char* str, bool& bad_str);
 
 private:
+    // Type for "call back" functions called when a value is set
+    typedef w_rc_t (*OptionSetFunc)(option_t*, const char * value,
+                        ostream* err_stream);
 
     // These functions are called by option_group_t::add_option().
-    NORET	option_t();
-    NORET	~option_t();
-    		// initialize an option_t object
-    w_rc_t	init(const char* name, const char* newPoss,
-		     const char* default_value, const char* description,
-		     bool required, OptionSetFunc callBack,
-		     ostream *err_stream);
+    NORET        option_t();
+    NORET        ~option_t();
+                    // initialize an option_t object
+    w_rc_t        init(const char* name, const char* newPoss,
+                     const char* default_value, const char* description,
+                     bool required, OptionSetFunc callBack,
+                     ostream *err_stream);
 
-    const char*	_name;			// name of the option
-    const char*	_possible_values;	// example possible values
-    const char*	_default_value;		// default value
-    const char*	_description;		// description string
-    bool	_required;		// must option be set
-    bool	_set;			// option has been set
-    char*	_value;			// value for the option
-    w_link_t	_link;			// link list of options 
+    const char*        _name;                        // name of the option
+    const char*        _possible_values;        // example possible values
+    const char*        _default_value;                // default value
+    const char*        _description;                // description string
+    bool        _required;                // must option be set
+    bool        _set;                        // option has been set
+    char*        _value;                        // value for the option
+    w_link_t        _link;                        // link list of options 
 
     /*
      *      call-back function to call when option value is set
@@ -155,134 +164,197 @@ private:
 
 };
 
-//
-// option_group_t Class
-//
-// Description:
-//   An option_group_t manages a set of options.  An option group has
-//   a classification hierarchy associated with it.  Each level
-//   of the hierarchy is given a string name.  Levels are added
-//   with add_class_level().  The levels are used when looking up
-//   an option with lookup_by_class().  The level hierarchy is printed
-//   in the form: "level1.level2.level3."  A complete option name is
-//   specified by "level1.level2.level3.optionName:".  A common
-//   convention for level names is:
-//	programtype.programname
-//   where programtype is indicates the general type of the program
-//   and programname is the file name of the program.
-//
+/**\brief Group of option_t.  See \ref OPTIONS.
+ *
+ * \ingroup OPTIONS
+ * \details
+ *   Manages a set of options.  
+ *
+ *   An option group has  a classification hierarchy associated with it.  
+ *   Each level  of the hierarchy is given a string name.  
+ *   Levels are added with add_class_level().  
+ *   The levels are used when looking up an option with lookup_by_class().  
+ *   The level hierarchy is printed  in the form: 
+ *       "level1.level2.level3."  
+ *   A complete option name is specified by 
+ *      "level1.level2.level3.optionName:".  
+ *   A convention for level names is:
+ *        programtype.programname
+ *   where programtype is indicates the general type of the program
+ *   and programname is the file name of the program.
+ */
 class option_group_t : public w_base_t {
 public:
-    NORET	option_group_t(int max_class_levels);
-    NORET 	~option_group_t();
+    NORET        option_group_t(int max_class_levels);
+    NORET         ~option_group_t();
 
-    // add_class_level is used to add a level name
-    w_rc_t	add_class_level(const char* name);
+    // Add_class_level is used to add a level name.
+    w_rc_t        add_class_level(const char* name);
 
-    // Use add_option to add an option to the group.
-    // The set_func parameter indicates what function to call
-    // when the option is set.  Use one of the functions
-    // from option_t or write your own.
-    w_rc_t	add_option(const char* name, const char* possible_values,
-		       const char* default_value,
-		       const char* description, bool required,
-		       option_t::OptionSetFunc set_func,
-		       option_t*& new_opt,
-		       ostream *err_stream = &cerr
-		       );
+    /**\brief Add an option to this group.
+     *
+     * \details
+     * Creates an option_t and adds it to this group.
+     * The set_func parameter indicates what callback function to call
+     * when the option is set.  Use one of the functions
+     * from option_t or write your own.
+     */
+    w_rc_t        add_option(const char* name, 
+                       const char* possible_values,
+                       const char* default_value,
+                       const char* description, 
+                       bool required,
+                       option_t::OptionSetFunc set_func,
+                       option_t*& new_opt,
+                       ostream *err_stream = &cerr
+                       );
 
-    // lookup and option by name.  abbreviations are allowed if
-    // they are unique and if exact is false
-    w_rc_t	lookup(const char* name, bool exact, option_t*&);
+    /**\brief Look up an option by name.  
+     *
+     * \details
+     * @param[in] name   Name of option.
+     * @param[in] exact  name is not an abbreviation.
+     * @param[out] ret  Populate the given pointer if found.
+     *
+     * Abbreviations are allowed if they are sufficient to identify the option
+     * and exact is false.
+     */
+    w_rc_t        lookup(const char* name, bool exact, option_t*&ret);
 
 
-    // lookup option by class name and option name.
-    // opt_class_name is assumed to be a string of the form
-    //    level1.level2.optionname.
-    // A "?" can be used as a wild card for any single level name.
-    // A "*" can be used as a wild card for any number of level name.
-    w_rc_t	lookup_by_class(const char* opt_class_name, option_t*&,
-		bool exact=false);
+    /**\brief Look up option by class name and option name.
+     * \details
+     * @param[in] opt_class_name is a string of the form level1.level2.optionname.
+     * A "?" can be used as a wild card for any single level name.
+     * A "*" can be used as a wild card for any number of level name.
+     * @param[out] ret Pass in an option_t* and it will be filled in if found.
+     * @param[in] exact  opt_class_name is not an abbreviation.
+     *
+     * Abbreviations are allowed if they are sufficient to identify the option
+     * and exact is false.
+    */
+    w_rc_t        lookup_by_class(const char* opt_class_name, option_t*&ret,
+                            bool exact=false);
 
-    // set the value of an option if it is not already set
-    // or if overRide is true.
-    // error messages will be "printed" to errstream if
-    // non-null;
-    // a value of 0 indicates un-set
-    w_rc_t	set_value(const char* name, bool exact,
-			  const char* value, bool overRide,
-			  ostream* err_stream);
+    /**\brief Set a value of an option identified by a class name and option name.
+     * \details
+     * Set the value of an option if it is not already set
+     * or if overRide is true.
+     *
+     * @param[in] name is a string of the form level1.level2.optionname.
+     * @param[in] exact  name is not an abbreviation.
+     * @param[in] value is a string form of the value to give the option;
+     *            a value of NULL indicates un-set.
+     * @param[in] overRide allows the value to be overwritten.
+     * @param[in] err_stream: error messages will be sent to err_stream if non-null.
+     */
+    w_rc_t        set_value(const char* name, bool exact,
+                          const char* value, bool overRide,
+                          ostream* err_stream);
 
-    void	print_usage(bool longForm, ostream& err_stream);
-    void	print_values(bool longForm, ostream& err_stream);
+    /// Print the descriptive information to the given stream.
+    void        print_usage(bool longForm, ostream& err_stream);
+    /// Print the descriptive information to the given stream.
+    void        print_values(bool longForm, ostream& err_stream);
 
-    // check that all required options are set.
-    // return OPTERR_NotSet if any are not
-    // print information about each unset option to err_stream
-    w_rc_t 	check_required(ostream* err_stream);
+    /**\brief Check that all required options are set.
+     *
+     * \details
+     * Return OPTERR_NotSet if any are not.
+     * Print information about each unset option to err_stream
+     */
+    w_rc_t         check_required(ostream* err_stream);
 
-    // parse_command_line searches the command line for any
-    // options in the group (options are assumed to be preceded by "-"
-    // and are only recognized if they are longer than min_len since
-    // options may be abbreviated).  Any options found are
-    // removed from argv and argc is adjusted accordingly.
-    w_rc_t 	parse_command_line(const char** argv, int& argc, size_t min_len, ostream* error_stream);
+    /**\brief Search the command line for options, set, remove from argv,argc.
+     * \details
+     * @param[in] argv The command line to search.
+     * @param[in] argc Number of entries in argv[].
+     * @param[in] min_len Don't process argv entries shorter than this.
+     * @param[out] err_stream Send error message here if non-NULL.
+     *
+     * Search the command line (argv[]) for options in this group.
+     * Command-line options must be preceded by "-" 
+     * and are recognized only if they are min_len since
+     * options may be abbreviated.  
+     * Any options found are removed from argv, 
+     * and argc is adjusted accordingly.
+     */
+    w_rc_t         parse_command_line(const char** argv, 
+                    int& argc, 
+                    size_t min_len, 
+                    ostream* err_stream);
 
-    // use this for scanning the list of options
-    w_list_t<option_t>& option_list() {return _options;}
+    /// Return a list of the options in the group.
+    w_list_t<option_t,unsafe_list_dummy_lock_t>& option_list() {return _options;}
 
-    int		num_class_levels(){ return _numLevels; }	
-    const char*	class_name()	{ return _class_name; }	
+    /// Number of levels in the class names.
+    int                num_class_levels(){ return _numLevels; }        
+    /// The complete option class name.
+    const char*        class_name()        { return _class_name; }        
 
 private:
-    w_list_t<option_t>  _options;
-    char*		_class_name;
+    w_list_t<option_t,unsafe_list_dummy_lock_t>  _options;
+    char*                _class_name;
     // array of offsets into _class_name
-    char** 		_levelLocation;
-    int			_maxLevels;
-    int			_numLevels;
+    char**                 _levelLocation;
+    int                        _maxLevels;
+    int                        _numLevels;
 
-    static bool	_error_codes_added;
+    static bool        _error_codes_added;
 
-	// disable copy operator
-	NORET option_group_t(option_group_t const &); 
+        // disable copy operator
+        NORET option_group_t(option_group_t const &); 
 };
 
+/**\brief Enables scanning of options group. See \ref OPTIONS.
+ *
+ * \ingroup OPTIONS
+ * \details
+ *   
+ * Given an instream, scan for options in a given option_troup_t
+ * on that stream.
+ */
 class option_stream_scan_t : public w_base_t {
-	istream		&_input;
-	option_group_t	*_optList;
-	char		*_line;
-	const char	*_label;
-	int		_lineNum;
+        istream                &_input;
+        option_group_t        *_optList;
+        char                  *_line;
+        const char            *_label;
+        int                   _lineNum;
 
-	enum { _maxLineLen = 2000 };
+        enum { _maxLineLen = 2000 };
 
-	static const char *default_label;
+        static const char *default_label;
 
 public:
-	option_stream_scan_t(istream &is, option_group_t *option_group);
-	~option_stream_scan_t();
+        option_stream_scan_t(istream &is, option_group_t *option_group);
+        ~option_stream_scan_t();
 
-	// allow a label to be associated with the stream
-	void	setLabel(const char *label);
+        // Allow a label to be associated with the stream, e.g., file name.
+        void        setLabel(const char *label);
 
-	/*
-	 * Scan the options file reporting errors to err_stream.
-	 * If over_ride is false, new values of options will be ignored
-	 * if the option value has already been set.
-	 * The exact parameter means that mispellings or abbreviations
-	 * of option names will result in an error.
-	 */
-	w_rc_t 	scan(bool over_ride, ostream& err_stream, 
-		     bool exact=false, bool mismatch_ok=false);
+        /**\brief Scan all options, report errors to err_stream.
+         *
+         * @param[in] over_ride If false, new values of options will be ignored.
+         *                      If true, assignments to already-set options 
+         *                      will be made.
+         * @param[out] err_stream Send error message here if non-NULL.
+         * @param[in] exact If true, misspellings or abbreviations of
+         *                      option names in the instream will result
+         *                      in errors. 
+         * @param[in] mismatch_ok  If true, bad option names will be ignored
+         *                      and will not cause failure of the entire scan.
+         */
+        w_rc_t         scan(bool over_ride, ostream& err_stream, 
+                             bool exact=false, bool mismatch_ok=false);
 
 };
 
-/*
- * Class option_file_scan_t supports scaning a text file containing
- * values for options.
- * Each line of the file is either a comment or an
- * option value setting.
+/**\brief Scan a text file for options. See \ref OPTIONS.
+ * \ingroup OPTIONS
+ *
+ * \details
+ * 
+ * Each line of the file is either a comment or an option value setting.
  * 
  * A comment line begins with "!" or "#".
  *
@@ -297,22 +369,26 @@ public:
  */ 
 class option_file_scan_t : public w_base_t {
 public:
-    NORET	option_file_scan_t(const char* opt_file_path, option_group_t* opt_group);
-    NORET	~option_file_scan_t();
+    NORET        option_file_scan_t(const char* opt_file_path, option_group_t* opt_group);
+    NORET        ~option_file_scan_t();
 
-    /*
-     * Scan the options file reporting errors to err_stream.
-     * If over_ride is false, new values of options will be ignored
-     * if the option value has already been set.
-     * The exact parameter means that mispellings or abbreviations
-     * of option names will result in an error.
-     */
-    w_rc_t 	scan(bool over_ride, ostream& err_stream, 
-	bool exact=false, bool mismatch_ok=false);
+        /**\brief Scan all options, report errors to err_stream.
+         *
+         * @param[in] over_ride If false, new values of options will be ignored.
+         * If true, assignments to already-set options will be made.
+         * @param[out] err_stream Send error message here if non-NULL.
+         * @param[in] exact If true, misspellings or abbreviations of
+         *                      option names in the instream will result
+         *                      in errors. 
+         * @param[in] mismatch_ok  If true, bad option names will be ignored
+         *                      and will not cause failure of the entire scan.
+         */
+    w_rc_t         scan(bool over_ride, ostream& err_stream, 
+        bool exact=false, bool mismatch_ok=false);
 
 protected:
-    const char*		_fileName;
-    option_group_t	*_optList;
+    const char*           _fileName;
+    option_group_t        *_optList;
 };
 
 /*<std-footer incl-file-exclusion='OPTION_H'>  -- do not edit anything below this line -- */

@@ -1,6 +1,29 @@
+/* -*- mode:C++; c-basic-offset:4 -*-
+     Shore-MT -- Multi-threaded port of the SHORE storage manager
+   
+                       Copyright (c) 2007-2009
+      Data Intensive Applications and Systems Labaratory (DIAS)
+               Ecole Polytechnique Federale de Lausanne
+   
+                         All Rights Reserved.
+   
+   Permission to use, copy, modify and distribute this software and
+   its documentation is hereby granted, provided that both the
+   copyright notice and this permission notice appear in all copies of
+   the software, derivative works or modified versions, and any
+   portions thereof, and that both notices appear in supporting
+   documentation.
+   
+   This code is distributed in the hope that it will be useful, but
+   WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. THE AUTHORS
+   DISCLAIM ANY LIABILITY OF ANY KIND FOR ANY DAMAGES WHATSOEVER
+   RESULTING FROM THE USE OF THIS SOFTWARE.
+*/
+
 /*<std-header orig-src='shore'>
 
- $Id: w_statistics.cpp,v 1.30 2007/05/18 21:38:25 nhall Exp $
+ $Id: w_statistics.cpp,v 1.30.2.5 2009/10/30 23:50:10 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -42,13 +65,11 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 
 #include <w_stream.h> 
 
-W_FASTNEW_STATIC_DECL(w_stat_module_t, 100)
-
 w_stat_t		w_statistics_t::error_stat(-1);
-int			w_statistics_t::error_int=-1;
-unsigned int		w_statistics_t::error_uint=~0;
+int			    w_statistics_t::error_int=-1;
+unsigned int    w_statistics_t::error_uint=~0;
 long			w_statistics_t::error_long=-1L;
-unsigned long		w_statistics_t::error_ulong=~0L;
+unsigned long   w_statistics_t::error_ulong=~0L;
 float 			w_statistics_t::error_float=-1.0;
 
 bool
@@ -77,25 +98,6 @@ w_statistics_t::append(w_stat_module_t *v)
 	_last = v;
 }
 
-#ifdef JUNK
-
-w_rc_t		
-w_statistics_t::add_module_malloced(
-	const char *desc, int base, int count,
-	const char **strings, const char *types, w_stat_t *values)
-{
-	if(empty() || writable()) {
-		return _newmodule(desc, true,
-			base,count,
-			strings,true, 
-			types,true,
-			0,values,true);
-	} else {
-		// can't add malloced modules when static ones are already here
-		return RC(fcMIXED);
-	}
-}
-#endif /* JUNK */
 w_rc_t		
 w_statistics_t::add_module_static(
 	const char *desc, int base, int count,
@@ -115,33 +117,6 @@ w_statistics_t::add_module_static(
 	return e;
 }
 
-w_rc_t		
-w_statistics_t::add_module_special(
-	const char *desc, 
-	bool		d_malloced,
-	int base, int count,
-	const char **strings, 
-	bool		s_malloced,
-	const char *types, 
-	bool		t_malloced,
-	w_stat_t 	*values
-)
-{
-	w_rc_t	e;
-	if(empty() || writable()) {
-		e = _newmodule(desc,d_malloced,
-			base,count,
-			strings,s_malloced,
-			types,t_malloced,
-			0,values,true);
-	} else {
-		// cannot add a dynamic entry if they're all
-		// static, since we're assuming (for special)
-		// that values are dynamic
-		e = RC(fcMIXED);
-	}
-	return e;
-}
 
 w_rc_t		
 w_statistics_t::_newmodule(
@@ -165,9 +140,9 @@ w_statistics_t::_newmodule(
 	if(empty()) {
 		values_are_dynamic = v_malloced;
 	}else {
-		w_assert3(values_are_dynamic==v_malloced);
+		w_assert9(values_are_dynamic==v_malloced);
 	}
-	w_assert3(!(values==0 && w_values==0));
+	w_assert9(!(values==0 && w_values==0));
 
 
 	if( !(v = find(base))) {
@@ -204,22 +179,22 @@ w_statistics_t::_newmodule(
 		// in a row without having to call free() 
 		// or some such thing between uses of <<.
 
-		w_assert3(v->base == base);
+		w_assert9(v->base == base);
 		if(v->count != count) {
 			cerr <<"Adding module " << desc <<
 			 ", which conflicts with module " << v->d
 			 <<", which is already registered." << endl;
 			 return RC(fcFOUND);
 		}
-		w_assert3(v->count == count);
-		w_assert3(v->strings == strings || strings==0);
-		w_assert3(v->types == types || types==0);
-		w_assert3(v->d == desc || desc==0);
+		w_assert9(v->count == count);
+		w_assert9(v->strings == strings || strings==0);
+		w_assert9(v->types == types || types==0);
+		w_assert9(v->d == desc || desc==0);
 
 		// get rid of the old copy if necessary
 		if(v->m_values) {
-			w_assert3(v->values == v->w_values);
-			w_assert3(v->w_values != 0);
+			w_assert9(v->values == v->w_values);
+			w_assert9(v->w_values != 0);
 			delete[] v->w_values;
 			v->w_values=0;
 			v->values = 0;
@@ -431,7 +406,7 @@ w_statistics_t::uint_val(int base, int i)
 	if(m)  {
 		const w_stat_t &v = find_val(m,i);
 		if(v != error_stat) 
-			return (unsigned int)v;
+			return unsigned(int(v));
 	}
 	return error_uint;
 }
@@ -443,7 +418,7 @@ w_statistics_t::long_val(int base, int i)
 	if(m)  {
 		const w_stat_t &v = find_val(m,i);
 		if(v != error_stat) 
-			return long(v);
+			return long(int(v));
 	}
 	return error_long;
 }
@@ -455,7 +430,7 @@ w_statistics_t::ulong_val(int base, int i)
 	if(m)  {
 		const w_stat_t &v = find_val(m,i);
 		if(v != error_stat) 
-			return (unsigned long)v;
+			return u_long(int(v));
 	}
 	return error_ulong;
 }
@@ -557,38 +532,21 @@ operator<<(ostream &out, const w_statistics_t &s)
 		}
 		for(i=0; i< m->count; i++) {
 			switch(m->types[i]) {
-			case 'v':
-				if((s._print_flags & w_statistics_t::print_nonzero_only)==0 || 
-					(m->values[i]._u.v != 0)) {
-					W_FORM2(out,("%*.*s: ", field, field, m->strings[i]));
-					W_FORM2(out,("%10lu", (unsigned long) m->values[i]._u.v));
-					out << endl;
-				}
-				break;
-			case 'l':
-				if((s._print_flags & w_statistics_t::print_nonzero_only)==0 || 
-					(m->values[i]._u.l != 0)) {
-					W_FORM2(out,("%*.*s: ", field, field, m->strings[i]));
-					W_FORM2(out,("%10ld", (long) m->values[i]._u.l));
-					out << endl;
-				}
-				break;
+
 			case 'i':
 				if((s._print_flags & w_statistics_t::print_nonzero_only)==0 || 
 					(m->values[i]._u.i != 0)) {
 					W_FORM2(out,("%*.*s: ", field, field, m->strings[i]));
+#if defined(LARGEFILE_AWARE) || defined(ARCH_LP64)
+					W_FORM2(out,("%10ld",m->values[i]._u.i));
+#else
 					W_FORM2(out,("%10d",m->values[i]._u.i));
+#endif
 					out << endl;
 				}
 				break;
-			case 'u':
-				if((s._print_flags & w_statistics_t::print_nonzero_only)==0 || 
-					(m->values[i]._u.u != 0)) {
-					W_FORM2(out,("%*.*s: ", field, field, m->strings[i]));
-					W_FORM2(out,("%10u",m->values[i]._u.u));
-					out << endl;
-				}
-				break;
+
+			case 'd':
 			case 'f':
 				if((s._print_flags & w_statistics_t::print_nonzero_only)==0 || 
 					(m->values[i]._u.f != 0.0)) {
@@ -632,10 +590,9 @@ operator+=(w_statistics_t &l, const w_statistics_t &r)
 	} else {
 		e = RC(fcREADONLY);
 	}
-	if(e) {
+	if(e.is_error()) {
 		// cerr << e ;
 		cerr << "Cannot apply += operator to read-only w_statistics_t." << endl;
-		// w_assert3(0);
 	}
 	return l;
 }
@@ -649,64 +606,13 @@ operator-=(w_statistics_t &l, const w_statistics_t &r)
 	} else {
 		e = RC(fcREADONLY);
 	}
-	if(e) {
+	if(e.is_error()) {
 		cerr << e << ":" << endl;
 		cerr << "Cannot apply -= operator to read-only w_statistics_t." << endl;
-		// w_assert3(0);
 	}
 	return l;
 }
 
-w_statistics_t	*
-w_statistics_t::copy_brief()const 
-{
-	w_statistics_i 			iter(*this);
-	const w_stat_module_t 	*m;
-	w_statistics_t 			*a = new w_statistics_t;
-	w_rc_t					e;
-
-	if(a) {
-		for (m = iter.curr(); m != 0; m = iter.next()) {
-			// get space for the values
-			// NB: use malloc/free instead of new/delete
-			// because these things are passed around over RPC
-			w_stat_t *w = // new w_stat_t[m->count];
-				(w_stat_t *)malloc(sizeof(w_stat_t) * m->count);
-
-			memcpy(w, m->values, sizeof(w_stat_t)*(m->count));
-			e = a->add_module_special(
-				m->d, false,
-				m->base,m->count,
-				m->strings, false,
-				m->types, false, w);
-			if(e) {
-				cerr << e << endl;
-				delete a;
-				return 0;
-			}
-		}
-		a->values_are_dynamic = true;
-	}
-	w_assert3(a->writable());
-	return a;
-}
-
-w_statistics_t	*
-w_statistics_t::copy_all()const 
-{
-	w_statistics_t	*res = copy_brief();
-	if(res) {
-		w_rc_t e;
-		e = res->copy_descriptors_from(*this);
-		if(e) {
-			cerr << e << endl;
-			delete res;
-			res = 0;
-		}
-	}
-	w_assert3(res->writable());
-	return res;
-}
 
 w_rc_t			
 w_statistics_t::copy_descriptors_from(const w_statistics_t &from)
@@ -729,7 +635,7 @@ w_statistics_t::copy_descriptors_from(const w_statistics_t &from)
 			return RC(fcNOTFOUND);
 		}
 		e = lm->copy_descriptors_from(*rm);
-		if(e) break;
+		if(e.is_error()) break;
 	}
 	return e;
 }
@@ -754,7 +660,7 @@ w_statistics_t::add(const w_statistics_t &right)
 			return RC(fcNOTFOUND);
 		}
 		e = lm->op(w_stat_module_t::add,rm);
-		if(e) return e;
+		if(e.is_error()) return e;
 	}
 	return RCOK;
 }
@@ -780,7 +686,7 @@ w_statistics_t::subtract(const w_statistics_t &right)
 			return RC(fcNOTFOUND);
 		}
 		e = lm->op(w_stat_module_t::subtract,rm);
-		if(e) return e;
+		if(e.is_error()) return e;
 	}
 	return RCOK;
 }
@@ -794,7 +700,7 @@ w_statistics_t::zero() const
 
 	for (m = iter.curr(); m != 0; m = iter.next()) {
 		e = m->op(w_stat_module_t::zero);
-		if(e) return e;
+		if(e.is_error()) return e;
 	}
 	return RCOK;
 }
@@ -807,17 +713,17 @@ w_stat_module_t::op(enum operators which, const w_stat_module_t *r) const
 	if(!m_values) {
 		return RC(fcREADONLY);
 	} else {
-		w_assert3(values==w_values);
+		w_assert9(values==w_values);
 	}
 
 	if(which != zero) {
-		w_assert3(r!=0);
-		w_assert3(count == r->count);
+		w_assert9(r!=0);
+		w_assert9(count == r->count);
 	}
 
 	for(i=0; i< count; i++) {
 		if(which != zero) {
-			w_assert3(types[i] == r->types[i]);
+			w_assert9(types[i] == r->types[i]);
 		}
 		switch(types[i]) {
 		case 'i':
@@ -830,49 +736,11 @@ w_stat_module_t::op(enum operators which, const w_stat_module_t *r) const
 			} else if (which==assign) {
 				w_values[i]._u.i = r->values[i]._u.i;
 			} else {
-				w_assert3(0);
-			}
-			break;
-		case 'l':
-			if(which==add) {
-				w_values[i]._u.l += r->values[i]._u.l;
-			} else if (which==subtract) {
-				w_values[i]._u.l -= r->values[i]._u.l;
-			} else if (which==zero) {
-				w_values[i]._u.l = 0;
-			} else if (which==assign) {
-				w_values[i]._u.l = r->values[i]._u.l;
-			} else {
-				w_assert3(0);
-			}
-			break;
-		case 'v':
-			if(which==add) {
-				w_values[i]._u.v += r->values[i]._u.v;
-			} else if (which==subtract) {
-				w_values[i]._u.v -= r->values[i]._u.v;
-			} else if (which==zero) {
-				w_values[i]._u.v = 0;
-			} else if (which==assign) {
-				w_values[i]._u.v = r->values[i]._u.v;
-			} else {
-				w_assert3(0);
-			}
-			break;
-		case 'u':
-			if(which==add) {
-				w_values[i]._u.u += r->values[i]._u.u;
-			} else if (which==subtract) {
-				w_values[i]._u.u -= r->values[i]._u.u;
-			} else if (which==zero) {
-				w_values[i]._u.u = 0;
-			} else if (which==assign) {
-				w_values[i]._u.u = r->values[i]._u.u;
-			} else {
-				w_assert3(0);
+				W_FATAL_MSG(fcINTERNAL, << "base case");
 			}
 			break;
 		case 'f':
+		case 'd':
 			if(which==add) {
 				w_values[i]._u.f += r->values[i]._u.f;
 			} else if (which==subtract) {
@@ -882,11 +750,11 @@ w_stat_module_t::op(enum operators which, const w_stat_module_t *r) const
 			} else if (which==assign) {
 				w_values[i]._u.f = r->values[i]._u.f;
 			} else {
-				w_assert3(0);
+				W_FATAL_MSG(fcINTERNAL, << "base case");
 			}
 			break;
 		default:
-			w_assert3(0);
+			W_FATAL_MSG(fcINTERNAL, << "base case");
 		}
 	}
 	return RCOK;

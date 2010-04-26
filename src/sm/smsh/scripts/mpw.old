@@ -1,6 +1,6 @@
 # <std-header style='tcl' orig-src='shore'>
 #
-#  $Id: mpw.old,v 1.11 2007/08/21 19:44:00 nhall Exp $
+#  $Id: mpw.old,v 1.10.2.2 2009/10/08 20:52:31 nhall Exp $
 #
 # SHORE -- Scalable Heterogeneous Object REpository
 #
@@ -151,4 +151,5 @@ unset volsize
 unset body
 unset nobjs
 unset objsize
+unset wtime ftime
 

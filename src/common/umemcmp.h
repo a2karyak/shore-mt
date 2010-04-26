@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='UMEMCMP_H'>
 
- $Id: umemcmp.h,v 1.20 2003/12/23 00:32:01 bolo Exp $
+ $Id: umemcmp.h,v 1.20.2.5 2010/03/19 22:19:19 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -43,6 +43,8 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
  * on the compiler.
  */
 
+#include <assert.h>
+
 #ifndef W_WORKAROUND_H
 #include <w_workaround.h>
 #endif
@@ -51,7 +53,7 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 inline int __umemcmp(const unsigned char* p, const unsigned char* q, int n)
 {
     int i;
-    for (i = 0; (i < n) && (*p == *q); i++, p++, q++);
+    for (i = 0; (i < n) && (*p == *q); i++, p++, q++) ;
     return (i < n) ? *p - *q : 0;
 }
 
@@ -68,7 +70,7 @@ inline int __umemcmp(const unsigned char* p, const unsigned char* q, int n)
 inline uint int_alignment_check(const void *i) 
 {
     uint tmp = (ptrdiff_t) i & (sizeof(int)-1);
-    w_assert3(tmp == (ptrdiff_t) i % sizeof(int));
+    w_assert9(tmp == (ptrdiff_t) i % sizeof(int));
     return tmp;
 }
 inline bool is_int_aligned(const void *i)
@@ -85,28 +87,28 @@ inline int umemcmp_smart(const void* p_, const void* q_, int n)
 
     // If short, just use simple method
     if (n < (int)(2*sizeof(int)))
-	return __umemcmp(p, q, n);
+        return __umemcmp(p, q, n);
 
     // See if both are aligned to the same value
     if (int_alignment_check(p) == int_alignment_check(q)) {
-	if (!is_int_aligned(p)) {
-	    // can't handle misaliged, use simple method
-	    return __umemcmp(p, q, n);
-	}
+        if (!is_int_aligned(p)) {
+            // can't handle misaliged, use simple method
+            return __umemcmp(p, q, n);
+        }
 
-	// Compare an int at a time
-	uint i;
-	for (i = 0; i < n/sizeof(int); i++) {
-	    if (((unsigned*)p)[i] != ((unsigned*)q)[i]) {
-		return (((unsigned*)p)[i] > ((unsigned*)q)[i]) ? 1 : -1;
-	    }
-	}
-	// take care of the leftover bytes
-	int j = i*sizeof(int);
-	if (j) return __umemcmp(p+j, q+j, n-j);
+        // Compare an int at a time
+        uint i;
+        for (i = 0; i < n/sizeof(int); i++) {
+            if (((unsigned*)p)[i] != ((unsigned*)q)[i]) {
+                return (((unsigned*)p)[i] > ((unsigned*)q)[i]) ? 1 : -1;
+            }
+        }
+        // take care of the leftover bytes
+        int j = i*sizeof(int);
+        if (j) return __umemcmp(p+j, q+j, n-j);
     } else {
-	// misaligned with respect to eachother
-	return __umemcmp(p, q, n);
+        // misaligned with respect to eachother
+        return __umemcmp(p, q, n);
     }
     return 0; // must be equal
 }
@@ -118,7 +120,7 @@ inline int umemcmp_old(const void* p, const void* q, int n)
 
 inline int umemcmp(const void* p, const void* q, int n)
 {
-#ifdef W_DEBUG
+#if W_DEBUG_LEVEL > 2
     // check for any bugs in umemcmp_smart
     int t1 = umemcmp_smart(p, q, n);
     int t2 = __umemcmp((unsigned char*)p, (unsigned char*)q, n);
@@ -126,25 +128,25 @@ inline int umemcmp(const void* p, const void* q, int n)
     return t1;
 #else
     return umemcmp_smart(p, q, n);
-#endif /* W_DEBUG */
+#endif 
 }
 
-#else  /* defined(Sparc) && defined __cplusplus */
+#else  /* defined(Sparc) */
 
 inline int umemcmp(const void* p, const void* q, int n)
 {
-#ifdef W_DEBUG
+#if W_DEBUG_LEVEL > 2
     // verify that memcmp is equivalent to umemcmp
     int t1 = memcmp(p, q, n);
     int t2 = __umemcmp((unsigned char*)p, (unsigned char*)q, n);
-    assert(t1 == t2 || (t1 < 0 && t2 < 0) || (t1 > 0 && t2 > 0));
+    w_assert3(t1 == t2 || (t1 < 0 && t2 < 0) || (t1 > 0 && t2 > 0));
     return t1;
 #else
     return memcmp(p, q, n);
-#endif /* W_DEBUG */
+#endif 
 }
 
-#endif /* defined(Sparc) && defined __cplusplus */
+#endif /* defined(Sparc)  */
 
 /*<std-footer incl-file-exclusion='UMEMCMP_H'>  -- do not edit anything below this line -- */
 

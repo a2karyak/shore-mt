@@ -1,6 +1,29 @@
+/* -*- mode:C++; c-basic-offset:4 -*-
+     Shore-MT -- Multi-threaded port of the SHORE storage manager
+   
+                       Copyright (c) 2007-2009
+      Data Intensive Applications and Systems Labaratory (DIAS)
+               Ecole Polytechnique Federale de Lausanne
+   
+                         All Rights Reserved.
+   
+   Permission to use, copy, modify and distribute this software and
+   its documentation is hereby granted, provided that both the
+   copyright notice and this permission notice appear in all copies of
+   the software, derivative works or modified versions, and any
+   portions thereof, and that both notices appear in supporting
+   documentation.
+   
+   This code is distributed in the hope that it will be useful, but
+   WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. THE AUTHORS
+   DISCLAIM ANY LIABILITY OF ANY KIND FOR ANY DAMAGES WHATSOEVER
+   RESULTING FROM THE USE OF THIS SOFTWARE.
+*/
+
 /*<std-header orig-src='shore'>
 
- $Id: sthread_core_pthread.cpp,v 1.6 2001/06/06 23:18:22 bolo Exp $
+ $Id: sthread_core_pthread.cpp,v 1.6.2.7 2010/03/19 22:20:01 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -35,8 +58,8 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 /*
  *   NewThreads is Copyright 1992, 1993, 1994, 1995, 1996, 1997, 1998 by:
  *
- *	Josef Burger	<bolo@cs.wisc.edu>
- *	Dylan McNamee	<dylan@cse.ogi.edu>
+ *    Josef Burger    <bolo@cs.wisc.edu>
+ *    Dylan McNamee    <dylan@cse.ogi.edu>
  *      Ed Felten       <felten@cs.princeton.edu>
  *
  *   All Rights Reserved.
@@ -53,186 +76,177 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 
 
 
-#define	USER_STACK_SIZE		(sthread_t::default_stack)
-#define	DEFAULT_STACK_SIZE	(USER_STACK_SIZE)
+#define    USER_STACK_SIZE        (sthread_t::default_stack)
+#define    DEFAULT_STACK_SIZE    (USER_STACK_SIZE)
 
 
-unsigned	sthread_t::stack_size() const
+unsigned    sthread_t::stack_size() const
 {
-	/* XXX give the main thread a !=0 stack size for now */
-	return _core->stack_size ? _core->stack_size : default_stack;
+    /* XXX give the main thread a !=0 stack size for now */
+    return _core->stack_size ? _core->stack_size : default_stack;
 }
 
-#ifndef PTHREAD_SEMAPHORE
+#ifndef HAVE_SEMAPHORE_H
+// TODO: move this to another file or get rid of it altogether
 /* Mimic the posix semaphores so it just works.  They release
    waiters when the count is > 0, sleep if <= 0 */
 
-static	int	sem_init(sthread_core_t::sem_t *sem, int, int count)
+static    int    sem_init(sthread_core_t::sem_t *sem, int, int count)
 {
-	/* XXX could bitch if shared was true, but it is just for
-	   local compatability */
+    /* XXX could bitch if shared was true, but it is just for
+       local compatability */
 
-	sem->count = count;
-	pthread_mutex_init(&sem->lock, NULL);
-	pthread_cond_init(&sem->wake, NULL);
+    sem->count = count;
+    DO_PTHREAD(pthread_mutex_init(&sem->lock, NULL));
+    DO_PTHREAD(pthread_cond_init(&sem->wake, NULL));
 
-	return 0;
+    return 0;
 }
 
-static	void	sem_destroy(sthread_core_t::sem_t *sem)
+static    void    sem_destroy(sthread_core_t::sem_t *sem)
 {
-	pthread_mutex_destroy(&sem->lock);
-	pthread_cond_destroy(&sem->wake);
+    DO_PTHREAD(pthread_mutex_destroy(&sem->lock));
+    DO_PTHREAD(pthread_cond_destroy(&sem->wake));
 }
 
-static	inline	void	sem_post(sthread_core_t::sem_t *sem)
+static    inline    void    sem_post(sthread_core_t::sem_t *sem)
 {
-	pthread_mutex_lock(&sem->lock);
-	sem->count++;
-	if (sem->count > 0)
-		pthread_cond_signal(&sem->wake);
-	pthread_mutex_unlock(&sem->lock);
+    DO_PTHREAD(pthread_mutex_lock(&sem->lock));
+    sem->count++;
+    if (sem->count > 0)
+        DO_PTHREAD(pthread_cond_signal(&sem->wake));
+    DO_PTHREAD(pthread_mutex_unlock(&sem->lock));
 }
 
-static	inline	void	sem_wait(sthread_core_t::sem_t *sem)
+static    inline    void    sem_wait(sthread_core_t::sem_t *sem)
 {
-	pthread_mutex_lock(&sem->lock);
-	while (sem->count <= 0)
-		pthread_cond_wait(&sem->wake, &sem->lock);
-	sem->count--;
-	pthread_mutex_unlock(&sem->lock);
+    DO_PTHREAD(pthread_mutex_lock(&sem->lock));
+    while (sem->count <= 0)
+        DO_PTHREAD(pthread_cond_wait(&sem->wake, &sem->lock));
+    sem->count--;
+    DO_PTHREAD(pthread_mutex_unlock(&sem->lock));
 }
 #endif
 
 
-static void *pthread_core_start(void *_arg)
+// starting function called by every pthread created; core* is the
+// argument. Through the core* we get the "real function and arg.
+extern "C" void *pthread_core_start(void *_arg);
+void *pthread_core_start(void *_arg)
 {
-	sthread_core_t	*me = (sthread_core_t *) _arg;
+    sthread_core_t    *me = (sthread_core_t *) _arg;
 
-	sem_wait(&me->sched);
-	me->is_virgin = 0;
-	(me->start_proc)(me->start_arg);
-	return 0;
+    // core is_virgin says the "real" function hasn't started yet
+    // Unfortunately, we have multiple phases of startup here
+    me->is_virgin = 0;
+    (me->start_proc)(me->start_arg);
+    return 0;
 }
 
 
 int sthread_core_init(sthread_core_t *core,
-		      void (*proc)(void *), void *arg,
-		      unsigned stack_size)
+              void (*proc)(void *), void *arg,
+              unsigned stack_size)
 {
-	int	n;
+    int    n;
 
-	/* Get a life; XXX magic number */
-	if (stack_size > 0 && stack_size < 1024)
-		return -1;
+    /* Get a life; XXX magic number */
+    if (stack_size > 0 && stack_size < 1024)
+        return -1;
 
-	core->is_virgin = 1;
+    core->is_virgin = 1;
+    core->start_proc = proc;
+    core->start_arg = arg;
+    core->stack_size = stack_size;
 
-	core->start_proc = proc;
-	core->start_arg = arg;
+    if (stack_size > 0) {
+        /* A real thread :thread id, default attributes, start func, arg */
+        n = pthread_create(&core->pthread, NULL, pthread_core_start, core);
+        if (n == -1) {
+            w_rc_t e= RC(fcOS);
+            cerr << "pthread_create():" << endl << e << endl;
+            return -1;
+        }
+        core->creator = pthread_self();
+    }
+    else {
+        /* This is the main thread.  It runs in the "system"
+           pthread; no pthread_create is needed.
+         */
 
-	core->stack_size = stack_size;
+        /* A more elegant solution would be to make a
+           "fake" stack using the kernel stack origin
+           and stacksize limit.   This could also allow
+           the main() stack to have a thread-package size limit,
+           to catch memory hogs in the main thread. */
 
-	core->sched_terminate = false;
-
-	/* The system stack is ready to run, other threads are nascent */
-	n = sem_init(&core->sched, 0, 0);
-	if (n == -1)
-		return -1;
-	
-	if (stack_size > 0) {
-		/* A real thread */
-		n = pthread_create(&core->pthread,
-			NULL,
-			pthread_core_start, core);
-		if (n == -1) {
-			w_rc_t e= RC(fcOS);
-			cerr << "pthread_create():" << endl << e << endl;
-			sem_destroy(&core->sched);
-			return -1;
-		}
-	}
-	else {
-		/* A more elegant solution would be to make a
-		   "fake" stack using the kernel stack origin
-		   and stacksize limit.   This could also allow
-		   the main() stack to have a thread-package size limit,
-		   to catch memory hogs in the main thread. */
-
-		/* The system stack is never virgin */
-		core->is_virgin = 0;
-
-		core->pthread = pthread_self();
-	}
-
-	return 0;
+        /* The system stack is never virgin */
+        core->is_virgin = 0;
+        core->pthread = pthread_self();
+        core->creator = core->pthread; // main thread
+    }
+    return 0;
 }
 
-
-extern "C" {
-/* A callback to c++ land used by errors in the c-only core code */
-
-void sthread_core_fatal()
+/* clean up : called on destruction.
+ * All we do now is join the thread
+ */
+void sthread_core_exit(sthread_core_t* core, bool &joined)
 {
-	W_FATAL(fcINTERNAL);
-}
-}
+    void    *join_value=NULL;
+    if(joined) {
+        return;
+    }
 
+    /* must wait for the thread and then harvest its thread */
 
-void sthread_core_exit(sthread_core_t* core)
-{
-	void	*join_value;
+    if (core->stack_size > 0) {
+        int res = pthread_join(core->pthread, &join_value);
+        if(res) {
+            const char *msg="";
+            switch(res) {
+                case EINVAL:
+                    msg = "Not a joinable thread: EINVAL";
+                    break;
+                case ESRCH:
+                    msg = "No such thread: ESRCH";
+                    break;
+                case EDEADLK:
+                    msg = "Joining with self: EDEADLK";
+                    break;
+                default:
+                    break;
+            }
+            if(res) {
+               w_ostrstream o;
+               o << "sthread_core_exit:"
+                   << " Unexpected result from pthread_join: "
+                   << msg << " core is : ";
 
-	/* must wait for the thread and then harvest its's thread
-	   and sched semaphore */
+               o << *core << endl;
 
-	if (core->stack_size > 0) {
-		/* Release the victim thread to exit. */
-		core->sched_terminate = true;
-		sem_post(&core->sched);
-
-		pthread_join(core->pthread, &join_value);
-		/* And the thread is gone */
-	}
-	sem_destroy(&core->sched);
-}
-
-
-void sthread_core_set_use_float(sthread_core_t *, int)
-{
-}
-
-
-
-/* Let the native threads package use its bounds stuff */
-
-int	sthread_core_stack_ok(const sthread_core_t *, int)
-{
-	return 1;
+               W_FATAL_MSG(fcINTERNAL,  << o.c_str() << endl);
+            }
+        }
+        /* And the thread is gone */
+    }
+    joined = true;
 }
 
 ostream &operator<<(ostream &o, const sthread_core_t &core)
 {
-	o << "core: ";
-	if (core.stack_size == 0)
-		W_FORM(o)("[ system thread %#lx ]", (long) core.pthread);
-	else
-		W_FORM(o)("[ thread %#lx ] size=%d",  
-			(long) core.pthread, core.stack_size);
-	if (core.is_virgin)
-		o << ", virgin-core";
-	return o;
-}
-	
-
-void	sthread_core_switch(sthread_core_t *from, sthread_core_t *to)
-{
-	/* Release the next pthread thread to run */
-	sem_post(&to->sched);
-
-	/* Wait to be released ourself. */
-	sem_wait(&from->sched);
-
-	if (from->sched_terminate)
-		pthread_exit(0);
+    o << "core: ";
+    if (core.stack_size == 0)
+        W_FORM(o)("[ system thread %#lx creator %#lx ]", 
+                (long) core.pthread, 
+                (long) core.creator
+                );
+    else
+        W_FORM(o)("[ thread %#lx creator %#lx ] size=%d",  
+            (long) core.pthread, 
+            (long) core.creator, 
+            core.stack_size);
+    if (core.is_virgin)
+        o << ", virgin-core";
+    return o;
 }

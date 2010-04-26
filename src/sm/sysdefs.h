@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='SYSDEFS_H'>
 
- $Id: sysdefs.h,v 1.40 2007/05/18 21:43:29 nhall Exp $
+ $Id: sysdefs.h,v 1.40.2.4 2010/01/12 02:01:40 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -37,11 +37,6 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #include <cstddef>
 #include <cstdlib>
 #include <cstring>
-
-#if defined(_MSC_VER) && defined small
-/* XXX namespace corruption in MSC header files */
-#undef small
-#endif
 
 #include <climits>
 #ifdef Decstation

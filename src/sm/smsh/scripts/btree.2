@@ -1,6 +1,6 @@
 # <std-header style='tcl' orig-src='shore'>
 #
-#  $Id: btree.2,v 1.24 1999/06/07 19:05:12 kupsch Exp $
+#  $Id: btree.2,v 1.24.4.2 2010/01/12 02:01:58 nhall Exp $
 #
 # SHORE -- Scalable Heterogeneous Object REpository
 #
@@ -37,6 +37,8 @@
 #
 source $script_dir/vol.init
 
+# set verbose_flag 1
+
 if [is_set keylen] {
    verbose using key length $keylen already set
 } else {
@@ -52,6 +54,7 @@ for {set nrec 1} {$nrec <= 8} {incr nrec} {
     set nrec [expr {$nrec + 100} ]
     verbose testing integer key btree  nrec= $nrec
     sm begin_xct
+verbose tid [sm xct_to_tid [sm xct]]
     sm test_int_btree $volid $nrec
     sm commit_xct
 }
@@ -60,6 +63,7 @@ set nrec 20
 
 verbose testing integer key btree
 sm begin_xct
+verbose tid [sm xct_to_tid [sm xct]]
 sm test_int_btree $volid $nrec
 sm commit_xct
 
@@ -70,28 +74,30 @@ set nrec 800
 # create index and load it up 
 #
 sm begin_xct
+verbose tid [sm xct_to_tid [sm xct]]
 set ndx [sm create_index $volid btree]
 verbose created index $ndx
 for {set i 1} {$i <= $nrec} {incr i} {
     set key [formatlong 0 $keylen %010d $i]
     set elem [formatlong 0 $elemlen %010d $i]
     if {$i%20 == 0} { 
-	verbose inserting $i $key $elem
+		verbose inserting $i $key $elem
     }
     sm create_assoc $ndx $key $elem
 
-    if {$i > 280 && $i%50 == 0 } {
-	for {set j 1} {$j <= $i} {incr j} {
-	    set key [formatlong 0 $keylen %010d $j]
-	    set el [sm find_assoc $ndx $key ]
-	    set elem [formatlong 0 $elemlen %010d $j]
-	    #assert {[expr {$elem  == $el}]}
-	    if {$elem != $el} {
-	        verbose $elem != $el
-		assert {0}
-	    }
+	if {$i > 280 && $i%50 == 0 } {
+	    echo $i ...
+		for {set j 1} {$j <= $i} {incr j} {
+			set key [formatlong 0 $keylen %010d $j]
+			set el [sm find_assoc $ndx $key ]
+			set elem [formatlong 0 $elemlen %010d $j]
+			#assert {[expr {$elem  == $el}]}
+			if {$elem != $el} {
+				verbose $elem != $el
+				assert {0}
+			}
+		}
 	}
-    }
 }
 verbose "probe:"
 for {set i 1} {$i <= $nrec} {incr i} {
@@ -108,6 +114,7 @@ sm commit_xct
 verbose [sm gather_stats]
 
 sm begin_xct
+verbose tid [sm xct_to_tid [sm xct]]
 sm destroy_index $ndx
 sm commit_xct
 verbose [sm gather_stats]

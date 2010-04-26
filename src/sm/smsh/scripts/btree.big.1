@@ -1,6 +1,6 @@
 # <std-header style='tcl' orig-src='shore'>
 #
-#  $Id: btree.big.1,v 1.12 2006/06/01 17:09:38 nhall Exp $
+#  $Id: btree.big.1,v 1.12.2.2 2009/12/03 00:21:07 nhall Exp $
 #
 # SHORE -- Scalable Heterogeneous Object REpository
 #
@@ -66,17 +66,17 @@ proc scan_up {ndx nrec filename}  {
     set scan [sm create_scan $ndx >= neg_inf <= pos_inf]
     for {set i 1} {$i <= $nrec} {incr i}  {
         set r [sm scan_next $scan $ktype]
-	if {[string compare $r eof] == 0} then { break }
+        if {[string compare $r eof] == 0} then { break }
         set key [string trimleft [lindex $r 0] 0]
         set el [lindex $r 1]
         verbose "scanned ($key, $el)"
         gets $fileid filekey
         if [expr {$key == $filekey}] { 
-	} else {
-	     # echo $i: expected: $filekey got: $key
-	     incr wrong
-	# assert {expr $wrong == 0}
-	}
+        } else {
+             # verbose $i: expected: $filekey got: $key
+             incr wrong
+        # assert {expr $wrong == 0}
+        }
     }
     # assert {expr $i > $nrec}
     # assert {expr [string compare [sm scan_next $scan $ktype] eof] == 0}
@@ -90,10 +90,10 @@ set volid2 1
 if {$part1 == 0} {
     set volid 1
     if {$do_blk==1} {
-	set f1 s($volid.4)
-	set ndx s($volid2.4)
+        set f1 s($volid.4)
+        set ndx s($volid2.4)
     } else {
-	set ndx s($volid2.4)
+        set ndx s($volid2.4)
     }
 }
 
@@ -105,146 +105,146 @@ source $script_dir/vol.init
 set rid "RID456789012"
 
 if {$part1} {
-    echo PART1
+    verbose PART1
     #
     # create index and load it up 
     #
     sm begin_xct
     if {$do_blk == 1} {
-	set f1 [sm create_file $volid load_file]
-	verbose created file $f1
+        set f1 [sm create_file $volid load_file]
+        verbose created file $f1
     } else {
-	set ndx [sm create_index $volid2 btree regular $ktype]
-	verbose created index $ndx
+        set ndx [sm create_index $volid2 btree regular $ktype]
+        verbose created index $ndx
     }
     sm commit_xct
 
     sm begin_xct
     if { [catch { open $filename r } fileid ] == 0 } {
-	    verbose opened $filename: $fileid
-	    for {set i 1} {$i <= $nrec} {incr i}  {
-		# verbose gets $fileid key
-		gets $fileid key
-		if {$do_blk == 1} {
-		    # verbose sm create_typed_hdr_rec $f1 $key 10 $ktype $rid b*1000
-		    sm create_typed_hdr_rec $f1 $key 10 $rid $ktype b*1000
-		} else {
-		    # verbose sm create_assoc $ndx $key $rid $ktype
-		    # sm create_assoc $ndx $key $rid $ktype
-		    if [catch { sm create_assoc $ndx $key $rid $ktype } err] {
-			echo error creating $i assoc: $err
-			exit 100
-		    }
-		    unset err
-		}
-		if [expr {($i / 1000)* 1000 == $i} ] {
-		    echo $i
-		}
-		unset key
-	    }
-	    verbose read $i keys
-	    close $fileid
+            verbose opened $filename: $fileid
+            for {set i 1} {$i <= $nrec} {incr i}  {
+                # verbose gets $fileid key
+                gets $fileid key
+                if {$do_blk == 1} {
+                    # verbose sm create_typed_hdr_rec $f1 $key 10 $ktype $rid b*1000
+                    sm create_typed_hdr_rec $f1 $key 10 $rid $ktype b*1000
+                } else {
+                    # verbose sm create_assoc $ndx $key $rid $ktype
+                    # sm create_assoc $ndx $key $rid $ktype
+                    if [catch { sm create_assoc $ndx $key $rid $ktype } err] {
+                        verbose error creating $i assoc: $err
+                        exit 100
+                    }
+                    unset err
+                }
+                if [expr {($i / 1000)* 1000 == $i} ] {
+                    verbose $i
+                }
+                unset key
+            }
+            verbose read $i keys
+            close $fileid
     } else {
-	    verbose Failed to read $filename:  $fileid
-	    exit 100
+            verbose Failed to read $filename:  $fileid
+            exit 100
     }
     sm commit_xct
-    echo END PART1
+    verbose END PART1
 }
 
 if {$part1b} {
-    echo PART1B
+    verbose PART1B
     if {$do_blk == 1} {
-	sm begin_xct
-	if {$do_sort == 1} {
-	    verbose sm sort_file $f1 $volid 3 $ktype hdr normal keep tmp
-	    set f2 [sm sort_file $f1 $volid 3 $ktype hdr normal keep tmp]
-	    sm scan_sorted_recs $f2 $ktype b*1000
-	} else {
-	    set f2 $f1
-	}
+        sm begin_xct
+        if {$do_sort == 1} {
+            verbose sm sort_file $f1 $volid 3 $ktype hdr normal keep tmp
+            set f2 [sm sort_file $f1 $volid 3 $ktype hdr normal keep tmp]
+            sm scan_sorted_recs $f2 $ktype b*1000
+        } else {
+            set f2 $f1
+        }
 
-	set ndx [sm create_index $volid2 btree regular $ktype]
-	verbose created index $ndx $volid btree regular $ktype
-	verbose sm blkld_ndx $ndx 1 $f2 $ktype
-	set stat [sm blkld_ndx $ndx 1 $f2 $ktype]
-	verbose bulk-loaded index: $stat
-	sm commit_xct
+        set ndx [sm create_index $volid2 btree regular $ktype]
+        verbose created index $ndx $volid btree regular $ktype
+        verbose sm blkld_ndx $ndx 1 $f2 $ktype
+        set stat [sm blkld_ndx $ndx 1 $f2 $ktype]
+        verbose bulk-loaded index: $stat
+        sm commit_xct
     }
-    echo END PART1B
+    verbose END PART1B
 }
 
 if {$part2} {
-    echo PART2 : verify order with scan
+    verbose PART2 : verify order with scan
 
     sm begin_xct
     sm print_index $ndx
     scan_up $ndx $nrec $filename
     sm commit_xct
-    echo END PART2
+    verbose END PART2
 }
 
 if {$part3} {
-    echo PART3 : verify with file read & btree probe
+    verbose PART3 : verify with file read & btree probe
 
     sm begin_xct
     if { [catch { open $filename r } fileid ] == 0 } {
-	    verbose opened $filename: $fileid
-	    for {set i 1} {$i <= $nrec} {incr i}  {
-		# verbose gets $fileid key
-		gets $fileid key
-		# verbose sm find_assoc $ndx $key $ktype
-		if [catch { set el [sm find_assoc $ndx $key $ktype] } err] {
-		    echo error: $err  on record $i: $key
-		}
-		unset key err
-	    }
-	    verbose found $i keys
-	    close $fileid
+            verbose opened $filename: $fileid
+            for {set i 1} {$i <= $nrec} {incr i}  {
+                # verbose gets $fileid key
+                gets $fileid key
+                # verbose sm find_assoc $ndx $key $ktype
+                if [catch { set el [sm find_assoc $ndx $key $ktype] } err] {
+                    verbose error: $err  on record $i: $key
+                }
+                unset key err
+            }
+            verbose found $i keys
+            close $fileid
     } else {
-	    verbose Failed to read $filename:  $fileid
-	    exit 100
+            verbose Failed to read $filename:  $fileid
+            exit 100
     }
     sm commit_xct
-    echo END PART3 
+    verbose END PART3 
 }
 
 if {$part4} {
-    echo PART4 : scan the file and remove entries 1 at a time
+    verbose PART4 : scan the file and remove entries 1 at a time
     sm begin_xct
 
     if { [catch { open $filename r } fileid ] == 0 } {
-	verbose opened $filename: $fileid
-	for {set i 1} {$i <= $nrec} {incr i}  {
-	    # verbose gets $fileid key
-	    gets $fileid key
-	    # verbose sm find_assoc  $ndx $key $ktype
-	    if [catch { set el [sm find_assoc  $ndx $key $ktype] } err] {
-		echo error: $err  looking up  record $i: $key
-	    }
-	    # verbose sm destroy_assoc $ndx $key $rid $ktype
-	    if [catch { set el [sm destroy_assoc $ndx $key $rid $ktype] } err] {
-		echo error: $err  destroying record $i: $key
-		sm print_index $ndx
-		exit 100
-	    }
-	    if [expr {($i / 1000)* 1000 == $i} ] {
-		echo $i
-	    }
-	    unset key err
-	}
-	verbose destroyed $i keys
-	close $fileid
+        verbose opened $filename: $fileid
+        for {set i 1} {$i <= $nrec} {incr i}  {
+            # verbose gets $fileid key
+            gets $fileid key
+            # verbose sm find_assoc  $ndx $key $ktype
+            if [catch { set el [sm find_assoc  $ndx $key $ktype] } err] {
+                verbose error: $err  looking up  record $i: $key
+            }
+            # verbose sm destroy_assoc $ndx $key $rid $ktype
+            if [catch { set el [sm destroy_assoc $ndx $key $rid $ktype] } err] {
+                verbose error: $err  destroying record $i: $key
+                sm print_index $ndx
+                exit 100
+            }
+            if [expr {($i / 1000)* 1000 == $i} ] {
+                verbose $i
+            }
+            unset key err
+        }
+        verbose destroyed $i keys
+        close $fileid
     } else {
-	verbose Failed to read $filename:  $fileid
-	exit 100
+        verbose Failed to read $filename:  $fileid
+        exit 100
     }
     sm commit_xct
 
-    echo  PART5: destroy
+    verbose  PART5: destroy
     sm begin_xct
     sm destroy_index $ndx
     sm commit_xct
-    echo END PART4 
+    verbose END PART4 
 }
 

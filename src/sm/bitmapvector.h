@@ -1,6 +1,29 @@
+/* -*- mode:C++; c-basic-offset:4 -*-
+     Shore-MT -- Multi-threaded port of the SHORE storage manager
+   
+                       Copyright (c) 2007-2009
+      Data Intensive Applications and Systems Labaratory (DIAS)
+               Ecole Polytechnique Federale de Lausanne
+   
+                         All Rights Reserved.
+   
+   Permission to use, copy, modify and distribute this software and
+   its documentation is hereby granted, provided that both the
+   copyright notice and this permission notice appear in all copies of
+   the software, derivative works or modified versions, and any
+   portions thereof, and that both notices appear in supporting
+   documentation.
+   
+   This code is distributed in the hope that it will be useful, but
+   WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. THE AUTHORS
+   DISCLAIM ANY LIABILITY OF ANY KIND FOR ANY DAMAGES WHATSOEVER
+   RESULTING FROM THE USE OF THIS SOFTWARE.
+*/
+
 /*<std-header orig-src='shore' incl-file-exclusion='BITMAPVECTOR_H'>
 
- $Id: bitmapvector.h,v 1.4 1999/06/07 19:03:50 kupsch Exp $
+ $Id: bitmapvector.h,v 1.4.2.3 2009/10/30 23:52:17 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -57,8 +80,6 @@ class BitMapVector  {
 	void			    ClearBit(uint4_t bitNumber);
 	bool			    IsBitSet(uint4_t bitNumber) const;
 	void			    OrInBitVector(const BitMapVector& v, bool& changed);
-
-	W_FASTNEW_CLASS_DECL(BitMapVector);
 
     private:
 	uint4_t			    size;

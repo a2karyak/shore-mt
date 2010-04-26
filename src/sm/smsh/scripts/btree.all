@@ -1,6 +1,6 @@
 # <std-header style='tcl' orig-src='shore'>
 #
-#  $Id: btree.all,v 1.45 2007/08/21 19:43:59 nhall Exp $
+#  $Id: btree.all,v 1.44.2.2 2010/02/05 20:39:32 nhall Exp $
 #
 # SHORE -- Scalable Heterogeneous Object REpository
 #
@@ -37,7 +37,8 @@ if { [is_set do_long_scripts] } {
 }
 
 lappend scripts btree.simple.1
-lappend scripts btree.2all.print
+# This one gums up the screen
+# lappend scripts btree.2all.print
 lappend scripts btree.6int
 lappend scripts bng.1
 
@@ -73,7 +74,7 @@ foreach i { 1 2 3 4 } {
 }
 
 
-foreach i {1 2 2all 3 33 4 5 7 8 9 10} {
+foreach i {1 2 2all 3 33 4 5 7 8 9 10 11} {
     # set scripts [concat $scripts btree.$i]
     lappend scripts btree.$i
 }

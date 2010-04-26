@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='BITMAP_H'>
 
- $Id: bitmap.h,v 1.22 2000/02/02 03:01:34 bolo Exp $
+ $Id: bitmap.h,v 1.22.2.3 2010/01/28 04:52:52 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -38,27 +38,23 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #pragma interface
 #endif
 
-EXTERN int bm_first_set(const u_char* bm, int size, int start);
-EXTERN int bm_first_clr(const u_char* bm, int size, int start);
+extern "C" int bm_first_set(const u_char* bm, int size, int start);
+extern "C" int bm_first_clr(const u_char* bm, int size, int start);
 
-EXTERN int bm_last_set(const u_char *bm, int size, int start);
-EXTERN int bm_last_clr(const u_char *bm, int size, int start);
+extern "C" int bm_last_set(const u_char *bm, int size, int start);
+extern "C" int bm_last_clr(const u_char *bm, int size, int start);
 
-EXTERN int bm_num_set(const u_char* bm, int size);
-EXTERN int bm_num_clr(const u_char* bm, int size);
+extern "C" int bm_num_set(const u_char* bm, int size);
+extern "C" int bm_num_clr(const u_char* bm, int size);
 
-EXTERN bool bm_is_set(const u_char* bm, int offset);
-EXTERN bool bm_is_clr(const u_char* bm, int offset);
+extern "C" bool bm_is_set(const u_char* bm, int offset);
+extern "C" bool bm_is_clr(const u_char* bm, int offset);
 
-EXTERN void bm_zero(u_char* bm, int size);
-EXTERN void bm_fill(u_char* bm, int size);
+extern "C" void bm_zero(u_char* bm, int size);
+extern "C" void bm_fill(u_char* bm, int size);
 
-EXTERN void bm_set(u_char* bm, int offset);
-EXTERN void bm_clr(u_char* bm, int offset);
-
-#ifndef DUAL_ASSERT_H
-#include "dual_assert.h"
-#endif
+extern "C" void bm_set(u_char* bm, int offset);
+extern "C" void bm_clr(u_char* bm, int offset);
 
 inline bool bm_is_clr(const u_char* bm, int offset)
 {

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='RESTART_H'>
 
- $Id: restart.h,v 1.24 1999/06/07 19:04:24 kupsch Exp $
+ $Id: restart.h,v 1.24.2.5 2010/01/28 04:54:10 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -50,59 +50,60 @@ class dirty_pages_tab_t;
 
 class restart_m : public smlevel_1 {
 public:
-    NORET			restart_m()	{};
-    NORET			~restart_m()	{};
+    NORET                        restart_m()        {};
+    NORET                        ~restart_m()        {};
 
-    static void 		recover(lsn_t master);
+    static void                 recover(lsn_t master);
 
 private:
-    static void 		analysis_pass(
-	lsn_t 			    master,
-	dirty_pages_tab_t& 	    ptab, 
-	lsn_t& 			    redo_lsn,
-	bool&			    found_xct_freeing_space
-	);
 
-    static void 		redo_pass(
-	lsn_t 			    redo_lsn, 
-	const lsn_t 	            &highest,  /* for debugging */
-	dirty_pages_tab_t& 	    ptab);
+    static void                 analysis_pass(
+        lsn_t                             master,
+        dirty_pages_tab_t&                ptab, 
+        lsn_t&                            redo_lsn,
+        bool&                             found_xct_freeing_space
+        );
 
-    static void 		undo_pass();
+    static void                 redo_pass(
+        lsn_t                             redo_lsn, 
+        const lsn_t                     &highest,  /* for debugging */
+        dirty_pages_tab_t&             ptab);
+
+    static void                 undo_pass();
 
 private:
     // keep track of tid from log record that we're redoing
     // for a horrid space-recovery handling hack
-    static tid_t		_redo_tid;
+    static tid_t                _redo_tid;
 public:
-    tid_t			*redo_tid() { return &_redo_tid; }
+    tid_t                        *redo_tid() { return &_redo_tid; }
 
 };
 
 
 class AutoTurnOffLogging {
     public:
-	AutoTurnOffLogging()
-	{
-	    w_assert1(smlevel_0::logging_enabled);
-	    smlevel_0::logging_enabled = false;
-	};
+        AutoTurnOffLogging()
+        {
+            w_assert1(smlevel_0::logging_enabled);
+            smlevel_0::logging_enabled = false;
+        };
 
-	~AutoTurnOffLogging()
-	{
-	    w_assert1(!smlevel_0::logging_enabled);
-	    smlevel_0::logging_enabled = true;
-	};
+        ~AutoTurnOffLogging()
+        {
+            w_assert1(!smlevel_0::logging_enabled);
+            smlevel_0::logging_enabled = true;
+        };
     private:
-	AutoTurnOffLogging& operator=(const AutoTurnOffLogging&);
-	AutoTurnOffLogging(const AutoTurnOffLogging&);
+        AutoTurnOffLogging& operator=(const AutoTurnOffLogging&);
+        AutoTurnOffLogging(const AutoTurnOffLogging&);
 };
 
 
 class CmpXctUndoLsns
 {
     public:
-	bool			gt(const xct_t* x, const xct_t* y) const;
+        bool                        gt(const xct_t* x, const xct_t* y) const;
 };
 
 

@@ -1,6 +1,6 @@
 # <std-header style='tcl' orig-src='shore'>
 #
-#  $Id: lockrec_pin,v 1.13 1999/06/07 19:05:36 kupsch Exp $
+#  $Id: lockrec_pin,v 1.13.4.1 2009/12/14 23:57:56 nhall Exp $
 #
 # SHORE -- Scalable Heterogeneous Object REpository
 #
@@ -65,6 +65,7 @@ proc rel_lock { pin } {
 }
 
 proc holder { id type op me } {
+	global verbose_flag
     sync
 
     verbose "$me: $type ($op) requesting lock on $id"
@@ -79,6 +80,7 @@ proc holder { id type op me } {
 }
 
 proc requester { id type op me } {
+	global verbose_flag
     sync
     sync
 
@@ -93,6 +95,7 @@ proc requester { id type op me } {
 }
 
 proc sh_sh { id } {
+    global verbose_flag
     set x [ fork_thread holder $id SH pin 1 ]
     set y [ fork_thread requester $id SH pin 2 ]
 
@@ -103,6 +106,7 @@ proc sh_sh { id } {
 }
 
 proc sh_ex { id } {
+	global verbose_flag
     global ex_ops
     foreach i $ex_ops {
 
@@ -111,13 +115,15 @@ proc sh_ex { id } {
 
 	sync_thread $x $y
 	sync_thread $x $y
-	sync_thread $x $y
+	sync_thread $x 
+	sync_thread $y
 	join_thread $x $y
 	verbose "----------------"
     }
 }
 
 proc ex_sh { id } {
+	global verbose_flag
     global ex_ops
     foreach i $ex_ops {
 
@@ -126,13 +132,15 @@ proc ex_sh { id } {
 
 	sync_thread $x $y
 	sync_thread $x $y
-	sync_thread $x $y
+	sync_thread $x 
+	sync_thread $y
 	join_thread $x $y
 	verbose "----------------"
     }
 }
 
 proc ex_ex {id} {
+	global verbose_flag
     global ex_ops
     foreach i $ex_ops {
     	foreach j $ex_ops {  
@@ -142,7 +150,8 @@ proc ex_ex {id} {
 
 	    sync_thread $x $y
 	    sync_thread $x $y
-	    sync_thread $x $y
+	    sync_thread $x 
+	    sync_thread $y
 	    join_thread $x $y
 	    verbose "----------------"
 	}

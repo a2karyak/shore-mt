@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='ZVEC_T_H'>
 
- $Id: zvec_t.h,v 1.10 1999/06/07 19:02:35 kupsch Exp $
+ $Id: zvec_t.h,v 1.10.2.2 2009/10/30 23:51:12 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -36,8 +36,8 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 
 class zvec_t : public vec_t {
 public:
-    zvec_t() : vec_t(zero_location,0)	{};
-    zvec_t(size_t l) : vec_t(zero_location, l)	{};
+    zvec_t() : vec_t(zero_location,0)        {};
+    zvec_t(size_t l) : vec_t(zero_location, l)        {};
     zvec_t &put(size_t l) { reset().put(zero_location,l); return *this; }
 private:
     // disabled

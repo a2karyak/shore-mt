@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='LID_T_H'>
 
- $Id: lid_t.h,v 1.36 2007/08/21 19:49:59 nhall Exp $
+ $Id: lid_t.h,v 1.35.2.6 2010/03/19 22:19:19 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -34,13 +34,6 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 
 /*  -- do not edit anything above this line --   </std-header>*/
 
-/*
- * NB -- THIS FILE MUST BE LEGITIMATE INPUT TO cc and RPCGEN !!!!
- * Please do as follows:
- * a) keep all comments in traditional C style.
- * b) If you put something c++-specific make sure it's 
- * 	  got ifdefs around it
- */
 #ifndef BASICS_H
 #include "basics.h"
 #endif
@@ -54,33 +47,51 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
  *
  ********************************************************************/
 
+/**\defgroup IDs Identifiers
+ * \ingroup SSMAPI
+ * The following persistent storage structures have identifiers, not
+ * all of which(ids) are persistent:
+ * - Indexes: stid_t (store id)
+ * - Files:   stid_t (store id)
+ * - Records: rid_t (record id)
+ * - Pages:   pid_t (short page id), lpid_t (long page id)
+ * - Volumes: vid_t (short volume id), lvid_t (long volume id)
+ * - Device
+ */
+
 /*
     Physical volume IDs (vid_t) are currently used to make unique
-    logical volume IDs.  This is a temporary hack which we support with
+    long volume IDs.  This is a temporary hack which we support with
     this typedef:
 */
 typedef uint2_t VID_T;
 
-	/* 
-	// logical volume ID 
-	*/
-
 #define LVID_T
+/**\brief long volume ID.  See \ref IDs. 
+ *\ingroup IDs
+ *
+ * \details A long, almost-unique identifier for a volume, generated from
+ * a clock and a network address. Written to a volume's header.
+ * This is the only persistent identifier for a volume, and it is
+ * used to be sure that one doesn't doubly-mount a volume via different
+ * paths. 
+ * Thus, in certain sm methods, the long volume ID is used to identify
+ * a volume, e.g., in destroy_vol, get_volume_quota.
+*/
 struct lvid_t {
     /* usually generated from net addr of creating server */
     uint4_t high;
     /* usually generated from timeofday when created */
     uint4_t low;
 
-#ifdef __cplusplus
     /* do not want constructors for things embeded in objects. */
     lvid_t() : high(0), low(0) {}
     lvid_t(uint4_t hi, uint4_t lo) : high(hi), low(lo) {}
-	
+        
     bool operator==(const lvid_t& s) const
-			{return (low == s.low) && (high == s.high);}
+                        {return (low == s.low) && (high == s.high);}
     bool operator!=(const lvid_t& s) const
-			{return (low != s.low) || (high != s.high);}
+                        {return (low != s.low) || (high != s.high);}
 
     // in lid_t.cpp:
     friend ostream& operator<<(ostream&, const lvid_t&);
@@ -88,14 +99,11 @@ struct lvid_t {
 
     // defined in lid_t.cpp
     static const lvid_t null;
-#endif 
 };
 
-#ifdef __cplusplus
 
 inline w_base_t::uint4_t w_hash(const lvid_t& lv)
 {
     return lv.high + lv.low;
 }
-#endif /*__cplusplus*/
 #endif

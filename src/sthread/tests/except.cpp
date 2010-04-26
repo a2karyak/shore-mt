@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: except.cpp,v 1.9 2007/05/18 21:52:30 nhall Exp $
+ $Id: except.cpp,v 1.9.2.4 2010/03/19 22:20:03 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -35,8 +35,7 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #include <w_strstream.h>
 
 #include <cassert>
-#include <os_memory.h>
-#include <getopt.h>
+#include <w_getopt.h>
 
 #include <w.h>
 #include <sthread.h>
@@ -78,8 +77,6 @@ except_thread_t::except_thread_t(int fid, bool _do_catch)
 	w_ostrstream_buf s(40);		// XXX magic number
 	s << "except[" << id << "]" << ends;
 	rename(s.c_str());
-
-	W_COERCE(set_use_float(false));
 }
     
 
@@ -99,7 +96,7 @@ void harvest(int threads)
 	int	i;
 
 	for (i = 0; i < threads; ++i) {
-		W_COERCE(worker[i]->wait());
+		W_COERCE(worker[i]->join());
 		if (verbose)
 			cout << "Finished: " << endl << *worker[i] << endl;
 

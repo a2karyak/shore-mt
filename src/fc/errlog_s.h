@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='ERRLOG_S_H'>
 
- $Id: errlog_s.h,v 1.9 2007/05/18 21:38:23 nhall Exp $
+ $Id: errlog_s.h,v 1.9.2.4 2010/03/19 22:17:16 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -40,31 +40,24 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #pragma interface
 #endif
 
+/** \cond skip */
 class simple_string {
-	const char *_s;
+    const char *_s;
 public:
-	// friend w_base_t uint4_t hash(const simple_string &);
-	simple_string(const char *s) { _s = s; }
-	bool operator==(const simple_string &another) const {
-		return strcmp(this->_s,another._s)==0; 
-	}
-	bool operator!=(const simple_string &another) const {
-		return strcmp(this->_s,another._s)!=0; 
-	}
-	friend ostream &operator<<(ostream &out, const simple_string x);
+    // friend w_base_t uint4_t hash(const simple_string &);
+    simple_string(const char *s) { _s = s; }
+    bool operator==(const simple_string &another) const {
+        return strcmp(this->_s,another._s)==0; 
+    }
+    bool operator!=(const simple_string &another) const {
+        return strcmp(this->_s,another._s)!=0; 
+    }
+    friend ostream &operator<<(ostream &out, const simple_string x);
 };
 
 // w_base_t::uint4_t w_hash(const simple_string &s){
-//	return (w_base_t::uint4_t) w_hash(s._s); 
+//    return (w_base_t::uint4_t) w_hash(s._s); 
 //}
-
-extern "C" {
-#if !defined(SOLARIS2) && !defined(Linux) && !defined(_WINDOWS)
-	int syslog(int prio, char *message, ...);
-	int openlog(const simple_string ident, int logopt, int facil);
-	int closelog(void);
-#endif
-}
 
 extern w_base_t::uint4_t w_hash(const char *); // in stringhash.C
 
@@ -72,21 +65,20 @@ class ErrLog;
 struct ErrLogInfo {
 public:
     simple_string _ident; // identity for syslog & local use
-	w_link_t	hash_link;
+    w_link_t    hash_link;
 
-	ErrLog *_e;
-	// const simple_string & hash_key() { return _ident; } 
-	ErrLogInfo(ErrLog *e);
-	void dump() const {
-		cerr <<  _ident;
-		cerr << endl;
-	};
+    ErrLog *_e;
+    // const simple_string & hash_key() { return _ident; } 
+    ErrLogInfo(ErrLog *e);
+    void dump() const {
+        cerr <<  _ident;
+        cerr << endl;
+    };
 private:
-#ifndef _WINDOWS
-	NORET ErrLogInfo(const ErrLogInfo &); // disabled
-	NORET ErrLogInfo(ErrLogInfo &); // disabled
-#endif /* _WINDOWS */
+    NORET ErrLogInfo(const ErrLogInfo &); // disabled
+    NORET ErrLogInfo(ErrLogInfo &); // disabled
 };
+/** \endcond skip */
 
 /*<std-footer incl-file-exclusion='ERRLOG_S_H'>  -- do not edit anything below this line -- */
 

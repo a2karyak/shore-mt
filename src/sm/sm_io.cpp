@@ -1,6 +1,29 @@
+/* -*- mode:C++; c-basic-offset:4 -*-
+     Shore-MT -- Multi-threaded port of the SHORE storage manager
+   
+                       Copyright (c) 2007-2009
+      Data Intensive Applications and Systems Labaratory (DIAS)
+               Ecole Polytechnique Federale de Lausanne
+   
+                         All Rights Reserved.
+   
+   Permission to use, copy, modify and distribute this software and
+   its documentation is hereby granted, provided that both the
+   copyright notice and this permission notice appear in all copies of
+   the software, derivative works or modified versions, and any
+   portions thereof, and that both notices appear in supporting
+   documentation.
+   
+   This code is distributed in the hope that it will be useful, but
+   WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. THE AUTHORS
+   DISCLAIM ANY LIABILITY OF ANY KIND FOR ANY DAMAGES WHATSOEVER
+   RESULTING FROM THE USE OF THIS SOFTWARE.
+*/
+
 /*<std-header orig-src='shore'>
 
- $Id: sm_io.cpp,v 1.38 2008/05/31 05:03:32 nhall Exp $
+ $Id: sm_io.cpp,v 1.34.2.27 2010/03/25 18:05:16 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -38,11 +61,17 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #pragma implementation
 #endif
 
-#include "hash_lru.h"
+#if W_DEBUG_LEVEL > 1
+// breakpoint for debugger
+extern "C" void iostophere();
+void iostophere() { }
+#else
+#define iostophere()
+#endif
+
 #include "sm_int_2.h"
 #include "chkpt_serial.h"
 #include "sm_du_stats.h"
-#include "auto_release.h"
 #include "device.h"
 #include "lock.h"
 #include "xct.h"
@@ -51,85 +80,53 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #include "crash.h"
 #include "vol.h"
 
-#include <new>
-
-#include "sm_vtable_enum.h"
-#include "vtable_info.h"
-
-class extnum_struct_t {
-public:
-    NORET extnum_struct_t() : ext(0), nresvd(0) {}
-    NORET ~extnum_struct_t() {}
-
-    extnum_t 	ext; // last extent used for the store
-
-    int 	nresvd; // hint about free but reserved
-			// pages remaining in all the extents
-			// of the store
-};
-
-//typedef hash_lru_t<extnum_t, stid_t> extent_info_cache_t;
-//typedef hash_lru_i<extnum_t, stid_t> extent_info_cache_i;
-#define extent_info_cache_t hash_lru_t<extnum_struct_t, stid_t>
-#define extent_info_cache_i hash_lru_i<extnum_struct_t, stid_t>
-
-#ifdef EXPLICIT_TEMPLATE
-template class extent_info_cache_t;
-template class extent_info_cache_i;
-//typedef hash_lru_entry_t<extnum_t, stid_t> extent_info_cache_entry_t;
-#define extent_info_cache_entry_t hash_lru_entry_t<extnum_struct_t, stid_t>
-template class extent_info_cache_entry_t;
-template class w_list_t<extent_info_cache_entry_t>;
-template class w_list_i<extent_info_cache_entry_t>;
-template class w_hash_t<extent_info_cache_entry_t, stid_t>;
-template class vtable_func<vol_t>;
+// VOL_LOCK_IS_RW is defined in shore.def
+#if VOL_LOCK_IS_RW
+#include <auto_release.h>
 #endif
 
+#include <store_latch_manager.h>
+// NOTE : this is shared with btree layer
+store_latch_manager store_latches;
+
+#include <new>
+#include <map>
+#include <set>
+#include "sm_vtable_enum.h"
+
+#ifdef EXPLICIT_TEMPLATE
+template class vtable_func<vol_t>;
+#endif
 
 /*********************************************************************
  *
  *  Class static variables
  *
- *	_msec_disk_delay	: delay in performing I/O (for debugging)
- *	_mutex			: make io_m a monitor
- *	vol_cnt			: # volumes mounted in vol[]
- *	vol[]			: array of volumes mounted
- *	_extent_info_cache	: see comments below
+ *        _msec_disk_delay        : delay in performing I/O (for debugging)
+ *        _mutex                  : make io_m a monitor
+ *        vol_cnt                 : # volumes mounted in vol[]
+ *        vol[]                   : array of volumes mounted
  *
  *********************************************************************/
-uint4_t  		io_m::_msec_disk_delay = 0;
-smutex_t 	io_m::_mutex("io_m");
-int 		io_m::vol_cnt = 0;
-vol_t* 		io_m::vol[io_m::max_vols] = { 0 };
-lsn_t		io_m::_lastMountLSN = lsn_t::null;
+uint4_t                  io_m::_msec_disk_delay = 0;
+int                      io_m::vol_cnt = 0;
+vol_t*                   io_m::vol[io_m::max_vols] = { 0 };
+lsn_t                    io_m::_lastMountLSN = lsn_t::null;
 
-static extent_info_cache_t* _extent_info_cache = 0;
-/*********************************************************************
- *  _extent_info_cache: a cache of the last extent used for dealloc/
- *  	or allocation of pages within an extent.  This is used in order
- *   	to achieve a quasi-round-robin behavior when looking for an
- *    	allocated extent with free pages.   We keep a cached element
- * 	per store (key is store id).  This info is NOT tied to the
- *  	store descriptor cache because the whole point of this is for
- *      the cached info to survive transactions and to be shared between
- * 	transactions, whereas teh sdesc cache is a per-thread/xct thing.
- *********************************************************************/
-
-int			
+int                        
 io_m::max_extents_on_page() 
 {
     return vol_t::max_extents_on_page();
 }
 
-void			
+void                        
 io_m::enter()
 {
     if(xct()) { xct()->start_crit(); }
-    _mutex_acquire();
 }
 
-void			
-io_m::leave(bool release)
+void                        
+io_m::leave()
 {
     // flush the log before we leave, to free
     // the last page pinned-- necessary to avoid
@@ -139,29 +136,20 @@ io_m::leave(bool release)
     if(xct()) { xct()->stop_crit(); }
     if(xct()) { xct()->flush_logbuf(); }
 
-    if(release) {
-	_mutex_release();
-    }
 }
 
 rc_t
 io_m::lock_force(
-    const lockid_t&	    n,
-    lock_mode_t		    m,
+    const lockid_t&         n,
+    lock_mode_t             m,
     lock_duration_t         d,
-    timeout_in_ms	    timeout, 
-    page_p		    *page, // = 0  -- should be an extlink_p
-    lock_mode_t*	    prev_mode, // = 0
-    lock_mode_t*	    prev_pgmode, // = 0
-    lockid_t**		    nameInLockHead // = 0
+    timeout_in_ms           timeout, 
+    page_p                  *page, // = 0  -- should be an extlink_p
+    lock_mode_t*            prev_mode, // = 0
+    lock_mode_t*            prev_pgmode, // = 0
+    lockid_t**              nameInLockHead // = 0
 )
 {
-    /* Might not hold I/O mutex, but might hold vol-specfic
-     * mutex instead.
-     */
-    bool held_mutex = _mutex.is_mine();
-
-
     /*
      * Why lock_force(), as opposed to simple lock()?
      * Lock_force forces the lock to be acquired in the core
@@ -177,27 +165,20 @@ io_m::lock_force(
 
    /* Try to acquire the lock w/o a timeout first */
    rc_t  rc = lm->lock_force(n, m, d, WAIT_IMMEDIATE,
-	    prev_mode, prev_pgmode, nameInLockHead);
-   if(rc && (rc.err_num() == eMAYBLOCK || rc.err_num() == eLOCKTIMEOUT)
-	&& timeout != WAIT_IMMEDIATE) {
-       w_assert3(me()->xct());
+            prev_mode, prev_pgmode, nameInLockHead);
+   if(rc.is_error() && (rc.err_num() == eLOCKTIMEOUT)
+        && timeout != WAIT_IMMEDIATE) {
+       w_assert9(me()->xct());
        if(page && page->is_fixed()) {
-	  page->unfix();
+          page->unfix();
        }
 
        // flush the log buf to unfix the page
        me()->xct()->flush_logbuf();
-       if(held_mutex) {
-	   _mutex_release();
-       }
 
        rc = lm->lock_force(n, m, d, timeout,
-		prev_mode, prev_pgmode, nameInLockHead);
+                prev_mode, prev_pgmode, nameInLockHead);
 
-       if(held_mutex) {
-	// re-acquire
-	_mutex_acquire();
-       }
    }
    return rc;
 }
@@ -205,30 +186,23 @@ io_m::lock_force(
 /* friend -- called from vol.cpp */
 rc_t
 io_lock_force(
-    const lockid_t&	    n,
-    lock_mode_t		    m,
+    const lockid_t&         n,
+    lock_mode_t             m,
     lock_duration_t         d,
-    timeout_in_ms	    timeout,
-    lock_mode_t*	    prev_mode,
-    lock_mode_t*	    prev_pgmode,
-    lockid_t**		    nameInLockHead
+    timeout_in_ms           timeout,
+    lock_mode_t*            prev_mode,
+    lock_mode_t*            prev_pgmode,
+    lockid_t**              nameInLockHead
     )
 {
     return smlevel_0::io->lock_force(n,m,d,timeout, 0/*page*/, 
-	prev_mode, prev_pgmode, nameInLockHead);
+        prev_mode, prev_pgmode, nameInLockHead);
 }
 
 io_m::io_m()
 {
     _lastMountLSN = lsn_t::null;
 
-    // Initialize a 32 element free page cache (see sm_io.h for more info
-    if (_extent_info_cache == 0) {
-	if (!(_extent_info_cache = new extent_info_cache_t (32, "io_m free page cache"))) {
-	    W_FATAL(eOUTOFMEMORY);
-	}
-	w_assert3(!_extent_info_cache->is_mine());
-    }
 }
 
 /*********************************************************************
@@ -241,30 +215,7 @@ io_m::io_m()
 io_m::~io_m()
 {
     W_COERCE(_dismount_all(shutdown_clean));
-    if (_extent_info_cache) {
-	w_assert3(!_extent_info_cache->is_mine());
-	delete _extent_info_cache;
-	_extent_info_cache = 0;
-    }
-}
-
-
-/*********************************************************************
- *
- *  io_m::invalidate_free_page_cache()
- *
- * This method is used by the transaction manager whenever to indicate
- * that the free page (extent) cache is invalid.  If a transaction that
- * has deallocated pages commits or a transaction that has allocated
- * pages aborts, this method will be called.
- *
- *********************************************************************/
-void io_m::invalidate_free_page_cache()
-{
-    enter();
-    _clear_extent_info_cache();
-    // didn't grab volume mutex
-    leave();
+    store_latches.shutdown(); // GNATS_16
 }
 
 /*********************************************************************
@@ -281,35 +232,34 @@ io_m::_find(vid_t vid)
     if (!vid) return -1;
     uint4_t i;
     for (i = 0; i < max_vols; i++)  {
-	if (vol[i] && vol[i]->vid() == vid) break;
+        if (vol[i] && vol[i]->vid() == vid) break;
     }
     return (i >= max_vols) ? -1 : int(i);
 }
 
 inline vol_t * 
-io_m::_find_and_grab(vid_t vid)
+io_m::_find_and_grab(vid_t vid, lock_state* _me,
+        bool for_write)
 {
     if (!vid) {
-	_mutex_release();
-	DBG(<<"");
-	return 0;
+        DBG(<<"vid " << vid);
+        return 0;
     }
     vol_t** v = &vol[0];
     uint4_t i;
     for (i = 0; i < max_vols; i++, v++)  {
-	if (*v) {
-	    if ((*v)->vid() == vid) break;
-	}
+        if (*v) {
+            if ((*v)->vid() == vid) break;
+        }
     }
     if (i < max_vols) {
-	w_assert1(*v);
-	(*v)->acquire_mutex();
-	_mutex_release();
-	w_assert3(*v && (*v)->vid() == vid);
-	return *v;
+        w_assert1(*v);
+        (*v)->assert_mutex_notmine(_me);
+        (*v)->acquire_mutex(_me, for_write);
+        w_assert3(*v && (*v)->vid() == vid);
+        return *v;
     } else {
-	_mutex_release();
-	return 0;
+        return 0;
     }
 }
 
@@ -348,19 +298,19 @@ rc_t
 io_m::_dismount_all(bool flush)
 {
     for (int i = 0; i < max_vols; i++)  {
-	if (vol[i])	{
-	    if(errlog) {
-		errlog->clog << "warning: volume " << vol[i]->vid() << " still mounted\n"
-		<< "         automatic dismount" << flushl;
-	    }
-	    W_DO(_dismount(vol[i]->vid(), flush));
-	}
+        if (vol[i])        {
+            if(errlog) {
+                errlog->clog << "warning: volume " << vol[i]->vid() << " still mounted\n"
+                << "         automatic dismount" << flushl;
+            }
+            W_DO(_dismount(vol[i]->vid(), flush));
+        }
     }
     
     w_assert3(vol_cnt == 0);
 
-    SET_STAT(vol_reads,0);
-    SET_STAT(vol_writes,0);
+    SET_TSTAT(vol_reads,0);
+    SET_TSTAT(vol_writes,0);
     return RCOK;
 }
 
@@ -378,10 +328,10 @@ rc_t
 io_m::sync_all_disks()
 {
     for (int i = 0; i < max_vols; i++) {
-	    if (_msec_disk_delay > 0)
-		    me()->sleep(_msec_disk_delay, "io_m::sync_all_disks");
-	    if (vol[i])
-		    vol[i]->sync();
+            if (_msec_disk_delay > 0)
+                    me()->sleep(_msec_disk_delay, "io_m::sync_all_disks");
+            if (vol[i])
+                    vol[i]->sync();
     }
     return RCOK;
 }
@@ -426,20 +376,17 @@ io_m::_is_mounted(const char* dev_name)
  *
  *********************************************************************/
 rc_t
-io_m::_mount_dev(const char* dev_name, u_int& vol_cnt)
+io_m::_mount_dev(const char* dev_name, u_int& _vol_cnt)
 {
     FUNC(io_m::_mount_dev);
 
     volhdr_t vhdr;
     W_DO(vol_t::read_vhdr(dev_name, vhdr));
 
-    DBG(<<"_mount_dev read vol head ok");
-
-	/* XXX possible bit-loss */
+        /* XXX possible bit-loss */
     device_hdr_s dev_hdr(vhdr.format_version(), 
-			 vhdr.device_quota_KB(), vhdr.lvid());
-    rc_t result = dev->mount(dev_name, dev_hdr, vol_cnt);
-    DBG(<<"_mount_dev returns " << result);
+                         vhdr.device_quota_KB(), vhdr.lvid());
+    rc_t result = dev->mount(dev_name, dev_hdr, _vol_cnt);
     return result;
 }
 
@@ -476,14 +423,35 @@ io_m::_dismount_all_dev()
  *********************************************************************/
 rc_t
 io_m::_list_devices(
-    const char**& 	dev_list, 
-    devid_t*& 		devid_list, 
-    u_int& 		dev_cnt)
+    const char**&         dev_list, 
+    devid_t*&                 devid_list, 
+    u_int&                 dev_cnt)
 {
     return dev->list_devices(dev_list, devid_list, dev_cnt);
 }
 
 
+/*********************************************************************
+ *
+ *  io_m::_get_vid(lvid)
+ *
+ *********************************************************************/
+inline vid_t 
+io_m::_get_vid(const lvid_t& lvid)
+{
+    uint4_t i;
+    for (i = 0; i < max_vols; i++)  {
+        if (vol[i] && vol[i]->lvid() == lvid) break;
+    }
+
+    // egcs 1.1.1 croaks on this stmt:
+    // return (i >= max_vols) ? vid_t::null : vol[i]->vid();
+    if(i >= max_vols) {
+        return vid_t::null;
+    } else {
+        return vol[i]->vid();
+    }
+}
 
 
 /*********************************************************************
@@ -491,19 +459,19 @@ io_m::_list_devices(
  *********************************************************************/
 rc_t
 io_m::_get_device_quota(const char* device, smksize_t& quota_KB,
-			smksize_t& quota_used_KB)
+                        smksize_t& quota_used_KB)
 {
     W_DO(dev->quota(device, quota_KB));
 
     lvid_t lvid;
     W_DO(_get_lvid(device, lvid));
     if (lvid == lvid_t::null) {
-	// no device on volume
-	quota_used_KB = 0;
+        // no device on volume
+        quota_used_KB = 0;
     } else {
-	smksize_t dummy;
-	base_stat_t dummy2;
-	W_DO(_get_volume_quota(_get_vid(lvid), quota_used_KB, dummy, dummy2));
+        smksize_t _dummy;
+        uint4_t          dummy2;
+        W_DO(_get_volume_quota(_get_vid(lvid), quota_used_KB, _dummy, dummy2));
     }
     return RCOK;
 }
@@ -520,7 +488,7 @@ io_m::_get_lvid(const char* dev_name, lvid_t& lvid)
     if (!dev->is_mounted(dev_name)) return RC(eDEVNOTMOUNTED);
     uint4_t i;
     for (i = 0; i < max_vols; i++)  {
-	if (vol[i] && (strcmp(vol[i]->devname(), dev_name) == 0) ) break;
+        if (vol[i] && (strcmp(vol[i]->devname(), dev_name) == 0) ) break;
     }
     lvid = (i >= max_vols) ? lvid_t::null : vol[i]->lvid();
     return RCOK;
@@ -539,11 +507,11 @@ io_m::_get_lvid(const char* dev_name, lvid_t& lvid)
  *********************************************************************/
 rc_t
 io_m::_get_vols(
-    int 	start, 
-    int 	count,
-    char 	**dname,
-    vid_t 	vid[], 
-    int& 	ret_cnt)
+    int         start, 
+    int         count,
+    char        **dname,
+    vid_t       vid[], 
+    int&        ret_cnt)
 {
     ret_cnt = 0;
     w_assert1(start + count <= max_vols);
@@ -553,12 +521,12 @@ io_m::_get_vols(
      */
     int i, j;
     for (i = start, j = 0; i < max_vols; i++)  {
-	if (vol[i])  {
-	    w_assert3(j < count);
-	    vid[j] = vol[i]->vid();
-	    strncpy(dname[j], vol[i]->devname(), max_devname);
-	    j++;
-	}
+        if (vol[i])  {
+            w_assert0(j < count); // caller's programming error if we fail here
+            vid[j] = vol[i]->vid();
+            strncpy(dname[j], vol[i]->devname(), max_devname);
+            j++;
+        }
     }
     ret_cnt = j;
     return RCOK;
@@ -622,48 +590,50 @@ io_m::get_lvid(const vid_t vid)
  *
  *********************************************************************/
 rc_t
-io_m::mount(const char* device, vid_t vid)
+io_m::mount(const char* device, vid_t vid,
+            const bool apply_fake_io_latency, const int fake_disk_latency)
 {
     // grab chkpt_mutex to prevent mounts during chkpt
     // need to serialize writing dev_tab and mounts
-    chkpt_serial_m::chkpt_mutex_acquire();
+    chkpt_serial_m::trx_acquire();
     enter();
-    rc_t r = _mount(device, vid);
+    rc_t r = _mount(device, vid, apply_fake_io_latency, fake_disk_latency);
     // didn't grab volume mutex
     leave();
-    chkpt_serial_m::chkpt_mutex_release();
+    chkpt_serial_m::trx_release();
     return r;
 }
 
 
 rc_t
-io_m::_mount(const char* device, vid_t vid)
+io_m::_mount(const char* device, vid_t vid,
+             const bool apply_fake_io_latency, const int fake_disk_latency)
 {
     FUNC(io_m::_mount);
     DBG( << "_mount(name=" << device << ", vid=" << vid << ")");
     uint4_t i;
-    for (i = 0; i < max_vols && vol[i]; i++);
+    for (i = 0; i < max_vols && vol[i]; i++) ;
     if (i >= max_vols) return RC(eNVOL);
 
-    vol_t* v = new vol_t;  // deleted on dismount
+    vol_t* v = new vol_t(apply_fake_io_latency,fake_disk_latency);  // deleted on dismount
     if (! v) return RC(eOUTOFMEMORY);
 
     w_rc_t rc = v->mount(device, vid);
-    if (rc)  {
-	delete v;
-	return RC_AUGMENT(rc);
+    if (rc.is_error())  {
+        delete v;
+        return RC_AUGMENT(rc);
     }
 
     int j = _find(vid);
     if (j >= 0)  {
-	W_COERCE( v->dismount(false) );
-	delete v;
-	return RC(eALREADYMOUNTED);
+        W_COERCE( v->dismount(false) );
+        delete v;
+        return RC(eALREADYMOUNTED);
     }
     
     ++vol_cnt;
 
-    w_assert3(vol[i] == 0);
+    w_assert9(vol[i] == 0);
     vol[i] = v;
 
     if (log && smlevel_0::logging_enabled)  {
@@ -671,11 +641,13 @@ io_m::_mount(const char* device, vid_t vid)
         w_assert1(logrec);
 
         new (logrec) mount_vol_log(device, vid);
-	logrec->fill_xct_attr(tid_t::null, GetLastMountLSN());
-	lsn_t theLSN;
+        logrec->fill_xct_attr(tid_t::null, GetLastMountLSN());
+        lsn_t theLSN;
         W_COERCE( log->insert(*logrec, &theLSN) );
-	DBG( << "mount_vol_log(" << device << ", vid=" << vid << ") lsn=" << theLSN << " prevLSN=" << GetLastMountLSN());
-	SetLastMountLSN(theLSN);
+
+        DBG( << "mount_vol_log(" << device << ", vid=" << vid 
+                << ") lsn=" << theLSN << " prevLSN=" << GetLastMountLSN());
+        SetLastMountLSN(theLSN);
 
         delete logrec;
     }
@@ -702,12 +674,13 @@ io_m::dismount(vid_t vid, bool flush)
     // grab chkpt_mutex to prevent dismounts during chkpt
     // need to serialize writing dev_tab and dismounts
 
-    chkpt_serial_m::chkpt_mutex_acquire();
+    chkpt_serial_m::trx_acquire();
     enter();
     rc_t r = _dismount(vid, flush);
     // didn't grab volume mutex
     leave();
-    chkpt_serial_m::chkpt_mutex_release();
+    chkpt_serial_m::trx_release();
+
 
     return r;
 }
@@ -728,11 +701,13 @@ io_m::_dismount(vid_t vid, bool flush)
         w_assert1(logrec);
 
         new (logrec) dismount_vol_log(_dev_name(vid), vid);
-	logrec->fill_xct_attr(tid_t::null, GetLastMountLSN());
-	lsn_t theLSN;
+        logrec->fill_xct_attr(tid_t::null, GetLastMountLSN());
+        lsn_t theLSN;
         W_COERCE( log->insert(*logrec, &theLSN) );
-	DBG( << "dismount_vol_log(" << _dev_name(vid) << ", vid=" << vid << ") lsn=" << theLSN << " prevLSN=" << GetLastMountLSN());;
-	SetLastMountLSN(theLSN);
+        DBG( << "dismount_vol_log(" << _dev_name(vid) 
+                << endl
+                << ", vid=" << vid << ") lsn=" << theLSN << " prevLSN=" << GetLastMountLSN());;
+        SetLastMountLSN(theLSN);
 
         delete logrec;
     }
@@ -742,12 +717,53 @@ io_m::_dismount(vid_t vid, bool flush)
     
     --vol_cnt;
   
-    _remove_extent_info_cache(vid);
-
     SSMTEST("io_m::_dismount.1");
 
+    DBG( << "_dismount done.");
     return RCOK;
 }
+
+
+/*********************************************************************
+ *
+ *  io_m::_{enable,disable,set}_fake_disk_latency
+ *
+ *  Manipulate the disk latency of a volume
+ *
+ *********************************************************************/
+rc_t
+io_m::_enable_fake_disk_latency(vid_t vid)
+{
+    int i = _find(vid);
+    if (i < 0)  return RC(eBADVOL);
+
+    vol[i]->enable_fake_disk_latency();
+    return (RCOK);
+}
+
+rc_t
+io_m::_disable_fake_disk_latency(vid_t vid)
+{
+    int i = _find(vid);
+    if (i < 0)  return RC(eBADVOL);
+
+    vol[i]->disable_fake_disk_latency();
+    return (RCOK);
+}
+
+rc_t
+io_m::_set_fake_disk_latency(vid_t vid, const int adelay)
+{
+    int i = _find(vid);
+    if (i < 0)  return RC(eBADVOL);
+
+    if (!vol[i]->set_fake_disk_latency(adelay)) 
+      return RC(eBADVOL); // IP: should return more appropriate eror code
+
+    return (RCOK);
+}
+
+
 
 /*********************************************************************
  *
@@ -758,7 +774,7 @@ io_m::_dismount(vid_t vid, bool flush)
  *
  *********************************************************************/
 rc_t
-io_m::_get_volume_quota(vid_t vid, smksize_t& quota_KB, smksize_t& quota_used_KB, base_stat_t &used)
+io_m::_get_volume_quota(vid_t vid, smksize_t& quota_KB, smksize_t& quota_used_KB, uint4_t &used)
 {
     int i = _find(vid);
     if (i < 0)  return RC(eBADVOL);
@@ -778,13 +794,64 @@ io_m::_get_volume_quota(vid_t vid, smksize_t& quota_KB, smksize_t& quota_used_KB
  *
  *  Check the volume "vid".
  *
+ * For use by smsh: extern "C" API
  *********************************************************************/
-rc_t
-io_m::_check_disk(vid_t vid)
+extern "C" void check_disk(const vid_t &vid);
+void check_disk(const vid_t &vid)
 {
-    vol_t *v = _find_and_grab(vid);
-    if (!v)  return RC(eBADVOL);
-    auto_release_t<smutex_t> release_on_return(v->vol_mutex());
+    W_COERCE(io_m::check_disk(vid));
+}
+
+// GRAB_*
+// If the statistics warrant, perhaps we'll change the
+// volume mutex to an mcs_rwlock
+#if VOL_LOCK_IS_RW
+#define GRAB_R \
+    lock_state rme_node; \
+    vol_t *v = _find_and_grab(volid, &rme_node, false); \
+    if (!v)  return RC(eBADVOL); \
+    auto_release_r_t<VolumeLock> release_on_return(v->vol_mutex());
+
+#define ASSERT_HAVE_R 
+
+#define GRAB_W \
+    lock_state wme_node; \
+    vol_t *v = _find_and_grab(volid, &wme_node, true); \
+    if (!v)  return RC(eBADVOL); \
+    auto_release_w_t<VolumeLock> release_on_return(v->vol_mutex());
+
+#define ASSERT_HAVE_W 
+
+#else
+
+#define LOCK_STATE_INITIALIZER { NULL }
+
+#define GRAB_R \
+    lock_state rme_node = LOCK_STATE_INITIALIZER; \
+    vol_t *v = _find_and_grab(volid, &rme_node, false); \
+    if (!v)  return RC(eBADVOL); \
+    auto_release_t<VolumeLock> release_on_return(v->vol_mutex(), &rme_node); \
+    w_assert3(v->vol_mutex().is_mine(&rme_node))
+
+#define ASSERT_HAVE_R \
+    w_assert2(v->vol_mutex().is_mine(&rme_node));
+
+#define GRAB_W \
+    lock_state wme_node = LOCK_STATE_INITIALIZER; \
+    vol_t *v = _find_and_grab(volid, &wme_node, true); \
+    if (!v)  return RC(eBADVOL); \
+    auto_release_t<VolumeLock> release_on_return(v->vol_mutex(), &wme_node);\
+    w_assert3(v->vol_mutex().is_mine(&wme_node))
+
+#define ASSERT_HAVE_W \
+    w_assert2(v->vol_mutex().is_mine(&wme_node));
+
+#endif
+
+rc_t
+io_m::_check_disk(const vid_t &volid)
+{
+    GRAB_R;
 
     W_DO( v->check_disk() );
 
@@ -801,8 +868,8 @@ rc_t
 io_m::_get_new_vid(vid_t& vid)
 {
     for (vid = vid_t(1); vid != vid_t::null; vid.incr_local()) {
-	int i = _find(vid);
-	if (i < 0) return RCOK;;
+        int i = _find(vid);
+        if (i < 0) return RCOK;;
     }
     return RC(eNVOL);
 }
@@ -838,22 +905,22 @@ io_m::read_page(const lpid_t& pid, page_s& buf)
      */
 
     if (_msec_disk_delay > 0)
-	    me()->sleep(_msec_disk_delay, "io_m::read_page");
+            me()->sleep(_msec_disk_delay, "io_m::read_page");
 
     int i = _find(pid.vol());
     if (i < 0) {
-	return RC(eBADVOL);
+        return RC(eBADVOL);
     }
     DBG( << "reading page: " << pid );
 
     W_DO( vol[i]->read_page(pid.page, buf) );
 
-    INC_STAT(vol_reads);
+    INC_TSTAT(vol_reads);
     buf.ntoh(pid.vol());
 
     /*  Verify that we read in the correct page.
      *
-     *  w_assert3(buf.pid == pid);
+     *  w_assert9(buf.pid == pid);
      *
      *  NOTE: that the store ID may not be correct during redo-recovery
      *  in the case where a page has been deallocated and reused.
@@ -861,16 +928,16 @@ io_m::read_page(const lpid_t& pid, page_s& buf)
      *  If the page LSN is 0 then the page is
      *  new and should have a page ID of 0.
      */
-#ifdef W_DEBUG
-    DBG(<<"buf.pid.page=" << buf.pid.page << " buf.lsn1=" << buf.lsn1);
+#if W_DEBUG_LEVEL > 2
     if (buf.lsn1 == lsn_t::null)  {
-	if(smlevel_1::log && smlevel_0::logging_enabled) {
-		w_assert3(buf.pid.page == 0);
-	}
+        if(smlevel_1::log && smlevel_0::logging_enabled) {
+            w_assert3(buf.pid.page == 0);
+        }
     } else {
-	w_assert3(buf.pid.page == pid.page && buf.pid.vol() == pid.vol());
+        w_assert3(buf.pid.page == pid.page && buf.pid.vol() == pid.vol());
     }
-#endif /* W_DEBUG */
+    DBG(<<"buf.pid.page=" << buf.pid.page << " buf.lsn1=" << buf.lsn1);
+#endif 
     
     return RCOK;
 }
@@ -885,37 +952,63 @@ io_m::read_page(const lpid_t& pid, page_s& buf)
  *
  *********************************************************************/
 void 
-io_m::write_many_pages(page_s** bufs, int cnt)
+io_m::write_many_pages(const page_s* bufs, int cnt)
 {
     // NEVER acquire monitor to write page
-    vid_t vid = bufs[0]->pid.vol();
+    vid_t vid = bufs->pid.vol();
     int i = _find(vid);
     w_assert1(i >= 0);
 
     if (_msec_disk_delay > 0)
-	    me()->sleep(_msec_disk_delay, "io_m::write_many_pages");
+            me()->sleep(_msec_disk_delay, "io_m::write_many_pages");
 
-#ifdef W_DEBUG
+#if W_DEBUG_LEVEL > 2
     {
-	for (int j = 1; j < cnt; j++) {
-	    w_assert1(bufs[j]->pid.page - 1 == bufs[j-1]->pid.page);
-	    w_assert1(bufs[j]->pid.vol() == vid);
-	}
+        for (int j = 1; j < cnt; j++) {
+            w_assert1(bufs[j].pid.page - 1 == bufs[j-1].pid.page);
+            w_assert1(bufs[j].pid.vol() == vid);
+        }
     }
-#endif /*W_DEBUG*/
+#endif 
 
-    W_COERCE( vol[i]->write_many_pages(bufs[0]->pid.page, bufs, cnt) );
-	INC_STAT(vol_writes);
-	ADD_STAT(vol_blks_written, cnt);
+    W_COERCE( vol[i]->write_many_pages(bufs[0].pid.page, bufs, cnt) );
+    INC_TSTAT(vol_writes);
+    ADD_TSTAT(vol_blks_written, cnt);
 }
 
+rc_t                 
+io_m::_prime_cache(vol_t *v, snum_t s)
+{
+    // Is the cache empty?  If not, return.
+    if(v->is_primed(s)) return RCOK;
+
+    // prime cache for given store.
+    return v->prime_cache(s);
+}
 
 /*********************************************************************
  *
- *  io_m::alloc_pages(stid, near, npages, pids[], 
- * 	may_realloc, desired_lock_mode, search_file)
- *  io_m::_alloc_pages(vol_t *, stid, near, npages, pids[], 
- * 	may_realloc, desired_lock_mode, search_file)
+ * Allocate a group; if can't get them all, free what we allocated.
+ *  io_m::alloc_page_group(stid, near, 
+ *         npages, 
+ *         pids[], may_realloc, desired_lock_mode, search_file)
+ *
+ * Allocate one:
+ *  io_m::alloc_a_page(stid, near, 
+ *         pids[], may_realloc, desired_lock_mode, search_file);
+ *
+ * Allocate a group; if can't get them all, return error, having allocated
+ * some but not all:
+ * private:
+ *  io_m::_alloc_pages(stid, near, 
+ *         npages, ngot, 
+ *         pids[], may_realloc, desired_lock_mode, search_file)
+ *
+ * Allocate a group; helper for _alloc_pages().
+ * private:
+ *  io_m::_alloc_pages_with_vol_mutex(vol_t *, stid, near, 
+ *         npages, ngot, 
+ *         pids[], may_realloc, desired_lock_mode, search_file)
  *
  *  Allocates "npages" pages for store "stid" and return the page id
  *  allocated in "pids[]". If a "near" pid is given, efforts are made
@@ -933,58 +1026,332 @@ io_m::write_many_pages(page_s** bufs, int cnt)
  *
  *********************************************************************/
 
+// For now, we need to be able to test if this helps:
+static bool do_prime_caches = true;
+
 rc_t
-io_m::alloc_pages(
-    const stid_t&	stid,
-    const lpid_t&	near_p,
-    int			npages,
-    lpid_t		pids[],
-    bool		may_realloc,
-    lock_mode_t		desired_lock_mode,
-    bool		search_file // true-->append-only semantics
+io_m::_alloc_pages(
+    const stid_t&        stid,
+    const lpid_t&        near_p,
+    int                  npages,
+    int&                 ngot,
+    lpid_t               pids[],
+    bool                 may_realloc,
+    lock_mode_t          desired_lock_mode,
+    bool                 search_file // false-->append-only semantics
     ) 
 {
+    FUNC(io_m::_alloc_pages);
     enter();
 
     /*
      *  Find the volume of "stid"
-     *
-     *  In order to 
-     *  increase parallelism over multiple disks, we
-     *  grab a mutex on the volume in question, and
-     *  release the I/O monitor's mutex.  
      */
-    vid_t vid = stid.vol;
+    DBG(<<"stid " << stid);
+    vid_t volid = stid.vol;
 
-    vol_t *v = _find_and_grab(vid);
-    if (!v)  return RC(eBADVOL);
-    auto_release_t<smutex_t> release_on_return(v->vol_mutex());
-    w_assert1(v->vol_mutex().is_mine());
-    w_assert3(! _mutex.is_mine());
+    GRAB_W;
+
+    // I hate to do this holding the volume mutex but oh, well...
+    if(do_prime_caches) W_DO(_prime_cache(v, stid.store));
+
+#if GNATS110_FIX
+    alloc_page_filter_yes ok;
+#endif
+
+    ASSERT_HAVE_W;
 
     rc_t r = 
-	_alloc_pages(v, stid, near_p, npages, pids, 
-	    may_realloc, desired_lock_mode, search_file);
+        _alloc_pages_with_vol_mutex(
+#if GNATS110_FIX
+                &ok, 
+#endif
+                v, stid, near_p, npages, ngot, pids, 
+            may_realloc, desired_lock_mode, search_file);
 
-    // _mutex is released by _alloc_pages after the volume-specfic
-    // mutex is grabbed!
-    leave(false);
+    leave();
     return r;
 }
 
+/*
+ * alloc_a_file_page: this is for the file layer only; This used
+ * to be located in the file layer, which grabbed the anchors
+ *  and then descended to
+ *  X_DO( io->alloc_a_page(fid, 
+                near_p,  // near hint
+                allocPid,  // output array
+                false,      // not may_realloc
+                IX,        // lock mode on allocated page
+                search_file
+                ), anchor);
+
+    which in turn did
+
+    W_DO( _alloc_pages(ftid, near_p, 
+                1, ngot, 
+                &allocPid, 
+                false, 
+                desired_lock_mode, search_file) );
+
+    The  problem with that is that it reversed the normal order of
+    mutex-grabbing: 
+        volume mutex then anchor 
+    (is the way it always was
+    before we decided we needed to compensate the file_p allocation.)
+    By putting the compensation in the file layer, we created this order:
+        anchor then volume mutex
+    which gave us potential mutex-mutex deadlocks.
+
+    So we created this method to allow the file layer to accommplish
+    the same thing but entirely inside the volume layer's mutex
+    protection.
+ */
+
 rc_t
-io_m::_alloc_pages(
-    vol_t * 		v,
-    const stid_t&	stid,
-    const lpid_t& 	near_p,
-    int 		npages,
-    lpid_t 		pids[],
-    bool	 	may_realloc,  
-    lock_mode_t		desired_lock_mode,
-    bool		search_file // append-only semantics if true
+io_m::alloc_a_file_page(
+#if GNATS110_FIX
+    alloc_page_filter_t             *filter,
+#endif
+    const stid_t&                   fid,
+    const lpid_t&                   near_p,
+    /* 
+     * near_p indicates a page already allocated to the file.
+     * If search_file==false, we can still look for a page in that
+     * near_p's extent as long as that page is after the page indicated by
+     * near_p. That is, if search_file==false, we are necessarily appending.
+     */
+    lpid_t&                         allocPid,
+    lock_mode_t                     desired_lock_mode,
+    bool                            search_file
 )
 {
-    FUNC(io_m::_alloc_pages);
+    FUNC(io_m::alloc_a_file_page);
+    enter();
+    vid_t volid = fid.vol;
+
+    GRAB_W;
+    ASSERT_HAVE_W;
+
+    // I hate to do this holding the volume mutex but oh, well...
+    if(do_prime_caches) W_DO(_prime_cache(v, fid.store));
+
+    // GNATS 77 part 2: compensate around the page allocation so that
+    // the undo of this page allocation is logical in the sense that
+    // it checks for the page being empty and might not free the
+    // page.
+
+    // This anchor is to keep any other threads from running
+    // in this xct while we do this action. We will not use it
+    // for compensations. We can't just grab the 1thread log mutex,
+    // because we'd hit an assert when we later grabbed the needed
+    // anchor below.
+    // When we compensate to that anchor, the underlying
+    // code automagically releases the anchor at the time
+    // we compensate, but we don't want to do that until
+    // we have finished logging the page allocation.
+    lsn_t protect_from_other_threads;
+    if (xct())  protect_from_other_threads = xct()->anchor();
+    // See 2nd release below
+
+    lsn_t anchor;
+    if (xct())  anchor = xct()->anchor();
+
+    int ngot=0;
+    X_DO( _alloc_pages_with_vol_mutex(
+#if GNATS110_FIX
+                filter,
+#endif
+                v, fid, near_p, 1, ngot, 
+            &allocPid, 
+     /*
+     *  The I/O layer locks the page instantly if may_realloc is passed
+     *  in by the resource manager.  If not may_realloc, it acquires
+     *        a long lock on the page.
+     */
+            false,  /* may_realloc*/
+
+            desired_lock_mode, search_file), anchor);
+
+    w_assert1(ngot == 1);
+#if GNATS110_FIX
+    w_assert1(filter->accepted());
+    filter->check();
+#endif
+
+
+    /* Compensate around the updates to the extent 
+     * that allocated the page.
+     */
+    if (xct())  {
+        xct()->compensate(anchor); // releases anchor
+    }
+    rc_t rc = log_alloc_file_page(allocPid);
+    if(rc.is_error()) {
+        fprintf(stderr, "could not log_alloc_file_page\n");
+        rc = free_page(allocPid, false /*check store mmb*/);
+    }
+    // This would be pretty bad, but quite possible...
+    W_COERCE(rc);
+
+    // release protect_from_other_threads anchor, but don't compensate
+    if(xct()) xct()->release_anchor(false /*don't compensate*/);
+    leave();
+
+#if GNATS110_FIX
+    w_assert1(filter->accepted());
+    filter->check();
+#endif
+    return RCOK;
+}
+
+rc_t
+io_m::alloc_a_page(
+    const stid_t&        stid,
+    const lpid_t&        near_p,
+    lpid_t&              pid,
+    bool                 may_realloc,
+    lock_mode_t          desired_lock_mode,
+    bool                 search_file // false-->append-only semantics
+    ) 
+{
+    FUNC(io_m::alloc_a_page);
+    int ngot=0;
+    return _alloc_pages(stid, near_p, 
+            1, ngot, &pid, may_realloc, desired_lock_mode, search_file);
+}
+
+
+/*
+ *  alloc_page_group: used by file code to allocate a group of
+ *  large-record pages, so it doesn't let you search the file
+ *  (why not?)
+ */
+
+rc_t
+io_m::alloc_page_group(
+    const stid_t&        stid,
+    const lpid_t&        near_p,
+    int                  cnt,
+    lpid_t               pids[],
+    lock_mode_t          desired_lock_mode
+    ) 
+{
+    FUNC(io_m::alloc_page_group);
+    w_assert1(desired_lock_mode==IX);
+
+    int ngot=0;
+    DBG(<<" alloc_page_group wants " << cnt << " pages" );
+    w_rc_t rc = _alloc_pages(stid, near_p, 
+            cnt, ngot, pids, 
+            false /*may_realloc*/, 
+            desired_lock_mode,
+            false /*search_file*/);
+    // We've done enter() and leave() now.
+    
+    // Part 3 of the fix : this lets the lgrec.7 case (error
+    // in the middle of allocating many pages leaves internally
+    // inconsistent file) work when committing after running out
+    // of extents; that is, it doesn't leave the file in inconsistent
+    // condition.  Commit or abort works with this fix.
+#if GNATS_77_FIX_3
+    if(ngot < cnt) {
+        w_assert1(rc.is_error());
+        DBG(<<"alloc_page_group want " << cnt << " got " << ngot
+                << " error=" << rc);
+        // free what we have so far.
+        // Each call does enter() and leave()
+        for(int i=0; i < ngot; i++) {
+            DBG(<<"alloc_page_group freeing pids["<< i<< " ]=" << pids[i]);
+            W_COERCE(free_page(pids[i], false/*checkstore*/));
+        }
+    } else { 
+        w_assert1(!rc.is_error());
+    }
+#endif
+    // Return the error if it occurred. We have freed the
+    // pages so we have allocated nothing now.  The extents
+    // might have been used by other xcts, but not these pages.
+    // The caller must make sure this is true in the context
+    // of this call.
+    return rc;
+}
+class autoerase {
+public:
+    autoerase(vol_t *v, snum_t snum) : _v(v), _store(snum) {}
+    ~autoerase() {
+        extnum_t e;
+        size_t i = _list.size();
+        while( i-- > 0 ) {
+             e = _list.back();
+             w_assert1(e); // can't be extent 0
+            DBG(<<" erasing (store,extent) " << _store
+                    << "," << e);
+            _v->free_ext_cache().erase(_store, e);
+            _list.pop_front();
+        }
+    }
+    void add(extnum_t e) {
+        DBG(<<" adding extent " << e << " for store " << _store);
+        _list.push_back(e);
+    }
+
+private:
+    std::list<extnum_t> _list;
+    vol_t* _v;
+    snum_t _store;
+};
+
+
+/*
+ * io_m::_alloc_pages_with_vol_mutex
+ * Allocate pages while holding the volume mutex.
+NOTE:
+ * This is written quasi-generically, but here I'm putting in
+ * a check that might some day become obsolete:
+ * As of this writing, there is only one context in which we
+ * allocate more than one page in a call: this is when we are
+ * allocating for a large record.
+ * That means the pages are in the lg_stid store for a file.
+ * Since it is possible to fail after having allocated some, but not
+ * all, the desired #pages, we have to do something if we don't want
+ * to end up with an internally-inconsistent file (inconsistent in that
+ * there are pages allocated, with no references to them, which means
+ * an audit in get_du_statistics fails -- note that if the store is
+ * destroyed, these pages are reclaimed).
+ * Rather than have this method determine what to do if the
+ * pages can't be allocated, we return the number of pages in fact
+ * allocated, and we let the caller decide what to do with an
+ * insufficient number.
+ */
+
+rc_t
+io_m::_alloc_pages_with_vol_mutex(
+#if GNATS110_FIX
+    alloc_page_filter_t     *filter,
+#endif
+    vol_t *                 v,
+    const stid_t&           stid,
+    const lpid_t&           near_p,
+    /* 
+     * near_p indicates a page already allocated to the file.
+     * If search_file==false, we can still look for a page in that
+     * near_p's extent as long as that page is after the page indicated by
+     * near_p. That is, if search_file==false, we are necessarily appending.
+     */
+    int                     npageswanted,
+    int                     &Pcount, 
+    lpid_t                  pids[],
+    bool                    may_realloc,  
+    lock_mode_t             desired_lock_mode,
+    bool                    search_file // append-only semantics if false
+)
+{
+
+    const int               npages(npageswanted);
+    Pcount = 0; // number of pages already allocated
+
+    FUNC(io_m::_alloc_pages_with_vol_mutex);
+    w_assert2(npages > 0); // Shouldn't get here with 0
 
     /*
      *  Should we find that we need to allocate new 
@@ -994,8 +1361,8 @@ io_m::_alloc_pages(
      *  So we'll stash that information if we learn it 
      *  earlier.
      */
-    extnum_t	last_ext_in_store = 0;
-    bool	is_last_ext_in_store = false;
+    extnum_t    last_ext_in_store = 0;
+    bool        is_last_ext_in_store = false;
 
     /*
      *  Do we have a near hint?  If so use it to locate
@@ -1009,25 +1376,25 @@ io_m::_alloc_pages(
      *  contains reserved but unallocted pages.
      */
 
-    extnum_t	extent=0;
-    int  	nresvd=0; // # free pages thought to be in the store
+    extnum_t    extent=0;
+    int         nresvd=0; // # free pages thought to be in the store
 
-    bool	not_worth_trying=false;
-		// vol_t::last_page(...,&not_worth_trying)
-		// sets not_worth_trying to true if 
-		// last reserved page is already allocated
+    bool        not_worth_trying=false;
+                   // vol_t::last_page(...,&not_worth_trying)
+                   // sets not_worth_trying to true if 
+                   // last reserved page is already allocated
 
-    lpid_t 	near_pid = lpid_t::null;
+    lpid_t      near_pid = lpid_t::null;
 
     if (&near_p == &lpid_t::eof)  {
-	W_DO(v->last_page(stid.store, near_pid, &not_worth_trying));
-	w_assert3(near_pid.page);
-	is_last_ext_in_store = true;
+        W_DO(v->last_reserved_page(stid.store, near_pid, not_worth_trying));
+        w_assert9(near_pid.page);
+        is_last_ext_in_store = true;
     } else if (&near_p == &lpid_t::bof)  {
-	W_DO(v->first_page(stid.store, near_pid, &not_worth_trying));
-	w_assert3(near_pid.page);
+        W_DO(v->first_page(stid.store, near_pid, &not_worth_trying));
+        w_assert9(near_pid.page);
     } else if (near_p.page) {
-	near_pid = near_p;
+        near_pid = near_p;
     } 
 
     DBGTHRD(<<"near_pid = " << near_pid);
@@ -1040,338 +1407,686 @@ io_m::_alloc_pages(
      *  be lock conflicts
      */
     if(near_pid.page) {
-	/* See if the near_page given is legit */
-	DBGTHRD(<<"given near_pid " << near_pid);
-	extent = v->pid2ext(near_pid);
-    	if( extent &&  !v->is_alloc_ext_of(extent, stid.store) ) {
-	    // Not valid
-	    near_pid = lpid_t::null;
-	}
-	nresvd=1; // Assume that the near page's extent isn't empty
-    }
-    if(!near_pid.page) {
-	DBGTHRD(<<"no valid near_pid");
-	bool found = _lookup_extent_info_cache(stid, extent, nresvd);
-	if(found) {
-	    w_assert1(extent != 0);
-	    if( !v->is_alloc_ext_of(extent, stid.store)) {
-		 found = false;
-	    }
-	}
-	if( 
-	    (!found) // there wasn't a cached last-extent-used
-	||  (nresvd==0) // was cached but no free pages in the store
-	    ) {
-	    // don't waste time looking in this extent
-	    // get last page of store: there had better be one 
-	    // not_worth_trying will be returned true 
-	    // if this page is already allocated 
-	    W_DO(v->last_page(stid.store, near_pid, &not_worth_trying));
-	    DBGTHRD(<<"got last page = " << near_pid);
-	    w_assert1(near_pid.page); 
+        /* See if the near_page given is legit */
+        DBGTHRD(<<"given near_pid " << near_pid);
+        extent = v->pid2ext(near_pid);
 
-	    is_last_ext_in_store = true;
-	} 
-	/* 
-	 * else { found && nresvd>0: have an extent ctng at least 1 free page
-	 *   w_assert3(extent);
-	 *   w_assert3(near_pid.page == 0);
-	 *   w_assert3(nresvd > 0);
-	 *  }
-	 */
-	nresvd = not_worth_trying? 0: 1; //for starters
-	if(near_pid.page) {
-	    extent = v->pid2ext(near_pid);
-	} else {
-	    w_assert1(extent != 0);
-	}
-    	w_assert1(v->is_alloc_ext_of(extent, stid.store));
-    } 
+        if( extent &&  !v->is_alloc_ext_of(extent, stid.store) ) {
+            // Not valid
+            near_pid = lpid_t::null;
+        }
+        nresvd=1; // Assume that the near page's extent isn't empty
+    }
+
+    if(!near_pid.page) {
+        W_DO(v->last_reserved_page(stid.store,near_pid, not_worth_trying));
+        DBGTHRD(<<"got last page = " << near_pid);
+        w_assert1(near_pid.page); 
+        is_last_ext_in_store = true;
+
+        nresvd = not_worth_trying? 0: 1; //for starters
+        if(near_pid.page) {
+            extent = v->pid2ext(near_pid);
+        } else {
+            w_assert1(extent != 0);
+        }
+        w_assert1(v->is_alloc_ext_of(extent, stid.store));
+    }
 
     if(is_last_ext_in_store) {
-	last_ext_in_store = extent;
+        last_ext_in_store = extent;
     }
 
-    w_assert3(v->is_alloc_ext(extent));
     w_assert1(v->is_alloc_ext_of(extent, stid.store));
+
 
     /*
      * get extent fill factor for store, so that we can use
      * it when allocating pages from extents
      */
-    int eff;
+    int eff = 100;
+#if COMMENT
     eff = v->fill_factor(stid.store);
     if(eff < 100) {
-	/* 
-	 * Not implemented because 1) it doesn't work
-	 * with our nresvd hint, 2) nowhere does anything
-	 * pass in anything but 100 through the ss_m interface
-	 */
-	return RC(fcNOTIMPLEMENTED);
+        /* 
+         * Not implemented because 1) it doesn't work
+         * with our nresvd hint, 2) nowhere does anything
+         * pass in anything but 100 through the ss_m interface
+         */
+        return RC(fcNOTIMPLEMENTED);
+    }
+#endif
+
+
+    /* GNATS 81: append-only semantics was
+     * broken.
+     * First thing we must do is try to allocate from the given extent,
+     * which is the last extent of the store or is given by the near_pid.
+     * Then we must prevent use of the cache in the append-only case.
+     */
+    if(!search_file) {
+        int remaining_in_ext=0;
+        int allocated = 0;
+        W_DO(v->alloc_pages_in_ext(
+#if GNATS110_FIX
+                                      filter,
+#endif
+                                      !search_file,
+                                      extent,
+                                      eff,
+                                      stid.store,
+                                      npages-Pcount,
+                                      pids+Pcount,
+                                      allocated,
+                                      remaining_in_ext,
+                                      is_last_ext_in_store,
+                                      may_realloc,
+                                      desired_lock_mode));
+#if GNATS110_FIX
+        if(allocated==1) { w_assert1(filter->accepted()); }
+        filter->check();
+#endif
+
+        Pcount += allocated;
+        nresvd -= allocated;
+
+        w_assert3(Pcount <= npages);
+        if(Pcount == npages) {
+            DBGTHRD( << "allocated " << npages);
+            ADD_TSTAT(page_alloc_cnt, Pcount);
+            return RCOK;
+        }
     }
 
-    int count = 0; // number of pages already allocated
+    // We must not use the cache or the linear search if we are called for
+    // append-only policy
+    if(search_file)
     {
-	/*
-	 * Allocate from existing extents in the store
-	 * as long as we reasonably expect to find some
-	 * free pages there.
-	 *
-	 * nresvd is a hint now -- in theory,
-	 * other txs could be working on this store, but
-	 * since we've got the volume mutex, no other tx
-	 * should be able to update it until we're done
-	 */
-	    
-	extnum_t starting_point = extent;
-	DBGTHRD(<<"starting point=" << extent
-		<< " nresvd=" << nresvd
-	);
 
-	while ( (nresvd>0) && (count < npages) )  {
+        /* FRJ: the common case is that we allocate pages much more often
+           than we free them. Because the cost to search before each
+           allocation grows quadratically, we maintain a cache of recently
+           freed extents. There are two possible results of a cache probe:
 
-	    /*
-	    // this part of the algorithm is linear in the # of extents 
-	    // in the store, until nresvd hits 0
-	    // You can see how many times we went through here
-	    // by looking at the page_alloc_in_ext stat 
-	    */
+           1. There are m <= n extents with free pages (n=size of cache)
+           and we know which m they are.
 
-	    int  remaining_in_ext=0;
-	    int  allocated=0;
+           2. There are m > n extents with free pages and we can identify
+           only some of them. If we exhaust the list we must search the
+           store again to identify the unknown extents.
 
-	    is_last_ext_in_store = false;
+         */
+        bool must_search = false;
 
-	    W_DO(v->alloc_page_in_ext(
-			!search_file, // if !search_file, is append_only
-			extent, 
-			eff, // fill factor
-			stid.store,
-			npages - count, 
-			pids + count, 
-			allocated, // returns how many allocated
-			remaining_in_ext,  // return
-			is_last_ext_in_store,  // return
-			may_realloc,
-			desired_lock_mode));
+        autoerase from_ext_cache(v, stid.store);
 
-	    if(is_last_ext_in_store) {
-		last_ext_in_store = extent;
-	    }
+        // NOTE: I notice that when free_ext_cache (now if volume layer), the
+        // page numbers returned seem to be skipping extents.  This leaves
+        // fragmented files, but cuts down on contention when many threads are
+        // creating a database in parallel.
 
-	    DBGTHRD(<<" ALLOCATED " << allocated
-		    <<" page " << pids[count]
-		    <<" requested=" << npages-count
-		    << " pages in " << extent
-		    << " remaining: " << remaining_in_ext
-		    << " nresvd= " << nresvd
-		    << " is_last_ext_in_store " << stid.store
-		    << " = " << is_last_ext_in_store
-		    );
+        // This  was the code before shore-mt:
+        // must_search = true;
+        // Shore-mt replaced it with the above caching of last
+        // extent in store:
+        //
+        int free_count = v->free_ext_cache().count(stid.store);
+        if(free_count > 0) 
+        {
+            vol_t::ext_cache_t::cache_iterator lo = 
+                v->free_ext_cache().lower_bound(stid.store);
 
-	    /* 
-	     * update hint about whether it's worth trying 
-	     * more extents in this store:
-	     */
-	    count += allocated;
-	    nresvd -= allocated; 
+            int known;  // counts # of extents tried from those in the cache
 
-#ifdef W_DEBUG
-	    // These assertions aren't right, because nresvd
-	    // is only a hint; could be too small. After all,
-	    // we figure if it's not hopeless, nresvd is 1 above,
-	    // but it could have been 8!
-	    // w_assert3(remaining_in_ext <= nresvd);
-	    if(remaining_in_ext > nresvd) {
-		nresvd = remaining_in_ext;
-	    }
-	    w_assert3(nresvd >= 0);
-	    w_assert3(remaining_in_ext <= nresvd);
-#endif /* W_DEBUG */
+            for(known=0; 
+                Pcount < npages && lo != v->free_ext_cache().end() 
+                && lo->snum == stid.store; 
+                known++) 
+            {
 
-	    if(count < npages) { 
-	       // Need to try more extents
-	       extnum_t try_next=0;
+                int remaining_in_ext=0;
+                int allocated=0;
 
-	       // is_last_ext_in_store is 
-	       // reliable now; it refers to "extent",
-	       // not to "last_ext_in_store", which is
-	       // 0 or is correct.
+                // Don't trust the cache.
+                {
+                    extnum_t E = lo->ext;
+                    if( ! v->is_alloc_ext_of(E, stid.store) )
+                    {
+                        // skip this one.
+                        continue;
+                    }
+                }
 
-	       if(search_file) {
-		   if(is_last_ext_in_store) {
-		       W_DO(v->first_ext(stid.store, try_next));
-		   } else {
-		       W_DO(v->next_ext(extent, try_next));
-		   }
-		} else {
-	           // Break out of loop
-		   nresvd = 0;
-		}
+#if W_DEBUG_LEVEL > 1
+                { 
+                extnum_t E = lo->ext;
+                w_assert1(v->is_alloc_ext_of(E, stid.store));
+                DBGTHRD(
+                        << " lo->ext " << E
+                        << " store " << stid
+                        << " free_count " << free_count
+                        << " known " << known
+                        << " Pcount " << Pcount
+                        << " npages " << npages
+                        << " lo->ext  " << E);
+                }
+#endif
 
-	       // Have we come full-circle?
-	       if(try_next == starting_point) {
-		    // If our hints are right, we should never
-		    // get here, or we should get here exactly 
-		    // when nresvd goes to 0 
-		    // NB: That's a big "if" because we don't
-		    // init it to the correct amount when we mount
-		    // the volume or open the (existing) store.
-	           // Break out of loop
-		   nresvd = 0;
-	       } else {
-		    extent = try_next;
-		    INC_TSTAT(extent_lsearch);
-	       }
-	    } /* if (count < npages) */
-	} /* while (nresvd > 0 && count < npages) */
+                W_DO(v->alloc_pages_in_ext(
+#if GNATS110_FIX
+                                          filter,
+#endif
+                                          !search_file,
+                                          lo->ext,
+                                          eff,
+                                          stid.store,
+                                          npages-Pcount,
+                                          pids+Pcount,
+                                          allocated,
+                                          remaining_in_ext,
+                                          is_last_ext_in_store,
+                                          may_realloc,
+                                          desired_lock_mode));
+#if GNATS110_FIX
+                if(allocated==1) { w_assert1(filter->accepted()); }
+                filter->check();
+#endif
+
+                // GNATS 39: 
+                // Note: might not have allocated the page: if it
+                // would have had to wait for the IX lock on the 
+                // extent id, it returns allocated=0,
+                // remaining_in_ext = 1, and
+                // is_last_ext_in_store = 0.
+                 
+#if W_DEBUG_LEVEL > 1
+                { // TODO REMOVE
+                extnum_t E = lo->ext;
+                w_assert1(v->is_alloc_ext_of(E, stid.store));
+                DBGTHRD(
+                        << " lo->ext " << E
+                        << " store " << stid
+                        << " allocated " << allocated
+                        << " remaining_in_ext " << remaining_in_ext
+                        << " is_last_ext_in_store " << is_last_ext_in_store
+                        << " may_realloc " << may_realloc
+                        << " desired_lock_mode " << desired_lock_mode
+                       );
+                }
+#endif
+                if(allocated > 0) {
+                    ADD_TSTAT(vol_resv_cache_hit, allocated);
+                } else {
+                    INC_TSTAT(vol_resv_cache_fail);
+                }
+                Pcount += allocated;
+                nresvd -= allocated;
+
+                if(remaining_in_ext == 0) {
+#define GNATS_97_FIX 1
+#if GNATS_97_FIX
+                    // GNATS 97:
+                    // Would like to erase this guy : do it when
+                    // we leave scope because we cannot erase
+                    // while iterating..
+                    from_ext_cache.add(lo->ext);
+                    lo++;
+#else
+                    vol_t::ext_cache_t::cache_iterator victim = lo++;
+                    v->free_ext_cache().erase(victim);
+#endif
+                    if(free_count > 0) {
+                        // we removed one from the store's
+                        // extents in the cach.
+                        free_count--;
+                        known--;
+                    }
+                }
+                else {
+                    // next!
+                    ++lo;
+                }
+                
+            }
+            
+            if(known != free_count) {
+                // We didn't allocate all those found in the cache.
+                must_search = true;
+            }
+        }
+
+        if(must_search) 
+        {
+            INC_TSTAT(io_m_linear_searches);
+          /*
+             * Allocate from existing extents in the store
+             * as long as we reasonably expect to find some
+             * free pages there.
+             *
+             * nresvd is a hint now -- in theory,
+             * other txs could be working on this store, but
+             * since we've got the volume mutex, no other tx
+             * should be able to update it until we're done
+             */
+                
+            extnum_t starting_point = extent;
+            DBGTHRD(<<"starting point=" << extent
+                    << " nresvd=" << nresvd
+            );
+
+#if W_DEBUG_LEVEL > 4
+            DBGTHRD( << " must_search " << must_search
+                << " nresvd " << nresvd
+                << " Pcount " << Pcount
+                << " npages " << npages);
+#endif
+
+            while ( (nresvd>0) && (Pcount < npages) && (extent != 0) )  {
+                INC_TSTAT(io_m_linear_search_extents);
+
+                /*
+                // this part of the algorithm is linear in the # of extents 
+                // in the store, until nresvd hits 0
+                // You can see how many times we went through here
+                // by looking at the page_alloc_in_ext stat 
+                */
+
+                int  remaining_in_ext=0;
+                int  allocated=0;
+
+                is_last_ext_in_store = false;
+
+                W_DO(v->alloc_pages_in_ext(
+#if GNATS110_FIX
+                            filter,
+#endif
+                            !search_file, // if !search_file, is append_only
+                            extent, 
+                            eff, // fill factor
+                            stid.store,
+                            npages - Pcount, 
+                            pids + Pcount, 
+                            allocated, // returns how many allocated
+                            remaining_in_ext,  // return
+                            is_last_ext_in_store,  // return
+                            may_realloc,
+                            desired_lock_mode));
+#if GNATS110_FIX
+                if(allocated==1) { w_assert1(filter->accepted()); }
+                filter->check();
+#endif
+                // GNATS 39: 
+                // Note: might not have allocated the page: if it
+                // would have had to wait for the IX lock on the 
+                // extent id, it returns allocated=0.
+                // In that case, the remaining_in_ext is 1 and
+                // is_last_ext_in_store is 0.  The result here
+                // is that we will try another extent.
+
+                if(is_last_ext_in_store) {
+                    last_ext_in_store = extent;
+                }
+
+                DBGTHRD(<<" ALLOCATED " << allocated
+                        <<" requested=" << npages-Pcount
+                        << " pages in " << extent
+                        << " remaining: " << remaining_in_ext
+                        << " nresvd= " << nresvd
+                        << " is_last_ext_in_store " << stid.store
+                            << " = " << is_last_ext_in_store
+                        );
+
+                /* 
+                 * update hint about whether it's worth trying 
+                 * more extents in this store:
+                 */
+                Pcount += allocated;
+                nresvd -= allocated; 
+
+#if W_DEBUG_LEVEL > 4
+                // These assertions aren't right, because nresvd
+                // is only a hint; could be too small. After all,
+                // we figure if it's not hopeless, nresvd is 1 above,
+                // but it could have been 8!
+                // w_assert9(remaining_in_ext <= nresvd);
+                if(remaining_in_ext > nresvd) {
+                    nresvd = remaining_in_ext;
+                }
+                w_assert9(nresvd >= 0);
+                w_assert9(remaining_in_ext <= nresvd);
+#endif 
+
+                if(Pcount < npages) { 
+                   // Need to try more extents
+                   extnum_t try_next=0;
+
+                   // is_last_ext_in_store is 
+                   // reliable now; it refers to "extent",
+                   // not to "last_ext_in_store", which is
+                   // 0 or is correct.
+
+                   if(search_file) {
+                       if(is_last_ext_in_store) {
+                           W_DO(v->first_ext(stid.store, try_next));
+                       } else {
+                           W_DO(v->next_ext(extent, try_next));
+                       }
+                    } else {
+                       // Break out of loop
+                       nresvd = 0;
+                    }
+                    DBGTHRD(
+                        << " try_next " << try_next
+                        << " starting_point " << starting_point
+                        << " extent " << extent
+                        << " nresvd " << nresvd
+                       );
+
+                   // Have we come full-circle?
+                   if(try_next == starting_point) {
+                        // If our hints are right, we should never
+                        // get here, or we should get here exactly 
+                        // when nresvd goes to 0 
+                        // NB: That's a big "if" because we don't
+                        // init it to the correct amount when we mount
+                        // the volume or open the (existing) store.
+                       // Break out of loop
+                       nresvd = 0;
+                   } else {
+                        extent = try_next;
+                        INC_TSTAT(extent_lsearch);
+                   }
+                } /* if (Pcount < npages) */
+            } /* while (nresvd > 0 && Pcount < npages) */
+        }
     }
 
 
     /*
      * OK, we've allocated all we can expect to allocate
-     * from existing pages.  If we still need more,
+     * from existing pages, or we weren't allowed to use
+     * existing pages before the given near_p b/c we're appending.
+     * If we still need more,
      * we'll allocate new extents to the store
      */
     
-    if (count < npages)  {
-	/*
-	 *  Allocate new extents & pages in them
-	 */
+    if (Pcount < npages)  
+    {
+        /*
+         *  Allocate new extents & pages in them
+         */
+        int Xneeded = 0;
+        {   /* Step 1:
+             *  Calculate #extents Xneeded 
+             */
+#if W_DEBUG_LEVEL > 2
+            int _ext_sz = v->ext_size() * eff / 100;
+            w_assert3(_ext_sz > 0);
+#endif
+            Xneeded = (npages - Pcount - 1) / ext_sz + 1;
+        } /* step 1 */
 
-	int allocated =0;
-	int needed = 0;
-	{   /* Step 1:
-	     *  Calculate #extents needed 
-	     */
-	    int ext_sz = v->ext_size() * eff / 100;
-	    w_assert3(ext_sz > 0);
-	    needed = (npages - count - 1) / ext_sz + 1;
-	} /* step 1 */
-
-	/* Step 2:
-         * create an auto-deleted list of extent nums
-	 * for the volume layer to fill in when it allocates
-	 */
-	extnum_t* extentlist = 0;
-	extentlist = new extnum_t[needed]; // auto-del
-	if (! extentlist)  W_FATAL(eOUTOFMEMORY);
-	w_auto_delete_array_t<extnum_t> autodel(extentlist);
-
-	{   /* Step 3:
-	     * Locate some free extents
-	     */
-	    int numfound=0;
-	    rc_t rc;
-
-	    //Don't bother giving hint about where to start looking--
-	    //let the volume layer deal with that, because we have
-	    //no clue
-	    rc = v->find_free_exts(needed, extentlist, numfound, 0);
-#ifdef W_DEBUG
-	    if (shpid_t(numfound * v->ext_size()) < shpid_t(npages - count))  {
-		//NB: shouldn't get here unless we got an OUTOFSPACE
-		// error from the volume layer
-		w_assert3(rc && rc.err_num() == eOUTOFSPACE);
-		rc.reset();
-	    }
-#endif /* W_DEBUG */
-	    if (rc) {
-		/*
-		 * If the fill factor is < 100 and we ran
-		 * out of space, we need to do something 
-		 * else -- go back and revisit the extents
-		 * already allocated, but that's not supported
-		 * But then, neither is any fill factor other
-		 * than 100.
-		 */
-		if((eff < 100) && (rc.err_num() == eOUTOFSPACE)) {
-		    W_FATAL(fcNOTIMPLEMENTED);
-		}
-		cerr << "Ran out of space on disk at line "
-			<< __LINE__ << " of file " << __FILE__ 
-		        << endl;
-		return RC_AUGMENT(rc);
-	    }
-
-	    w_assert1(numfound == needed);
-
-	} /* step 3 -- locate free extents */
-
-	{   /* Step 4:
-	     * Allocate the free extents we found.
-	     * In order to allocate them, we need to know the
-	     * extnum_t of the last extent in the store.
-	     * If last_ext_in_store is non-zero, it's credible.
-	     */
-
-	    if( last_ext_in_store==0 ) {
-		// Get it
-		W_DO(v->last_page(stid.store, near_pid));
-		last_ext_in_store = v->pid2ext(near_pid);
-		w_assert1( last_ext_in_store != 0);
-		w_assert3(v->is_alloc_ext(last_ext_in_store));
-	    }
-	    W_DO(v->alloc_exts(stid.store,last_ext_in_store,needed,extentlist));
-#ifdef W_DEBUG
-	    for(int kk = 0; kk< needed; kk++) {
-		w_assert3(v->is_alloc_ext(extentlist[kk]));
-		w_assert3(v->is_alloc_ext_of(extentlist[kk], stid.store));
-	    }
+#if W_DEBUG_LEVEL > 4
+        DBGTHRD( << " Xneeded " << Xneeded
+                    << " npages " << npages
+                    << " Pcount " << Pcount);
+                    
 #endif
 
-	    nresvd += (needed * v->ext_size());
+        /* Step 2:
+         * create an auto-deleted list of extent nums
+         * for the volume layer to fill in when it allocates
+         */
+        extnum_t* extentlist = 0;
+        extentlist = new extnum_t[Xneeded]; // auto-del
+        if (! extentlist)  W_FATAL(eOUTOFMEMORY);
+        w_auto_delete_array_t<extnum_t> autodel(extentlist);
 
-	} /* step 4 -- allocate the free extents  */
+        {   /* Step 3:
+             * Locate some free extents
+             */
+            int numfound=0;
 
-	{   /* Step 5:
-	     *  Allocate pages in the new extents
-	     */
-	    int remaining_in_ext=0;
-	    int i=0;
-	    for (i = 0; i < needed && count < npages; i++)  {
-		w_assert3(v->is_alloc_ext(extentlist[i]));
-		w_assert3(v->is_alloc_ext_of(extentlist[i], stid.store));
+            //Don't bother giving hint about where to start looking--
+            //let the volume layer deal with that, because we have
+            //no clue
+            rc_t rc = v->find_free_exts(Xneeded, extentlist, numfound, 0);
+#if W_DEBUG_LEVEL > 2
+            if (shpid_t(numfound * v->ext_size()) < shpid_t(npages - Pcount))  {
+                //NB: shouldn't get here unless we got an OUTOFSPACE
+                // error from the volume layer
+                w_assert3(rc.is_error() && (rc.err_num() == eOUTOFSPACE));
+                rc.reset();
+            }
+#endif 
+            if (rc.is_error()) {
+                /*
+                 * If the fill factor is < 100 and we ran
+                 * out of space, we need to do something 
+                 * else -- go back and revisit the extents
+                 * already allocated, but that's not supported
+                 * But then, neither is any fill factor other
+                 * than 100.
+                 */
+                if(rc.err_num() == eOUTOFSPACE) {
+                    if((eff < 100) ) {
+                        W_FATAL(fcNOTIMPLEMENTED);
+                    }
+                    const char *visible= 
+                        "*************************************************";
+                    fprintf(stderr, 
+                    "\n\n %s\n%s at line %d file %s\n", visible,
+                    "  Ran out of space on disk",
+                    __LINE__,  __FILE__ );
+                    fprintf(stderr, "%s\n",visible);
+                    iostophere();
 
-		if (i == needed - 1) eff = 100;
+                    return rc;
+                } else  {
+                    // ???
+                    W_FATAL(rc.err_num());
+                }
+            }
 
-		W_COERCE(
-		    v->alloc_page_in_ext(
-			!search_file, // if !search_file, is append_only
-			extentlist[i], eff,
-			stid.store, npages - count,
-			pids + count, allocated,
-			remaining_in_ext,
-			is_last_ext_in_store, 
-			may_realloc, desired_lock_mode
-			));
+            w_assert1(numfound == Xneeded);
 
-		DBGTHRD(<<"ALLOCATED " << allocated
-		    << " pages in " << extentlist[i]
-		    << " remaining: " << remaining_in_ext
-		    );
-		    
-		count += allocated;
+        } /* step 3 -- locate free extents */
 
-		// for caching info about extents: 
-		nresvd -= allocated;
-		extent = extentlist[i];
-	    }
-	    w_assert3(is_last_ext_in_store);
-	    w_assert3(count == npages);
-	    w_assert3(i == needed);
-	    w_assert3(nresvd == remaining_in_ext);
+        /* 
+         * BUG_ALLOC_EXT_PAGE_RACE / GNATS 48
+         * The volume mutex is supposed to protect this, but
+         * it didn't seem to be working. I need to investigate this more.
+         *
+         * vol_m::alloc_pages_in_ext acquires a long-duration IX lock 
+         * on the extent;
+         * (this prevents the extent from being deallocated), and it
+         * returns w/o allocating the pages if the IX lock cannot 
+         * be acquired immediately.
+         */
 
-	} /* step 5  -- allocate pages in the new extents */
-    } /* if count < npages */
+
+        {   /* Step 4:
+             * Allocate the free extents we found.
+             * In order to allocate them, we need to know the
+             * extnum_t of the last extent in the store.
+             * If last_ext_in_store is non-zero, it's credible.
+             */
+#undef USE_EMPTY_EXT_FOUND
+#ifdef USE_EMPTY_EXT_FOUND
+            int starting_ext = 0;
+            int needed_exts  = Xneeded; // if we use one of the
+            // existing extents, we will reduce the count by one; hang
+            // onto the original amount
+#endif
+
+            if( last_ext_in_store==0 ) 
+            {
+                // Get the last extent.  If it doesn't
+                // contain any allocated pages, we'll use the
+                // whole thing.
+                //
+
+                // originally choked because, sans Bool& argument to last_page,
+                // last_page looks for last allocated page, not last
+                // page in last extent in store
+                // W_DO(v->last_page(stid.store, near_pid));
+                bool is_empty(true);
+                W_DO(v->last_extent(stid.store, last_ext_in_store, &is_empty));
+
+
+                w_assert1(last_ext_in_store != 0);
+                w_assert3(v->is_alloc_ext_of(last_ext_in_store, stid.store));
+#ifdef USE_EMPTY_EXT_FOUND
+                if(is_empty) 
+                {
+                    // last extent is allocated to the store, but
+                    // has no allocated pages.  What we are
+                    // going to do here is to cut back by 1 the
+                    // number of new extents allocated, and use
+                    // this empty extent that we found here,
+                    // keeping the order as it would have been:
+                    // first alloc pages in this empty extent, then
+                    // in the new extents.
+                    needed_exts-- ;
+                    for(int kk=needed_exts; kk > 0; kk--) 
+                    {
+                        // move the allocated extents back to
+                        // make room for this one,  reserving
+                        // the order
+                        extentlist[kk] = extentlist[kk-1];
+                    }
+                    extentlist[0] = last_ext_in_store;
+                    starting_ext = 1;
+                }
+#endif /* USE_EMPTY_EXT_FOUND */
+            } // last_ext_in_store is non-zero
+
+#ifdef USE_EMPTY_EXT_FOUND
+            if(needed_exts>0)
+            {
+                // allocate all the extents needed (might be skipping
+                // the first one in the list, if it were already
+                // allocated to the store.
+                W_DO(v->alloc_exts(stid.store,last_ext_in_store, needed_exts,
+                        &extentlist[starting_ext]));
+#               if W_DEBUG_LEVEL > 2
+                for(int kk = starting_ext; kk< needed_exts; kk++) {
+                    w_assert3(v->is_alloc_ext_of(extentlist[kk], stid.store));
+                }
+#               endif
+            } 
+#else /* NOT USE_EMPTY_EXT_FOUND */
+            // original code
+            W_DO(v->alloc_exts(stid.store,last_ext_in_store,Xneeded,extentlist));
+
+#if W_DEBUG_LEVEL > 2
+            for(int kk = 0; kk< Xneeded; kk++) {
+                w_assert3(v->is_alloc_ext_of(extentlist[kk], stid.store));
+            }
+#endif 
+
+#endif /* NOT USE_EMPTY_EXT_FOUND */
+
+#ifdef USE_EMPTY_EXT_FOUND
+            // NOTE: computed nresvd is based on the original Xneeded;
+            // if Xneeded != needed_exts, the difference is exactly 1
+            // and we are using the entire last extent (which is
+            // empty) of the store.
+#endif
+            nresvd = (Xneeded * v->ext_size());
+
+        } /* step 4 -- allocate the free extents  */
+
+        {   /* Step 5:
+             *  Allocate pages in the new extents
+             */
+            int remaining_in_ext=0;
+            int i=0; // number of extents in which to allocate pages
+            for (i = 0; i < Xneeded && Pcount < npages; i++)  
+            {
+                w_assert1(v->is_alloc_ext_of(extentlist[i], stid.store));
+
+                if (i == Xneeded - 1) eff = 100;
+
+                int Pallocated =0;
+                W_COERCE(
+                    v->alloc_pages_in_ext(
+#if GNATS110_FIX
+                        filter,
+#endif
+                        !search_file, // if !search_file, is append_only
+                        extentlist[i], eff,
+                        stid.store, npages - Pcount,
+                        pids + Pcount, Pallocated,
+                        remaining_in_ext,
+                        is_last_ext_in_store, 
+                        may_realloc, desired_lock_mode
+                        ));
+#if GNATS110_FIX
+                if(Pallocated==1) { w_assert1(filter->accepted()); }
+                filter->check();
+#endif
+
+                // GNATS 39: 
+                // Note: might not have allocated the page: if it
+                // would have to wait for the IX lock on the 
+                // extent id, it returns Pallocated=0,
+                // remaining_in_ext = 1, and is_last_ext_in_store=0
+
+                w_assert1(v->is_alloc_ext_of(extentlist[i], stid.store));
+
+
+                DBGTHRD(<<"ALLOCATED " << Pallocated
+                    << " pages in " << extentlist[i]
+                    << " remaining: " << remaining_in_ext
+                    );
+                    
+                Pcount += Pallocated;
+
+                // for caching info about extents: 
+                nresvd -= Pallocated;
+                extent = extentlist[i];
+
+                // Added 'Pallocated>0 &&' so we know that the 
+                // value remaining_in_ext isn't "arbitrary" - set
+                // when we couldn't get the IX lock on the extent in
+                // vol_t::alloc_pages_in_ext
+                if(Pallocated>0 && remaining_in_ext) {
+                    v->free_ext_cache().insert(stid.store, extentlist[i]);
+                }
+
+            }  // for loop
+
+            // vol_t::alloc_pages_in_ext
+            // returns (arbitrary value) 1 if it doesn't get the
+            // IX lock on the extent. But in that ase,
+            // we would keep looking, so I think we can safely count
+            // on this :
+            w_assert2(is_last_ext_in_store);
+
+            if(Pcount != npages || i != Xneeded) {
+                fprintf(stderr, "Pcount %d != npages %d; %d !- Xneeded %d",
+                        Pcount, npages, i, Xneeded); 
+                w_assert1(Pcount == npages);
+                w_assert1(i == Xneeded);
+            }
+            // We can't be sure of this, since remaining_in_ext
+            // is set to something arbitrary when  alloc_pages_in_ext
+            // couldn't get the IX lock on the extent.
+            // w_assert2(nresvd == remaining_in_ext);
+        } /* step 5  -- allocate pages in the new extents */
+    } /* if Pcount < npages */
 
 // done:
 
-    w_assert3(v->is_alloc_ext(extent));
-    _insert_extent_info_cache(stid, extent, nresvd);
-    w_assert1(count == npages);
+    w_assert1(Pcount == npages);
     DBGTHRD( << "allocated " << npages);
-    ADD_TSTAT(page_alloc_cnt, count);
+    ADD_TSTAT(page_alloc_cnt, Pcount);
+
+#if GNATS110_FIX
+    if(npages > 0) { w_assert1(filter->accepted()); }
+#endif
+
     return RCOK;
 }
 
@@ -1386,57 +2101,44 @@ io_m::_alloc_pages(
  *
  *********************************************************************/
 rc_t
-io_m::free_page(const lpid_t& pid) 
+io_m::free_page(const lpid_t& pid, bool check_store_membership)
 {
     enter();
-    rc_t r = _free_page(pid);
-    // exchanges vol mutex for i/o mutex
-    leave(false);
+    rc_t r = _free_page(pid, check_store_membership);
+    leave();
     return r;
 }
 
 
 rc_t
-io_m::_free_page(const lpid_t& pid)
+io_m::_free_page(const lpid_t& pid, bool check_store_membership)
 {
-    FUNC(io_m::_free_page)
-    vid_t vid = pid.vol();
+    FUNC(io_m::_free_page);
+    vid_t volid = pid.vol();
 
-    vol_t *v = _find_and_grab(vid);
-    if (!v)  return RC(eBADVOL);
-    {
-	auto_release_t<smutex_t> release_on_return(v->vol_mutex());
-	w_assert1(v->vol_mutex().is_mine());
+    GRAB_W;
 
-	w_assert3(v->vid() == pid.vol());
+    w_assert3(v->vid() == pid.vol());
 
-#ifdef W_TRACE
-	extnum_t ext = v->pid2ext(pid);
-#endif
+    /*
+     *  NOTE: do not discard the page in the buffer
+     */
+    DBGTHRD(<<"freeing page " << pid );
+    ASSERT_HAVE_W;
+    // volume layer has to acquire EX lock on the page and
+    // IX lock on the extent to free the page. Both are long locks
+    // and can result in a lock timeout.
+    W_DO( v->free_page(pid, check_store_membership) );
 
-	if ( ! v->is_valid_page(pid) ) {
-	    DBGTHRD(<<" invalid pid is " << pid);
-	    return RC(eBADPID);
-	}
-	if ( ! v->is_alloc_page(pid) ) {
-	    DBGTHRD(<<" unallocated pid is " << pid);
-	    return RC(eBADPID);
-	}
+    DBGTHRD( << "freed pid: " << pid );
 
-	/*
-	 *  NOTE: do not discard the page in the buffer
-	 */
-	DBGTHRD(<<"freeing page " << pid << " in extent " << ext);
-	W_DO( v->free_page(pid) );
+    INC_TSTAT(page_dealloc_cnt);
 
-	DBGTHRD( << "freed pid: " << pid );
+    extnum_t ext = v->pid2ext(pid);
+    v->free_ext_cache().insert(pid.stid().store, ext);
 
-	INC_TSTAT(page_dealloc_cnt);
-	_adjust_extent_info_cache(pid.stid(), 1);
+    w_assert9(v->vid() == pid.vol());
 
-	w_assert3(v->vid() == pid.vol());
-
-    }
     return RCOK;
 }
 
@@ -1444,45 +2146,43 @@ io_m::_free_page(const lpid_t& pid)
 
 /*********************************************************************
  *
- *  io_m::_is_valid_page(pid)
+ *  io_m::_is_valid_page_of(pid,storenum)
+ *  Used by histograms
  *
  *  Return true if page "pid" is valid. False otherwise.
+ *  Valid means:  its page number is valid for the volume, and
+ *  the page is allocated to the given store, according to the
+ *  store's extent numbers
  *
  *********************************************************************/
-bool 
-io_m::_is_valid_page(const lpid_t& pid)
-{
-    vol_t *v = _find_and_grab(pid.vol());
-    if (!v)  return false;
-    auto_release_t<smutex_t> release_on_return(v->vol_mutex());
-    w_assert1(v->vol_mutex().is_mine());
 
-    if ( ! v->is_valid_page(pid) )  {
-	return false;
-    }
-    
-    return v->is_alloc_page(pid);
-}
-/*********************************************************************
- *
- *  io_m::_is_valid_page(pid)
- *
- *  Return true if page "pid" is valid. False otherwise.
- *
- *********************************************************************/
 bool 
 io_m::_is_valid_page_of(const lpid_t& pid, snum_t s)
 {
-    vol_t *v = _find_and_grab(pid.vol());
-    if (!v)  return false;
-    auto_release_t<smutex_t> release_on_return(v->vol_mutex());
-    w_assert1(v->vol_mutex().is_mine());
+    FUNC(io_m::is_valid_page_of);
+    vid_t volid = pid._stid.vol;
 
-    if ( ! v->is_valid_page(pid) )  {
-	return false;
-    }
-    
-    return v->is_alloc_page_of(pid, s);
+#if VOL_LOCK_IS_RW
+    // essentially GRAB_R but doesn't return RC
+    lock_state rme_node ;
+    vol_t *v = _find_and_grab(volid, &rme_node, false); 
+    if (!v)  return false;
+    auto_release_r_t<VolumeLock> release_on_return(v->vol_mutex());
+#else
+    // essentially GRAB_R but doesn't return RC
+    lock_state rme_node = LOCK_STATE_INITIALIZER; 
+    vol_t *v = _find_and_grab(volid, &rme_node, false); 
+    if (!v)  return false;
+    auto_release_t<VolumeLock> release_on_return(v->vol_mutex(), &rme_node); 
+    w_assert3(v->vol_mutex().is_mine(&rme_node));
+#endif
+
+    bool result =  v->is_valid_page_of(pid, s);
+
+    ASSERT_HAVE_R;
+
+    return result;
+
 }
 
 
@@ -1496,13 +2196,13 @@ io_m::_is_valid_page_of(const lpid_t& pid, snum_t s)
 rc_t
 io_m::_set_store_flags(const stid_t& stid, store_flag_t flags, bool sync_volume)
 {
-    vol_t *v = _find_and_grab(stid.vol);
-    if (!v)  return RC(eBADVOL);
-    auto_release_t<smutex_t> release_on_return(v->vol_mutex());
-    w_assert1(v->vol_mutex().is_mine());
+    FUNC(io_m::_set_store_flags);
+    vid_t volid = stid.vol;
+    GRAB_W;
+
     W_DO( v->set_store_flags(stid.store, flags, sync_volume) );
     if ((flags & st_insert_file) && !smlevel_0::in_recovery())  {
-	xct()->AddLoadStore(stid);
+        xct()->AddLoadStore(stid);
     }
     return RCOK;
 }
@@ -1543,21 +2243,23 @@ io_m::_get_store_flags(const stid_t& stid, store_flag_t& flags)
  *********************************************************************/
 rc_t
 io_m::create_store(
-    vid_t 			volid, 
-    int 			eff, 
-    store_flag_t		flags,
-    stid_t& 			stid,
-    extnum_t			first_ext,
-    extnum_t			num_exts)
+    vid_t                       volid, 
+    int                         eff, 
+    store_flag_t                flags,
+    stid_t&                     stid,
+    extnum_t                    first_ext,
+    extnum_t                    num_exts)
 {
     enter();
     rc_t r = _create_store(volid, eff, flags, stid, first_ext, num_exts);
     // replaced io mutex with volume mutex
-    leave(false);
+    leave();
+
+    if(r.is_error()) return r;
 
     /* load and insert stores get converted to regular on commit */
     if (flags & st_load_file || flags & st_insert_file)  {
-	xct()->AddLoadStore(stid);
+        xct()->AddLoadStore(stid);
     }
 
     return r;
@@ -1565,18 +2267,17 @@ io_m::create_store(
 
 rc_t
 io_m::_create_store(
-    vid_t 			volid, 
-    int 			eff, 
-    store_flag_t		flags,
-    stid_t& 			stid,
-    extnum_t			first_ext,
-    extnum_t			num_extents)
+    vid_t                       volid, 
+    int                         eff, 
+    store_flag_t                flags,
+    stid_t&                     stid,
+    extnum_t                    first_ext,
+    extnum_t                    num_extents)
 {
+    FUNC(io_m::create_store);
     w_assert1(flags);
 
-    vol_t *v = _find_and_grab(volid);
-    if (!v)  return RC(eBADVOL);
-    auto_release_t<smutex_t> release_on_return(v->vol_mutex());
+    GRAB_W;
 
     /*
      *  Find a free store slot
@@ -1584,50 +2285,54 @@ io_m::_create_store(
     stid.vol = volid;
     W_DO(v->find_free_store(stid.store));
 
-    rc_t	rc;
+    rc_t        rc;
 
     extnum_t *ext =  0;
     if(num_extents>0) {
-	ext = new extnum_t[num_extents]; // auto-del
-	w_assert1(ext);
+        ext = new extnum_t[num_extents]; // auto-del
+        w_assert1(ext);
     }
 
     w_auto_delete_array_t<extnum_t> autodel(ext);
 
     if(num_extents>0) {
-	/*
-	 *  Find a free extent 
-	 */
-	int found;
-	W_DO(v->find_free_exts(num_extents, ext, found, first_ext));
-	w_assert3(found == 1);
-	
-	if (v->ext_size() * eff / 100 == 0)
-	    eff = 99 / v->ext_size() + 1;
+        /*
+         *  Find a free extent 
+         */
+        int found;
+        W_DO(v->find_free_exts(num_extents, ext, found, first_ext));
+        w_assert2(found == int(num_extents));
+        
+        if (v->ext_size() * eff / 100 == 0)
+            eff = 99 / v->ext_size() + 1;
+
     }
     
     /*
      * load files are really temp files until commit
      *
-     * really want to say 'flags = st_tmp', but must or this
-     * in since there are assertions which need to know if
+     * really want to say 'flags == st_tmp', but must do this
+     * since there are assertions which need to know if
      * the file is a load_file
      */
     if (flags & st_load_file)  {
-	flags = (store_flag_t)  (flags | st_tmp);
+        flags = (store_flag_t)  (flags | st_tmp);
     }
 
     /*
      *  Allocate the store
+     *  RACE NOTE: it's possible that someone might try to use
+     *  the store at this point (by happenstance, having what is
+     *  now a legit store-id), and we haven't yet acquired a lock
+     *  on it.
      */
+    DBG(<<"about to alloc_store " << stid.store);
     W_DO( v->alloc_store(stid.store, eff, flags) );
 
     if(num_extents> 0) {
-	W_DO( v->alloc_exts(stid.store, 0/*prev*/, 
-		num_extents, ext) );
-	int nresvd = int(num_extents * v->ext_size());
-        w_assert3(v->is_alloc_ext(ext[0]));
-	_insert_extent_info_cache(stid, ext[0], nresvd);
+        W_DO( v->alloc_exts(stid.store, 0/*prev*/, 
+                num_extents, ext) );
+        w_assert3(v->is_alloc_ext_of(ext[0], stid.store));
     }
 
     return rc;
@@ -1654,29 +2359,28 @@ io_m::destroy_store(const stid_t& stid, bool acquire_lock)
 {
     enter();
     rc_t r = _destroy_store(stid, acquire_lock);
-    // exchanges vol mutex for i/o mutex
-    leave(false);
+    leave();
     return r;
 }
-
 
 rc_t
 io_m::_destroy_store(const stid_t& stid, bool acquire_lock)
 {
-    _remove_extent_info_cache(stid);
-
+    FUNC(io_m::_destroy_store);
     vid_t volid = stid.vol;
 
-    vol_t *v = _find_and_grab(volid);
-    if (!v)  return RC(eBADVOL);
-    auto_release_t<smutex_t> release_on_return(v->vol_mutex());
-    
+    GRAB_W;
+
     if (!v->is_valid_store(stid.store)) {
-	DBG(<<"_destroy_store: BADSTID");
-	return RC(eBADSTID);
+        DBG(<<"_destroy_store: BADSTID");
+        return RC(eBADSTID);
     }
     
     W_DO( v->free_store(stid.store, acquire_lock) );
+
+    v->free_ext_cache().erase_all(stid.store); 
+
+    store_latches.destroy_latches(stid); // GNATS_16
 
     return RCOK;
 }
@@ -1697,8 +2401,7 @@ io_m::free_store_after_xct(const stid_t& stid)
 {
     enter();
     rc_t r = _free_store_after_xct(stid);
-    // exchanges I/O mutex for volume mutex
-    leave(false);
+    leave();
     return r;
 }
 
@@ -1707,10 +2410,7 @@ io_m::_free_store_after_xct(const stid_t& stid)
 {
     vid_t volid = stid.vol;
 
-    vol_t *v = _find_and_grab(volid);
-    if (!v)  return RC(eBADVOL);
-    auto_release_t<smutex_t> release_on_return(v->vol_mutex());
-    w_assert1(v->vol_mutex().is_mine());
+    GRAB_W;
 
     W_DO( v->free_store_after_xct(stid.store) );
 
@@ -1731,25 +2431,26 @@ io_m::free_ext_after_xct(const extid_t& extid)
 {
     enter();
     rc_t r = _free_ext_after_xct(extid);
-    // exchanges I/O mutex for volume mutex
-    leave(false);
+    leave();
     return r;
 }
 
 rc_t
 io_m::_free_ext_after_xct(const extid_t& extid)
 {
-    FUNC("io_m::_free_ext_after_xct");
     vid_t volid = extid.vol;
-    vol_t *v = _find_and_grab(volid);
-    if (!v)  return RC(eBADVOL);
-    auto_release_t<smutex_t> release_on_return(v->vol_mutex());
-    w_assert1(v->vol_mutex().is_mine());
+
+    GRAB_W;
 
     snum_t owner=0;
     W_DO( v->free_ext_after_xct(extid.ext, owner) );
 
-    _remove_extent_info_cache(stid_t(volid,owner), extid.ext);
+    DBG(<<"_free_ext_after_xct " << extid );
+
+    // remove from store's free space cache?
+    stid_t stid(volid, owner);
+
+    v->free_ext_cache().erase(stid.store, extid.ext);
 
     return RCOK;
 }
@@ -1765,13 +2466,24 @@ io_m::_free_ext_after_xct(const extid_t& extid)
 bool
 io_m::_is_valid_store(const stid_t& stid)
 {
-    vol_t *v = _find_and_grab(stid.vol);
+    vid_t volid = stid.vol;
+#if VOL_LOCK_IS_RW
+    // essentially GRAB_R but doesn't return RC
+    lock_state rme_node ;
+    vol_t *v = _find_and_grab(volid, &rme_node, false); 
     if (!v)  return false;
-    
-    auto_release_t<smutex_t> release_on_return(v->vol_mutex());
-    w_assert1(v->vol_mutex().is_mine());
+    auto_release_r_t<VolumeLock> release_on_return(v->vol_mutex());
+#else
+    // essentially GRAB_R but doesn't return RC
+    lock_state rme_node = LOCK_STATE_INITIALIZER; 
+    vol_t *v = _find_and_grab(volid, &rme_node, false); 
+    if (!v)  return false;
+    auto_release_t<VolumeLock> release_on_return(v->vol_mutex(), &rme_node); 
+    w_assert3(v->vol_mutex().is_mine(&rme_node));
+#endif
+
     if ( ! v->is_valid_store(stid.store) )   {
-	return false;
+        return false;
     }
     
     return v->is_alloc_store(stid.store);
@@ -1786,13 +2498,11 @@ io_m::_is_valid_store(const stid_t& stid)
  *
  *********************************************************************/
 rc_t
-io_m::_max_store_id_in_use(vid_t vid, snum_t& snum) 
+io_m::_max_store_id_in_use(vid_t volid, snum_t& snum) 
 {
-    vol_t *v = _find_and_grab(vid);
-    if (!v) return RC(eBADVOL);
+    FUNC(io_m::_max_store_id_in_use);
+    GRAB_R;
 
-    auto_release_t<smutex_t> release_on_return(v->vol_mutex());
-    w_assert1(v->vol_mutex().is_mine());
     snum =  v->max_store_id_in_use();
     return RCOK;
 }
@@ -1807,13 +2517,11 @@ io_m::_max_store_id_in_use(vid_t vid, snum_t& snum)
  *
  *********************************************************************/
 rc_t
-io_m::_get_volume_meta_stats(vid_t vid, SmVolumeMetaStats& volume_stats)
+io_m::_get_volume_meta_stats(vid_t volid, SmVolumeMetaStats& volume_stats)
 {
-    vol_t *v = _find_and_grab(vid);
-    if (!v) return RC(eBADVOL);
+    FUNC(io_m::_get_volume_meta_stats);
+    GRAB_R;
 
-    auto_release_t<smutex_t> release_on_return(v->vol_mutex());
-    w_assert1(v->vol_mutex().is_mine());
     W_DO( v->get_volume_meta_stats(volume_stats) );
     return RCOK;
 }
@@ -1830,13 +2538,9 @@ io_m::_get_volume_meta_stats(vid_t vid, SmVolumeMetaStats& volume_stats)
  *
  *********************************************************************/
 rc_t
-io_m::_get_file_meta_stats(vid_t vid, uint4_t num_files, SmFileMetaStats* file_stats)
+io_m::_get_file_meta_stats(vid_t volid, uint4_t num_files, SmFileMetaStats* file_stats)
 {
-    vol_t *v = _find_and_grab(vid);
-    if (!v) return RC(eBADVOL);
-
-    auto_release_t<smutex_t> release_on_return(v->vol_mutex());
-    w_assert1(v->vol_mutex().is_mine());
+    GRAB_R;
     W_DO( v->get_file_meta_stats(num_files, file_stats) );
     return RCOK;
 }
@@ -1847,19 +2551,16 @@ io_m::_get_file_meta_stats(vid_t vid, uint4_t num_files, SmFileMetaStats* file_s
  *  io_m::_get_file_meta_stats_batch(vid, max_store, mapping)
  *
  *  Returns the pages usage statistics from the stores which have
- *  a non-null in the mapping structure indixed by store number
+ *  a non-null in the mapping structure indexed by store number
  *  on volume vid.  This routine makes one pass in order of each
  *  extlink page.
  *
  *********************************************************************/
 rc_t
-io_m::_get_file_meta_stats_batch(vid_t vid, uint4_t max_store, SmStoreMetaStats** mapping)
+io_m::_get_file_meta_stats_batch(vid_t volid, uint4_t max_store, SmStoreMetaStats** mapping)
 {
-    vol_t *v = _find_and_grab(vid);
-    if (!v) return RC(eBADVOL);
+    GRAB_R;
 
-    auto_release_t<smutex_t> release_on_return(v->vol_mutex());
-    w_assert1(v->vol_mutex().is_mine());
     W_DO( v->get_file_meta_stats_batch(max_store, mapping) );
     return RCOK;
 }
@@ -1874,11 +2575,8 @@ io_m::_get_file_meta_stats_batch(vid_t vid, uint4_t max_store, SmStoreMetaStats*
 rc_t
 io_m::get_store_meta_stats(stid_t stid, SmStoreMetaStats& mapping)
 {
-    vol_t *v = _find_and_grab(stid.vol);
-    if (!v) return RC(eBADVOL);
-
-    auto_release_t<smutex_t> release_on_return(v->vol_mutex());
-    w_assert1(v->vol_mutex().is_mine());
+    vid_t volid = stid.vol;
+    GRAB_R;
     W_DO( v->get_store_meta_stats(stid.store, mapping) );
     return RCOK;
 }
@@ -1895,22 +2593,20 @@ io_m::get_store_meta_stats(stid_t stid, SmStoreMetaStats& mapping)
  *********************************************************************/
 rc_t
 io_m::_first_page(
-    const stid_t&	stid, 
-    lpid_t&		pid, 
-    bool*		allocated,
-    lock_mode_t		lock)
+    const stid_t&        stid, 
+    lpid_t&              pid, 
+    bool*                allocated,
+    lock_mode_t          lock)
 {
-
-    vol_t *v = _find_and_grab(stid.vol);
-    if (!v)  return RC(eBADVOL);
-    auto_release_t<smutex_t> release_on_return(v->vol_mutex());
-    w_assert1(v->vol_mutex().is_mine());
+    FUNC(io_m::_first_page);
+    vid_t volid = stid.vol;
+    GRAB_R;
 
     W_DO( v->first_page(stid.store, pid, allocated) );
 
     if (lock != NL) {
-	// Can't block on lock while holding mutex
-	W_DO(lock_force(pid, lock, t_long, WAIT_IMMEDIATE));
+        // Can't block on lock while holding mutex
+        W_DO(lock_force(pid, lock, t_long, WAIT_IMMEDIATE));
     }
 
     return RCOK;
@@ -1929,23 +2625,28 @@ io_m::_first_page(
  *********************************************************************/
 rc_t
 io_m::_last_page(
-    const stid_t&	stid, 
-    lpid_t&		pid, 
-    bool*		allocated,
-    lock_mode_t		desired_lock_mode
+    const stid_t&        stid, 
+    lpid_t&              pid, 
+    bool*                allocated,
+    lock_mode_t          desired_lock_mode
     )
 {
-
-    vol_t *v = _find_and_grab(stid.vol);
-    if (!v)  return RC(eBADVOL);
-    auto_release_t<smutex_t> release_on_return(v->vol_mutex());
-    w_assert1(v->vol_mutex().is_mine());
+    FUNC(io_m::_last_page);
+    vid_t volid=stid.vol;
+    GRAB_R;
     
-    W_DO( v->last_page(stid.store, pid, allocated) );
+    if(allocated) {
+        W_DO( v->last_allocated_page(stid.store, pid) );
+        *allocated = true;
+    }
+    else {
+        bool dontreallycare;
+        W_DO( v->last_reserved_page(stid.store, pid, dontreallycare) );
+    }
 
     if (desired_lock_mode != NL) {
-	// Can't block on lock while holding mutex
-	W_DO(lock_force(pid, desired_lock_mode, t_long, WAIT_IMMEDIATE));
+        // Can't block on lock while holding mutex
+        W_DO(lock_force(pid, desired_lock_mode, t_long, WAIT_IMMEDIATE));
     }
 
     return RCOK;
@@ -1962,20 +2663,18 @@ io_m::_last_page(
  *
  *********************************************************************/
 rc_t io_m::_next_page(
-    lpid_t&		pid, 
-    bool*		allocated,
-    lock_mode_t		lock)
+    lpid_t&              pid, 
+    bool*                allocated,
+    lock_mode_t          lock)
 {
-
-    vol_t *v = _find_and_grab(pid.vol());
-    if (!v)  return RC(eBADVOL);
-    auto_release_t<smutex_t> release_on_return(v->vol_mutex());
-    w_assert1(v->vol_mutex().is_mine());
+    FUNC(io_m::_next_page);
+    vid_t volid = pid._stid.vol;
+    GRAB_R;
 
     W_DO( v->next_page(pid, allocated));
 
     if (lock != NL)
-	W_DO(lock_force(pid, lock, t_long, WAIT_IMMEDIATE));
+        W_DO(lock_force(pid, lock, t_long, WAIT_IMMEDIATE));
 
     return RCOK;
 }
@@ -1988,216 +2687,75 @@ rc_t io_m::_next_page(
  *
  *********************************************************************/
 rc_t io_m::_next_page_with_space(
-    lpid_t&		pid, 
-    space_bucket_t	needed,
-    lock_mode_t		lock
+    lpid_t&                pid, 
+    space_bucket_t         needed,
+    lock_mode_t            lock
     )
 {
-
-    vol_t *v = _find_and_grab(pid.vol());
-    if (!v)  return RC(eBADVOL);
-    auto_release_t<smutex_t> release_on_return(v->vol_mutex());
-    w_assert1(v->vol_mutex().is_mine());
+    FUNC(io_m::_next_page_with_space);
+    vid_t volid = pid._stid.vol;
+    GRAB_R;
 
     W_DO( v->next_page_with_space(pid, needed));
     DBGTHRD(<<"next page with space is " << pid);
 
     if (lock != NL) {
-	DBGTHRD(<<"locking pid " << pid);
-	W_DO(lock_force(pid, lock, t_long, WAIT_IMMEDIATE));
+        DBGTHRD(<<"locking pid " << pid);
+        W_DO(lock_force(pid, lock, t_long, WAIT_IMMEDIATE));
     }
 
     return RCOK;
 }
 
+rc_t                 
+io_m::check_store_pages(const stid_t &stid, page_p::tag_t tag)
+{
+    int i = _find(stid.vol);
+    if (i < 0) return RC(eBADVOL);
+
+    vol_t *v = vol[i];
+    w_assert9(v->vid() == stid.vol);
+
+    return  v->check_store_pages(stid.store, tag);
+}
 
 /*********************************************************************
  *
  *, extnum  io_m::_get_du_statistics()         DU DF
  *
  *********************************************************************/
-rc_t io_m::_get_du_statistics(vid_t vid, volume_hdr_stats_t& stats, bool audit)
+rc_t io_m::_get_du_statistics(vid_t volid, volume_hdr_stats_t& _stats, bool audit)
 {
-    vol_t *v = _find_and_grab(vid);
-    if (!v)  return RC(eBADVOL);
-    auto_release_t<smutex_t> release_on_return(v->vol_mutex());
-    w_assert1(v->vol_mutex().is_mine());
-    W_DO( v->get_du_statistics(stats, audit) );
+    GRAB_R;
+    W_DO( v->get_du_statistics(_stats, audit) );
 
     return RCOK;
 }
 
-
-void io_m::_remove_extent_info_cache(const stid_t& stid)
-{
-    FUNC(io_m::_remove_extent_info_cache);
-    w_assert3(!_extent_info_cache->is_mine());
-    const extnum_struct_t* hit = _extent_info_cache->find(stid);
-    if (hit) {
-	_extent_info_cache->remove(hit);
-	w_assert3(hit == NULL);
-	_extent_info_cache->release_mutex();
-    }
-    w_assert3( _extent_info_cache->find(stid) == 0);
-    w_assert3(!_extent_info_cache->is_mine());
-}
-
-void io_m::_remove_extent_info_cache(const stid_t& stid, extnum_t ext)
-{
-    FUNC(io_m::_remove_extent_info_cache);
-    w_assert3(!_extent_info_cache->is_mine());
-    const extnum_struct_t* hit = _extent_info_cache->find(stid);
-    if (hit) {
-	if(hit->ext == ext) {
-	    _extent_info_cache->remove(hit);
-	    w_assert3(hit == NULL);
-	}
-	_extent_info_cache->release_mutex();
-    }
-    w_assert3(!_extent_info_cache->is_mine());
-}
-
-// remove all stores belonging to volume vid 
-void io_m::_remove_extent_info_cache(const vid_t& vid)
-{
-    FUNC(io_m::_remove_extent_info_cache);
-    {
-	extent_info_cache_i iter(*_extent_info_cache);
-	for (iter.next(); iter.curr(); iter.next())  {
-	    if ( iter.curr_key()->vol == vid) {
-		    iter.discard_curr();
-	    }
-	}
-    } // destructor for iter should free mutex
-    w_assert3(!_extent_info_cache->is_mine());
-
-}
-
-// clear entire cache
-void io_m::_clear_extent_info_cache()
-{
-    FUNC(io_m::_clear_extent_info_cache);
-    w_assert3(!_extent_info_cache->is_mine());
-    {
-	extent_info_cache_i iter(*_extent_info_cache);
-	for (iter.next(); iter.curr(); iter.next())  {
-	    iter.discard_curr();
-	}
-	// destructor for iter should free mutex
-    }
-    w_assert3(!_extent_info_cache->is_mine());
-}
-
-bool
-io_m::_lookup_extent_info_cache(const stid_t& stid,
-	extnum_t& result,
-	int&     nresvd)
-{
-    FUNC(io_m::_lookup_extent_info_cache);
-    w_assert3(!_extent_info_cache->is_mine());
-    extnum_struct_t* hit = _extent_info_cache->find(stid);
-    DBGTHRD(<<"store " << stid.store << " hit=" << hit );
-    // Consider store 0 not to count
-    if (hit) {
-	if(hit->ext>0) {
-	    DBGTHRD(<<" hit with extent " << hit->ext
-		<< " nresvd " << hit->nresvd);
-	    result = hit->ext;
-	    nresvd = hit->nresvd;
-	    INC_TSTAT(ext_lookup_hits);
-	    _extent_info_cache->release_mutex();
-	    w_assert3(!_extent_info_cache->is_mine());
-	    return true;
-	}
-	_extent_info_cache->release_mutex();
-    }
-    DBGTHRD(<<" miss " );
-    INC_TSTAT(ext_lookup_misses);
-    w_assert3(!_extent_info_cache->is_mine());
-    return false; // miss
-}
-
-/*
- * Adjust the cached info for the extent
- * by the amount given - does not change the extent
- * info
- */
-void 
-io_m::_adjust_extent_info_cache(
-    const stid_t& stid,
-    int 	amt
-) 
-{
-    FUNC(io_m::_adjust_extent_info_cache);
-    w_assert3(!_extent_info_cache->is_mine());
-    bool found;
-    bool is_new;
-    extnum_struct_t* hit = _extent_info_cache->grab(stid,found,is_new);
-
-    w_assert3(hit!=0);
-    hit->nresvd += amt;
-
-    // don't let it go negative. It's a hint, after all.
-    if(hit->nresvd < 0) hit->nresvd=0;
-
-    _extent_info_cache->release_mutex();
-    w_assert3(!_extent_info_cache->is_mine());
-}
-
-/*
- * insert/replace the cached info for the extent
- */
-void 
-io_m::_insert_extent_info_cache(
-    const stid_t& stid,
-    extnum_t 	ext, 
-    int 	nresvd
-) 
-{
-    FUNC(io_m::_insert_extent_info_cache);
-    w_assert3(!_extent_info_cache->is_mine());
-    bool found;
-    bool is_new;
-    extnum_struct_t* hit = _extent_info_cache->grab(stid,found,is_new);
-
-    DBGTHRD(<<"_insert_extent_info_cache: store " << stid
-	<< " ext " << ext
-	<< " nresvd " << nresvd
-	);
-
-    DBGTHRD(<< " hit=" << hit << " found=" << found
-	<< " is_new=" << is_new);
-
-    w_assert3(hit!=0);
-    hit->ext = ext;
-    hit->nresvd = nresvd;
-
-    _extent_info_cache->release_mutex();
-    w_assert3(!_extent_info_cache->is_mine());
-}
-
 rc_t
-io_m::recover_pages_in_ext(vid_t vid, extnum_t ext, const Pmap& pmap, bool is_alloc)
+io_m::recover_pages_in_ext(vid_t vid, 
+        snum_t snum, extnum_t ext, const Pmap& pmap, bool is_alloc)
 {
     enter();
-    rc_t r = _recover_pages_in_ext(vid, ext, pmap, is_alloc);
-    // exchanges vol mutex for i/o mutex
-    leave(false);
+    rc_t r = _recover_pages_in_ext(vid, snum, ext, pmap, is_alloc);
+    leave();
     return r;
 }
 
 rc_t
-io_m::_recover_pages_in_ext(vid_t vid, extnum_t ext, const Pmap& pmap, bool is_alloc)
+io_m::_recover_pages_in_ext(vid_t volid, 
+        snum_t snum, extnum_t ext, const Pmap& pmap, bool is_alloc)
 {
-    FUNC(io_m::_recover_pages_in_ext)
+    FUNC(io_m::_recover_pages_in_ext);
 
-    vol_t *v = _find_and_grab(vid);
-    if (!v)  return RC(eBADVOL);
-    auto_release_t<smutex_t> release_on_return(v->vol_mutex());
+    GRAB_W;
 
-    w_assert3(v->vid() == vid);
-	
-    W_COERCE( v->recover_pages_in_ext(ext, pmap, is_alloc) );
+    w_assert3(v->vid() == volid);
+        
+    DBGTHRD(<<"recover_pages_in_ext " << ext
+        << " map=" << pmap 
+        << " is_alloc=" << is_alloc);
+    W_COERCE( v->recover_pages_in_ext(snum, ext, pmap, is_alloc) );
 
     return RCOK;
 }
@@ -2207,20 +2765,18 @@ io_m::store_operation(vid_t vid, const store_operation_param& param)
 {
     enter();
     rc_t r = _store_operation(vid, param);
-    // exchanges vol mutex for i/o mutex
-    leave(false);
+    leave();
     return r;
 }
 
 rc_t
-io_m::_store_operation(vid_t vid, const store_operation_param& param)
+io_m::_store_operation(vid_t volid, const store_operation_param& param)
 {
-    FUNC(io_m::_set_store_deleting)
+    FUNC(io_m::_set_store_deleting);
 
-    vol_t *v = _find_and_grab(vid);
-    if (!v)  return RC(eBADVOL);
-    auto_release_t<smutex_t> release_on_return(v->vol_mutex());
-    w_assert3(v->vid() == vid);
+    GRAB_W;
+
+    w_assert3(v->vid() == volid);
 
     W_DO( v->store_operation(param) );
 
@@ -2235,13 +2791,13 @@ io_m::_store_operation(vid_t vid, const store_operation_param& param)
 rc_t
 io_m::free_exts_on_same_page(const stid_t& stid, extnum_t ext, extnum_t count)
 {
-    w_assert3(smlevel_0::in_recovery());
+    w_assert1(smlevel_0::in_recovery_redo());
 
     int i = _find(stid.vol);
     if (i < 0) return RC(eBADVOL);
 
     vol_t *v = vol[i];
-    w_assert3(v->vid() == stid.vol);
+    w_assert9(v->vid() == stid.vol);
 
     W_DO( v->free_exts_on_same_page(ext, stid.store, count) );
 
@@ -2255,13 +2811,13 @@ io_m::free_exts_on_same_page(const stid_t& stid, extnum_t ext, extnum_t count)
 rc_t
 io_m::set_ext_next(vid_t vid, extnum_t ext, extnum_t new_next)
 {
-    w_assert3(smlevel_0::in_recovery());
+    w_assert9(smlevel_0::in_recovery());
 
     int i = _find(vid);
     if (i < 0) return RC(eBADVOL);
 
     vol_t *v = vol[i];
-    w_assert3(v->vid() == vid);
+    w_assert9(v->vid() == vid);
 
     W_DO( v->set_ext_next(ext, new_next) );
 
@@ -2278,12 +2834,12 @@ io_m::set_ext_next(vid_t vid, extnum_t ext, extnum_t new_next)
 rc_t
 io_m::free_stores_during_recovery(store_deleting_t typeToRecover)
 {
-    w_assert3(smlevel_0::in_recovery());
+    w_assert9(smlevel_0::in_recovery());
 
     for (int i = 0; i < max_vols; i++)  {
-	if (vol[i])  {
-	    W_DO( vol[i]->free_stores_during_recovery(typeToRecover) );
-	}
+        if (vol[i])  {
+            W_DO( vol[i]->free_stores_during_recovery(typeToRecover) );
+        }
     }
 
     return RCOK;
@@ -2296,12 +2852,12 @@ io_m::free_stores_during_recovery(store_deleting_t typeToRecover)
 rc_t
 io_m::free_exts_during_recovery()
 {
-    w_assert3(smlevel_0::in_recovery());
+    w_assert9(smlevel_0::in_recovery());
 
     for (int i = 0; i < max_vols; i++)  {
-	if (vol[i])  {
-	    W_DO( vol[i]->free_exts_during_recovery() );
-	}
+        if (vol[i])  {
+            W_DO( vol[i]->free_exts_during_recovery() );
+        }
     }
 
     return RCOK;
@@ -2314,42 +2870,42 @@ io_m::free_exts_during_recovery()
 rc_t
 io_m::create_ext_list_on_same_page(const stid_t& stid, extnum_t prev, extnum_t next, extnum_t count, extnum_t* list)
 {
-    w_assert3(smlevel_0::in_recovery());
+    w_assert1(smlevel_0::in_recovery_redo());
 
     int i = _find(stid.vol);
     if (i < 0) return RC(eBADVOL);
 
     vol_t *v = vol[i];
-    w_assert3(v->vid() == stid.vol);
+    w_assert9(v->vid() == stid.vol);
 
     W_DO( v->create_ext_list_on_same_page(stid.store, prev, next, count, list) );
 
     return RCOK;
 }
 
-rc_t 		        
+rc_t                         
 io_m::_update_ext_histo(const lpid_t& pid, space_bucket_t b)
 {
     int i = _find(pid._stid.vol);
     if (i < 0) return RC(eBADVOL);
 
     vol_t *v = vol[i];
-    w_assert3(v->vid() == pid._stid.vol);
+    w_assert9(v->vid() == pid._stid.vol);
 
     DBGTHRD(<<"updating histo for pid " << pid);
     W_DO( v->update_ext_histo(pid, b) );
     return RCOK;
 }
 
-rc_t 		        
+rc_t                         
 io_m::_init_store_histo(store_histo_t *h, const stid_t& stid,
-	pginfo_t* pages, int& numpages)
+        pginfo_t* pages, int& numpages)
 {
     int i = _find(stid.vol);
     if (i < 0) return RC(eBADVOL);
 
     vol_t *v = vol[i];
-    w_assert3(v->vid() == stid.vol);
+    w_assert9(v->vid() == stid.vol);
 
     W_DO( v->init_histo(h, stid.store, pages, numpages) );
     return RCOK;
@@ -2361,45 +2917,27 @@ ostream& operator<<(ostream& o, const store_operation_param& param)
       << ", op="    << param.op();
     
     switch (param.op())  {
-	case smlevel_0::t_delete_store:
-	    break;
-	case smlevel_0::t_create_store:
-	    o << ", flags="	<< param.new_store_flags()
-	      << ", eff="	<< param.eff();
-	    break;
-	case smlevel_0::t_set_deleting:
-	    o << ", newValue="	<< param.new_deleting_value()
-	      << ", oldValue="	<< param.old_deleting_value();
-	    break;
-	case smlevel_0::t_set_store_flags:
-	    o << ", newFlags="	<< param.new_store_flags()
-	      << ", oldFlags="	<< param.old_store_flags();
-	    break;
-	case smlevel_0::t_set_first_ext:
-	    o << ", ext="	<< param.first_ext();
-	    break;
+        case smlevel_0::t_delete_store:
+            break;
+        case smlevel_0::t_create_store:
+            o << ", flags="        << param.new_store_flags()
+              << ", eff="        << param.eff();
+            break;
+        case smlevel_0::t_set_deleting:
+            o << ", newValue="        << param.new_deleting_value()
+              << ", oldValue="        << param.old_deleting_value();
+            break;
+        case smlevel_0::t_set_store_flags:
+            o << ", newFlags="        << param.new_store_flags()
+              << ", oldFlags="        << param.old_store_flags();
+            break;
+        case smlevel_0::t_set_first_ext:
+            o << ", ext="        << param.first_ext();
+            break;
     }
 
     return o;
 }
-
-
-int
-io_m::collect(vtable_info_array_t& v)
-{
-    if (v.init(vol_cnt, vol_last)) 
-        return -1;
-
-    vtable_func<vol_t> f(v);
-    int i;
-    for (i=0; i<vol_cnt; i++)
-    {
-        f(*vol[i]);
-    }
-    return 0;
-}
-
-
 
 /*
  * WARNING: dump_exts and dump_stores are for debugging and don't acquire the
@@ -2411,7 +2949,7 @@ io_m::dump_exts(ostream& o, vid_t vid, extnum_t start, extnum_t end)
 {
     int i = _find(vid);
     if (i == -1)  {
-	return RC(eBADVOL);
+        return RC(eBADVOL);
     }
 
     W_DO( vol[i]->dump_exts(o, start, end) );
@@ -2424,36 +2962,10 @@ io_m::dump_stores(ostream& o, vid_t vid, int start, int end)
 {
     int i = _find(vid);
     if (i == -1)  {
-	return RC(eBADVOL);
+        return RC(eBADVOL);
     }
 
     W_DO( vol[i]->dump_stores(o, start, end) );
 
     return RCOK;
 }
-
-/*********************************************************************
- *
- *  io_m::_get_vid(lvid)
- *
- *********************************************************************/
-inline vid_t 
-io_m::_get_vid(const lvid_t& lvid)
-{
-    uint4_t i;
-    for (i = 0; i < max_vols; i++)  {
-	if (vol[i] && vol[i]->lvid() == lvid) break;
-    }
-
-#ifndef EGCS_BUG_1
-    // egcs 1.1.1 croaks on this stmt:
-    return (i >= max_vols) ? vid_t::null : vol[i]->vid();
-#else
-    if(i >= max_vols) {
-	return vid_t::null;
-    } else {
-	return vol[i]->vid();
-    }
-#endif
-}
-

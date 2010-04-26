@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: vtable_info.cpp,v 1.14 2007/05/18 21:38:24 nhall Exp $
+ $Id: vtable_info.cpp,v 1.14.2.4 2009/11/23 22:32:48 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -42,25 +42,34 @@ vtable_info_t::set_uint(int a, unsigned int v) {
 	// check for reasonable attribute #
 	w_assert1(a < N);
 	// check attribute not already set
-	w_assert3(strlen(_get_const(a)) == 0); 
+	w_assert9(strlen(_get_const(a)) == 0); 
 	w_ostrstream o(_get(a), vtable_info_t::vtable_value_size);
 	o << v << ends;
 }
 void 
-vtable_info_t::set_base(w_base_t::base_stat_t a, int v) {
+vtable_info_t::set_base(int a, w_base_t::base_float_t v) {
 	// check for reasonable attribute #
-	w_assert3(a < w_base_t::base_stat_t(N));
+	w_assert9(a < N);
 	// check attribute not already set
-	w_assert3(strlen(_get_const(int(a))) == 0); 
-	w_ostrstream o(_get(int(a)), vtable_info_t::vtable_value_size);
+	w_assert9(strlen(_get_const(a)) == 0); 
+	w_ostrstream o(_get(a), vtable_info_t::vtable_value_size);
+	o << v << ends;
+}
+void 
+vtable_info_t::set_base(int a,  w_base_t::base_stat_t v) {
+	// check for reasonable attribute #
+	w_assert9(a < N);
+	// check attribute not already set
+	w_assert9(strlen(_get_const(a)) == 0); 
+	w_ostrstream o(_get(a), vtable_info_t::vtable_value_size);
 	o << v << ends;
 }
 void 
 vtable_info_t::set_int(int a, int v) {
 	// check for reasonable attribute #
-	w_assert3(a < N);
+	w_assert9(a < N);
 	// check attribute not already set
-	w_assert3(strlen(_get_const(a)) == 0); 
+	w_assert9(strlen(_get_const(a)) == 0); 
 	w_ostrstream o(_get(a), vtable_info_t::vtable_value_size);
 	o << v << ends;
 }
@@ -70,9 +79,9 @@ vtable_info_t::set_string(int a, const char *v) {
 	w_assert1(a < N);
 	w_assert1((int)strlen(v) < vtable_value_size);
 	// check attribute not already set
-	w_assert3(strlen(_get_const(a)) == 0); 
+	w_assert9(strlen(_get_const(a)) == 0); 
 	strcpy(_get(a), v);
-	w_assert3(_get_const(a)[strlen(v)] == '\0'); 
+	w_assert9(_get_const(a)[strlen(v)] == '\0'); 
 }
 
 ostream& 
@@ -106,9 +115,9 @@ vtable_info_array_t::init(int e, int s) {
 #ifdef W_DEBUG
 
 	    vtable_info_t *g = _get(i);
-	    w_assert3(g->n() == _entrysize);
+	    w_assert9(g->n() == _entrysize);
 	    for(int j=0; j<_entrysize; j++) {
-		w_assert3(strlen(g->operator[](0)) == 0);
+		w_assert9(strlen(g->operator[](0)) == 0);
 	    }
 #endif /* W_DEBUG */
 	}
@@ -129,9 +138,9 @@ vtable_info_array_t::operator<<(ostream &o) const {
 
 vtable_info_t* 
 vtable_info_array_t::_get(int i) const {
-    w_assert3(i >= 0);
-    w_assert3(i <= _entries);
-    w_assert3(_entries_filled <= _entries);
+    w_assert9(i >= 0);
+    w_assert9(i <= _entries);
+    w_assert9(_entries_filled <= _entries);
     vtable_info_t* v =
     (vtable_info_t *)&_array_alias[_entrysizeflat * i];
     return v;
@@ -163,9 +172,9 @@ cerr << "vtable_info_array_t::realloc() from "
 #ifdef W_DEBUG
 
 	vtable_info_t *g = _get(i);
-	w_assert3(g->n() == _entrysize);
+	w_assert9(g->n() == _entrysize);
 	for(int j=0; j<_entrysize; j++) {
-	    w_assert3(strlen(g->operator[](0)) == 0);
+	    w_assert9(strlen(g->operator[](0)) == 0);
 	}
 #endif /* W_DEBUG */
     }

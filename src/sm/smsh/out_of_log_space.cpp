@@ -28,9 +28,11 @@
 #include "sm_int_1.h"
 #include "e_error_def_gen.h"
 
-static smutex_t oven;
-static tid_t	pan;
-int	ncalls = 0; // just for the heck of it.
+#include <sm_vas.h>
+
+static pthread_mutex_t oven = PTHREAD_MUTEX_INITIALIZER;
+static tid_t    pan;
+int    ncalls = 0; // just for the heck of it.
 
 extern class ss_m* sm;
 
@@ -39,37 +41,43 @@ w_rc_t out_of_log_space (xct_i* , xct_t *& xd,
     smlevel_0::fileoff_t thresh
 )
 {
-     w_rc_t	rc;
+	{
+		fprintf(stderr, "Called out_of_log_space with curr %ld thresh %ld\n",
+				curr, thresh);
+		w_ostrstream o;
+		static sm_stats_info_t curr;
+
+		W_DO( sm->gather_stats(curr));
+
+		o << curr << ends;
+		fprintf(stderr, "stats: %s\n" , o.c_str()); 
+	}
+     w_rc_t    rc;
      xd = me()->xct();
      if(xd) {
-	 W_COERCE(oven.acquire());
-	 ncalls++;
-	 if(pan != tid_t::null) {
-	     xct_t* xx = xct_t::look_up(pan);
-	     if(!xx) {
-		// no longer aborting
-		 cout << "No longer aborting tx " << pan 
-			<< " (ncalls = " << ncalls << ")" <<endl;
-		 pan = tid_t::null;
-		 ncalls = 0;
-	     }
-	 }
-	 if(pan == tid_t::null) {
-	     cout << " Curr=" << curr << " Thresh=" << thresh <<endl;
-	     cout << " Returning E_USERABORT for xct " << xd->tid() << endl;
-	     pan = xd->tid();
-	     rc = RC(E_USERABORT);
-	 } else {
-	     // don't do anything  - give aborting xct a chance
-	     // to run
-#ifdef STHREAD_YIELD_STATIC
-	     sthread_t::yield();
-#else
-	     me()->yield();
-#endif
-	     xd = 0;
-	 }
-	 oven.release();
+         CRITICAL_SECTION(cs, oven);
+         ncalls++;
+         if(pan != tid_t::null) {
+             xct_t* xx = xct_t::look_up(pan);
+             if(!xx) {
+            // no longer aborting
+             cout << "No longer aborting tx " << pan 
+                << " (ncalls = " << ncalls << ")" <<endl;
+             pan = tid_t::null;
+             ncalls = 0;
+             }
+         }
+         if(pan == tid_t::null) {
+             cout << " Curr=" << curr << " Thresh=" << thresh <<endl;
+             cout << " Returning E_USERABORT for xct " << xd->tid() << endl;
+             pan = xd->tid();
+             rc = RC(E_USERABORT);
+         } else {
+             // don't do anything  - give aborting xct a chance
+             // to run
+             me()->yield();
+             xd = 0;
+         }
      }
      return rc;
 }

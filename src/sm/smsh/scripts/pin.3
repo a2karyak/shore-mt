@@ -1,6 +1,6 @@
 # <std-header style='tcl' orig-src='shore'>
 #
-#  $Id: pin.3,v 1.13 1999/06/07 19:05:40 kupsch Exp $
+#  $Id: pin.3,v 1.13.4.1 2009/10/27 16:44:51 nhall Exp $
 #
 # SHORE -- Scalable Heterogeneous Object REpository
 #
@@ -28,7 +28,7 @@
 #   -- do not edit anything above this line --   </std-header>
 
 #
-#	Test pin latch deadlock
+#        Test pin latch deadlock
 #
 source $script_dir/vol.init
 
@@ -45,46 +45,50 @@ for {set i 0} {$i < [llength $update_ops]} {incr i} {
 sm commit_xct
 
 
-proc pin_test {rid op} {
+proc pin_test {rid op thrnum} {
     sm begin_xct
-    verbose pinning $rid
     set pin [sm pin_create]
-    sm pin_pin $pin $rid SH
+    verbose "$thrnum sm pin_pin $pin $rid UD for op $op"
+    sm pin_pin $pin $rid UD
+    verbose $thrnum pinned $rid UD. now first sync
     sync
  
     #sm pin_unpin $pin
 
-    verbose updating $rid ...
+    verbose $thrnum updating $rid ...
     set err 0
     switch $op {
-	update_rec	{catch {sm pin_update_rec $pin 1 "X"} err}
-	update_rec_hdr	{catch {sm pin_update_rec_hdr $pin 1 "X"} err}
-	append_rec	{catch {sm pin_append_rec $pin "X"} err}
-	truncate_rec	{catch {sm pin_truncate_rec $pin 1} err}
-	default {assert {0}}
+        update_rec        {catch {sm pin_update_rec $pin 1 "X"} err}
+        update_rec_hdr    {catch {sm pin_update_rec_hdr $pin 1 "X"} err}
+        append_rec        {catch {sm pin_append_rec $pin "X"} err}
+        truncate_rec      {catch {sm pin_truncate_rec $pin 1} err}
+        default {assert {0}}
     }
     if { $err != 0 } {
-	if {[error_is $err E_DEADLOCK] == 1} {
-	    verbose "DEADLOCK in rem1 (expected)"
-	    verbose (converted from latch-lock to lock-lock)
-	    # see comments in pin.cpp pin_i::_repin
-	}
+        if {[error_is $err E_DEADLOCK] == 1} {
+            verbose $thrnum "DEADLOCK in rem1 (expected) with $op on $rid"
+            verbose $thrnum (converted from latch-lock to lock-lock)
+            # see comments in pin.cpp pin_i::_repin
+            verbose $thrnum aborting me
+        }
+    } else {
+        verbose $thrnum finished updating $rid.
     }
-    verbose finished updating $rid
     sm pin_destroy $pin
+    verbose $thrnum second sync rid=$rid
     sync
-    verbose committing
+    verbose $thrnum committing
     sm commit_xct
 }
 
 set update_ops {update_rec update_rec_hdr append_rec truncate_rec}
 
 foreach op $update_ops {
-    verbose Testing $op
+    verbose TESTING $op ___________________________________________
     verbose forking 1
-    set t1 [ fork_thread pin_test $rec(0) $op]
+    set t1 [ fork_thread pin_test $rec(0) $op 1]
     verbose forking 2
-    set t2 [ fork_thread pin_test $rec(1) $op]
+    set t2 [ fork_thread pin_test $rec(1) $op 2]
 
     sync_thread $t1
     sync_thread $t2
@@ -93,34 +97,12 @@ foreach op $update_ops {
     sync_thread $t2
     sync_thread $t1
     join_thread $t1 $t2
+    verbose END $op ___________________________________________
 }
-
-set thr_cnt 0
-foreach op $update_ops {
-    verbose forking $op
-    set thr($thr_cnt) [ fork_thread pin_test $rec($thr_cnt) $op]
-    incr thr_cnt
-}
-
-for {set i 0} { $i < $thr_cnt} {incr i} {
-    verbose syncing $i
-    sync_thread $thr($i)
-}
-for {set i [expr $thr_cnt-1]} { $i >= 0} {incr i -1} {
-    verbose syncing $i
-    sync_thread $thr($i)
-}
-
-for {set i 0} { $i < $thr_cnt} {incr i} {
-    verbose joining $i
-    join_thread $thr($i)
-}
-
-
 sm begin_xct
 sm destroy_file $f1
 sm commit_xct
 
 verbose done
-unset rec update_ops t1 t2 op thr thr_cnt i f1
+unset rec update_ops t1 t2 op i f1
 

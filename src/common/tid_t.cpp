@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: tid_t.cpp,v 1.18 1999/06/07 19:02:34 kupsch Exp $
+ $Id: tid_t.cpp,v 1.18.2.4 2009/10/30 23:51:11 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -32,11 +32,7 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 /*  -- do not edit anything above this line --   </std-header>*/
 
 #ifdef __GNUG__
-#if defined(AIX41) || defined(AIX32)
-#pragma implementation "aix_tid_t.h"
-#else
 #pragma implementation "tid_t.h"
-#endif
 #endif
 
 #include <w_stream.h>
@@ -49,31 +45,38 @@ const tid_t tid_t::Max(tid_t::hwm, tid_t::hwm);
 #ifdef EXPLICIT_TEMPLATE
 template class opaque_quantity<max_gtid_len>;
 template class opaque_quantity<max_server_handle_len>;
+
+template ostream &operator<<(ostream &, const opaque_quantity<max_gtid_len> &);
+template bool operator==(const opaque_quantity<max_gtid_len> &, 
+                            const opaque_quantity<max_gtid_len> &);
+template ostream &operator<<(ostream &, const opaque_quantity<max_server_handle_len> &);
+template bool operator==(const opaque_quantity<max_server_handle_len> &, 
+                            const opaque_quantity<max_server_handle_len> &);
 #endif
 
 #ifdef VCPP_BUG_3
 
 bool operator==(const opaque_quantity<max_gtid_len> &l, const opaque_quantity <max_gtid_len> &r) 
 {
-	return ((l._length==r._length) &&
-		(memcmp(l._opaque,r._opaque,l._length)==0));
+    return ((l._length==r._length) &&
+        (memcmp(l._opaque,r._opaque,l._length)==0));
 }
 bool operator==(const opaque_quantity<max_server_handle_len> &l, const opaque_quantity <max_server_handle_len> &r) 
 {
-	return ((l._length==r._length) &&
-		(memcmp(l._opaque,r._opaque,l._length)==0));
+    return ((l._length==r._length) &&
+        (memcmp(l._opaque,r._opaque,l._length)==0));
 }
 
 ostream & 
-operator<<(ostream &o, const opaque_quantity<max_server_handle_len>	&b) 
+operator<<(ostream &o, const opaque_quantity<max_server_handle_len>    &b) 
 {
-	return b.print(o);
+    return b.print(o);
 }
 
 ostream & 
-operator<<(ostream &o, const opaque_quantity<max_gtid_len>	&b) 
+operator<<(ostream &o, const opaque_quantity<max_gtid_len>    &b) 
 {
-	return b.print(o);
+    return b.print(o);
 }
 
 #endif /* VCPP_BUG_3 */

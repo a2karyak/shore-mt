@@ -1,6 +1,29 @@
+/* -*- mode:C++; c-basic-offset:4 -*-
+     Shore-MT -- Multi-threaded port of the SHORE storage manager
+   
+                       Copyright (c) 2007-2009
+      Data Intensive Applications and Systems Labaratory (DIAS)
+               Ecole Polytechnique Federale de Lausanne
+   
+                         All Rights Reserved.
+   
+   Permission to use, copy, modify and distribute this software and
+   its documentation is hereby granted, provided that both the
+   copyright notice and this permission notice appear in all copies of
+   the software, derivative works or modified versions, and any
+   portions thereof, and that both notices appear in supporting
+   documentation.
+   
+   This code is distributed in the hope that it will be useful, but
+   WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. THE AUTHORS
+   DISCLAIM ANY LIABILITY OF ANY KIND FOR ANY DAMAGES WHATSOEVER
+   RESULTING FROM THE USE OF THIS SOFTWARE.
+*/
+
 /*<std-header orig-src='shore'>
 
- $Id: keyed.cpp,v 1.29 2007/05/18 21:43:25 nhall Exp $
+ $Id: keyed.cpp,v 1.29.2.4 2010/01/28 04:54:03 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -49,7 +72,7 @@ void keyed_p::ntoh()
 }
 
 /*--------------------------------------------------------------*
- *  keyed_p::shift()						*
+ *  keyed_p::shift()                                                *
  *--------------------------------------------------------------*/
 rc_t
 keyed_p::shift(int idx, keyed_p* rsib)
@@ -61,17 +84,17 @@ keyed_p::shift(int idx, keyed_p* rsib)
     w_assert1(tp);
     
     for (int i = 0; i < n; i++) {
-	tp[i].put(page_p::tuple_addr(1 + idx + i),
-		  page_p::tuple_size(1 + idx + i));
+        tp[i].put(page_p::tuple_addr(1 + idx + i),
+                  page_p::tuple_size(1 + idx + i));
     }
     
     /*
      *  insert all of tp into slot 1 of rsib 
      *  (slot 0 reserved for header)
      */
-    rc_t rc = rsib->insert_expand(1, n, tp);
-    if (! rc)  {
-	rc = remove_compress(1 + idx, n);
+    rc_t rc = rsib->insert_expand(1, n, tp); // logged
+    if (! rc.is_error())  {
+        rc = remove_compress(1 + idx, n);
     }
 
     delete[] tp;
@@ -87,15 +110,15 @@ keyed_p::set_hdr(const cvec_t& data)
 }
 
 /*--------------------------------------------------------------*
- *  keyed_p::insert()						*
- *	Insert a <key, el> pair into a particular slot of a	*
- *	keyed page. 						*
+ *  keyed_p::insert()                                                *
+ *        Insert a <key, el> pair into a particular slot of a        *
+ *        keyed page.                                                 *
  *--------------------------------------------------------------*/
 rc_t
 keyed_p::insert(
-    const cvec_t& key,		// the key to be inserted
-    const cvec_t& el,		// the element associated with key
-    int slot,			// the interesting slot
+    const cvec_t& key,                // the key to be inserted
+    const cvec_t& el,                // the element associated with key
+    int slot,                        // the interesting slot
     shpid_t child)
 {
     keyrec_t::hdr_s hdr;
@@ -106,13 +129,13 @@ keyed_p::insert(
     vec_t vec;
     vec.put(&hdr, sizeof(hdr)).put(key).put(el);
     
-    W_DO( page_p::insert_expand(slot + 1, 1, &vec) );
+    W_DO( page_p::insert_expand(slot + 1, 1, &vec) ); // logged
 
     return RCOK;
 }
 
 /*--------------------------------------------------------------*
- *  keyed_p::remove()						*
+ *  keyed_p::remove()                                                *
  *--------------------------------------------------------------*/
 rc_t
 keyed_p::remove(int slot)
@@ -122,11 +145,11 @@ keyed_p::remove(int slot)
 }
 
 /*--------------------------------------------------------------*
- *  keyed_p::format()						*
+ *  keyed_p::format()                                                *
  *--------------------------------------------------------------*/
 rc_t
 keyed_p::format(const lpid_t& /*pid*/, tag_t /*tag*/, 
-	uint4_t /*flags*/, store_flag_t /* store_flags */)
+        uint4_t /*flags*/, store_flag_t /* store_flags */)
 {
     /* 
      *  keyed_p is never instantiated individually. it is meant to
@@ -138,20 +161,20 @@ keyed_p::format(const lpid_t& /*pid*/, tag_t /*tag*/,
 
 rc_t
 keyed_p::format(const lpid_t& pid, tag_t tag,
-		uint4_t flags, 
-		store_flag_t store_flags,
-		const cvec_t& hdr)
+                uint4_t flags, 
+                store_flag_t store_flags,
+                const cvec_t& hdr)
 {
     w_assert3(tag == page_p::t_rtree_p
-    	|| tag == page_p::t_keyed_p
+            || tag == page_p::t_keyed_p
     );
 
     /* don't log : last arg -> false means don't log  */
-    W_DO( page_p::format(pid, tag, flags, store_flags, false) );
-    W_COERCE( page_p::insert_expand(0, 1, &hdr, false) );
+    W_DO( page_p::_format(pid, tag, flags, store_flags) );
+    W_COERCE( page_p::insert_expand(0, 1, &hdr, false/*logit*/) );
 
     /* Now, log as one (combined) record: */
-    rc_t rc = log_page_format(*this, 0, 1, &hdr);
+    rc_t rc = log_page_format(*this, 0, 1, &hdr); // keyed_p, rtree_p
     return rc;
 }
 

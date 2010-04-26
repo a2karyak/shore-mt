@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='UNIX_STATS_H'>
 
- $Id: unix_stats.h,v 1.23 2004/10/05 23:19:54 bolo Exp $
+ $Id: unix_stats.h,v 1.23.2.3 2009/09/14 00:08:44 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -50,17 +50,6 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #endif
 
 #include <iosfwd>
-
-/*
- * SGI machines differentiate between SysV and BSD
- * get time of day sys calls. Make sure it uses the
- * BSD sys calls by defining _BSD_TIME. Check /usr/include/sys/time.h
- */
-
-#if defined(Irix)
-#define _BSD_TIME
-#endif
-
 #include <w_rusage.h>
 
 

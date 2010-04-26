@@ -1,6 +1,6 @@
 # <std-header style='tcl' orig-src='shore'>
 #
-#  $Id: recovery.3,v 1.1 2006/06/15 01:05:59 nhall Exp $
+#  $Id: recovery.3,v 1.1.2.3 2010/03/25 18:05:30 nhall Exp $
 #
 # SHORE -- Scalable Heterogeneous Object REpository
 #
@@ -27,21 +27,28 @@
 #
 #   -- do not edit anything above this line --   </std-header>
 
+######################  NOTES ###############################################
 #
 #	Test specific case of handling of error when running
 # out of log space (or otherwise being unable to write the log)
 # page.cpp, page_p::reclaim()  when log_page_reclaim fails.
 #
-# NB: RUN THIS WITH MINIMUM LOG SIZE in .shoreconfig: 1024
+# NB: RUN THIS WITH MINIMUM LOG SIZE : -sm_logsize 8192
+#
+# NOTE: no way to tell if we in fact fail on log_page_reclaim :
+# with num_page 100, rec_per_page 5 and -sm_logsize 8192 I was able
+# to make it fail in log_page_alloc_in_ext.
 # 
 # THis is NOT meant to be run with regular "all" scripts, as
 # it can be very time-consuming.
+# ###########################################################################
 
 source $script_dir/vol.init
 
 # 54 is maximum we can create all in 1 tx
 # set num_page 54
-set num_page 110
+# set num_page 1100
+set num_page 100
 set fudge 0
 
 set rec_per_page 5
@@ -120,46 +127,53 @@ verbose LAST REC :$num_rec: RID: $rid($num_rec)
 # first, here's a procedure that chews up log space
 proc chew {num_rec} {
     global volid data2 fid2
-verbose chew: fid2 $fid2 num_rec $num_rec of size [string length $data2]
+    verbose chew: fid2 $fid2 num_rec $num_rec of size [string length $data2]
     for {set i 1} {$i <= $num_rec} {incr i} {
         sm create_rec $fid2 "1" 1 $data2
     }
+    verbose end chew
 }
 
 set num_try 5
-# set num_try 50
+set num_try 50
 for {set t 1} {$t <= $num_try} {incr t} {
-verbose try number $t
-set y [sm checkpoint]
-set y [sm sync_log]
-sm begin_xct
+	verbose try number $t
+	verbose checkpoint
+	set y [sm checkpoint]
+	verbose sync log
+	set y [sm sync_log]
+	sm begin_xct
 
-# chew up log space elsewhere
-set chewnum 20
-verbose chew $chewnum
-chew $chewnum
-verbose done chewing up log space
+	# chew up log space elsewhere
+	set chewnum $num_rec
+	verbose new xct chew $chewnum
+	chew $chewnum
 
-for {set i 1} {$i <= $num_rec} {incr i} {
-    
-    if [catch {set rid($i) [sm create_rec $fid "1" 1 $data]} err ] {
-        verbose RECORD $i:  RID: $rid($i) ERROR: $err
-	if [expr {[error_is $err E_OUTOFLOGSPACE] == 0} ] {
-            verbose try $t: unexpected error  $err  expected E_OUTOFLOGSPACE
-            exit
-        }
-        sm force_buffers 
-	sm abort_xct
-        break
-    }
-    # verbose $t: :$i: created $rid($i)
-    sm force_buffers 
-}
-set tx [sm xct]
-if [expr $tx != 0] {
-    verbose committing
-    sm commit_xct 
-}
+	for {set i 1} {$i <= $num_rec} {incr i} {
+		
+		if [catch {set rid($i) [sm create_rec $fid "1" 1 $data]} err ] {
+			verbose $t: RECORD $i:  RID: $rid($i) ERROR: $err
+			if [expr {[error_is $err E_OUTOFLOGSPACE] == 0} ] {
+				verbose try $t: unexpected error  $err  expected E_OUTOFLOGSPACE
+				exit
+			}
+			if [expr {[error_is $err E_OUTOFLOGSPACE] == 1} ] {
+				verbose "SUCCESS in running out of log space."
+			}
+			verbose $t: :$i: force_buffers
+			sm force_buffers 
+			verbose $t: :$i: aborting
+			sm abort_xct
+			break
+		}
+		verbose $t: :$i: created $rid($i)
+		sm force_buffers 
+	}
+	set tx [sm xct]
+	if [expr $tx != 0] {
+		verbose committing
+		sm commit_xct 
+	}
 }
 
 unset fudge tx num_try y chewnum i rid

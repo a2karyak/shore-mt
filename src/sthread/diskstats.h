@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='DISKSTATS_H'>
 
- $Id: diskstats.h,v 1.14 2006/01/29 17:32:50 bolo Exp $
+ $Id: diskstats.h,v 1.14.2.2 2009/06/23 01:01:47 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 

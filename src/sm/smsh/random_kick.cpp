@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: random_kick.cpp,v 1.11 2007/05/18 21:50:57 nhall Exp $
+ $Id: random_kick.cpp,v 1.11.2.5 2010/03/19 22:20:30 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -35,15 +35,16 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #include <csignal>
 #include <cstdlib>
 #include <iostream>
+#include <signal.h>
 
 
 #if 0
 // declared in stdlib.h
 extern "C" {
-	long random();
-	void srandom(unsigned int);
-	char *initstate(unsigned, char*, size_t);
-	char *setstate(char *);
+    long random();
+    void srandom(unsigned int);
+    char *initstate(unsigned, char*, size_t);
+    char *setstate(char *);
 };
 #endif
 
@@ -65,15 +66,15 @@ dorandom(long mod)
     long res = random();
 
     if(mod==0) {
-	(void) setstate((char *)rstate);
-	srandom(rseed);
+    (void) setstate((char *)rstate);
+    srandom(rseed);
     } else if(mod>0) {
-	res %= mod;
+    res %= mod;
     }
     return (int) res;
 }
 
-void
+extern "C" void
 die(
     int 
 )
@@ -84,16 +85,16 @@ die(
 
 int
 main(
-	int ac,
-	char *av[]
+    int ac,
+    char *av[]
 ) 
 {
     if (ac != 6) {
-	cerr << "Usage: "
-	<< av[0] 
-	<< " <sig> <pid> <max0> <max1> <max2> " 
-	<< endl;
-	return 1;
+    cerr << "Usage: "
+    << av[0] 
+    << " <sig> <pid> <max0> <max1> <max2> " 
+    << endl;
+    return 1;
     }
 
     signal(SIGUSR1, SIG_IGN);
@@ -108,31 +109,31 @@ main(
 
     int category=0, t=0;
     while(1) {
-	pid_t pp = getppid();
-	if(pp == 1) { 
-	    cerr << "random_kick: parent went away -- exiting " << endl;
-	    return 1;
-	}
+    pid_t pp = getppid();
+    if(pp == 1) { 
+        cerr << "random_kick: parent went away -- exiting " << endl;
+        return 1;
+    }
       
-	category = dorandom(3);
+    category = dorandom(3);
 
-	switch(category) {
-	case 0:
-	     t=dorandom(max0);
-	     break;
-	case 1:
-	     t=dorandom(max1);
-	     break;
-	case 2:
-	     t=dorandom(max2);
-	     break;
-	}
-	cout << "random_kick: pid " << getpid() << " sleep... " << t << endl;
-	if(t>0) {
-	    sleep(t);
-	}
-	cout << "random_kick: kill " << pid << "," << sig << endl;
-	kill(pid, sig);
+    switch(category) {
+    case 0:
+         t=dorandom(max0);
+         break;
+    case 1:
+         t=dorandom(max1);
+         break;
+    case 2:
+         t=dorandom(max2);
+         break;
+    }
+    cout << "random_kick: pid " << getpid() << " sleep... " << t << endl;
+    if(t>0) {
+        sleep(t);
+    }
+    cout << "random_kick: kill " << pid << "," << sig << endl;
+    kill(pid, sig);
     }
     return 0;
 }

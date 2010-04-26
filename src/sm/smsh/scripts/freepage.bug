@@ -1,6 +1,6 @@
 # <std-header style='tcl' orig-src='shore'>
 #
-#  $Id: freepage.bug,v 1.11 1999/06/07 19:05:30 kupsch Exp $
+#  $Id: freepage.bug,v 1.11.4.3 2009/12/03 04:03:30 nhall Exp $
 #
 # SHORE -- Scalable Heterogeneous Object REpository
 #
@@ -30,6 +30,7 @@
 source $script_dir/vol.init
 
 sm begin_xct
+verbose begin_xct [sm xct_to_tid [sm xct]]
 set fid [sm create_file $volid]
 set r [sm create_rec $fid head 7000 [formatlong 0 7000 %03d 99]]
 verbose created rec $r
@@ -41,26 +42,39 @@ set r2 [sm create_rec $fid head 4 body]
 verbose r2=$r2
 sm destroy_rec $r
 verbose destroyed rec $r
+verbose commit_xct [sm xct_to_tid [sm xct]]
 sm commit_xct
 
 # r1 and r2 should be on the same page.
 # should not be on the first page in the store, since it is treated special.
 # should be the only records on the page, so both will hold IX locks on the
 # page when one tries to free the page.  this will propagate an error of
-# eLOCKTIMEOUT, since the page freeing code won't be able to get it's EX
+# eLOCKTIMEOUT, since the page freeing code won't be able to get its EX
 # lock.
 
 proc deleteit {r} {
-	sm begin_xct
-	verbose about to destroy_rec $r
-	sm destroy_rec $r
-	verbose destroyed rec $r
 	sync
+	sm lock_timeout 1000
+	sm begin_xct
+	set  x [sm xct_to_tid [sm xct]]  
+	verbose xct $x about to destroy_rec $r
+	catch { sm destroy_rec $r} err
+	verbose $err
+	verbose xct $x destroyed rec $r
+	verbose sync $x rec $r
+	sync
+	verbose commit $x rec $r
 	sm commit_xct
 }
+verbose EXPECT one E_LOCKTIMEOUT 
 
 set t1 [fork_thread deleteit $r1]
+verbose $t1 -> $r1
 set t2 [fork_thread deleteit $r2]
+verbose $t2 -> $r2
+verbose sync_thread $t1 $t2
+sync_thread $t1 $t2
+verbose sync_thread $t1 $t2
 sync_thread $t1 $t2
 join_thread $t1 $t2
 

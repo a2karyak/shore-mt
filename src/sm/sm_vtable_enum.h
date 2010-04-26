@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='VTABLE_ENUM_H'>
 
- $Id: sm_vtable_enum.h,v 1.2 2008/05/28 01:28:02 nhall Exp $
+ $Id: sm_vtable_enum.h,v 1.1.2.9 2010/03/19 22:20:27 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -39,74 +39,43 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
  * to a virtual table.  The enum assigns a distinct number to each
  * "attribute" of a thread, and takes into account a bunch of
  * derived thread types (for Paradise)
- * This acts as an index into a vtable_info_t;
+ * This acts as an index into a vtable_row_t;
  */
 
+#include <vtable.h>
 #include "sthread_vtable_enum.h"
 
 enum {
-	/* for xcts */
-	xct_nthreads_attr=0,
-	xct_gtid_attr=1,
-	xct_tid_attr=2,
-	xct_state_attr=3,
-	xct_coordinator_attr=4,
-	xct_forced_readonly_attr=5,
+    /* for xcts */
+    xct_nthreads_attr,
+    xct_gtid_attr,
+    xct_tid_attr,
+    xct_state_attr,
+    xct_coordinator_attr,
+    xct_forced_readonly_attr,
 
-	/* last number! */
-	xct_last
-};
-
-enum {
-	/* for locks */
-	lock_name_attr=0,
-	lock_mode_attr=1,
-	lock_duration_attr=2,
-	lock_children_attr=3,
-	lock_tid_attr=4,
-	lock_status_attr=5,
-
-	/* last number! */
-	lock_last 
+    /* last number! */
+    xct_last
 };
  
 enum {
-        /* per-smthread stats */
-	junk = thread_last-1,
-#include "smthread_stats_t_collect_enum_gen.h"
-	smthread_last 
-};
-
-enum {
-        /* per-sm stats */
+        /* global per-sm stats */
+#include "bf_htab_stats_t_collect_enum_gen.h"
 #include "sm_stats_t_collect_enum_gen.h"
-#include "sm2pc_stats_t_collect_enum_gen.h"
-	sm_last 
+    sm_last 
 };
 
+#include <sthread_vtable_enum.h>
 enum {
-	/* for buffer pool */
-	bp_pid_attr,
-	bp_pin_cnt_attr,
-	bp_mode_attr,
-	bp_dirty_attr,
-	bp_hot_attr,
-
-	/* last number! */
-	bp_last 
+    /* per-smthread info */
+    smthread_name_attr = sthread_last,
+    smthread_thread_type_attr,
+    smthread_pin_count_attr,
+    smthread_is_in_sm_attr,
+    smthread_tid_attr,
+    smthread_last
 };
 
-enum {
-    /* for per volume io */
-    vol_id_attr,
-    vol_writes_attr,
-    vol_blks_written_attr,
-    vol_reads_attr,
-    vol_blks_read_attr,
-
-    /* last number */
-    vol_last
-};
 
 /*<std-footer incl-file-exclusion='VTABLE_ENUM_H'>  -- do not edit anything below this line -- */
 

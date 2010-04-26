@@ -1,6 +1,6 @@
 # <std-header style='tcl' orig-src='shore'>
 #
-#  $Id: cd.perf.0,v 1.8 2006/06/01 17:09:41 nhall Exp $
+#  $Id: cd.perf.0,v 1.8.2.2 2009/12/21 18:45:14 nhall Exp $
 #
 # SHORE -- Scalable Heterogeneous Object REpository
 #
@@ -75,10 +75,10 @@ sm begin_xct
 
     # Now, start over and time it
     set fid [sm create_file $volid ]
-    echo fid=$fid
+    verbose fid=$fid
 sm commit_xct
 
-echo CREATING $nobjs RECS of size $objsize
+verbose CREATING $nobjs RECS of size $objsize
 
 set i 0
 
@@ -91,18 +91,18 @@ set wtime [ time {
 	sm force_buffers true
 } 1 ]
 
-echo CREATED $nobjs RECS of size $objsize, forced buffers
+verbose CREATED $nobjs RECS of size $objsize, forced buffers
 echo total create time = $wtime
 set dummy [sm gather_stats reset]
-echo [pnzstats $dummy]
+verbose [pnzstats $dummy]
 set dummy [sm gather_xct_stats reset]
-echo [pnzstats $dummy]
+verbose [pnzstats $dummy]
 sm commit_xct
 
-echo forcing buffers again
+verbose forcing buffers again
 sm force_buffers true
 
-echo DESTROYING FILE 
+verbose DESTROYING FILE 
 
 sm begin_xct
 set dummy [sm gather_stats reset]
@@ -110,18 +110,23 @@ set wtime [ time {
 	sm destroy_file $fid
 	sm force_buffers true
 } 1 ]
-echo
+verbose
 
-echo DESTROYED file
+verbose DESTROYED file
 echo total destroy time = $wtime
 set dummy [sm gather_stats reset]
-echo [pnzstats $dummy]
+verbose [pnzstats $dummy]
 set dummy [sm gather_xct_stats reset]
-echo [pnzstats $dummy]
+verbose [pnzstats $dummy]
 
 sm abort_xct
+# aborted: now destroy for real:
 
-unset wtime dummy fid i body hdr
+if {$fid!=0} {
+	sm begin_xct
+	sm destroy_file $fid 
+	set fid 0
+	sm commit_xct
+}
 
-echo shutting down
-
+unset wtime dummy fid i body hdr hundred npages ten nobjs objsize

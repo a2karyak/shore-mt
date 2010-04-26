@@ -1,6 +1,6 @@
 # <std-header style='tcl' orig-src='shore'>
 #
-#  $Id: alloc.5,v 1.18 1999/06/07 19:05:08 kupsch Exp $
+#  $Id: alloc.5,v 1.18.4.1 2010/03/19 22:20:35 nhall Exp $
 #
 # SHORE -- Scalable Heterogeneous Object REpository
 #
@@ -44,9 +44,8 @@ proc t1 {} {
     set tid [sm xct_to_tid [sm xct]]
     verbose t1 $tid
 
-    verbose sync t1-1
-    sync
-
+    verbose named_sync t1-1
+    named_sync 3 t1-1
 
     verbose t1 creating $nrecs more recs ...
     set scan [sm scan_file_create $f0 t_cc_append]
@@ -56,14 +55,14 @@ proc t1 {} {
     verbose t1 created $nrecs recs file $f0
     sm scan_file_destroy $scan
 
-    verbose sync t1-2
-    sync
+    verbose named_sync t1-2
+    named_sync 3 t1-2
 
     scanit $f0 t1
     sm commit_xct
 
-    verbose sync t1-3
-    sync
+    verbose named_sync t1-3
+    named_sync 3 t1-3
 
     sm begin_xct
     verbose t1 2nd xct re-scanning
@@ -118,8 +117,8 @@ proc t2 {} {
 
     scanit $f0 t2
 
-    verbose sync t2-1
-    sync
+    verbose named_sync t2-1
+    named_sync 3 t2-1
 
     if {$logging==0} {
 	verbose t2 Logging off: substituting commit for abort
@@ -129,8 +128,8 @@ proc t2 {} {
 	sm abort_xct
     }
 
-    verbose sync t2-2
-    sync
+    verbose named_sync t2-2
+    named_sync 3 t2-1
     verbose t2 finished...
 
     sm begin_xct
@@ -138,8 +137,8 @@ proc t2 {} {
     scanit $f0 t2
     sm commit_xct
 
-    verbose sync t2-3
-    sync
+    verbose named_sync t2-3
+    named_sync 3 t2-3
 
 verbose end of t2:
 }
@@ -159,20 +158,19 @@ sm begin_xct
 scanit $f0 t0
 sm commit_xct
 
-
 set y1 [fork_thread t1 {}]
 set y2 [fork_thread t2 {}]
 
 # sm dump_threads
 
-verbose sync_thread $y1 $y2
-sync_thread $y1 $y2
+verbose named_sync 3 "$y1 $y2"
+named_sync 3 "$y1 $y2"
 
-verbose sync_thread $y1 $y2
-sync_thread $y1 $y2
+verbose named_sync 3 "$y1 $y2"
+named_sync 3 "$y1 $y2"
 
-verbose sync_thread $y1 $y2
-sync_thread $y1 $y2
+verbose named_sync 3 $y1 $y2
+named_sync 3 "$y1 $y2"
 
 verbose join_thread $y1 $y2
 join_thread $y1 $y2

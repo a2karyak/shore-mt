@@ -1,6 +1,6 @@
 # <std-header style='tcl' orig-src='shore'>
 #
-#  $Id: file.activity2,v 1.12 2007/08/21 19:44:00 nhall Exp $
+#  $Id: file.activity2,v 1.11.4.2 2009/10/27 16:44:48 nhall Exp $
 #
 # SHORE -- Scalable Heterogeneous Object REpository
 #
@@ -41,7 +41,7 @@ set id_width %08d
 
 proc test {t fileType numObjs numTimes recSize do_change 
     do_scan sleep do_destroy}  {
-    global id_width volid buffer 
+    global id_width volid 
 
     for {set j 0} {$j < $numTimes} {incr j}  {
 	sm begin_xct
@@ -50,7 +50,6 @@ proc test {t fileType numObjs numTimes recSize do_change
 
 	# populate it
 	for {set i 0} {$i < $numObjs} {incr i}  {
-	    # sm create_rec $fid [format $id_width $i] $recSize $buffer
 	    sm create_rec $fid [format $id_width $i] $recSize [format "%0*d" $recSize 2]
 	}
 	if {$do_change} {
@@ -80,15 +79,6 @@ proc test {t fileType numObjs numTimes recSize do_change
     }
 }
 
-# make a 64K buffer
-set buffer ""
-for {set i 48} {$i < 112} {incr i}  {
-    set c [format "%c" $i]
-    set buffer "$buffer$c"
-}
-for {set i 0} {$i < 10} {incr i}  {
-    set buffer "$buffer$buffer"
-}
 
 source $script_dir/vol.init
 clearstats
@@ -106,6 +96,5 @@ set t8 [fork_thread test t8 "regular" 150  8 $recsize 0 0 1  1]
 
 join_thread $t1 $t2 $t3 $t4 $t5 $t6 $t7 $t8
 
-unset t1 t2 t3 t4 t5 t6 t7 t8 c recsize numTests id_width
-unset buffer
+unset t1 t2 t3 t4 t5 t6 t7 t8 recsize numTests id_width
 

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='W_OPAQUE_H'>
 
- $Id: w_opaque.h,v 1.6 2007/05/18 21:33:42 nhall Exp $
+ $Id: w_opaque.h,v 1.6.2.6 2010/03/19 22:19:19 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -47,191 +47,203 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
    This should be moved to w_workaround once the other similar
    issues are accounted for. */
 #if W_GCC_THIS_VER < W_GCC_VER(2,95)
-#define	W_NO_TEMPLATE_FORWARD_DECLS
+#define    W_NO_TEMPLATE_FORWARD_DECLS
 #endif
 #endif
 
 template <int LEN> class opaque_quantity;
 #ifndef W_NO_TEMPLATE_FORWARD_DECLS
 template <int LEN> ostream &operator<<(ostream &o,
-				       const opaque_quantity<LEN> &r);
+                       const opaque_quantity<LEN> &r);
 template <int LEN> bool operator==(const opaque_quantity<LEN> &l,
-				   const opaque_quantity<LEN> &r);
+                   const opaque_quantity<LEN> &r);
 #endif
 
+/**\brief A set of untyped bytes. 
+ *
+ * \details 
+ *
+ * This is just a blob.  Not necessarily large object,
+ * but it is an untyped group of bytes. Used for
+ * global transaction IDs and server IDs for two-phase
+ * commit.  The storage manager has to log this information
+ * for preparing a 2PC transaction, so it has to flow
+ * through the API.
+ */
 template <int LEN> 
-class opaque_quantity {
+class opaque_quantity 
+{
 
 private:
 
-	uint4_t         _length;
-	unsigned char _opaque[LEN];
+    uint4_t         _length;
+    unsigned char _opaque[LEN];
 
     public:
-	opaque_quantity() {
-	    (void) set_length(0);
-#ifdef PURIFY_ZERO
-	    memset(_opaque, '\0', LEN);
+    opaque_quantity() {
+        (void) set_length(0);
+#ifdef ZERO_INIT
+        memset(_opaque, '\0', LEN);
 #endif
-	}
-	opaque_quantity(const char* s)
-	{
-#ifdef PURIFY_ZERO
-	    memset(_opaque, '\0', LEN);
+    }
+    opaque_quantity(const char* s)
+    {
+#ifdef ZERO_INIT
+        memset(_opaque, '\0', LEN);
 #endif
-		*this = s;
-	}
+        *this = s;
+    }
 
-	friend bool
-	operator== BIND_FRIEND_OPERATOR_PART_2(LEN) (
-		const opaque_quantity<LEN>	&l,
-		const opaque_quantity<LEN>	&r); 
+    friend bool
+    operator== <LEN> (
+        const opaque_quantity<LEN>    &l,
+        const opaque_quantity<LEN>    &r); 
 
-	friend ostream & 
-	operator<< BIND_FRIEND_OPERATOR_PART_2(LEN) (
-		ostream &o, 
-		const opaque_quantity<LEN>	&b);
+    friend ostream & 
+    operator<< <LEN> (
+        ostream &o, 
+        const opaque_quantity<LEN>    &b);
 
-	opaque_quantity<LEN>	&
-	operator=(const opaque_quantity<LEN>	&r) 
-	{
-		(void) set_length(r.length());
-		memcpy(_opaque,r._opaque,length());
-		return *this;
-	}
-	opaque_quantity<LEN>	&
-	operator=(const char* s)
-	{
-		w_assert3(strlen(s) <= LEN);
-		(void) set_length(0);
-		while ((_opaque[length()] = *s++))
-		    (void) set_length(length() + 1);
-		return *this;
-	}
-	opaque_quantity<LEN>	&
-	operator+=(const char* s)
-	{
-		w_assert3(strlen(s) + length() <= LEN);
-		while ((_opaque[set_length(length() + 1)] = *s++))
-		    ;
-		return *this;
-	}
-	opaque_quantity<LEN>	&
-	operator-=(uint4_t len)
-	{
-		w_assert3(len <= length());
-		(void) set_length(length() - len);
-		return *this;
-	}
-	opaque_quantity<LEN>	&
-	append(const void* data, uint4_t len)
-	{
-		w_assert3(len + length() <= LEN);
-		memcpy((void*)&_opaque[length()], data, len);
-		(void) set_length(length() + len);
-		return *this;
-	}
-	opaque_quantity<LEN>    &
-	zero()
-	{
-		(void) set_length(0);
-		memset(_opaque, 0, LEN);
-		return *this;
-	}
-	opaque_quantity<LEN>    &
-	clear()
-	{
-		(void) set_length(0);
-		return *this;
-	}
-	void *
-	data_at_offset(unsigned i)  const
-	{
-		w_assert3(i < length());
-		return (void*)&_opaque[i];
-	}
-	uint4_t	      wholelength() const {
-		return (sizeof(_length) + length());
-	}
-	uint4_t	      set_length(uint4_t l) {
-		if(is_aligned()) { 
-		    _length = l; 
-		} else {
-		    char *m = (char *)&_length;
-		    memcpy(m, &l, sizeof(_length));
-		}
-		return l;
-	}
-	uint4_t	      length() const {
-		if(is_aligned()) return _length;
-		else {
-		    uint4_t l;
-		    char *m = (char *)&_length;
-		    memcpy(&l, m, sizeof(_length));
-		    return l;
-		}
-	}
+    opaque_quantity<LEN>    &
+    operator=(const opaque_quantity<LEN>    &r) 
+    {
+        (void) set_length(r.length());
+        memcpy(_opaque,r._opaque,length());
+        return *this;
+    }
+    opaque_quantity<LEN>    &
+    operator=(const char* s)
+    {
+        w_assert9(strlen(s) <= LEN);
+        (void) set_length(0);
+        while ((_opaque[length()] = *s++))
+            (void) set_length(length() + 1);
+        return *this;
+    }
+    opaque_quantity<LEN>    &
+    operator+=(const char* s)
+    {
+        w_assert9(strlen(s) + length() <= LEN);
+        while ((_opaque[set_length(length() + 1)] = *s++))
+            ;
+        return *this;
+    }
+    opaque_quantity<LEN>    &
+    operator-=(uint4_t len)
+    {
+        w_assert9(len <= length());
+        (void) set_length(length() - len);
+        return *this;
+    }
+    opaque_quantity<LEN>    &
+    append(const void* data, uint4_t len)
+    {
+        w_assert9(len + length() <= LEN);
+        memcpy((void*)&_opaque[length()], data, len);
+        (void) set_length(length() + len);
+        return *this;
+    }
+    opaque_quantity<LEN>    &
+    zero()
+    {
+        (void) set_length(0);
+        memset(_opaque, 0, LEN);
+        return *this;
+    }
+    opaque_quantity<LEN>    &
+    clear()
+    {
+        (void) set_length(0);
+        return *this;
+    }
+    void *
+    data_at_offset(unsigned i)  const
+    {
+        w_assert9(i < length());
+        return (void*)&_opaque[i];
+    }
+    uint4_t          wholelength() const {
+        return (sizeof(_length) + length());
+    }
+    uint4_t          set_length(uint4_t l) {
+        if(is_aligned()) { 
+            _length = l; 
+        } else {
+            char *m = (char *)&_length;
+            memcpy(m, &l, sizeof(_length));
+        }
+        return l;
+    }
+    uint4_t          length() const {
+        if(is_aligned()) return _length;
+        else {
+            uint4_t l;
+            char *m = (char *)&_length;
+            memcpy(&l, m, sizeof(_length));
+            return l;
+        }
+    }
 
-	void	      ntoh()  {
-	    if(is_aligned()) {
-		_length = w_base_t::w_ntohl(_length);
-	    } else {
-		uint4_t         l = w_base_t::w_ntohl(length());
-		char *m = (char *)&l;
-		memcpy(&_length, m, sizeof(_length));
-	    }
-	}
-	void	      hton()  {
-	    if(is_aligned()) {
-		_length = w_base_t::w_htonl(_length);
-	    } else {
-		uint4_t         l = w_base_t::w_htonl(length());
-		char *m = (char *)&l;
-		memcpy(&_length, m, sizeof(_length));
-	    }
-	}
+    void          ntoh()  {
+        if(is_aligned()) {
+            _length = w_base_t::w_ntohl(_length);
+        } else {
+            uint4_t         l = w_base_t::w_ntohl(length());
+            char *m = (char *)&l;
+            memcpy(&_length, m, sizeof(_length));
+        }
+    }
+    void          hton()  {
+        if(is_aligned()) {
+            _length = w_base_t::w_htonl(_length);
+        } else {
+            uint4_t         l = w_base_t::w_htonl(length());
+            char *m = (char *)&l;
+            memcpy(&_length, m, sizeof(_length));
+        }
+    }
 
-	/* XXX why doesn't this use the aligned macros? */
-	bool	      is_aligned() const  {
-	    return (((ptrdiff_t)(&_length) & (sizeof(_length) - 1)) == 0);
-	}
+    /* XXX why doesn't this use the aligned macros? */
+    bool          is_aligned() const  {
+        return (((ptrdiff_t)(&_length) & (sizeof(_length) - 1)) == 0);
+    }
 
-	ostream		&print(ostream & o) const {
-		o << "opaque[" << length() << "]" ;
+    ostream        &print(ostream & o) const {
+        o << "opaque[" << length() << "]" ;
 
-		uint4_t print_length = length();
-		if (print_length > LEN) {
-			o << "[TRUNC TO LEN=" << LEN << "!!]";
-			print_length = LEN;
-		}
-		o << '"';
-		const unsigned char *cp = &_opaque[0];
-		for (uint4_t i = 0; i < print_length; i++, cp++) {
-			if (isprint(*cp))
-			    o << *cp;
-			else {
-			    W_FORM(o)("\\x%02X", *cp);
-			}
-		}
+        uint4_t print_length = length();
+        if (print_length > LEN) {
+            o << "[TRUNC TO LEN=" << LEN << "!!]";
+            print_length = LEN;
+        }
+        o << '"';
+        const unsigned char *cp = &_opaque[0];
+        for (uint4_t i = 0; i < print_length; i++, cp++) {
+            if (isprint(*cp))
+                o << *cp;
+            else {
+                W_FORM(o)("\\x%02X", *cp);
+            }
+        }
 
-		return o << '"';
-	}
+        return o << '"';
+    }
 };
 
 
 template <int LEN>
 bool operator==(const opaque_quantity<LEN> &a,
-	const opaque_quantity<LEN>	&b) 
+    const opaque_quantity<LEN>    &b) 
 {
-	return ((a.length()==b.length()) &&
-		(memcmp(a._opaque,b._opaque,a.length())==0));
+    return ((a.length()==b.length()) &&
+        (memcmp(a._opaque,b._opaque,a.length())==0));
 }
 
 template <int LEN>
 ostream & 
-operator<<(ostream &o, const opaque_quantity<LEN>	&b) 
+operator<<(ostream &o, const opaque_quantity<LEN>    &b) 
 {
-	return b.print(o);
+    return b.print(o);
 }
 
 /*<std-footer incl-file-exclusion='W_OPAQUE_H'>  -- do not edit anything below this line -- */

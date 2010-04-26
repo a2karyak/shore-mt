@@ -1,6 +1,29 @@
+/* -*- mode:C++; c-basic-offset:4 -*-
+     Shore-MT -- Multi-threaded port of the SHORE storage manager
+   
+                       Copyright (c) 2007-2009
+      Data Intensive Applications and Systems Labaratory (DIAS)
+               Ecole Polytechnique Federale de Lausanne
+   
+                         All Rights Reserved.
+   
+   Permission to use, copy, modify and distribute this software and
+   its documentation is hereby granted, provided that both the
+   copyright notice and this permission notice appear in all copies of
+   the software, derivative works or modified versions, and any
+   portions thereof, and that both notices appear in supporting
+   documentation.
+   
+   This code is distributed in the hope that it will be useful, but
+   WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. THE AUTHORS
+   DISCLAIM ANY LIABILITY OF ANY KIND FOR ANY DAMAGES WHATSOEVER
+   RESULTING FROM THE USE OF THIS SOFTWARE.
+*/
+
 /*<std-header orig-src='shore' incl-file-exclusion='SM_BASE_H'>
 
- $Id: sm_base.h,v 1.146 2007/05/18 21:43:28 nhall Exp $
+ $Id: sm_base.h,v 1.146.2.16 2010/03/25 18:05:16 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -34,6 +57,10 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 
 /*  -- do not edit anything above this line --   </std-header>*/
 
+/**\file sm_base.h
+ * \ingroup Macros
+ */
+
 #ifdef __GNUG__
 #pragma interface
 #endif
@@ -55,77 +82,61 @@ class xct_i;
 class device_m;
 class io_m;
 class bf_m;
-class cache_m;
 class comm_m;
 class log_m;
-class callback_m;
 class lock_m;
-class GlobalDeadlockClient;
-class DeadlockEventCallback;
-#if defined(AIX41) || defined(HPUX8)
-/* XXX Horrible hack due to conflict between shore transaction IDs and
-   AIX and then HPUX thread IDs.   See tid_t.h for details. */
-#define	tid_t	w_tid_t
-#endif
-class tid_t;
 
+class tid_t;
 class option_t;
 
-#ifndef	SM_EXTENTSIZE
-#define	SM_EXTENTSIZE	8
+#ifndef        SM_EXTENTSIZE
+#define        SM_EXTENTSIZE        8
 #endif
-#ifndef	SM_LOG_PARTITIONS
-#define	SM_LOG_PARTITIONS	8
+#ifndef        SM_LOG_PARTITIONS
+#define        SM_LOG_PARTITIONS        8
 #endif
 
-typedef   w_rc_t	rc_t;
+typedef   w_rc_t        rc_t;
 
+/**\cond skip */
 class smlevel_0 : public w_base_t {
 public:
     enum { eNOERROR = 0, eFAILURE = -1 };
     enum { 
-	page_sz = SM_PAGESIZE,	// page size (SM_PAGESIZE is set by makemake)
-	ext_sz = SM_EXTENTSIZE,	// extent size
-	max_exts = max_int4,	// max no. extents, must fit extnum_t
+        page_sz = SM_PAGESIZE,        // page size (SM_PAGESIZE is set by makemake)
+        ext_sz = SM_EXTENTSIZE,        // extent size
+        max_exts = max_int4,        // max no. extents, must fit extnum_t
 #if defined(_POSIX_PATH_MAX)
-	max_devname = _POSIX_PATH_MAX,	// max length of unix path name
+        max_devname = _POSIX_PATH_MAX,        // max length of unix path name
+    // BEWARE: this might be larger than you want.  Array sizes depend on it.
+    // The default might be small enough, e.g., 256; getconf() yields the upper
+    // bound on this value.
 #elif defined(MAXPATHLEN)
-	max_devname = MAXPATHLEN,
+        max_devname = MAXPATHLEN,
 #else
-	max_devname = 1024,	
+        max_devname = 1024,        
 #endif
-	max_vols = 20,		// max mounted volumes
-	max_xct_thread = 20,	// max threads in a xct
-	max_servers = 15,       // max servers to be connected with
-	max_keycomp = 20,	// max key component (for btree)
-	max_openlog = SM_LOG_PARTITIONS,	// max # log partitions
-	max_dir_cache = max_vols * 10,
+        max_vols = 20,                // max mounted volumes
+        max_xct_thread = 20,        // max threads in a xct
+        max_servers = 15,       // max servers to be connected with
+        max_keycomp = 20,        // max key component (for btree)
+        max_openlog = SM_LOG_PARTITIONS,        // max # log partitions
+        max_dir_cache = max_vols * 10,
 
-	/* XXX I want to propogate sthread_t::iovec_max here, but
-	   it doesn't work because of sm_app.h not including
-	   the thread package. */
-#ifdef notyet
-	max_many_pages = sthread_t::iovec_max,	// max # "many_pages" I/O
-#else
-	max_many_pages = 8,
-#endif
+        /* XXX I want to propogate sthread_t::iovec_max here, but
+           it doesn't work because of sm_app.h not including
+           the thread package. */
+        max_many_pages = 8,
 
-	srvid_map_sz = (max_servers - 1) / 8 + 1,
-	ext_map_sz_in_bytes = ((ext_sz + 7) / 8),
+        srvid_map_sz = (max_servers - 1) / 8 + 1,
+        ext_map_sz_in_bytes = ((ext_sz + 7) / 8),
 
-	dummy = 0
+        dummy = 0
     };
 
     enum {
-#ifdef _MSC_VER
-	max_rec_len = max_int4
-#else
-	max_rec_len = max_uint4
-#endif
+        max_rec_len = max_uint4
     };
-
-    /* VAS uses this: */
-    enum commit_protocol { presumed_nothing, presumed_abort };
 
     typedef sthread_base_t::fileoff_t fileoff_t;
     /*
@@ -135,9 +146,14 @@ public:
      */
     typedef sthread_t::fileoff_t smksize_t;
 
+
+    typedef vote_t        xct_vote_t;
+
+    typedef w_base_t::base_stat_t base_stat_t; 
+
     /*
      * rather than automatically aborting the transaction, when the
-     * log_warn_percent is exceeded, this callback is made, with a
+     * _log_warn_percent is exceeded, this callback is made, with a
      * pointer to the xct that did the writing, and with the
      * expectation that the result will be one of:
      * return value == RCOK --> proceed
@@ -147,11 +163,6 @@ public:
      * It is a ss_m method so that the VAS can write a function that
      * is privvy to the SM private stuff.
      */
-
-    typedef vote_t	xct_vote_t;
-
-    typedef w_base_t::base_stat_t base_stat_t; 
-
     /*
      * callback function that's called by SM on entry to
      * __almost any__ SM call that occurs on behalf of a xact.  The
@@ -169,13 +180,13 @@ public:
      *  times before the victim is completely aborted.
      */
     typedef w_rc_t (*LOG_WARN_CALLBACK_FUNC) (xct_i*, xct_t *&,
-	fileoff_t curr,
-	fileoff_t thresh
-	);
+        fileoff_t curr,
+        fileoff_t thresh
+        );
 
     enum switch_t {
-	ON = 1,
-	OFF = 0
+        ON = 1,
+        OFF = 0
     };
 
     // shorthand for basics.h CompareOp
@@ -183,35 +194,52 @@ public:
                  gt=gtOp, ge=geOp, lt=ltOp, le=leOp };
 
     enum store_t { t_bad_store_t, t_index, t_file,
-		   t_lgrec, // t_lgrec is used for storing large record
-			    // pages and is always associated with some
-			    // t_file store
-		   t_1page // for special store holding 1-page btrees 
-		  };
+                   t_lgrec, // t_lgrec is used for storing large record
+                            // pages and is always associated with some
+                            // t_file store
+                   t_1page // for special store holding 1-page btrees 
+                  };
     
+/**\endcond skip */
     // types of indexes
+
+    /**\brief Index types */
     enum ndx_t { 
-	t_bad_ndx_t,		// illegal value
-	t_btree,		// B+tree with duplicates
-	t_uni_btree,		// unique-keys btree
-	t_rtree,		// R*tree
-	t_rdtree, 		// russion doll tree (set index)
-	t_lhash 		// linear hashing (not implemented)
+        t_bad_ndx_t,             // illegal value
+        t_btree,                 // B+tree with duplicates
+        t_uni_btree,             // Unique-key btree
+        t_rtree                  // R*tree
     };
 
-    // locking granularity options
+    /**\enum concurrency_t 
+     * \brief 
+     * Lock granularities 
+     * \details
+     * - t_cc_bad Illegal
+     * - t_cc_none No locking
+     * - t_cc_record Record-level locking for files & records
+     * - t_cc_page Page-level locking for files & records 
+     * - t_cc_file File-level locking for files & records 
+     * - t_cc_vol Volume-level locking for files and indexes 
+     * - t_cc_kvl Key-value locking for B+-Tree indexes
+     * - t_cc_im Aries IM locking for B+-Tree indexes : experimental
+     * - t_cc_modkvl Modified key-value locking: experimental
+     * - t_cc_append Used internally \todo true?
+     */
     enum concurrency_t {
-	t_cc_bad,		// this is an illegal value
-	t_cc_none,		// no locking
-	t_cc_record,		// record-level
-	t_cc_page,		// page-level
-	t_cc_file,		// file-level
-	t_cc_vol,
-	t_cc_kvl,		// key-value
-	t_cc_im, 		// ARIES IM, not supported yet
-	t_cc_modkvl, 		// modified ARIES KVL, for paradise use
-	t_cc_append 		// append-only with scan_file_i
+        t_cc_bad,                // this is an illegal value
+        t_cc_none,                // no locking
+        t_cc_record,                // record-level
+        t_cc_page,                // page-level
+        t_cc_file,                // file-level
+        t_cc_vol,
+        t_cc_kvl,                // key-value
+        t_cc_im,                 // ARIES IM, not supported yet
+        t_cc_modkvl,                 // modified ARIES KVL, for paradise use
+        t_cc_append                 // append-only with scan_file_i
     };
+
+/**\cond skip */
 
     /* 
      * smlevel_0::operating_mode is always set to 
@@ -219,60 +247,56 @@ public:
      * any of them, so we'll give them bit-mask values
      */
     enum operating_mode_t {
-	t_not_started = 0, 
-	t_in_analysis = 0x1,
-	t_in_redo = 0x2,
-	t_in_undo = 0x4,
-	t_forward_processing = 0x8
+        t_not_started = 0, 
+        t_in_analysis = 0x1,
+        t_in_redo = 0x2,
+        t_in_undo = 0x4,
+        t_forward_processing = 0x8
     };
 
-    static concurrency_t cc_alg;	// concurrency control algorithm
-    static bool		 cc_adaptive;	// is PS-AA (adaptive) algorithm used?
+    static concurrency_t cc_alg;        // concurrency control algorithm
+    static bool          cc_adaptive;        // is PS-AA (adaptive) algorithm used?
 
 #include "e_error_enum_gen.h"
 
     static const w_error_info_t error_info[];
-	static void init_errorcodes();
+    static void init_errorcodes();
+
+    static void  add_to_global_stats(const sm_stats_info_t &from);
+    static void  add_from_global_stats(sm_stats_info_t &to);
 
     static device_m* dev;
     static io_m* io;
     static bf_m* bf;
     static lock_m* lm;
-    static GlobalDeadlockClient* global_deadlock_client;
-    static DeadlockEventCallback* deadlockEventCallback;
 
-    static comm_m* comm;
     static log_m* log;
     static tid_t* redo_tid;
 
     static LOG_WARN_CALLBACK_FUNC log_warn_callback;
-    static fileoff_t	log_warn_exceed; 
-    static int	  	log_warn_exceed_percent;
+    static fileoff_t              log_warn_trigger; 
+    static int                    log_warn_exceed_percent; 
 
     static int    dcommit_timeout; // to convey option to coordinator,
-				   // if it is created by VAS
+                                   // if it is created by VAS
 
     static ErrLog* errlog;
-#ifdef W_DEBUG
-    static ErrLog* scriptlog;
-#endif /* W_DEBUG */
-    static sm_stats_info_t &stats;
-#define GET_STAT(x) (smlevel_0::stats.sm.x)
-#define INC_STAT(x) smlevel_0::stats.sm.x++
-#define ADD_STAT(x,y) smlevel_0::stats.sm.x += (y)
-#define SET_STAT(x,y) smlevel_0::stats.sm.x = (y)
 
-
-    static bool	shutdown_clean;
-    static bool	shutting_down;
-    static bool logging_enabled;
-    static bool	do_prefetch;
-    static bool _did_recovery;
+    static bool        shutdown_clean;
+    static bool        shutting_down;
+    static bool        logging_enabled;
+    static bool        do_prefetch;
 
     static operating_mode_t operating_mode;
     static bool in_recovery() { 
-	return ((operating_mode & 
-		(t_in_redo | t_in_undo | t_in_analysis)) !=0); }
+        return ((operating_mode & 
+                (t_in_redo | t_in_undo | t_in_analysis)) !=0); }
+    static bool in_recovery_analysis() { 
+        return ((operating_mode & t_in_analysis) !=0); }
+    static bool in_recovery_undo() { 
+        return ((operating_mode & t_in_undo ) !=0); }
+    static bool in_recovery_redo() { 
+        return ((operating_mode & t_in_redo ) !=0); }
 
     // these variable are the default values for lock escalation counts
     static w_base_t::int4_t defaultLockEscalateToPageThreshold;
@@ -301,53 +325,53 @@ public:
     // option for controlling background buffer flush thread
     static option_t* _backgroundflush;
 
+    // Certain operations have to exclude xcts
+    static queue_based_lock_t    _begin_xct_mutex;
+
     /*
      * Pre-defined store IDs -- see also vol.h
      * 0 -- is reserved for the extent map and the store map
      * 1 -- directory (see dir.cpp)
      * 2 -- root index (see sm.cpp)
-     * 3 -- small (1-page) index (see sm.cpp)
-     *
-     * If the volume has a logical id index on it, it also has
-     * 4 -- local logical id index  (see sm.cpp, ss_m::add_logical_id_index)
-     * 5 -- remote logical id index  (ditto)
      */
     enum {
-	store_id_extentmap = 0,
-	store_id_directory = 1,
-	store_id_root_index = 2,
-	store_id_1page = 3
-	// The store numbers for the lid indexes (if
-	// the volume has logical ids) are kept in the
-	// volume's root index, constants for them aren't needed.
-	//
+        store_id_extentmap = 0,
+        store_id_directory = 1,
+        store_id_root_index = 2 
+        // The store numbers for the lid indexes (if
+        // the volume has logical ids) are kept in the
+        // volume's root index, constants for them aren't needed.
+        //
     };
 
     enum {
-	    eINTERNAL = fcINTERNAL,
-	    eOS = fcOS,
-	    eOUTOFMEMORY = fcOUTOFMEMORY,
-	    eNOTFOUND = fcNOTFOUND,
-	    eNOTIMPLEMENTED = fcNOTIMPLEMENTED
+            eINTERNAL = fcINTERNAL,
+            eOS = fcOS,
+            eOUTOFMEMORY = fcOUTOFMEMORY,
+            eNOTFOUND = fcNOTFOUND,
+            eNOTIMPLEMENTED = fcNOTIMPLEMENTED
     };
 
-
     enum store_flag_t {
-	st_bad	    = 0x0,
-	st_regular  = 0x01, // fully logged
-	st_tmp	    = 0x02, // space logging only, file destroy on dismount/restart
-	st_load_file= 0x04, // not stored in the stnode_t, only passed down to
-			    // io_m and then converted to tmp and added to the
-			    // list of load files for the xct.
-			    // no longer needed
-	st_insert_file  = 0x08,	// stored in stnode, but not on page.
-			    // new pages are saved as tmp, old pages as regular.
-	st_empty    = 0x100 // store might be empty - used ONLY
-			    // as a function argument, NOT stored
-			    // persistently.  Nevertheless, it's
-			    // defined here to be sure that if other
-			    // store flags are added, this doesn't
-			    // conflict with them.
+        // NB: this had better match sm_store_property_t (sm_int_3.h) !!!
+        // or at least be convted properly every time we come through the API
+        st_bad            = 0x0,
+        st_regular        = 0x01, // fully logged
+        st_tmp            = 0x02, // space logging only, 
+                                  // file destroy on dismount/restart
+        st_load_file      = 0x04, // not stored in the stnode_t, 
+                            // only passed down to
+                            // io_m and then converted to tmp and added to the
+                            // list of load files for the xct.
+                            // no longer needed
+        st_insert_file     = 0x08,        // stored in stnode, but not on page.
+                            // new pages are saved as tmp, old pages as regular.
+        st_empty           = 0x100 // store might be empty - used ONLY
+                            // as a function argument, NOT stored
+                            // persistently.  Nevertheless, it's
+                            // defined here to be sure that if other
+                            // store flags are added, this doesn't
+                            // conflict with them.
     };
 
     /* 
@@ -355,17 +379,17 @@ public:
      * type of operation to perform on the stnode 
      */
     enum store_operation_t {
-	    t_delete_store, 
-	    t_create_store, 
-	    t_set_deleting, 
-	    t_set_store_flags, 
-	    t_set_first_ext};
+            t_delete_store, 
+            t_create_store, 
+            t_set_deleting, 
+            t_set_store_flags, 
+            t_set_first_ext};
 
     enum store_deleting_t  {
-	    t_not_deleting_store, 
-	    t_deleting_store, 
-	    t_store_freeing_exts, 
-	    t_unknown_deleting};
+            t_not_deleting_store, 
+            t_deleting_store, 
+            t_store_freeing_exts, 
+            t_unknown_deleting};
 };
 
 ostream&
@@ -377,6 +401,7 @@ operator<<(ostream& o, const smlevel_0::store_operation_t op);
 ostream&
 operator<<(ostream& o, const smlevel_0::store_deleting_t value);
 
+/**\endcond  skip */
 
 /*<std-footer incl-file-exclusion='SM_BASE_H'>  -- do not edit anything below this line -- */
 

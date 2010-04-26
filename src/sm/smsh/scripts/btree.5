@@ -1,6 +1,6 @@
 # <std-header style='tcl' orig-src='shore'>
 #
-#  $Id: btree.5,v 1.23 1999/06/07 19:05:14 kupsch Exp $
+#  $Id: btree.5,v 1.23.4.2 2010/01/12 02:02:00 nhall Exp $
 #
 # SHORE -- Scalable Heterogeneous Object REpository
 #
@@ -30,6 +30,8 @@
 #
 #  Test btree remove
 #
+#
+
 proc scan_up_partial {ndx lb ub nrec} {
     verbose "scan up partial:"
     set scan [sm create_scan $ndx >= $lb <= $ub]
@@ -98,11 +100,13 @@ set nrec 200
 # create index and load it up 
 #
 sm begin_xct
+verbose [sm xct_to_tid [sm xct]]
 set ndx [sm create_index $volid btree]
 verbose created index $ndx
 sm commit_xct
 
 sm begin_xct
+verbose [sm xct_to_tid [sm xct]]
 for {set i 1} {$i <= $nrec} {incr i} {
     verbose inserting $i
     sm create_assoc $ndx [format $short_form $i] $i
@@ -110,10 +114,12 @@ for {set i 1} {$i <= $nrec} {incr i} {
 sm commit_xct
 
 sm begin_xct
+verbose [sm xct_to_tid [sm xct]]
 scan_up $ndx $nrec
 sm commit_xct
 
 sm begin_xct
+verbose [sm xct_to_tid [sm xct]]
 verbose 92: emptying index $ndx
 for {set i 1} {$i <= $nrec} {incr i} {
     verbose removing $i
@@ -124,10 +130,12 @@ verbose sm abort_xct
 sm abort_xct 
 
 sm begin_xct
+verbose [sm xct_to_tid [sm xct]]
 scan_up $ndx $nrec
 sm commit_xct
 
 sm begin_xct
+verbose [sm xct_to_tid [sm xct]]
 verbose 104: emptying half the index $ndx
 for {set i 1} {$i <= [expr $nrec/2]} {incr i} {
     verbose removing $i
@@ -147,13 +155,17 @@ if {0} {
     sm sync_log
 }
 
+############################
+verbose BTREE.5 unclean restart
 restart
 
 sm begin_xct
+verbose [sm xct_to_tid [sm xct]]
 scan_up $ndx $nrec
 sm commit_xct
 
 sm begin_xct
+verbose [sm xct_to_tid [sm xct]]
 verbose 121: emptying index $ndx
 for {set i 1} {$i <= $nrec} {incr i} {
     verbose removing $i
@@ -162,6 +174,7 @@ for {set i 1} {$i <= $nrec} {incr i} {
 sm commit_xct
 
 sm begin_xct
+verbose [sm xct_to_tid [sm xct]]
 for {set i 1} {$i < $nrec} {incr i} {
     catch {sm find_assoc $ndx [format $short_form $i]} err
     assert {error_is $err "{not found}"} 
@@ -172,6 +185,7 @@ verbose [sm gather_stats]
 sm commit_xct
 
 sm begin_xct
+verbose [sm xct_to_tid [sm xct]]
 sm destroy_index $ndx
 sm commit_xct
 verbose [sm gather_stats]

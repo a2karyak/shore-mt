@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='SM_INT_1_H'>
 
- $Id: sm_int_1.h,v 1.11 2007/05/18 21:43:28 nhall Exp $
+ $Id: sm_int_1.h,v 1.11.2.8 2010/01/28 04:54:15 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -49,28 +49,30 @@ class chkpt_m;
    extents.  xct_ended implies completed and freeing space completed */
 class smlevel_1 : public smlevel_0 {
 public:
-    enum xct_state_t {
-	xct_stale, xct_active, xct_prepared, 
-	xct_aborting, xct_chaining, 
-	xct_committing, xct_freeing_space, xct_ended
+    // The numeric equivalents of state are not significant; they are
+    // given here only for convenience in debugging/grepping
+    enum xct_state_t {  xct_stale = 0x0,  
+                        xct_active = 0x1,  // active or rolling back in
+                        // recovery/undo, or doing rollback_work
+                        xct_prepared = 0x2, 
+                        xct_aborting = 0x3, 
+                        xct_chaining = 0x4, 
+                        xct_committing = 0x5, 
+                        xct_freeing_space = 0x6, 
+                        xct_ended = 0x7
     };
-    static chkpt_m*	chkpt;
+    static chkpt_m*    chkpt;
 };
 
 #if (SM_LEVEL >= 1)
 #    include <lock.h>
-
-#    include <deadlock_events.h>
-
 #    include <logrec.h>
 #    include <xct.h>
-
-#    include <global_deadlock.h>
 
 #endif
 class xct_log_warn_check_t : public smlevel_0 {
 public:
-	static w_rc_t check(xct_t*&);
+    static w_rc_t check(xct_t*&);
 };
 #if defined(__GNUC__) && __GNUC_MINOR__ > 6
 ostream& operator<<(ostream& o, const smlevel_1::xct_state_t& xct_state);

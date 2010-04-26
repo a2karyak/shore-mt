@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='DEVID_T_H'>
 
- $Id: devid_t.h,v 1.20 1999/06/07 19:02:23 kupsch Exp $
+ $Id: devid_t.h,v 1.20.2.4 2010/03/19 22:19:19 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -38,20 +38,28 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #pragma interface
 #endif
 
+/**\brief Internal Device ID
+ *
+ * \ingroup IDs
+ *
+ * \details
+ * This identifier is not persistent; it is assigned when
+ * a device is mounted (by the filesystem's file name (a string))
+ */
 struct devid_t {
     /* Use explicit w_base because int8 is confused with system
        int8 == 8 bits, not 8 bytes */
-    w_base_t::uint8_t	id;
-    w_base_t::uint4_t	dev;
-#if defined(PURIFY_ZERO)
-    fill4	dummy;
+    w_base_t::uint8_t    id;
+    w_base_t::uint4_t    dev;
+#if defined(ZERO_INIT)
+    fill4    dummy;
 #endif
 
     devid_t() : id(0), dev(0) {};
     devid_t(const char* pathname);
 
     bool operator==(const devid_t& d) const {
-	return id == d.id && dev == d.dev;
+        return id == d.id && dev == d.dev;
     }
 
     bool operator!=(const devid_t& d) const {return !(*this==d);}

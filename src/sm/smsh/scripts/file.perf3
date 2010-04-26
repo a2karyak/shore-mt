@@ -1,6 +1,6 @@
 # <std-header style='tcl' orig-src='shore'>
 #
-#  $Id: file.perf3,v 1.5 2006/06/01 17:09:44 nhall Exp $
+#  $Id: file.perf3,v 1.5.2.5 2010/01/28 04:54:34 nhall Exp $
 #
 # SHORE -- Scalable Heterogeneous Object REpository
 #
@@ -28,7 +28,7 @@
 #   -- do not edit anything above this line --   </std-header>
 #
 # Test file's re-use of space (holes in file)
-# Creates a file with $nrecs, destroys every other one, leaving
+# Creates a file with $nrecs, destroys every other rec, leaving
 # $nrecs/2 records.  Re-creates (& destroys) $nrecs/2 recs
 # $numTests times.
 #
@@ -58,9 +58,9 @@ set logging yes
 source $script_dir/vol.init
 clearstats
 
-echo "********************************"
-echo "** fileType: $fileType, logging: $logging, numTest: $numTests"
-echo "********************************"
+verbose "********************************"
+verbose "** fileType: $fileType, logging: $logging, numTest: $numTests"
+verbose "********************************"
 
 set increment 512
 set max_rec_size [expr (${max_small_rec} / 2) + $increment  ]
@@ -71,10 +71,15 @@ set hdr [format $id_width 1]
 
 proc destroyodd {fid}  {
     global rid nrecs
-    for {set i 1} {$i <= $nrecs} {incr i; incr i} {
-	verbose destroying $i $rid($i)
-	sm destroy_rec $rid($i)
-	set rid($i) "r(0.0.0.0)"
+    for {set i 1} {$i < $nrecs} {incr i; incr i} {
+		if {$i < $nrecs} {
+			echo destroying $i $rid($i)
+			set caught [catch {sm destroy_rec $rid($i)} err]
+			if {$caught != 0} {
+			   echo UNEXPECTED ERROR: $err destroying record $rid($i) nrecs $nrecs
+			}
+			set rid($i) "r(0.0.0.0)"
+		}
     }
 }
 proc test {fid numTests}  {
@@ -83,21 +88,23 @@ proc test {fid numTests}  {
 
 	sm force_buffers true
 
-        sm begin_xct
+	sm begin_xct
 	set result [time {
 	    set rec_size 1
+		# NOTE: double increment
 	    for {set i 1} {$i < $nrecs} {incr i; incr i}  {
-		set buffer zvec${rec_size}
-		set rid($i) [sm create_rec $fid $hdr $objsize $buffer]
-		verbose created rid $i $rid($i) body= $buffer
-		set rec_size [expr ${rec_size} + $increment + $increment]
-		if [expr $rec_size > ${max_rec_size}] {
-		    set rec_size 1
-		}
+			set buffer zvec${rec_size}
+			set rid($i) [sm create_rec $fid $hdr $objsize $buffer]
+			verbose created rid $i $rid($i) body= $buffer
+			set rec_size [expr ${rec_size} + $increment + $increment]
+			if [expr $rec_size > ${max_rec_size}] {
+				set rec_size 1
+			}
 	    }
 	    # destroy in same xct
 	    destroyodd $fid
         } $numTests ]
+
 	set n [sm gather_xct_stats]
 	# set n NOSTATS
 	sm commit_xct
@@ -111,32 +118,32 @@ sm begin_xct
     set rec_size ${max_rec_size}
     set scan [sm scan_file_create $fid t_cc_append]
     for {set i 0} {$i < $nrecs} {incr i}  {
-	set buffer zvec${rec_size}
-	# set rid($i) [sm create_rec $fid $hdr $objsize $buffer]
+		set buffer zvec${rec_size}
+		# set rid($i) [sm create_rec $fid $hdr $objsize $buffer]
 
-        set void [sm multi_file_append $scan $hdr $objsize $buffer 1]
-	verbose rid $i will be $buffer
+		set void [sm multi_file_append $scan $hdr $objsize $buffer 1]
+		verbose rid $i will be $buffer
 
-	set rec_size [expr ${rec_size} - $increment]
-	if [expr $rec_size <= 0] {
-	    set rec_size ${max_rec_size}
-	}
+		set rec_size [expr ${rec_size} - $increment]
+		if [expr $rec_size <= 0] {
+			set rec_size ${max_rec_size}
+		}
     }
     sm scan_file_destroy $scan
     # scan the file to get the rids
     if (1) {
-	set scan [sm scan_file_create $fid t_cc_record]
-	set pin [sm scan_file_next $scan 0]
-	set i 0
-	while {$pin != "NULL"} {
-	    set rid($i) [sm pin_rid $pin] 
-	    verbose created $i : $rid($i)
-	    # do NOT unpin -- it blows the context of the scan
-	    # sm pin_unpin $pin
-	    set pin [sm scan_file_next $scan 0]
-	    set i [expr {$i+1} ]
-	}
-	sm scan_file_destroy $scan
+		set scan [sm scan_file_create $fid t_cc_record]
+		set pin [sm scan_file_next $scan 0]
+		set i 0
+		while {$pin != "NULL"} {
+			set rid($i) [sm pin_rid $pin] 
+			verbose created $i : $rid($i)
+			# do NOT unpin -- it blows the context of the scan
+			# sm pin_unpin $pin
+			set pin [sm scan_file_next $scan 0]
+			set i [expr {$i+1} ]
+		}
+		sm scan_file_destroy $scan
     }
     destroyodd $fid
     set n [sm gather_xct_stats]
@@ -153,5 +160,10 @@ sm begin_xct
     sm destroy_file $fid
 sm commit_xct
 
-echo TIME, STATS for $numTests tests:
-echo [pnzstats $testTime]
+verbose TIME, STATS for $numTests tests:
+verbose [pnzstats $testTime]
+
+unset buffer increment pin rid hdr max_rec_size
+unset scan i n testTime fileType numTests nrecs rec_size
+unset id_width void objsize
+unset fid

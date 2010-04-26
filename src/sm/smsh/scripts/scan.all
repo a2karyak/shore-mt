@@ -1,6 +1,6 @@
 # <std-header style='tcl' orig-src='shore'>
 #
-#  $Id: scan.all,v 1.10 2006/06/01 17:09:57 nhall Exp $
+#  $Id: scan.all,v 1.10.2.1 2009/12/21 18:45:18 nhall Exp $
 #
 # SHORE -- Scalable Heterogeneous Object REpository
 #
@@ -33,7 +33,7 @@ set scripts [list \
 	btree.load \
 	file.2 file.3 file.6 \
 	alloc.1 alloc.2 alloc.3 alloc.4 alloc.5 alloc.6 \
-        tmpfile.2  mpw mpw.old file.many  \
+        tmpfile.2  mpw file.many  \
 	file.activity file.activity2 \
      ]
 

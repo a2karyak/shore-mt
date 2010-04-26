@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='KVL_T_H'>
 
- $Id: kvl_t.h,v 1.9 2007/05/18 21:33:42 nhall Exp $
+ $Id: kvl_t.h,v 1.9.2.4 2010/03/19 22:19:19 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -36,7 +36,6 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 
 /* NB: you must already have defined the type size_t,
  * (which is defined include "basics.h") before you include this.
- * For RPCGEN-related reasons, you CANNOT just include basics.h here!
  */
 
 #ifdef __GNUG__
@@ -50,29 +49,39 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #include "vec_t.h"
 #endif
 
+/**\brief Key-Value Lock identifier.
+ *
+ * \details
+ * Used by the lock manager.
+ */
 struct kvl_t {
-    stid_t			stid;
-    w_base_t::uint4_t		h;
-    w_base_t::uint4_t		g;
+    stid_t            stid;
+    w_base_t::uint4_t        h;
+    w_base_t::uint4_t        g;
 
     static const cvec_t eof;
     static const cvec_t bof;
 
-    NORET			kvl_t();
-    NORET			kvl_t(stid_t id, const cvec_t& v);
-    NORET			kvl_t(
-	stid_t			    _stid,
-	const cvec_t& 		    v1, 
-	const cvec_t& 		    v2);
-    NORET			~kvl_t();
-    NORET			kvl_t(const kvl_t& k);
-    kvl_t& 			operator=(const kvl_t& k);
+    // Empty key-value
+    NORET            kvl_t();
+    // Empty key-value lock id for a store ID.
+    NORET            kvl_t(stid_t id, const cvec_t& v);
+    // Empty key-value lock id for a store ID.
+    NORET            kvl_t(
+        stid_t                _stid,
+        const cvec_t&         v1, 
+        const cvec_t&         v2);
 
-    kvl_t& 			set(stid_t s, const cvec_t& v);
-    kvl_t& 			set(
-	stid_t 			    s,
-	const cvec_t& 		    v1,
-	const cvec_t& 		    v2);
+    NORET            ~kvl_t();
+    
+    NORET            kvl_t(const kvl_t& k);
+
+    kvl_t&             operator=(const kvl_t& k);
+
+    kvl_t&             set(stid_t s, const cvec_t& v);
+    kvl_t&             set(stid_t s,
+        const cvec_t&         v1,
+        const cvec_t&         v2);
     bool operator==(const kvl_t& k) const;
     bool operator!=(const kvl_t& k) const;
     friend ostream& operator<<(ostream&, const kvl_t& k);

@@ -1,6 +1,6 @@
 # <std-header style='tcl' orig-src='shore'>
 #
-#  $Id: simplewrite.perf,v 1.12 2007/08/21 19:44:00 nhall Exp $
+#  $Id: simplewrite.perf,v 1.11.2.5 2009/12/21 18:45:18 nhall Exp $
 #
 # SHORE -- Scalable Heterogeneous Object REpository
 #
@@ -73,7 +73,7 @@ if {$volid == 0} {
 	set vol_list [sm list_volumes $dev]
 	if { [llength $vol_list] == 0 } {
 		set quota [sm get_device_quota $dev]
-		echo creating volume $vol size $size on $dev
+		verbose creating volume $vol size $size on $dev
 		sm create_vol $dev $vol $size
 	}
 
@@ -89,7 +89,7 @@ if {$volid == 0} {
 	set volid [lindex [lindex $smsh_device_list 0] 2]
 }
 
-echo mounted everything....
+verbose mounted everything....
 
 set volsize [lindex [sm get_volume_quota $volid] 0]
 set used [lindex [sm get_volume_quota $volid] 1]
@@ -110,25 +110,30 @@ set body [format $id_body_width $objsize]
 if {$fid==0} {
 	sm begin_xct
 	set fid [sm create_file $volid tmp ]
-	echo fid=$fid
+	verbose fid=$fid
 	set dummy [sm gather_stats reset]
-	echo creating $nobjs objects of size $objsize 
+	unset dummy
+	verbose creating $nobjs objects of size $objsize 
 	set total 0
 	for {set i 0} {$i < $nobjs} {incr i} {
-	# echo $i
-	set r($total) [sm create_rec $fid $hdr $objsize $body]
-	incr total
+		# verbose $i
+		set r($total) [sm create_rec $fid $hdr $objsize $body]
+		incr total
 	}
-	sm dump_locks 
+	if {$verbose_flag} {
+		sm dump_locks 
+	}
 	sm commit_xct
-	echo done creating...
+	verbose done creating...
 	sm gather_stats 
 
 } 
 #   clear the buffer pool, invalidate 
 sm begin_xct
+sm destroy_file $fid
 sm force_buffers true
 sm commit_xct
 
 pstats
 
+unset used total STARTOVER i volsize body r nobjs objsize

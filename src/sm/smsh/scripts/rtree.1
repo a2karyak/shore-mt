@@ -1,6 +1,6 @@
 # <std-header style='tcl' orig-src='shore'>
 #
-#  $Id: rtree.1,v 1.28 1999/06/07 19:05:44 kupsch Exp $
+#  $Id: rtree.1,v 1.28.4.1 2010/01/12 02:02:03 nhall Exp $
 #
 # SHORE -- Scalable Heterogeneous Object REpository
 #
@@ -36,12 +36,14 @@ set nrec 250
 set u "2.-1500.-1500.1500.1500"
 
 sm begin_xct
+	verbose tid [sm xct_to_tid [sm xct]]
 sm commit_xct
 
 #
 # create rtree and load it up 
 #
 sm begin_xct
+	verbose tid [sm xct_to_tid [sm xct]]
 set ndx [sm create_md_index $volid 2 rtree]
 verbose created rtree $ndx
 for {set i 1} {$i <= $nrec} {incr i} {
@@ -56,6 +58,7 @@ sm rtree_stats $ndx
 sm commit_xct
 
 sm begin_xct
+	verbose tid [sm xct_to_tid [sm xct]]
 verbose probe:
 for {set i 1} {$i <= $nrec} {incr i} {
 #    verbose $i $box($i)
@@ -68,6 +71,7 @@ verbose "---- successful"
 sm commit_xct
 
 sm begin_xct
+	verbose tid [sm xct_to_tid [sm xct]]
 
 set q "2.-500.-500.500.500"
 #set q "2.-1500.-1500.1500.1500"
@@ -79,6 +83,7 @@ sm rtree_query $ndx << $q
 sm commit_xct
 
 sm begin_xct
+	verbose tid [sm xct_to_tid [sm xct]]
 verbose empty the tree:
 for {set i 1} {$i <= $nrec} {incr i} {
 #    verbose $i $box($i)
@@ -87,6 +92,7 @@ for {set i 1} {$i <= $nrec} {incr i} {
 sm commit_xct
 
 sm begin_xct
+	verbose tid [sm xct_to_tid [sm xct]]
 
 verbose result should be empty.
 
@@ -97,6 +103,7 @@ sm rtree_query $ndx << $q
 sm commit_xct
 
 sm begin_xct
+	verbose tid [sm xct_to_tid [sm xct]]
 sm destroy_md_index $ndx
 sm commit_xct
 

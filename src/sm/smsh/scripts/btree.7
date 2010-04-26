@@ -1,6 +1,6 @@
 # <std-header style='tcl' orig-src='shore'>
 #
-#  $Id: btree.7,v 1.21 1999/06/15 15:12:07 nhall Exp $
+#  $Id: btree.7,v 1.21.4.2 2009/12/14 23:57:55 nhall Exp $
 #
 # SHORE -- Scalable Heterogeneous Object REpository
 #
@@ -46,7 +46,7 @@ set ndx [sm create_index $volid btree]
 verbose created index $ndx
 sm commit_xct
 
-dstats $ndx
+## dstats $ndx
 
 if {$logging == 0} {
     # can't do rollback
@@ -56,12 +56,15 @@ if {$logging == 0} {
 sm begin_xct
 
 #make sure empty savepoint at xct begin works
+set tid [sm xct_to_tid [sm xct]]
 set sp [sm save_work]
+verbose tid $tid
 verbose "*** " save point $sp
 verbose "<no work done>"
 verbose "^^^ " roll back to $sp
 sm rollback_work $sp
 
+verbose "ddd " rolled back to $sp
 
 for {set i 1} {$i <= $nrec} {incr i; incr i} {
     verbose inserting $i
@@ -121,5 +124,5 @@ sm destroy_scan $scan
 sm destroy_index $ndx
 sm commit_xct
 
-unset ndx nrec i r el key scan sp
+unset ndx nrec i r el key scan sp tid
 

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: errlog.cpp,v 1.30 2007/05/18 21:38:23 nhall Exp $
+ $Id: errlog.cpp,v 1.30.2.9 2010/03/19 22:17:16 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -46,188 +46,163 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #pragma implementation "w_debug.h"
 #endif
 
+#include "w.h"
 #include "errlog.h"
-
 #include <errlog_s.h>
 
 #include <w_strstream.h>
 #include <cstdio>
 
 #ifdef EXPLICIT_TEMPLATE
-template class w_list_t<ErrLogInfo>;
-template class w_list_i<ErrLogInfo>;
-template class w_keyed_list_t<ErrLogInfo, simple_string>;
+template class w_list_t<ErrLogInfo,unsafe_list_dummy_lock_t>;
+template class w_list_i<ErrLogInfo,unsafe_list_dummy_lock_t>;
+template class w_keyed_list_t<ErrLogInfo,,unsafe_list_dummy_lock_t simple_string>;
 #endif
 
+/** \cond skip */
 static char __c;
 w_ostrstream  logstream::static_stream(&__c,1);
+/** \endcond skip */
 
 ostream &operator<<(ostream &out, const simple_string x) {
-	out << x._s;
-	return out;
+    out << x._s;
+    return out;
 }
 
 /* A buffer large enough for any result that can fit on a page. */
 #if SM_PAGESIZE < 8192
-#define	ERRLOG_BUF_SIZE	8192
+#define    ERRLOG_BUF_SIZE    8192
 #else
-#define	ERRLOG_BUF_SIZE	SM_PAGESIZE
+#define    ERRLOG_BUF_SIZE    SM_PAGESIZE
 #endif
 static char buffer[ERRLOG_BUF_SIZE];
 
 
+/** \cond skip */
 ErrLogInfo::ErrLogInfo(ErrLog *e)
     : _ident(e->ident()), _e(e)
 { 
 }
+/** \endcond skip */
 
 // grot- have to wrap w_keyed_list_t to get its destructor
-static w_keyed_list_t<ErrLogInfo,simple_string> 
-	_tab(W_KEYED_ARG(ErrLogInfo, _ident, hash_link));
+static w_keyed_list_t<ErrLogInfo,unsafe_list_dummy_lock_t,simple_string> 
+        _tab(W_KEYED_ARG(ErrLogInfo, _ident, hash_link), unsafe_nolock);
 
 
+/**\cond skip */
 class errlog_dummy {
-	// class exists *JUST* to get rid of all the logs
-	// so that the hash_t code doesn't choke on exit().
-	// 
-	// ... and for debugging purposes
+    // class exists *JUST* to get rid of all the logs
+    // so that the hash_t code doesn't choke on exit().
+    // 
+    // ... and for debugging purposes
 
-	friend class ErrLog;
+    friend class ErrLog;
 
 protected:
-	bool table_cleared;
+    bool table_cleared;
 
 public:
-	errlog_dummy(){ 
-		table_cleared = false;
-#ifdef PURIFY_ZERO
-		memset(buffer, '\0', sizeof(buffer));
+    errlog_dummy(){ 
+        table_cleared = false;
+#ifdef ZERO_INIT
+        memset(buffer, '\0', sizeof(buffer));
 #endif
-	}
-	~errlog_dummy();
-	void dump();
+    }
+    ~errlog_dummy();
+    void dump();
 }_d;
 
-
 errlog_dummy::~errlog_dummy() {
-	ErrLogInfo *ei;
+    ErrLogInfo *ei;
 
-	while((ei = _tab.pop())) {
-		delete ei;
-	}
-	table_cleared = true;
+    while((ei = _tab.pop())) {
+        delete ei;
+    }
+    table_cleared = true;
 }
 
 void
 errlog_dummy::dump() {
-	ErrLogInfo *ei;
-    w_list_i <ErrLogInfo> iter(_tab);
-	while((ei=iter.next())) {
-		ei->dump();
-	}
+    ErrLogInfo *ei;
+    w_list_i <ErrLogInfo,unsafe_list_dummy_lock_t> iter(_tab);
+    while((ei=iter.next())) {
+        ei->dump();
+    }
 }
+/**\endcond skip */
 
 LogPriority
 ErrLog::parse(const char *arg, bool *ok)
-	//doesn't change *ok if no errors
+    //doesn't change *ok if no errors
 {
-	LogPriority level = log_none;
+    LogPriority level = log_none;
 
-	if(strcmp(arg, "off")==0) {
-		level = log_none;
-	} else
-	if(strcmp(arg, "trace")==0 || strcmp(arg,"debug")==0) {
-		level = log_debug;
-	} else
-	if(strcmp(arg, "info")==0) {
-		level = log_info;
-	} else
-	if(strcmp(arg, "warning")==0) {
-		level = log_warning;
-	} else
-	if(strcmp(arg, "error")==0) {
-		level = log_error;
-	} else
-	if(strcmp(arg, "internal")==0 || strcmp(arg,"critical")==0) {
-		level = log_internal;
-	} else
-	if(strcmp(arg, "fatal")==0 || strcmp(arg,"alert")==0) {
-		level = log_fatal;
-	} else
-	if(strcmp(arg, "emerg")==0) {
-		level = log_emerg;
-	} else {
-		if (ok) *ok = false;
-	}
-	return level;
-}
-
-ErrLog *
-ErrLog::find(const char *id) 
-{
-	const simple_string ss(id);
-	ErrLogInfo *ei = _tab.search(ss);
-	if(ei) return ei->_e;
-	else return NULL;
-}
-
-void
-ErrLog::apply(ErrLogFunc func, void *arg)
-{
-	ErrLogInfo *ei;
-	w_list_i <ErrLogInfo> iter(_tab);
-	while((ei=iter.next())) {
-		(*func)(ei->_e, arg);
-	}
+    if(strcmp(arg, "off")==0) {
+        level = log_none;
+    } else
+    if(strcmp(arg, "trace")==0 || strcmp(arg,"debug")==0) {
+        level = log_debug;
+    } else
+    if(strcmp(arg, "info")==0) {
+        level = log_info;
+    } else
+    if(strcmp(arg, "warning")==0) {
+        level = log_warning;
+    } else
+    if(strcmp(arg, "error")==0) {
+        level = log_error;
+    } else
+    if(strcmp(arg, "internal")==0 || strcmp(arg,"critical")==0) {
+        level = log_internal;
+    } else
+    if(strcmp(arg, "fatal")==0 || strcmp(arg,"alert")==0) {
+        level = log_fatal;
+    } else
+    if(strcmp(arg, "emerg")==0) {
+        level = log_emerg;
+    } else {
+        if (ok) *ok = false;
+    }
+    return level;
 }
 
 void 
 ErrLog::_closelogfile() 
 { 
-	assert(_file != NULL);
-	fclose(_file);
+    assert(_file != NULL);
+    fclose(_file);
 }
 
 void
 ErrLog::_openlogfile(
-    const char *fn  	
+    const char *fn      
 ) 
 {
     const char *filename=fn;
     if(strcmp(filename, "-")==0) {
-	    // cerr << "log to stderr" << endl;
-	    _destination = log_to_stderr;
-	    _file = stderr;
-	    return;
+        // cerr << "log to stderr" << endl;
+        _destination = log_to_stderr;
+        _file = stderr;
+        return;
     }
     if(filename) {
-	    _destination = log_to_unix_file;
-	    if(strncmp(filename, "unix:", 5) == 0) {
-		    filename += 5;
-	    } else if (strncmp(filename, "shore:", 6) == 0) {
-		    filename += 6;
-	    }
-#ifdef _WINDOWS
-	    _file = fopen(filename, "a+c");
-#else
-	    _file = fopen(filename, "a+");
-#endif
-	    if(_file == NULL) {
-		    w_rc_t e = RC(fcOS);
-		    cerr << "Cannot fopen Unix file " << filename << endl;
-		    cerr << e << endl;
-		    W_COERCE(e);
-	    }
-#ifdef _WINDOWS
-	    if(setvbuf(_file, 0, _IONBF, 0)) {
-		    w_rc_t e = RC(fcOS);
-		    cerr << "warning: Cannot unbuffer Unix file " << filename << endl;
-		    cerr << e << endl;
-	    }
-#endif
+        _destination = log_to_unix_file;
+        if(strncmp(filename, "unix:", 5) == 0) {
+            filename += 5;
+        } else if (strncmp(filename, "shore:", 6) == 0) {
+            filename += 6;
+        }
+        _file = fopen(filename, "a+");
+        if(_file == NULL) {
+            w_rc_t e = RC(fcOS);
+            cerr << "Cannot fopen Unix file " << filename << endl;
+            cerr << e << endl;
+            W_COERCE(e);
+        }
     } else {
-	    cerr << "Unknown logging destination." << endl;
-	    W_FATAL(fcINTERNAL);
+        cerr << "Unknown logging destination." << endl;
+        W_FATAL(fcINTERNAL);
     }
 
 }
@@ -247,21 +222,21 @@ ErrLog::_init2()
 {
     ErrLogInfo *ei;
     if((ei = _tab.search(this->_ident)) == 0) {
-	ei = new ErrLogInfo(this);
-	_tab.put_in_order(ei); // not really ordered
+    ei = new ErrLogInfo(this);
+    _tab.put_in_order(ei); // not really ordered
     } else {
-	cerr <<  "An ErrLog called " << _ident << " already exists." << endl;
-	W_FATAL(fcINTERNAL);
+    cerr <<  "An ErrLog called " << _ident << " already exists." << endl;
+    W_FATAL(fcINTERNAL);
     }
 }
 
 ErrLog::ErrLog(
-    const char *ident,		// required
-    LoggingDestination dest, 	// required
+    const char *ident,        // required
+    LoggingDestination dest,     // required
     const char *filename,
-    LogPriority level, 		//  = log_error
-    char *ownbuf, 		//  = 0
-    int  ownbufsz 		//  = 0
+    LogPriority level,         //  = log_error
+    char *ownbuf,         //  = 0
+    int  ownbufsz         //  = 0
 
 ) :
     _destination(dest),
@@ -276,44 +251,39 @@ ErrLog::ErrLog(
     _init1();
 
     switch( dest ) {
-	case log_to_unix_file: 
-	    { 	
-		    if(!filename
-#ifdef _WINDOWS
-	    // Broken shells under windows can't handle unsetenv
-		    || *(char *)filename== '\0'
-#endif
-		    ) {
-			    filename = "-"; // stderr
-		    }
-		    _openlogfile(filename);
-	    }
-	    break;
+    case log_to_unix_file: 
+        {     
+            if(!filename) {
+                filename = "-"; // stderr
+            }
+            _openlogfile(filename);
+        }
+        break;
 
-	case log_to_stderr:
-	    _file = stderr;
-	    break;
+    case log_to_stderr:
+        _file = stderr;
+        break;
 
-	case log_to_ether:
-	    _file = 0;
-	    break;
+    case log_to_ether:
+        _file = 0;
+        break;
 
-	default:
-	    // fatal error
-	    cerr << "Bad argument 2 to ErrLog constructor" <<endl;
-	    w_assert1(0);
-	    break;
+    default:
+        // fatal error
+        cerr << "Bad argument 2 to ErrLog constructor" <<endl;
+        W_FATAL_MSG(fcINTERNAL, << "Bad argument 2 to ErrLog constructor");
+        break;
     }
     _init2();
 }
 
 ErrLog::ErrLog(
-    const char *ident,		// required
-    LoggingDestination dest, 	// required
-    FILE *file, 			
-    LogPriority level, 		//  = log_error
-    char *ownbuf, 		//  = 0
-    int  ownbufsz 		//  = 0
+    const char *ident,        // required
+    LoggingDestination dest,     // required
+    FILE *file,             
+    LogPriority level,         //  = log_error
+    char *ownbuf,         //  = 0
+    int  ownbufsz         //  = 0
 
 ) :
     _destination(dest),
@@ -326,171 +296,163 @@ ErrLog::ErrLog(
     _magic(ERRORLOG__MAGIC)
 {
     _init1();
-    w_assert3( dest == log_to_open_file );
+    w_assert9( dest == log_to_open_file );
     _init2();
 }
 
 ErrLog::~ErrLog() 
 {
-	switch(_destination) {
-		case log_to_unix_file:
-		case log_to_open_file:
-			_closelogfile();
-			break;
+    switch(_destination) {
+        case log_to_unix_file:
+        case log_to_open_file:
+            _closelogfile();
+            break;
 
-		case log_to_stderr: 
-			// let global destructors 
-			// do the close - we didn't open
-			// it, we shouldn't close it!
-			break;
+        case log_to_stderr: 
+            // let global destructors 
+            // do the close - we didn't open
+            // it, we shouldn't close it!
+            break;
 
-		case log_to_ether:
-			break;
-	}
-	if( !_d.table_cleared ) {
-		ErrLogInfo *ei = _tab.search(this->_ident);
-		assert(ei!=NULL);
-		// remove from the list
-		(void) ei->hash_link.detach();
-		delete ei;
-	}
+        case log_to_ether:
+            break;
+    }
+    if( !_d.table_cleared ) {
+        ErrLogInfo *ei = _tab.search(this->_ident);
+        assert(ei!=NULL);
+        // remove from the list
+        (void) ei->hash_link.detach();
+        delete ei;
+    }
 #if defined(_WIN32) && defined(FC_ERRLOG_WIN32_LOCK)
-	DeleteCriticalSection(&_crit);
+    DeleteCriticalSection(&_crit);
 #endif
 }
 
 void 
 ErrLog::log(enum LogPriority prio, const char *format, ...) 
 {
-	if(_magic != ERRORLOG__MAGIC) {
-	    cerr << "Trying to use uninitialized ErrLog." <<endl;
-	    ::exit(1);
-	}
-	va_list ap;
-	va_start(ap, format);
+    if(_magic != ERRORLOG__MAGIC) {
+        cerr << "Trying to use uninitialized ErrLog." <<endl;
+        ::exit(1);
+    }
+    va_list ap;
+    va_start(ap, format);
 
 #if defined(_WIN32) && defined(FC_ERRLOG_WIN32_LOCK)
-	EnterCriticalSection(&_crit);
+    EnterCriticalSection(&_crit);
 #endif
-	_flush(true); 
+    _flush(true); 
 
-	if (prio > _level) {
+    if (prio > _level) {
 #if defined(_WIN32) && defined(FC_ERRLOG_WIN32_LOCK)
-		LeaveCriticalSection(&_crit);
+        LeaveCriticalSection(&_crit);
 #endif
-		return;
-	}
+        return;
+    }
 
-	switch(_destination) {
+    switch(_destination) {
 
-		case log_to_unix_file:
-		case log_to_open_file:
-		case log_to_stderr:
+        case log_to_unix_file:
+        case log_to_open_file:
+        case log_to_stderr:
 
 #if HAVE_VPRINTF
-			(void) vfprintf(_file,format, ap);
+            (void) vfprintf(_file,format, ap);
 #else
 #error need vfprintf
 #endif
-			fputc('\n', _file);
-			fflush(_file);
-			break;
-			
-		case log_to_ether:
-			break;
-	}
-	va_end(ap);
+            fputc('\n', _file);
+            fflush(_file);
+            break;
+            
+        case log_to_ether:
+            break;
+    }
+    va_end(ap);
 
-	// clear the slate for the next use of operator<<
-	w_reset_strstream(this->clog);
+    // clear the slate for the next use of operator<<
+    w_reset_strstream(this->clog);
 
-	if (prio == log_fatal) {
-	    W_FATAL(fcINTERNAL);
-	}
+    if (prio == log_fatal) {
+        W_FATAL(fcINTERNAL);
+    }
 #if defined(_WIN32) && defined(FC_ERRLOG_WIN32_LOCK)
-	LeaveCriticalSection(&_crit);
+    LeaveCriticalSection(&_crit);
 #endif
 }
 
 void 
 ErrLog::_flush(bool 
 #if defined(_WIN32) && defined(FC_ERRLOG_WIN32_LOCK)
-	already_in_crit
+    already_in_crit
 #endif
 ) 
 { 
 #if defined(_WIN32) && defined(FC_ERRLOG_WIN32_LOCK)
-	if(!already_in_crit) EnterCriticalSection(&_crit);
+    if(!already_in_crit) EnterCriticalSection(&_crit);
 #endif
 
-	if(_magic != ERRORLOG__MAGIC) {
-	    cerr << "Fatal error: Trying to use uninitialized ErrLog." <<endl;
-	    ::exit(1);
-	}
-	this->clog << ends ;
+    if(_magic != ERRORLOG__MAGIC) {
+        cerr << "Fatal error: Trying to use uninitialized ErrLog." <<endl;
+        ::exit(1);
+    }
+    this->clog << ends ;
 
-	if (this->clog._prio <= _level) {
-		switch(_destination) {
+    if (this->clog._prio <= _level) {
+        switch(_destination) {
 
-			case log_to_unix_file:
-			case log_to_open_file:
-			case log_to_stderr:
-				fprintf(_file, "%s", this->clog.c_str());
-				// fprintf(_file, "%s\n", this->clog.c_str());
-				fflush(_file);
-				break;
-				
-			case log_to_ether:
-				break;
-		}
-	} else {
-#if 0
-		/* turn on only for debugging the debugging tools */
-		cerr << "wrong priority: _prio=" << this->clog._prio
-		     << " level=" << _level 
-		     << " string= " << this->clog.c_str()
-		     << endl;
-#endif
-	}
-	if (this->clog._prio == log_fatal) {
-		W_FATAL(fcINTERNAL);
-	}
-	this->clog.flush();
+            case log_to_unix_file:
+            case log_to_open_file:
+            case log_to_stderr:
+                fprintf(_file, "%s", this->clog.c_str());
+                // fprintf(_file, "%s\n", this->clog.c_str());
+                fflush(_file);
+                break;
+                
+            case log_to_ether:
+                break;
+        }
+    } 
+    if (this->clog._prio == log_fatal) {
+        W_FATAL(fcINTERNAL);
+    }
+    this->clog.flush();
 
-	// reset to beginning of buffer
-	w_reset_strstream(this->clog);
+    // reset to beginning of buffer
+    w_reset_strstream(this->clog);
 #if defined(_WIN32) && defined(FC_ERRLOG_WIN32_LOCK)
-	if(!already_in_crit) LeaveCriticalSection(&_crit);
+    if(!already_in_crit) LeaveCriticalSection(&_crit);
 #endif
 }
 
 logstream *
 is_logstream(ostream &o) 
 {
-	logstream *l=0;
-	const ostream *tied = o.tie();
-	// cerr << "tied " << ::hex((unsigned int)tied) << endl;
-	if(tied == &logstream::static_stream) {
-		l = (logstream *)&o;
-	}
-	if(l) {
-		// cerr << "magic1 " << (unsigned int)l->__magic1 << endl;
-		// cerr << "magic2 " << (unsigned int)l->__magic1 << endl;
-		// cerr << "_prio" << l->_prio << endl;
-	}
-	if(l && 
-		(l->__magic1 == logstream::LOGSTREAM__MAGIC) &&
-		(l->__magic2 == logstream::LOGSTREAM__MAGIC) &&
-		(l->_prio >= log_none) &&
-		(l->_prio <= log_all) &&
-		(l->_log->_magic == ErrLog::ERRORLOG__MAGIC)
-	   ) {
-		// cerr << " IS log stream" << endl;
-		return l;
+    logstream *l=0;
+    const ostream *tied = o.tie();
+    // cerr << "tied " << ::hex((unsigned int)tied) << endl;
+    if(tied == &logstream::static_stream) {
+        l = (logstream *)&o;
+    }
+    if(l) {
+        // cerr << "magic1 " << (unsigned int)l->__magic1 << endl;
+        // cerr << "magic2 " << (unsigned int)l->__magic1 << endl;
+        // cerr << "_prio" << l->_prio << endl;
+    }
+    if(l && 
+        (l->__magic1 == logstream::LOGSTREAM__MAGIC) &&
+        (l->__magic2 == logstream::LOGSTREAM__MAGIC) &&
+        (l->_prio >= log_none) &&
+        (l->_prio <= log_all) &&
+        (l->_log->_magic == ErrLog::ERRORLOG__MAGIC)
+       ) {
+        // cerr << " IS log stream" << endl;
+        return l;
     } else {
-		cerr << " NOT log stream" << endl;
-		return (logstream *)0;
-	}
+        // cerr << " NOT log stream" << endl;
+        return (logstream *)0;
+    }
 }
 
 ostream & 
@@ -499,20 +461,20 @@ flush_and_setprio(ostream& o, LogPriority p)
     // cerr << "flush_and_setprio o=" << &o << endl;
     logstream *l = is_logstream(o);
     if(l) {
-	l->_log->_flush(false); 
-	if(p != log_none) {
-	    l->_prio =  p;
-	}
+    l->_log->_flush(false); 
+    if(p != log_none) {
+        l->_prio =  p;
+    }
     } else {
-	o << flush;
+    o << flush;
     }
     return o;
 }
 
 ostream& flushl(ostream& out)
 {
-	out << endl;
-	return flush_and_setprio(out, log_none); 
+    out << endl;
+    return flush_and_setprio(out, log_none); 
 }
 ostream& emerg_prio(ostream& o){return flush_and_setprio(o, log_emerg); }
 ostream& fatal_prio(ostream& o){return flush_and_setprio(o, log_fatal); }
@@ -525,9 +487,9 @@ ostream& debug_prio(ostream& o){ return flush_and_setprio(o, log_debug); }
 #ifdef USE_REGEX
 #include "regex_posix.h"
 #endif
-#include "debug.cpp"
+#include "w_debug.cpp"
 
-#ifdef W_DEBUG
+#if W_DEBUG_LEVEL > 3
 void dummy() { DBG(<<""); } // to keep gcc quiet about _fname_debug_
 #endif
 

@@ -5,8 +5,11 @@ include $(top_srcdir)/Makefile.generic
 MAINTAINERCLEANFILES = \
 	$(installdir)/include/*.h \
 	$(installdir)/lib/*.a \
-	$(installdir)/bin/* \
-	$(installdir)/doc
-SUBDIRS = src doc config
+	$(installdir)/bin/* 
+
+SUBDIRS = src config 
 DIST_SUBDIRS = tools $(SUBDIRS)
-EXTRA_DIST = bootstrap Makefile.local Makefile.generic COPYRIGHT-NOTICE README ChangeLog
+EXTRA_DIST = bootstrap Makefile.local Makefile.generic COPYRIGHT-NOTICE README ChangeLog Makefile.in gethugepagesize.sh
+
+## no-op to make this for dist
+gethugepagesize.sh: 

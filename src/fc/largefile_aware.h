@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore' incl-file-exclusion='W_BASE_H'>
 
- $Id: largefile_aware.h,v 1.1 2007/05/18 21:58:05 nhall Exp $
+ $Id: largefile_aware.h,v 1.1.2.3 2010/03/19 22:17:16 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -30,29 +30,10 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #ifndef W_LARGEFILE_AWARE_H
 #define W_LARGEFILE_AWARE_H
 
-#if defined(LARGEFILE_AWARE) && defined(SOLARIS2)
-/*
- * Reconfigure stdio defaults to 64 bit variants so we can
- * replay a 64 bit log.  This will go away once we stop using
- * stdio for log replays.
- */
-#define	fopen(f,m)	fopen64(f,m)
-#define	freopen(f,m,s)	freopen64(f,m,s)
-#define	ftell(s)	ftello64(s)
-#define	fseek(s,o,w)	fseeko64(s,o,w)
-
-#elif defined(LARGEFILE_AWARE) && defined(_WIN32)
-
-/* XXX disgusting, + loose bits of fileoff_t when largefile */
-#define	fseek(s,o,w)		fseek(s,(off_t)o,w)
-#else
-
-#if defined(SOLARIS2) && defined(_LARGEFILE_SOURCE)	/* XXX cs install broke */
+#if defined(_LARGEFILE_SOURCE)
 /* Use the ftell variant which returns an off_t instead of a long */
-#define	ftell(s)	ftello(s)
-#define	fseek(s,o,w)	fseeko(s,o,w)
-
-#endif
+#define    ftell(s)    ftello(s)
+#define    fseek(s,o,w)    fseeko(s,o,w)
 #endif
 
 

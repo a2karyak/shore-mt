@@ -1,6 +1,29 @@
+/* -*- mode:C++; c-basic-offset:4 -*-
+     Shore-MT -- Multi-threaded port of the SHORE storage manager
+   
+                       Copyright (c) 2007-2009
+      Data Intensive Applications and Systems Labaratory (DIAS)
+               Ecole Polytechnique Federale de Lausanne
+   
+                         All Rights Reserved.
+   
+   Permission to use, copy, modify and distribute this software and
+   its documentation is hereby granted, provided that both the
+   copyright notice and this permission notice appear in all copies of
+   the software, derivative works or modified versions, and any
+   portions thereof, and that both notices appear in supporting
+   documentation.
+   
+   This code is distributed in the hope that it will be useful, but
+   WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. THE AUTHORS
+   DISCLAIM ANY LIABILITY OF ANY KIND FOR ANY DAMAGES WHATSOEVER
+   RESULTING FROM THE USE OF THIS SOFTWARE.
+*/
+
 /*<std-header orig-src='shore' incl-file-exclusion='STHREAD_STATS_H'>
 
- $Id: sthread_stats.h,v 1.18 1999/06/07 19:06:15 kupsch Exp $
+ $Id: sthread_stats.h,v 1.18.2.3 2010/03/19 22:20:01 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -34,20 +57,36 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 
 /*  -- do not edit anything above this line --   </std-header>*/
 
+#include <w_stat.h>
+
+/**\file sthread_stats.h
+ * \ingroup Macros
+ */
+
+/**\brief A class to hold all the Perl-generated statistics for sthread_t
+ *
+ * This class just clears itself on construction and 
+ * when a client calls its method
+ * \code
+ * void clear();
+ * \endcode
+ *
+ * See \ref STATS.
+ */
 class sthread_stats {
 public:
 #include "sthread_stats_struct_gen.h"
 
     sthread_stats() {
-	    // easier than remembering to add the inits 
-	    // since we're changing the stats a lot
-	    // during development
-	    memset(this,'\0', sizeof(*this));
-	}
+        // easier than remembering to add the inits 
+        // since we're changing the stats a lot
+        // during development
+        memset(this,'\0', sizeof(*this));
+    }
     ~sthread_stats(){ }
 
     void clear() {
-	memset((void *)this, '\0', sizeof(*this));
+        memset((void *)this, '\0', sizeof(*this));
     }
 };
 
@@ -55,11 +94,10 @@ extern ostream &operator<<(ostream &, const sthread_stats &stats);
 
 extern class sthread_stats SthreadStats;
 
-#define STATS SthreadStats
+#    define STH_STATS(x)      SthreadStats.x
+#    define INC_STH_STATS(x) atomic_add(SthreadStats.x, 1);
+#    define SET_STH_STATS(x) SthreadStats.x = (y);
 
-# 	define STH_STATS(x)  	SthreadStats.x
-#	define INC_STH_STATS(x) SthreadStats.x++;
-#	define SET_STH_STATS(x) SthreadStats.x = (y);
 
 /*<std-footer incl-file-exclusion='STHREAD_STATS_H'>  -- do not edit anything below this line -- */
 

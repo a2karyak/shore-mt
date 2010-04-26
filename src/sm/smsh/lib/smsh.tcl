@@ -1,6 +1,6 @@
 # <std-header style='tcl' orig-src='shore'>
 #
-#  $Id: smsh.tcl,v 1.3 2008/05/28 01:26:05 nhall Exp $
+#  $Id: smsh.tcl,v 1.1.2.13 2010/03/25 18:05:27 nhall Exp $
 #
 # SHORE -- Scalable Heterogeneous Object REpository
 #
@@ -38,6 +38,12 @@ set long_form_len 200
 set vlong_form_len 2000
 
 set script_dir ./scripts
+
+proc check_stack args {
+	st checkstack
+	# echo check_stack $args
+}
+
 
 proc assert {x} {
     if {[__assert [uplevel eval $x]] == 0} {
@@ -88,74 +94,77 @@ proc set_config_info {} {
     set config [sm config_info]
 
     foreach i { page_size max_small_rec lg_rec_page_space buffer_pool_size lid_cache_size max_btree_entry_size exts_on_page pages_per_ext object_cc multi_server serial_bits64 preemptive multi_threaded_xct logging } {
-    	set $i [lindex $config [expr {[lsearch $config $i] + 1}] ]
+		set $i [lindex $config [expr {[lsearch $config $i] + 1}] ]
     }
 
-    addcleanupvars {page_size max_small_rec lg_rec_page_space buffer_pool_size lid_cache_size
-				max_btree_entry_size exts_on_page pages_per_ext object_cc
-				multi_server serial_bits64 preemptive multi_threaded_xct logging}
+    addcleanupvars {page_size max_small_rec lg_rec_page_space 
+		buffer_pool_size lid_cache_size
+		max_btree_entry_size exts_on_page pages_per_ext object_cc
+		multi_server serial_bits64 preemptive multi_threaded_xct}
 }
 
 proc _restart { a } {
     global smsh_device_list
     sm restart $a
     foreach i $smsh_device_list {
-	verbose remounting [lindex $i 0]
-	sm mount_dev [lindex $i 0] [lindex $i 2]
+        verbose remounting [lindex $i 0]
+        sm mount_dev [lindex $i 0] [lindex $i 2]
    } 
 }
 proc restart { } {
+    verbose UNCLEAN RESTART
     _restart false
 }
 
 proc cleanrestart { } {
+    verbose CLEAN RESTART
     _restart true
 }
 
 #####################################
 # Lock compatibility table
 #
-set compat(IS,IS) 	1
-set compat(IS,IX) 	1
-set compat(IS,SH) 	1
-set compat(IS,SIX) 	1
-set compat(IS,UD) 	0
-set compat(IS,EX) 	0
+set compat(IS,IS)         1
+set compat(IS,IX)         1
+set compat(IS,SH)         1
+set compat(IS,SIX)         1
+set compat(IS,UD)         0
+set compat(IS,EX)         0
 
-set compat(IX,IS) 	1
-set compat(IX,IX) 	1
-set compat(IX,SH) 	0
-set compat(IX,SIX) 	0
-set compat(IX,UD) 	0
-set compat(IX,EX) 	0
+set compat(IX,IS)         1
+set compat(IX,IX)         1
+set compat(IX,SH)         0
+set compat(IX,SIX)         0
+set compat(IX,UD)         0
+set compat(IX,EX)         0
 
-set compat(SH,IS) 	1
-set compat(SH,IX) 	0
-set compat(SH,SH) 	1
-set compat(SH,SIX) 	0
-set compat(SH,UD) 	1
-set compat(SH,EX) 	0
+set compat(SH,IS)         1
+set compat(SH,IX)         0
+set compat(SH,SH)         1
+set compat(SH,SIX)         0
+set compat(SH,UD)         1
+set compat(SH,EX)         0
 
-set compat(SIX,IS) 	1
-set compat(SIX,IX) 	0
-set compat(SIX,SH) 	0
-set compat(SIX,SIX) 	0
-set compat(SIX,UD) 	0
-set compat(SIX,EX) 	0
+set compat(SIX,IS)         1
+set compat(SIX,IX)         0
+set compat(SIX,SH)         0
+set compat(SIX,SIX)         0
+set compat(SIX,UD)         0
+set compat(SIX,EX)         0
 
-set compat(UD,IS) 	0
-set compat(UD,IX) 	0
-set compat(UD,SH) 	0
-set compat(UD,SIX) 	0
-set compat(UD,UD) 	0
-set compat(UD,EX) 	0
+set compat(UD,IS)         0
+set compat(UD,IX)         0
+set compat(UD,SH)         0
+set compat(UD,SIX)         0
+set compat(UD,UD)         0
+set compat(UD,EX)         0
 
-set compat(EX,IS) 	0
-set compat(EX,IX) 	0
-set compat(EX,SH) 	0
-set compat(EX,SIX) 	0
-set compat(EX,UD) 	0
-set compat(EX,EX) 	0
+set compat(EX,IS)         0
+set compat(EX,IX)         0
+set compat(EX,SH)         0
+set compat(EX,SIX)         0
+set compat(EX,UD)         0
+set compat(EX,EX)         0
 
 ###################################
 # Lock supremum table
@@ -202,75 +211,83 @@ set supremum(EX,SIX)       EX
 set supremum(EX,UD)        EX
 set supremum(EX,EX)        EX
 
-set in_st_trans 0	
+set in_st_trans 0        
 
 
 # proc for printing only the non-zero disk  stats
-proc dstats {volid} {
-    global verbose_flag
+proc get_dstats {volid aud} {
+	set result ""
     set x [sm xct]
     if {$x == 0} {
-	sm begin_xct
+        sm begin_xct
     }
-    if { [catch {sm get_du_statistics $volid nopretty audit} n] != 0} {
-	if {$x == 0} {
-	    sm commit_xct
-	}
-	echo  " got error in get_du_statistics: " $n
-	return 1
-    } else {
-	set l [llength $n]
-	set l [expr $l/2]
-	for {set i 0} { $i <= $l} {incr i} {
-	    set j [expr {$i * 2 + 1}]
-	    if {[lindex $n $j] != 0} {
-		if {$verbose_flag == 1} {
-		    echo [lindex $n [expr {$j-1}]] [lindex $n $j]
-		}
-	    }
-	}
+    if { [catch {sm get_du_statistics $volid nopretty $aud} n] != 0} {
+        echo  " got error in dstats: sm get_du_statistics: " $n
+        set n [sm get_du_statistics $volid nopretty noaudit]
+        # return 1
     }
-    if {$x == 0} {
-	sm commit_xct
-    }
-    return 0
+	# nevertheless, append what stats we find
+        set l [llength $n]
+        set l [expr $l/2]
+        for {set i 0} { $i <= $l} {incr i} {
+            set j [expr {$i * 2 + 1}]
+            if {[lindex $n $j] != 0} {
+				# echo [lindex $n [expr {$j-1}]] [lindex $n $j]
+				append result [lindex $n [expr {$j-1}]] "\t" [lindex $n $j] "\n"
+            }
+        }
+        if {$x == 0} {
+            sm commit_xct
+        }
+    return $result
 }
+
+proc dstats {volid} {
+	verbose [get_dstats $volid audit]
+}
+
 # proc for printing stats w/o auditing
-proc dstatsnoaudit {volid} {
+proc Xget_dstatsnoaudit {volid au} {
+    set result ""
     global verbose_flag
     set x [sm xct]
     if {$x == 0} {
-	verbose dstatsnoaudit starts tx
-	sm begin_xct
+        verbose dstatsnoaudit starts tx
+        sm begin_xct
     }
-    verbose get_du_statts $volid nopretty noaudit
-    set n [sm get_du_statistics $volid nopretty noaudit]
+    verbose get_du_stats $volid nopretty $au
+    set n [sm get_du_statistics $volid nopretty $au]
     set l [llength $n]
     set l [expr $l/2]
     for {set i 0} { $i <= $l} {incr i} {
-	set j [expr {$i * 2 + 1}]
-	if {[lindex $n $j] != 0} {
-	    if {$verbose_flag == 1} {
-		echo [lindex $n [expr {$j-1}]] [lindex $n $j]
-	    }
-	}
+        set j [expr {$i * 2 + 1}]
+        if {[lindex $n $j] != 0} {
+            if {$verbose_flag == 1} {
+                append result [lindex $n [expr {$j-1}]] "\t" [lindex $n $j] "\n"
+            }
+        }
     }
     if {$x == 0} {
-	verbose dstatsnoaudit commits tx [sm xct]
-	sm commit_xct
+        verbose dstatsnoaudit commits tx [sm xct]
+        sm commit_xct
     }
+	return $result
 }
+proc dstatsnoaudit {volid} {
+	verbose [get_dstats $volid noaudit]
+}
+
 # print non-zero xct stats
 proc pxstats { reset } {
     global verbose_flag
     if {$verbose_flag == 1} {
-	set x [sm xct]
-	if {$x == 0} {
-	    echo pxstats: No transaction
-	} else {
-	    set n [sm gather_xct_stats $reset]
-	    pnzstats $n
-	}
+        set x [sm xct]
+        if {$x == 0} {
+            echo pxstats: No transaction
+        } else {
+            set n [sm gather_xct_stats $reset]
+            echo [pnzstats $n]
+        }
     }
 }
 
@@ -281,26 +298,24 @@ proc pnzstats { n } {
     set l [llength $n]
     set l [expr $l/2]
     for {set i 0} { $i <= $l} {incr i} {
-	set j [expr {$i * 2 + 1}]
-	if {[lindex $n $j] != 0} {
-	    append result [lindex $n [expr {$j-1}]] "\t " [lindex $n $j] "\n"
-	}
+        set j [expr {$i * 2 + 1}]
+        if {[lindex $n $j] != 0} {
+            append result [lindex $n [expr {$j-1}]] "\t " [lindex $n $j] "\n"
+        }
     }
     return $result
 }
 
+# echo stats, that is, print them even if !verbose
+proc estats {} {
+	pnzstats [sm gather_stats]
+}
+
+# print stats, iff verbose
 proc pstats {} {
     global verbose_flag
     if {$verbose_flag == 1} {
-	set x [sm xct]
-	if {$x == 0} {
-	    sm begin_xct
-	}
-	set n [sm gather_stats]
-	pnzstats $n
-	if {$x == 0} {
-	    sm commit_xct
-	}
+        pnzstats [sm gather_stats]
     }
 }
 
@@ -309,15 +324,20 @@ proc select_stat {n whichstat} {
     set l [llength $n]
     for {set i 0} { $i <= $l} {incr i} {
         if {[string compare [lindex $n $i] $whichstat] == 0} {
-	    set j [expr {$i + 1}]
+            set j [expr {$i + 1}]
             return [list [lindex $n $i] [lindex $n $j]]
         }
     }
     return [list $whichstat 0]
 }
 
-proc _checkstats {n string} {
-    verbose checking stats ... $string
+proc select_stat_value {n whichstat} {
+	# get name-value pair, pull off 2nd part of the pair
+    set res [lindex [select_stat $n $whichstat] 1]
+}
+
+proc _checkpinstats {n msg} {
+    verbose checking stats ... $msg
     set rec_pin_cnt [lindex [select_stat $n rec_pin_cnt] 1]
     set rec_unpin_cnt [lindex [select_stat $n rec_unpin_cnt] 1]
     set page_fix_cnt [lindex [select_stat $n page_fix_cnt] 1]
@@ -330,36 +350,41 @@ proc _checkstats {n string} {
     assert {expr $page_fix_cnt + $page_refix_cnt <= $page_unfix_cnt}
 }
 
-proc checkstats {string} {
-    set x [sm xct]
-    if {$x == 0} {
-	sm begin_xct
-    }
+proc checkpinstats {msg} {
     set n [sm gather_stats]
-    if {$x == 0} {
-	sm commit_xct
-    }
-    _checkstats $n $string
+    _checkpinstats $n $msg
 }
 
 proc clearstats {} {
-    set x [sm xct]
-    if {$x == 0} {
-	sm begin_xct
-    }
     set n [sm gather_stats reset]
-    if {$x == 0} {
-	sm commit_xct
-    }
-    verbose checking stats ... clearstats
-    _checkstats $n "clearstats"
+
+	# Now let's make sure that the reset worked!
+	set m [sm gather_stats]
+    set yyy [lindex [select_stat $n rec_pin_cnt] 1]
+    set xxx [lindex [select_stat $m rec_pin_cnt] 1]
+	# echo after sm gather_stats reset rec_pin_cnt is $xxx before $yyy
+	# echo BEFORE [pnzstats $n]
+	# echo AFTER [pnzstats $m]
+    assert {expr $xxx == 0}
+
+    verbose checking stats in clearstats
+    _checkpinstats $n "in clearstats"
+
 
     return $n
 }
 
+
+##
+## addcleanupvars: By adding a variable with this proc, cleanup
+## will not complain (GARBAGE:) about this variable.
+## If we deletecleanupvars, the variable will thereafter be
+## flagged.
+##
+
 proc addcleanupvars { theVars } {
 # add the list of variables in the theVars to "ok" variables
-# only add things if variables is set since cleanup will not gripe if it's not
+# only add things if variable is set since cleanup will not gripe if it's not
    global variables
 
    if [is_set variables]  {
@@ -368,7 +393,8 @@ proc addcleanupvars { theVars } {
 }
 
 proc deletecleanupvars { theVars } {
-# delete the list of variables in theVars if they exist in "ok" variables
+# remove the list of variables in theVars from the list
+# of "ok" variable if they exist in that list
    global variables
 
    foreach var $theVars  {
@@ -377,8 +403,8 @@ proc deletecleanupvars { theVars } {
          if { $i != -1 } {
             set variables [lreplace $variables $i $i]
          } else {
-	    break
-	 }
+            break
+         }
       }
    }
 }
@@ -395,42 +421,43 @@ proc cleanup { fileid } {
       return 0
    }
    foreach j [info globals] {
-	set found 0
-	set l [llength $variables]
-	for {set i 0} { $i <= $l} {incr i} {
-	    if {[string compare [lindex $variables $i] $j] == 0} {
-	       set found 1
-	    }
-	}
-	if { $found == 0 } {
-	   puts $fileid [concat GARBAGE: $j]
-	}
+        set found 0
+        set l [llength $variables]
+        for {set i 0} { $i <= $l} {incr i} {
+            if {[string compare [lindex $variables $i] $j] == 0} {
+               set found 1
+            }
+        }
+        if { $found == 0 } {
+           puts $fileid [concat GARBAGE: $j]
+        }
    }
    set v [info globals]
    foreach j $variables {
-	set found 0
-	set l [llength $v]
-	for {set i 0} { $i <= $l} {incr i} {
-	    if {[string compare [lindex $v $i] $j] == 0} {
-	       set found 1
-	    }
-	}
-	if { $found == 0 } {
-	   puts $fileid [concat MISSING OLD: $j]
-	}
+        set found 0
+        set l [llength $v]
+        for {set i 0} { $i <= $l} {incr i} {
+            if {[string compare [lindex $v $i] $j] == 0} {
+               set found 1
+            }
+        }
+        if { $found == 0 } {
+           puts $fileid [concat MISSING OLD: $j]
+        }
    }
   set variables [info globals]
+
   return 0
 }
 
 proc error_is { e y } {
     if {[string compare $e $y] == 0} {
-	return 1
+        return 1
     }
     if {[string length $e] == 0} {
-	if {[string compare $y E_OK] == 0} {
-	    return 1
-	}
+        if {[string compare $y E_OK] == 0} {
+            return 1
+        }
     }
     return 0
 }
@@ -445,45 +472,57 @@ proc get_cc_mode { st } {
     return [ lindex $list 3 ]
 }
 
-set runscripts {}
+set scriptlist {}
 proc runscripts { scr } {
-    global runscripts
-    set save_runscripts([info level]) $runscripts
-    set runscripts $scr
-    namespace eval :: {
-	foreach script $runscripts {
-	    echo
+	echo runscripts $scr level [info level]
+    global scriptlist
+    set save_scriptlist([info level]) $scriptlist
+    set scriptlist $scr
+	echo B: [info level] $scriptlist
+	namespace eval :: {
+		foreach script $scriptlist {
+            echo RUN @ [info level] $script
+		    sm reinit_fingerprints
+            pecho "-->RUNNING @ [info level]: $script_dir/$script" 
+            set save_script([info level])  $script
+			if {1} {
+            set tm [time {source $script_dir/$script} 1]
+            # source $script_dir/$script
 
-	    pecho "-->RUNNING: $script_dir/$script" 
-	    set save_script([info level])  $script
-	    set tm [time {source $script_dir/$script} 1]
-	    # source $script_dir/$script
-	    set script $save_script([info level])
-	    pecho "-->TIME for $script:"  $tm
-	    unset tm
+            set script $save_script([info level])
+            pecho "-->TIME @ [info level] for $script:"  $tm
+            unset tm
 
-	    if {$volid != 0} {
-		sm begin_xct
-		set vms [sm get_volume_meta_stats $volid]
-		sm commit_xct
+            if {$volid != 0} {
+                sm begin_xct
+                set vms [sm get_volume_meta_stats $volid]
+                sm commit_xct
 
-		echo -->VOLUME_META_STATS after $script: $vms
-		unset vms
+                verbose -->VOLUME_META_STATS after $script: $vms
+                unset vms
 
-		set local [sm config_info]
-		echo -->CONFIG INFO after $script: $local
-		unset local
+                set local [sm config_info]
+                verbose -->CONFIG INFO after $script: $local
+                unset local
 
-	    }
+				verbose -->VOLUME $volid AFTER  $script sent to errlog with debug_prio 
+				sm check_volume $volid
+				verbose -->DSTATS $volid AFTER  $script 
+				dstats $volid
+            }
      
-	    #echo MEM_STATS after $script: [sm mem_stats]
+            #echo MEM_STATS after $script: [sm mem_stats]
 
-	    #checkstats  $script
-	    puts stdout [concat -->CLEANUP AFTER  $script  : ]
-	    cleanup stdout
-	}
+            checkpinstats  $script
+            puts stdout [concat -->CLEANUP @ [info level] AFTER  $script  : ]
+            cleanup stdout
+		}
+			unset save_script([info level])
+			unset script
+        }
     }
-    set runscripts $save_runscripts([info level])
+    set scriptlist $save_scriptlist([info level])
+	st checkstack
 }
 
 proc formatlong { prefix mplier fmt x } {
@@ -491,8 +530,8 @@ proc formatlong { prefix mplier fmt x } {
     for {set i 0} { $i <= $mplier } {incr i} {
          set res $prefix$res
     }
+	st checkstack
     return $res
 }
 
-
-
+trace add execution eval enter check_stack

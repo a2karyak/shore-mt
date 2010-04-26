@@ -1,6 +1,6 @@
 # <std-header style='tcl' orig-src='shore'>
 #
-#  $Id: random.perf,v 1.10 2007/05/18 21:49:01 nhall Exp $
+#  $Id: random.perf,v 1.10.2.2 2009/12/03 00:21:13 nhall Exp $
 #
 # SHORE -- Scalable Heterogeneous Object REpository
 #
@@ -53,26 +53,28 @@ set logging 0
 set config [sm config_info]
 
 if {$volid == 0} {
-    foreach i $smsh_device_list {
-	set dev  [lindex $i 0]
-	set size [lindex $i 1]
-	set vol  [lindex $i 2]
+	foreach i $smsh_device_list {
+		set dev  [lindex $i 0]
+		set size [lindex $i 1]
+		set vol  [lindex $i 2]
 
-	sm mount_dev $dev $vol
+		sm mount_dev $dev $vol
 
-	set vol_list [sm list_volumes $dev]
-	if { [llength $vol_list] == 0 } {
-	    set quota [sm get_device_quota $dev]
-	    sm create_vol $dev $vol $size
+		set vol_list [sm list_volumes $dev]
+		if { [llength $vol_list] == 0 } {
+			# set quota [sm get_device_quota $dev]
+			sm create_vol $dev $vol $size
+		}
+
+		# set quota [sm get_device_quota $dev]
+		# set quota [sm get_volume_quota $vol]
+
+		set vol_list [sm list_volumes $dev]
+		assert {[expr [llength $vol_list] == 1]}
+		assert {[expr [string compare [lindex $vol_list 0] $vol.0.0.0:0] == 0]}
+
+		unset vol_list size def vol
 	}
-
-	set quota [sm get_device_quota $dev]
-	set quota [sm get_volume_quota $vol]
-
-	set vol_list [sm list_volumes $dev]
-	assert {[expr [llength $vol_list] == 1]}
-	assert {[expr [string compare [lindex $vol_list 0] $vol.0.0.0:0] == 0]}
-    }
 }
 if {$volid == 0} {
     set volid [lindex [lindex $smsh_device_list 0] 2]
@@ -144,7 +146,7 @@ set commbuf [list $total_msec $total_bytes_written $total_bytes_read]
 # prepare to deal with hot objects
 set hot   [expr $nwrites / 100]
 
-source $script_dir/random.perf.lib
+source $script_dir/random.perf.tcl
 
 
 # these ranges of objects are intended
@@ -265,4 +267,5 @@ unset total_msec
 unset sec
 unset nreadthreads
 unset start
+unset logging
 

@@ -1,6 +1,6 @@
 /*<std-header orig-src='shore'>
 
- $Id: thread1.cpp,v 1.51 2007/05/18 21:52:31 nhall Exp $
+ $Id: thread1.cpp,v 1.51.2.11 2010/03/19 22:20:03 nhall Exp $
 
 SHORE -- Scalable Heterogeneous Object REpository
 
@@ -35,27 +35,28 @@ Rome Research Laboratory Contract No. F30602-97-2-0247.
 #include <cstdlib>
 #include <cassert>
 #include <ctime>
-#include <os_memory.h>
 
 #include <w.h>
-#include <w_statistics.h>
 #include <sthread.h>
 #include <sthread_stats.h>
-
-#include <getopt.h>
-
+#include <w_getopt.h>
 #include <iostream>
 #include <w_strstream.h>
 
 
-#define DefaultNumThreads 2
+#define DefaultNumThreads 8
 
 #define DefaultPongTimes  10000
 #define LocalMsgPongTimes 1000000
 #define RemoteMsgPongTimes 100000
 
-bool	DumpInThreads = false;
+#define OUT { w_ostrstream _out; _out
+#define  FLUSHOUT \
+	fprintf(stdout, "%s", _out.c_str()); \
+	fflush(stdout); \
+    w_reset_strstream(_out); }
 
+bool	DumpInThreads = false;
 
 class worker_thread_t : public sthread_t {
 public:
@@ -70,26 +71,33 @@ private:
 class pong_thread_t;
 
 struct ping_pong_t {
-	smutex_t	theBall;
-	int		whoseShot;
-	scond_t		paddle[2];
+	int		    whoseShot;
+	pthread_mutex_t	theBall;
+	pthread_cond_t paddle[2];
 
 	pong_thread_t	*ping;
 	pong_thread_t	*pong;
 	
-	ping_pong_t() : whoseShot(0), ping(0), pong(0) { }
+	ping_pong_t() : whoseShot(0), ping(0), pong(0) { 
+		DO_PTHREAD(pthread_mutex_init(&theBall, NULL));
+		DO_PTHREAD(pthread_cond_init(&paddle[0], NULL));
+		DO_PTHREAD(pthread_cond_init(&paddle[1], NULL));
+	}
 };
 
 
 class wait_for_t {
-	smutex_t	_lock;
-	scond_t		_done;
+	pthread_mutex_t	_lock;
+	pthread_cond_t	_done;
 
 	int	expected;
 	int	have;
 
 public:
-	wait_for_t(int expecting) : expected(expecting), have(0) { }
+	wait_for_t(int expecting) : expected(expecting), have(0) { 
+		DO_PTHREAD(pthread_mutex_init(&_lock, NULL));
+		DO_PTHREAD(pthread_cond_init(&_done, NULL));
+	}
 	void	wait();
 	void	done();
 };
@@ -149,15 +157,13 @@ int	NumThreads = DefaultNumThreads;
 int	PongTimes = DefaultPongTimes;
 int	SleepTime = 10000;		/* 10 seconds */
 int	PongGames = 1;
-int	StackOverflow = 0;	/* check stack overflow by allocatings
+int	StackOverflow = 0xa00110;	/* check stack overflow by allocatings
 				   this much on the stack */
-bool	ThreadExit = false;	/* exit main via thread package */
 bool	DumpThreads = false;
 bool	TestAssert = false;
 bool	TestFatal = false;
-bool	TestErrorInThread = false;
-bool	verbose = false;
-bool	WorkerThreadExit = true;	/* default is exit via longjmp */
+bool	TestErrorInThread = true;
+bool	verbose = true;
 
 worker_thread_t		**worker;
 int			*ack; 
@@ -184,12 +190,6 @@ int	parse_args(int argc, char **argv)
 			break;
 		case 'o':
 			StackOverflow = atoi(optarg);
-			break;
-		case 'x':
-			ThreadExit = true;
-			break;
-		case 'X':
-			WorkerThreadExit = false;
 			break;
 		case 'd':
 			DumpThreads = true;
@@ -235,6 +235,8 @@ int	parse_args(int argc, char **argv)
 
 void playPong()
 {
+	OUT << "playPong" << endl; FLUSHOUT;
+
 	int	i;
 	stime_t	startTime, endTime;
 	ping_pong_t	*games;
@@ -253,31 +255,40 @@ void playPong()
 		games[i].ping = new pong_thread_t(games[i], 0, imdone);
 		w_assert1(games[i].ping);
 
+		OUT << "forking pong " << i << endl; FLUSHOUT;
 		W_COERCE(games[i].pong->fork());
+		OUT << "forking ping " << i << endl; FLUSHOUT;
 		W_COERCE(games[i].ping->fork());
 	}
 
 	/* and this starts it all :-) */
 	startTime = stime_t::now();
-	imdone.wait();
+	OUT << "waiting " << endl; FLUSHOUT;
+	imdone.wait(); // join
 	endTime = stime_t::now();
+	OUT << "done " << endl; FLUSHOUT;
 
-	cout << "idle_cnt: " << SthreadStats.idle << endl;
-	cout << (sinterval_t)((endTime-startTime) / (PongGames*PongTimes))
+	OUT << (sinterval_t)((endTime-startTime) / (PongGames*PongTimes))
 		<< " per ping." << endl;
+	FLUSHOUT;
+
 
 	for (i = 0; i < PongGames; i++) {
-		W_COERCE(games[i].pong->wait());
-		if (DumpThreads)
-			cout << "Pong Thread Done:" << endl
+		W_COERCE(games[i].pong->join());
+		if (DumpThreads) {
+			OUT << "Pong Thread Done:" << endl
 				<< *games[i].pong << endl;
+			FLUSHOUT;
+		}
 		delete games[i].pong;
 		games[i].pong = 0;
 
-		W_COERCE(games[i].ping->wait());
-		if (DumpThreads)
-			cout << "Ping Thread Done:" << endl
+		W_COERCE(games[i].ping->join());
+		if (DumpThreads) {
+			OUT << "Ping Thread Done:" << endl
 				<< *games[i].ping << endl;
+			FLUSHOUT;
+		}
 		delete games[i].ping;
 		games[i].ping = 0;
 	}
@@ -287,12 +298,14 @@ void playPong()
 void doErrorTests()
 {
 	if (TestAssert) {
-		cout << endl << "** Generating an assertion failure." << endl;
+		OUT << endl << "** Generating an assertion failure." << endl;
+		FLUSHOUT;
 		w_assert1(false);
 	}
 
 	if (TestFatal) {
-		cout << endl << "** Generating a fatal error." << endl;
+		OUT << endl << "** Generating a fatal error." << endl;
+		FLUSHOUT;
 		W_FATAL(fcINTERNAL);
 	}
 }
@@ -316,23 +329,33 @@ int	main(int argc, char* argv[])
     
 	    /* print some stuff */
 	    for(i=0; i<NumThreads; ++i) {
+			OUT << "creating i= " << i << endl; FLUSHOUT;
 		    ack[i] = 0;
 		    worker[i] = new worker_thread_t(i);
 		    w_assert1(worker[i]);
 		    W_COERCE(worker[i]->fork());
+			OUT << "forked i= " << i << endl; FLUSHOUT;
 	    }
 
-#if 0
-	    if (DumpThreads)
-		    sthread_t::dump("dump", cout);
-#endif
+	    if (DumpThreads) {
+			OUT << "";
+		    sthread_t::dumpall("dump", _out);
+			FLUSHOUT;
+		}
+
+		::usleep(2);
     
 	    for(i=0; i<NumThreads; ++i) {
-		    W_COERCE( worker[i]->wait() );
-		    w_assert1(ack[i]);
-		    if (DumpThreads)
-			    cout << "Thread Done:"
+			OUT << "joining i= " << i << endl; FLUSHOUT;
+
+		    W_COERCE( worker[i]->join() );
+		    w_assert0(ack[i]);
+		    if (DumpThreads) {
+			    OUT << "Thread Done:"
 				    <<  endl << *worker[i] << endl;
+				FLUSHOUT;
+			}
+			OUT << "deleting thread i= " << i << endl; FLUSHOUT;
 		    delete worker[i];
 		    worker[i] = 0;
 	    }
@@ -341,73 +364,86 @@ int	main(int argc, char* argv[])
 	    delete [] ack;
     }
 
+	::usleep(2);
+
     if (PongTimes || PongGames)
 	    playPong();
 
+	::usleep(2);
+
     if (SleepTime) {
+		OUT << "SleepTime " << SleepTime << endl; FLUSHOUT;
 	    timer_thread_t* timer_thread = new timer_thread_t;
-	    w_assert1(timer_thread);
+	    w_assert0(timer_thread);
 	    W_COERCE( timer_thread->fork() );
-	    W_COERCE( timer_thread->wait() );
-	    if (DumpThreads)
-		    cout << "Thread Done:" << endl
+		OUT << "Timer thread forked " << endl; FLUSHOUT;
+	    W_COERCE( timer_thread->join() );
+		OUT << "Timer thread joined " << endl; FLUSHOUT;
+	    if (DumpThreads) {
+		    OUT << "Timer Thread Done:" << endl
 			    << *timer_thread << endl;
+			FLUSHOUT;
+		}
 	    delete timer_thread;
     }
 
     if (StackOverflow) {
 	    overflow_thread_t *overflow = new overflow_thread_t;
-	    w_assert1(overflow);
+	    w_assert0(overflow);
+		OUT << "forking overflow_thread_t " << endl; FLUSHOUT;
 	    W_COERCE(overflow->fork());
-	    W_COERCE(overflow->wait());
+	    W_COERCE(overflow->join());
 	    delete overflow;
     }
 
     if (TestAssert || TestFatal) {
-	if (TestErrorInThread) {
-		error_thread_t *error = new error_thread_t;
-		if (!error)
-		W_FATAL(fcOUTOFMEMORY);
-		W_COERCE(error->fork());
-		W_COERCE(error->wait());
-		delete error;
-	}
-	else {
-		cout << "Errors testing in main thread" << endl;
-		doErrorTests();
-	}
+		if (TestErrorInThread) {
+			error_thread_t *error = new error_thread_t;
+			if (!error) {
+				W_FATAL(fcOUTOFMEMORY);
+			}
+			OUT << "forking error_thread_t " << endl; FLUSHOUT;
+			W_COERCE(error->fork());
+			W_COERCE(error->join());
+			delete error;
+		}
+		else {
+			OUT << "Errors testing in main thread" << endl;
+			FLUSHOUT;
+			doErrorTests();
+		}
     }
 
-    if (verbose)
+    if (verbose) {
     	sthread_t::dump_stats(cout);
-
-    if (ThreadExit) 
-	sthread_t::exit();
+	}
 
     return 0;
 }
 
     
 
-worker_thread_t::worker_thread_t(int id)
-    : work_id(id)
+worker_thread_t::worker_thread_t(int _id)
+    : work_id(_id)
 {
     w_ostrstream_buf s(40);		// XXX magic number
-    s << "worker[" << id << "]" << ends;
+    s << "worker[" << _id << "]" << ends;
     rename(s.c_str());
 }
 
 void worker_thread_t::run()
 {
-    cout << "Hello, world from " << work_id << endl;
+    OUT << "Hello, world from " << work_id << endl;
+    if(isStackOK(__FILE__, __LINE__)) {
+		_out << " stack is ok " << work_id << endl;
+    }
+	FLUSHOUT;
+
     ack[work_id] = 1;
 
-    if (DumpInThreads)
-	cout << *this << endl;
-
-    /* test the return-through stack mechanism */
-    if (WorkerThreadExit)
-        sthread_t::end();
+	OUT << *this << endl;
+	_out << "Good-bye, world from " << work_id << endl;
+	FLUSHOUT;
 }
 
 
@@ -428,24 +464,25 @@ void pong_thread_t::run()
     int i;
     int	self = id;
 	
+	{ 
+		CRITICAL_SECTION(cs, game.theBall);
+		for(i=0; i<PongTimes; ++i){
+			while(game.whoseShot != self){
+				DO_PTHREAD(pthread_cond_wait(&game.paddle[self], &game.theBall));
+			}
+			game.whoseShot = 1-self;
+			DO_PTHREAD(pthread_cond_signal(&game.paddle[1-self]));
 
-    W_COERCE( sthread_t::me()->set_use_float(0) );
-    W_COERCE( game.theBall.acquire() );
-    for(i=0; i<PongTimes; ++i){
-	while(game.whoseShot != self){
-	    W_COERCE( game.paddle[self].wait(game.theBall) );
+		}
 	}
-	game.whoseShot = 1-self;
-	game.paddle[1-self].signal();
 
-    }
-    game.theBall.release();
-
-    // cout.form("pong(%#lx) id=%d done\n", (long)this, id);
+    // OUT.form("pong(%#lx) id=%d done\n", (long)this, id);
     note.done();
 
-    if (DumpInThreads)
-	cout << *this << endl;
+    if (DumpInThreads) {
+		OUT << *this << endl;
+		FLUSHOUT;
+	}
 }
 
 
@@ -457,11 +494,15 @@ timer_thread_t::timer_thread_t()
 
 void timer_thread_t::run()
 {
-    W_FORM2(cout,("timeThread going to sleep for %d ms\n", SleepTime));
+	OUT << "timeThread going to sleep ";
+    W_FORM2(_out,("for %d ms\n", SleepTime));
+
     sthread_t::sleep(SleepTime);
-    cout << "timeThread awakened and die" << endl;
-    if (DumpInThreads)
-	cout << *this << endl;
+    _out << "timeThread awakened and die" << endl;
+    if (DumpInThreads) {
+		_out << *this << endl;
+	}
+	FLUSHOUT;
 }
 
 
@@ -474,6 +515,9 @@ void overflow_thread_t::recurse(unsigned overflow, char *sp0, char *last)
 	/* XXX This is supposed to be a huge stack allocation, don't
 	   get rid of it */
 	char	on_stack[overflowFrameSize];
+#ifdef PURIFY
+        memset(on_stack, '\0', overflowFrameSize);
+#endif
 
 	last = last;	/* create variable use so compilers don't complain */
 
@@ -489,12 +533,16 @@ void overflow_thread_t::recurse(unsigned overflow, char *sp0, char *last)
 	if (depth < 0)
 		depth = -depth;
 
-	cout << "Recurse to " << depth << endl << flush;
+	OUT << "Recurse to " << depth << endl << flush;
+	FLUSHOUT;
 
 	if ((unsigned)depth < overflow) {
 		bool	ok = isStackFrameOK(overflowFrameSize);
-		if (!ok)
-			cout << "will_overflow says yeah!" << endl;
+		if (!ok) {
+			OUT << "will_overflow says yeah!" << endl;
+			FLUSHOUT;
+			return;
+		}
 
 		recurse(overflow, sp0, on_stack);
 	}
@@ -523,26 +571,27 @@ void overflow_thread_t::run()
 
 void error_thread_t::run()
 {
-	cout << "Error Testing Thread Running" << endl;
+	OUT << "Error Testing Thread Running" << endl;
+	FLUSHOUT;
 	doErrorTests();
 }
 
 
 void	wait_for_t::wait()
 {
-	W_COERCE(_lock.acquire());
-	while (have < expected)
-		W_COERCE(_done.wait(_lock));
-	_lock.release();
+	CRITICAL_SECTION(cs, _lock);
+	while (have < expected) {
+		DO_PTHREAD(pthread_cond_wait(&_done, &_lock));
+	}
 }
 
 void	wait_for_t::done()
 {
-	W_COERCE(_lock.acquire());
+	CRITICAL_SECTION(cs, _lock);
 	have++;
-	if (have >= expected)
-		_done.signal();
-	_lock.release();
+	if (have >= expected) {
+		DO_PTHREAD(pthread_cond_signal(&_done));
+	}
 }
 
 

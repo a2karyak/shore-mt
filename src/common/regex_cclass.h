@@ -1,6 +1,6 @@
 /*<std-header orig-src='regex' incl-file-exclusion='REGEX_CCLASS_H'>
 
- $Id: regex_cclass.h,v 1.9 1999/06/07 19:02:30 kupsch Exp $
+ $Id: regex_cclass.h,v 1.9.2.3 2010/03/19 22:19:19 nhall Exp $
 
 
 */
@@ -52,34 +52,34 @@ to the following restrictions:
 */
 /* character-class table */
 static struct cclass {
-	const char *name;
-	const char *chars;
-	const char *multis;
+    const char *name;
+    const char *chars;
+    const char *multis;
 } cclasses[] = {
-	{"alnum",	"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz\
-0123456789",				""},
-	{"alpha",	"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz",
-					""},
-	{"blank",	" \t",		""},
-	{"cntrl",	"\007\b\t\n\v\f\r\1\2\3\4\5\6\16\17\20\21\22\23\24\
-\25\26\27\30\31\32\33\34\35\36\37\177",	""},
-	{"digit",	"0123456789",	""},
-	{"graph",	"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz\
+    {"alnum",    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz\
+0123456789",                ""},
+    {"alpha",    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz",
+                    ""},
+    {"blank",    " \t",        ""},
+    {"cntrl",    "\007\b\t\n\v\f\r\1\2\3\4\5\6\16\17\20\21\22\23\24\
+\25\26\27\30\31\32\33\34\35\36\37\177",    ""},
+    {"digit",    "0123456789",    ""},
+    {"graph",    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz\
 0123456789!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~",
-					""},
-	{"lower",	"abcdefghijklmnopqrstuvwxyz",
-					""},
-	{"print",	"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz\
+                    ""},
+    {"lower",    "abcdefghijklmnopqrstuvwxyz",
+                    ""},
+    {"print",    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz\
 0123456789!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~ ",
-					""},
-	{"punct",	"!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~",
-					""},
-	{"space",	"\t\n\v\f\r ",	""},
-	{"upper",	"ABCDEFGHIJKLMNOPQRSTUVWXYZ",
-					""},
-	{"xdigit",	"0123456789ABCDEFabcdef",
-					""},
-	{NULL,		0,		"" }
+                    ""},
+    {"punct",    "!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~",
+                    ""},
+    {"space",    "\t\n\v\f\r ",    ""},
+    {"upper",    "ABCDEFGHIJKLMNOPQRSTUVWXYZ",
+                    ""},
+    {"xdigit",    "0123456789ABCDEFabcdef",
+                    ""},
+    {NULL,        0,        "" }
 };
 
 /*<std-footer incl-file-exclusion='REGEX_CCLASS_H'>  -- do not edit anything below this line -- */
