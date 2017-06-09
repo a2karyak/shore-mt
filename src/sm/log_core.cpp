@@ -2447,7 +2447,7 @@ void print_log_stats() {
 
 static long const ONE = 1l<<32;
 
-log_core::insert_info* log_core::_join_slot(long &idx, long &start, long size) {
+log_core::insert_info* log_core::_join_slot(unsigned long &idx, long &start, long size) {
     w_assert1(size > 0);
  probe_slot:
     idx %= _active_slots;
@@ -2522,7 +2522,7 @@ rc_t log_core::insert(logrec_t &rec, lsn_t* rlsn) {
     
     if(!acquired) {
 	// need to consolidate
-	long idx =  (long)pthread_self();
+	unsigned long idx =  (unsigned long)pthread_self();
 	long old_count;
 	info = _join_slot(idx, old_count, size);
 

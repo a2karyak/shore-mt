@@ -317,7 +317,7 @@ private:
     long _spin_on_count(long volatile* count, long bound); // sm-no-inline.cpp
     
   
-    insert_info* _join_slot(long &idx, long &count, long size);
+    insert_info* _join_slot(unsigned long &idx, long &count, long size);
     void _allocate_slot(long idx);	
   
 public:

@@ -137,8 +137,8 @@ public:
     {
         w_assert1(nkc < (sizeof(kc) / sizeof(kc[0])));
         memcpy(kc, kc_, (unsigned int)(sizeof(key_type_s) * nkc)); 
-        if (nkc < sizeof(kc)) {
-            memset(kc+nkc, 0, sizeof(kc)-nkc);
+        if (nkc < sizeof(kc)/sizeof(kc[0])) {
+            memset(kc+nkc, 0, sizeof(kc)-nkc*sizeof(kc[0]));
         }
     }
 
